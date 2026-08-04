@@ -8,7 +8,7 @@ import type { ReactNode } from 'react';
  */
 export function AuthSplitLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen md:flex">
+    <main className="min-h-screen md:flex">
       <div className="relative flex min-h-[280px] flex-col justify-between overflow-hidden bg-gradient-to-br from-espresso to-ink px-8 py-10 text-cream md:min-h-screen md:w-[42%] md:px-14 md:py-16">
         {/* Barely-there texture, per "the subtle background texture is barely there and better for it" */}
         <div
@@ -45,6 +45,6 @@ export function AuthSplitLayout({ children }: { children: ReactNode }) {
       <div className="flex flex-1 items-center justify-center bg-cream px-6 py-16 md:px-16">
         <div className="w-full max-w-md motion-safe:animate-riseIn">{children}</div>
       </div>
-    </div>
+    </main>
   );
 }

@@ -1,5 +1,27 @@
+import { useEffect, useState } from 'react';
 import { CartesianGrid, ComposedChart, Line, ReferenceArea, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { status as statusTokens, brand, type MarkerStatus } from '@aspire-bloods/shared';
+
+function useReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const onChange = () => setReduced(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return reduced;
+}
+
+const STATUS_LABEL: Record<MarkerStatus, string> = {
+  IN_RANGE: 'in range',
+  HIGH: 'above range',
+  LOW: 'below range',
+  SIGNIFICANT_HIGH: 'significantly above range',
+  SIGNIFICANT_LOW: 'significantly below range',
+};
 
 interface TrendPoint {
   sampleDate: string;
@@ -26,7 +48,14 @@ function CustomDot(props: any) {
   const { cx, cy, payload } = props;
   if (cx == null || cy == null) return null;
   const color = payload.status === 'IN_RANGE' ? brand.bronze : statusTokens[STATUS_MAP[payload.status as MarkerStatus]].hex;
-  return <circle cx={cx} cy={cy} r={5} fill={color} stroke={brand.white} strokeWidth={1.5} />;
+  return (
+    <g>
+      {/* Invisible circle widens the touch/click target well past the visible marker — the
+          visible dot stays small and precise, the tappable area doesn't. */}
+      <circle cx={cx} cy={cy} r={16} fill="transparent" />
+      <circle cx={cx} cy={cy} r={5} fill={color} stroke={brand.white} strokeWidth={1.5} />
+    </g>
+  );
 }
 
 function ChartTooltip({ active, payload }: any) {
@@ -52,6 +81,19 @@ export function TrendChart({ data, crossSourceComparable = true }: { data: Trend
   const domainPad = (Math.max(...allHighs) - Math.min(...allLows) || 1) * 0.3;
   const domainMin = Math.min(...allLows, ...values) - domainPad;
   const domainMax = Math.max(...allHighs, ...values) + domainPad;
+  const reducedMotion = useReducedMotion();
+
+  // Draws once, quickly, the first time this data set appears — then never re-animates, even if
+  // the component re-renders for unrelated reasons (parent state changes, resize, etc). Empty
+  // deps means this timeout is set exactly once per mount. Skipped entirely when there's no line
+  // to draw (cross-source-incomparable data is shown as static disconnected points).
+  const [animate, setAnimate] = useState(crossSourceComparable && !reducedMotion);
+  useEffect(() => {
+    if (reducedMotion || !crossSourceComparable) return;
+    const t = setTimeout(() => setAnimate(false), 700);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Phase 2 §2.4: stepped/segmented reference band — each point's own
   // range is drawn from its position up to the next point, so a range
@@ -64,6 +106,8 @@ export function TrendChart({ data, crossSourceComparable = true }: { data: Trend
     high: point.referenceHigh,
   }));
 
+  const summary = data.map((d) => `${d.sampleDate}: ${d.value}, ${STATUS_LABEL[d.status]}`).join('; ');
+
   return (
     <div>
       {!crossSourceComparable && (
@@ -72,7 +116,11 @@ export function TrendChart({ data, crossSourceComparable = true }: { data: Trend
           rather than one trend line.
         </p>
       )}
-      <div className="h-64 w-full" role="img" aria-label={`Trend chart with ${data.length} result${data.length === 1 ? '' : 's'}, latest value ${data[data.length - 1].value} ${data[data.length - 1].unit ?? ''}`}>
+      <div
+        className="h-64 w-full"
+        role="img"
+        aria-label={`Trend chart for ${data.length} result${data.length === 1 ? '' : 's'}. ${summary}`}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
             <CartesianGrid stroke={brand.taupe} strokeOpacity={0} />
@@ -101,15 +149,20 @@ export function TrendChart({ data, crossSourceComparable = true }: { data: Trend
                 strokeOpacity={0}
               />
             ))}
-            <Tooltip content={<ChartTooltip />} />
+            <Tooltip
+              content={<ChartTooltip />}
+              cursor={{ stroke: brand.taupe, strokeWidth: 1 }}
+            />
             <Line
               type={crossSourceComparable ? 'monotone' : undefined}
               dataKey="value"
               stroke={crossSourceComparable ? brand.bronze : 'transparent'}
               strokeWidth={2}
               dot={<CustomDot />}
-              activeDot={{ r: 6 }}
-              isAnimationActive={false}
+              activeDot={{ r: 7 }}
+              isAnimationActive={animate}
+              animationDuration={600}
+              animationEasing="ease-out"
             />
           </ComposedChart>
         </ResponsiveContainer>

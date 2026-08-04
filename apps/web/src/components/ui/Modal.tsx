@@ -19,6 +19,11 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
     previouslyFocused.current = document.activeElement as HTMLElement;
     dialogRef.current?.focus();
 
+    // Lock background scroll while open — otherwise the page behind scrolls (and, on mobile,
+    // scroll-chains past the dialog) while a modal sits on top of it.
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         onClose();
@@ -44,6 +49,7 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
     document.addEventListener('keydown', onKeyDown);
     return () => {
       document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
       previouslyFocused.current?.focus();
     };
   }, [open, onClose]);
@@ -63,12 +69,12 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className="relative w-full max-w-md rounded-card border border-taupe bg-white p-6 shadow-card outline-none motion-safe:animate-riseIn"
+        className="relative flex max-h-[85vh] w-full max-w-md flex-col rounded-card border border-taupe bg-white p-6 shadow-card outline-none motion-safe:animate-riseIn"
       >
         <h2 id="modal-title" className="font-display text-2xl text-espresso">
           {title}
         </h2>
-        <div className="mt-4 text-sm text-espresso">{children}</div>
+        <div className="scroll-thin mt-4 overflow-y-auto text-sm text-espresso">{children}</div>
         {footer && <div className="mt-6 flex justify-end gap-3">{footer}</div>}
       </div>
     </div>,

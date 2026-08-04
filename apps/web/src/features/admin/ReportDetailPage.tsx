@@ -7,6 +7,7 @@ import { Input } from '../../components/ui/Input';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { Table, TableHead, TableBody, TableRow, TableHeaderCell, TableCell } from '../../components/ui/Table';
 import { StatusBadge } from '../../components/ui/StatusBadge';
+import { CopyButton } from '../../components/ui/CopyButton';
 import { apiFetch, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/AuthContext';
 
@@ -173,7 +174,11 @@ export function ReportDetailPage() {
   return (
     <main className="min-h-screen px-6 py-16 md:px-16 bg-cream">
       <TwoTierHeading eyebrow={`${report.panel.name} — ${patientName}`} title={report.status.replace(/_/g, ' ')} />
-      {report.sourceLabel && <p className="mt-2 text-sm text-espresso/80">{report.sourceLabel}</p>}
+      <p className="mt-2 flex items-center gap-1 text-sm text-espresso/80">
+        {report.patient.email}
+        <CopyButton value={report.patient.email} label="Copy patient email" />
+      </p>
+      {report.sourceLabel && <p className="mt-1 text-sm text-espresso/80">{report.sourceLabel}</p>}
 
       {error && (
         <p role="alert" className="mt-4 text-sm text-status-significantHigh">
@@ -188,7 +193,7 @@ export function ReportDetailPage() {
 
         {user?.role === 'ADMIN' && ['UPLOADED', 'CHANGES_REQUESTED'].includes(report.status) && (
           <Button onClick={handleParse} loading={busy}>
-            {busy ? 'Parsing…' : 'Parse PDF'}
+            Parse PDF
           </Button>
         )}
 
@@ -301,7 +306,7 @@ export function ReportDetailPage() {
             </TableBody>
           </Table>
           <Button onClick={handleVerify} loading={busy} className="mt-6">
-            {busy ? 'Saving…' : 'Save & mark as verified'}
+            Save &amp; mark as verified
           </Button>
         </div>
       )}

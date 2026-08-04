@@ -114,8 +114,10 @@ test('nothing patient-visible until a report is RELEASED', async ({ page, browse
     patientPage.click('button[type=submit]'),
   ]);
   const loginBody = await loginResponse.json();
-  await patientPage.fill('input[name=code]', loginBody.devOtpCode);
-  await patientPage.click('button[type=submit]');
+  // OTP is six auto-advancing single-digit boxes — typing into the first fills the rest, and a
+  // completed code auto-submits (see OtpInput's onComplete), so no separate submit click here.
+  await patientPage.locator('#otp-0').click();
+  await patientPage.keyboard.type(loginBody.devOtpCode);
   await expect(patientPage.getByText('Your results')).toBeVisible({ timeout: 10000 });
 
   // ADMIN_VERIFIED, not yet reviewed or released — patient sees it only as pending

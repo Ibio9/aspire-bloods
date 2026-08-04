@@ -33,7 +33,6 @@ export function SignupPage() {
         <RegistrationForm
           showEmailField
           submitLabel="Create account"
-          submittingLabel="Creating account…"
           onSubmit={async ({ email, password, profile, consents }) => {
             await apiFetch('/auth/signup', {
               method: 'POST',

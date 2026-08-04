@@ -41,7 +41,6 @@ export function ActivatePage() {
 
         <RegistrationForm
           submitLabel="Activate account"
-          submittingLabel="Activating…"
           onSubmit={async ({ password, profile, consents }) => {
             await apiFetch('/auth/activate', {
               method: 'POST',

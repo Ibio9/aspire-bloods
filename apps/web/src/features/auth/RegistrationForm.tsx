@@ -34,16 +34,17 @@ interface RegistrationFormProps {
   /** Signup needs an email field; activation doesn't (the invited email is already fixed). */
   showEmailField?: boolean;
   submitLabel: string;
-  submittingLabel: string;
   onSubmit: (data: { email?: string; password: string; profile: ProfileFormData; consents: ConsentsData }) => Promise<void>;
 }
+
+const required = (fieldLabel: string) => (value: string) => (value.trim() ? undefined : `${fieldLabel} is required.`);
 
 /**
  * Shared by both the admin-invite activation flow and self-service signup
  * — same registration-form field set (brief §1/§2) either way; only how
  * the account gets created differs, which the caller handles via onSubmit.
  */
-export function RegistrationForm({ showEmailField, submitLabel, submittingLabel, onSubmit }: RegistrationFormProps) {
+export function RegistrationForm({ showEmailField, submitLabel, onSubmit }: RegistrationFormProps) {
   const [email, setEmail] = useState('');
   const [form, setForm] = useState({
     title: '',
@@ -120,6 +121,7 @@ export function RegistrationForm({ showEmailField, submitLabel, submittingLabel,
             autoComplete="username"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            validate={(v) => (!v ? 'Email address is required.' : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? undefined : 'Enter a valid email address.')}
           />
         )}
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
@@ -130,11 +132,25 @@ export function RegistrationForm({ showEmailField, submitLabel, submittingLabel,
             className="sm:col-span-1"
             value={form.firstName}
             onChange={(e) => set('firstName', e.target.value)}
+            validate={required('First name')}
           />
-          <Input label="Last name" name="lastName" value={form.lastName} onChange={(e) => set('lastName', e.target.value)} />
+          <Input
+            label="Last name"
+            name="lastName"
+            value={form.lastName}
+            onChange={(e) => set('lastName', e.target.value)}
+            validate={required('Last name')}
+          />
         </div>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          <Input label="Date of birth" name="dob" type="date" value={form.dob} onChange={(e) => set('dob', e.target.value)} />
+          <Input
+            label="Date of birth"
+            name="dob"
+            type="date"
+            value={form.dob}
+            onChange={(e) => set('dob', e.target.value)}
+            validate={required('Date of birth')}
+          />
           <Select label="Sex" name="sex" optional value={form.sex} onChange={(e) => set('sex', e.target.value)}>
             <option value="">Prefer not to say</option>
             <option value="FEMALE">Female</option>
@@ -146,9 +162,22 @@ export function RegistrationForm({ showEmailField, submitLabel, submittingLabel,
           name="contactNumber"
           value={form.contactNumber}
           onChange={(e) => set('contactNumber', e.target.value)}
+          validate={required('Contact number')}
         />
-        <Input label="Home address" name="address" value={form.address} onChange={(e) => set('address', e.target.value)} />
-        <Input label="Postcode" name="postcode" value={form.postcode} onChange={(e) => set('postcode', e.target.value)} />
+        <Input
+          label="Home address"
+          name="address"
+          value={form.address}
+          onChange={(e) => set('address', e.target.value)}
+          validate={required('Home address')}
+        />
+        <Input
+          label="Postcode"
+          name="postcode"
+          value={form.postcode}
+          onChange={(e) => set('postcode', e.target.value)}
+          validate={required('Postcode')}
+        />
       </Card>
 
       <Card className="flex flex-col gap-5">
@@ -210,6 +239,7 @@ export function RegistrationForm({ showEmailField, submitLabel, submittingLabel,
           autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          validate={(v) => (v.length >= 12 ? undefined : 'Password must be at least 12 characters.')}
         />
       </Card>
 
@@ -246,7 +276,7 @@ export function RegistrationForm({ showEmailField, submitLabel, submittingLabel,
       {error && <p className="text-sm text-status-significantHigh">{error}</p>}
 
       <Button type="submit" loading={submitting}>
-        {submitting ? submittingLabel : submitLabel}
+        {submitLabel}
       </Button>
     </form>
   );

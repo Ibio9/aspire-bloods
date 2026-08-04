@@ -20,20 +20,86 @@
 
   /* Bronze-tinted focus ring everywhere, replacing every browser default
      (Chrome/Safari/Firefox native focus rings differ and none use brand
-     colour). outline- meets 3:1 against both cream and white. */
+     colour). outline- meets 3:1 against both cream and white. Deliberately
+     :focus-visible only — mouse/touch clicks never trigger it, keyboard
+     navigation always does. */
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-bronze rounded-sm;
   }
 
   /* Chrome/Edge autofill forces its own yellow/blue background + font via
      an internal UA shadow style that -webkit-text-fill-color and a huge
-     transition-delay box-shadow trick are the only reliable overrides for. */
+     transition-delay box-shadow trick are the only reliable overrides for.
+     Covers textarea too — GP address / medication fields can get autofilled
+     from browser form history same as inputs. */
   input:-webkit-autofill,
   input:-webkit-autofill:hover,
-  input:-webkit-autofill:focus {
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill,
+  textarea:-webkit-autofill:hover,
+  textarea:-webkit-autofill:focus {
     -webkit-text-fill-color: theme('colors.espresso.DEFAULT');
     -webkit-box-shadow: 0 0 0px 1000px theme('colors.white') inset;
+    caret-color: theme('colors.espresso.DEFAULT');
     transition: background-color 9999s ease-in-out 0s;
+  }
+
+  /* Brand-tinted text selection, replacing the OS-default blue. */
+  ::selection {
+    background-color: theme('colors.bronze.200');
+    color: theme('colors.espresso.DEFAULT');
+  }
+
+  /* Tap highlight is a flat grey flash with no relationship to the brand —
+     every element gets a real :active state instead (see Button, Card,
+     Checkbox, Radio), so the browser's own flash is just noise on top. */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Subtle on-brand scrollbar for any element opting into .scroll-thin
+     (Table's horizontal scroll, Modal's vertical overflow) — Firefox via
+     scrollbar-color, WebKit/Blink via the pseudo-elements below. */
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.taupe.DEFAULT') transparent;
+  }
+  .scroll-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scroll-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scroll-thin::-webkit-scrollbar-thumb {
+    background-color: theme('colors.taupe.DEFAULT');
+    border-radius: 999px;
+    border: 2px solid theme('colors.cream.DEFAULT');
+  }
+  .scroll-thin::-webkit-scrollbar-thumb:hover {
+    background-color: theme('colors.bronze.DEFAULT');
+  }
+
+  /* Entrance animations use a delay (staggered lists) — without this,
+     the element renders at its resting (visible) style for the whole
+     delay, then snaps to the keyframe's 0% state and animates back in.
+     backwards fill-mode holds the 0% state through the delay instead. */
+  .stagger-item {
+    animation-fill-mode: backwards;
+  }
+
+  /* prefers-reduced-motion: reduce to instant, not slower — every
+     motion-safe: animation is skipped entirely by that variant already;
+     this belt-and-braces rule catches any transition that isn't. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
@@ -62,5 +128,14 @@
   }
   .input-base:disabled {
     @apply bg-cream/60 text-espresso/40 cursor-not-allowed;
+  }
+
+  /* Off-screen until keyboard-focused, then drops into view above
+     everything else — standard skip-to-content pattern. */
+  .skip-link {
+    @apply fixed left-4 top-4 z-[100] -translate-y-20 rounded-card bg-espresso px-4 py-2.5 text-sm font-medium text-white opacity-0 transition duration-150 ease-out;
+  }
+  .skip-link:focus-visible {
+    @apply translate-y-0 opacity-100 outline-2 outline-offset-2 outline-bronze-300;
   }
 }

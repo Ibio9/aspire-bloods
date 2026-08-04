@@ -74,8 +74,13 @@ export function ReportView() {
       </div>
 
       <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {report.markers.map((m) => (
-          <Link key={m.markerId} to={`/markers/${m.markerId}`} className="motion-safe:animate-riseIn">
+        {report.markers.map((m, i) => (
+          <Link
+            key={m.markerId}
+            to={`/markers/${m.markerId}`}
+            className="stagger-item motion-safe:animate-riseIn rounded-card"
+            style={{ animationDelay: `${i * 30}ms` }}
+          >
             <Card interactive className="h-full">
               <p className="font-medium text-espresso">{m.name}</p>
               <p className="tabular mt-1 text-2xl text-espresso">

@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes } from 'react';
+import { useState, type ChangeEvent, type FocusEvent, type InputHTMLAttributes } from 'react';
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label: string;
@@ -6,6 +6,9 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   optional?: boolean;
   error?: string;
   hint?: string;
+  /** Runs on blur, not on every keystroke — a caught error re-validates on each change after that
+   * so it clears the moment it's fixed, without nagging before the field has even been left. */
+  validate?: (value: string) => string | undefined;
 }
 
 /**
@@ -17,10 +20,22 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
  * fields) instead of the default (required) sidesteps the problem
  * entirely and reads calmer.
  */
-export function Input({ label, optional, error, hint, id, className = '', ...props }: InputProps) {
+export function Input({ label, optional, error, hint, id, className = '', validate, onBlur, onChange, ...props }: InputProps) {
   const fieldId = id ?? props.name;
+  const [blurError, setBlurError] = useState<string | undefined>(undefined);
+  const shownError = error ?? blurError;
   const hintId = hint ? `${fieldId}-hint` : undefined;
-  const errorId = error ? `${fieldId}-error` : undefined;
+  const errorId = shownError ? `${fieldId}-error` : undefined;
+
+  function handleBlur(e: FocusEvent<HTMLInputElement>) {
+    if (validate) setBlurError(validate(e.target.value));
+    onBlur?.(e);
+  }
+
+  function handleChange(e: ChangeEvent<HTMLInputElement>) {
+    if (validate && blurError) setBlurError(validate(e.target.value));
+    onChange?.(e);
+  }
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -36,14 +51,16 @@ export function Input({ label, optional, error, hint, id, className = '', ...pro
       <input
         id={fieldId}
         aria-describedby={[hintId, errorId].filter(Boolean).join(' ') || undefined}
-        aria-invalid={!!error}
-        className={`input-base ${error ? 'border-status-significantHigh' : ''} ${className}`}
+        aria-invalid={!!shownError}
+        className={`input-base ${shownError ? 'border-status-significantHigh' : ''} ${className}`}
         required={!optional}
+        onBlur={validate ? handleBlur : onBlur}
+        onChange={validate ? handleChange : onChange}
         {...props}
       />
-      {error && (
-        <p id={errorId} className="text-sm text-status-significantHigh">
-          {error}
+      {shownError && (
+        <p id={errorId} role="alert" className="text-sm text-status-significantHigh">
+          {shownError}
         </p>
       )}
     </div>

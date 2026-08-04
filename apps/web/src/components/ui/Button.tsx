@@ -1,37 +1,90 @@
-import type { ButtonHTMLAttributes } from 'react';
+import type { ButtonHTMLAttributes, MouseEvent } from 'react';
+import { Tooltip } from './Tooltip';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'ghost' | 'destructive';
   loading?: boolean;
+  /** Shown in a tooltip (and read by screen readers) when disabled — a greyed-out button with no
+   * explanation is a dead end, not a state. */
+  disabledReason?: string;
 }
 
 const VARIANTS = {
-  primary: 'bg-bronze text-white hover:bg-bronze-600 active:bg-bronze-700',
-  secondary: 'bg-transparent text-espresso border border-taupe hover:border-bronze hover:bg-white active:bg-cream-200',
-  ghost: 'bg-transparent text-espresso hover:bg-cream-200 active:bg-cream-300',
-  destructive: 'bg-white text-status-significantHigh border border-status-significantHigh hover:bg-status-significantHigh hover:text-white',
+  primary:
+    'bg-bronze text-white hover:bg-bronze-600 active:bg-bronze-700 active:shadow-[inset_0_1px_4px_rgba(0,0,0,0.3)]',
+  secondary:
+    'bg-transparent text-espresso border border-taupe hover:border-bronze hover:bg-white active:bg-cream-200 active:shadow-[inset_0_1px_3px_rgba(66,60,54,0.15)]',
+  ghost: 'bg-transparent text-espresso hover:bg-cream-200 active:bg-cream-300 active:shadow-[inset_0_1px_3px_rgba(66,60,54,0.15)]',
+  destructive:
+    'bg-white text-status-significantHigh border border-status-significantHigh hover:bg-status-significantHigh hover:text-white active:shadow-[inset_0_1px_3px_rgba(0,0,0,0.2)]',
 };
 
 function Spinner() {
   return (
-    <svg className="motion-safe:animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg className="h-4 w-4 motion-safe:animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
       <path className="opacity-90" d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
     </svg>
   );
 }
 
-/** Pill-shaped, matching the brand benchmark's soft geometry — the rounding is deliberate, not a default. */
-export function Button({ variant = 'primary', loading, disabled, className = '', children, ...props }: ButtonProps) {
-  return (
+/**
+ * Pill-shaped, matching the brand benchmark's soft geometry — the rounding is deliberate, not a default.
+ *
+ * Press feedback is instant going down and eased coming back up: `active:duration-0` overrides the base
+ * transition the moment `:active` applies, so the scale/shadow lands with zero delay; releasing removes
+ * that variant and falls back to the base `duration-150`, easing back out. That asymmetry is what makes
+ * it read as a physical press rather than a laggy toggle.
+ *
+ * Loading state keeps the button's footprint fixed: the label stays mounted (just `invisible`, so it
+ * still occupies layout) and the spinner overlays it absolutely — nothing measures or swaps text, so
+ * there's nothing to cause a width jump.
+ */
+export function Button({
+  variant = 'primary',
+  loading,
+  disabled,
+  disabledReason,
+  className = '',
+  children,
+  onClick,
+  type = 'button',
+  ...props
+}: ButtonProps) {
+  const explainDisabled = !!disabled && !loading && !!disabledReason;
+
+  function handleClick(e: MouseEvent<HTMLButtonElement>) {
+    if (explainDisabled) {
+      e.preventDefault();
+      return;
+    }
+    onClick?.(e);
+  }
+
+  const button = (
     <button
-      className={`inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium transition duration-150 ease-out disabled:opacity-50 disabled:cursor-not-allowed ${VARIANTS[variant]} ${className}`}
-      disabled={disabled || loading}
-      aria-busy={loading}
+      type={type}
+      className={`relative inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium transition duration-150 ease-out active:scale-[0.98] active:duration-0 disabled:cursor-not-allowed disabled:opacity-50 ${
+        explainDisabled ? 'cursor-not-allowed opacity-50' : ''
+      } ${VARIANTS[variant]} ${className}`}
+      disabled={explainDisabled ? undefined : disabled || loading}
+      aria-disabled={explainDisabled ? true : undefined}
+      aria-busy={loading || undefined}
+      onClick={handleClick}
       {...props}
     >
-      {loading && <Spinner />}
-      {children}
+      <span className={loading ? 'invisible' : 'contents'}>{children}</span>
+      {loading && (
+        <span className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
+          <Spinner />
+        </span>
+      )}
     </button>
   );
+
+  if (explainDisabled) {
+    return <Tooltip label={disabledReason}>{button}</Tooltip>;
+  }
+
+  return button;
 }
