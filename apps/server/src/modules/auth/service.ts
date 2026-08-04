@@ -5,6 +5,7 @@ import { encryptField, decryptField } from '../../lib/crypto.js';
 import { generateToken, generateOtpCode, hashToken } from '../../lib/crypto.js';
 import { signAccessToken } from '../../lib/jwt.js';
 import { recordAuditLog } from '../../lib/auditLog.js';
+import { isAdminEmail } from '../../lib/adminAccess.js';
 import { emailProvider, smsProvider, isSmsEnabled } from '../notifications/index.js';
 import type { ActivateAccountRequest, PatientProfileForm, SignupRequest } from '@aspire-bloods/shared';
 import type { Prisma } from '@prisma/client';
@@ -222,6 +223,7 @@ export async function activateAccount(input: ActivateAccountRequest, ip: string 
 interface LoginResult {
   trustedDeviceSkippedOtp: boolean;
   userId?: string;
+  email?: string;
   role?: 'PATIENT' | 'ADMIN' | 'CLINICIAN';
   challengeId?: string;
   devOtpCode?: string;
@@ -259,7 +261,7 @@ export async function login(
         targetId: user.id,
         ipAddress: ip,
       });
-      return { trustedDeviceSkippedOtp: true, userId: user.id, role: user.role };
+      return { trustedDeviceSkippedOtp: true, userId: user.id, email: user.email, role: user.role };
     }
   }
 
@@ -333,7 +335,7 @@ export async function verifyOtp(
 
   const user = await prisma.user.findUniqueOrThrow({ where: { id: otp.userId } });
 
-  const result = await issueSession(user.id, user.role, ip, userAgent);
+  const result = await issueSession(user.id, user.email, user.role, ip, userAgent);
 
   let deviceIdToTrust: string | undefined;
   if (trustDevice) {
@@ -360,11 +362,27 @@ export async function verifyOtp(
 
 async function issueSession(
   userId: string,
+  email: string,
   role: 'PATIENT' | 'ADMIN' | 'CLINICIAN',
   ip: string | null,
   userAgent: string | null,
+  // False for silent token refresh — logging an admin-access grant every
+  // ~15 minutes for an active session would flood the audit log with
+  // noise. True for every path that represents an actual login.
+  logAdminGrantIfApplicable = true,
 ) {
-  const accessToken = signAccessToken({ sub: userId, role });
+  if (logAdminGrantIfApplicable && isAdminEmail(email)) {
+    await recordAuditLog({
+      actorUserId: userId,
+      action: 'ADMIN_ACCESS_GRANTED',
+      targetType: 'User',
+      targetId: userId,
+      ipAddress: ip,
+      metadata: { email },
+    });
+  }
+
+  const accessToken = signAccessToken({ sub: userId, email, role });
   const refreshTokenRaw = generateToken(32);
 
   await prisma.refreshToken.create({
@@ -380,8 +398,14 @@ async function issueSession(
   return { accessToken, refreshTokenRaw };
 }
 
-export async function loginWithTrustedDevice(userId: string, role: 'PATIENT' | 'ADMIN' | 'CLINICIAN', ip: string | null, userAgent: string | null) {
-  return issueSession(userId, role, ip, userAgent);
+export async function loginWithTrustedDevice(
+  userId: string,
+  email: string,
+  role: 'PATIENT' | 'ADMIN' | 'CLINICIAN',
+  ip: string | null,
+  userAgent: string | null,
+) {
+  return issueSession(userId, email, role, ip, userAgent);
 }
 
 export async function refreshSession(refreshTokenRaw: string, ip: string | null, userAgent: string | null) {
@@ -395,7 +419,7 @@ export async function refreshSession(refreshTokenRaw: string, ip: string | null,
     throw new AuthError('Session expired, please log in again', 401);
   }
 
-  const next = await issueSession(user.id, user.role, ip, userAgent);
+  const next = await issueSession(user.id, user.email, user.role, ip, userAgent, false);
   await prisma.refreshToken.update({
     where: { id: existing.id },
     data: { revokedAt: new Date() },

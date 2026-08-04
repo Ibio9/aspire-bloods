@@ -28,7 +28,10 @@ export function PatientHome() {
     <main className="min-h-screen px-6 py-16 md:px-16 bg-cream">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <TwoTierHeading eyebrow="Aspire Clinic — Patient Portal" title="Your results" />
-        <Link to="/account" className="text-sm font-medium text-bronze underline underline-offset-2">
+        <Link
+          to="/account"
+          className="inline-flex items-center py-3 -my-3 text-sm font-medium text-espresso underline decoration-bronze underline-offset-2"
+        >
           Account &amp; privacy
         </Link>
       </div>
@@ -62,7 +65,7 @@ export function PatientHome() {
                     {r.inRangeCount} in range
                     {r.attentionCount ? `, ${r.attentionCount} need${r.attentionCount === 1 ? 's' : ''} attention` : ''}
                   </p>
-                  {r.sourceLabel && <p className="mt-2 text-xs text-espresso/60">{r.sourceLabel}</p>}
+                  {r.sourceLabel && <p className="mt-2 text-xs text-espresso/80">{r.sourceLabel}</p>}
                 </Card>
               </Link>
             ) : (

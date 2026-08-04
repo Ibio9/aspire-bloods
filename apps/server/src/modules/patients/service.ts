@@ -145,6 +145,7 @@ export async function getMarkerTrendForPatient(patientId: string, markerId: stri
       referenceLow: latest.referenceLow,
       referenceHigh: latest.referenceHigh,
       status: latest.status,
+      sourceLabel: latest.sourceLabel,
       gloss: marker.explanation?.whatItIs ?? '',
     },
     trend,

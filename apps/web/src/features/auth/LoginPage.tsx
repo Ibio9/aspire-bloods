@@ -97,7 +97,10 @@ export function LoginPage() {
             </Button>
             <p className="text-center text-sm text-espresso/80">
               New patient?{' '}
-              <Link to="/signup" className="font-medium text-bronze underline underline-offset-2">
+              <Link
+                to="/signup"
+                className="inline-block py-3 -my-3 font-medium text-espresso underline decoration-bronze underline-offset-2"
+              >
                 Create an account
               </Link>
             </p>

@@ -26,10 +26,10 @@ export function Input({ label, optional, error, hint, id, className = '', ...pro
     <div className="flex flex-col gap-1.5">
       <label htmlFor={fieldId} className="text-sm font-medium text-espresso">
         {label}
-        {optional && <span className="font-normal text-espresso/60"> (optional)</span>}
+        {optional && <span className="font-normal text-espresso/80"> (optional)</span>}
       </label>
       {hint && (
-        <p id={hintId} className="text-xs text-espresso/70 -mt-1">
+        <p id={hintId} className="text-xs text-espresso/80 -mt-1">
           {hint}
         </p>
       )}

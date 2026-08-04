@@ -21,6 +21,7 @@
     "lint": "npm run lint --workspace=apps/server && npm run lint --workspace=apps/web"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@playwright/test": "^1.47.0",
     "typescript": "^5.5.4"
   }

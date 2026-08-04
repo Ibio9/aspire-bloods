@@ -21,8 +21,8 @@ export function Tabs({ items, defaultTab }: { items: TabItem[]; defaultTab?: str
               type="button"
               aria-selected={isActive}
               onClick={() => setActive(item.id)}
-              className={`relative px-4 py-2.5 text-sm font-medium transition duration-150 ease-out ${
-                isActive ? 'text-espresso' : 'text-espresso/60 hover:text-espresso'
+              className={`relative px-4 py-3 text-sm font-medium transition duration-150 ease-out ${
+                isActive ? 'text-espresso' : 'text-espresso/80 hover:text-espresso'
               }`}
             >
               {item.label}

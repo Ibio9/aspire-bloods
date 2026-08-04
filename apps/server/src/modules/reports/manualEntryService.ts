@@ -82,7 +82,12 @@ export async function createManualEntryReport(input: {
       panelId: input.panelId,
       sourceId: source.id,
       sampleDate: new Date(input.sampleDate),
-      status: 'UPLOADED',
+      // PARSED, not UPLOADED: there's no document and no parse step here —
+      // the admin's typed data is already in the "ready to verify" shape
+      // that the PDF path only reaches after parseReport(). Starting at
+      // UPLOADED would make verifyReport() reject it (that status means
+      // "not parsed yet", which doesn't apply to manual entry).
+      status: 'PARSED',
       uploadedById: input.enteredById,
     },
   });

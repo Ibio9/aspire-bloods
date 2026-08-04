@@ -52,7 +52,7 @@ function SwatchCard({ name, hex, textOn }: { name: string; hex: string; textOn: 
       <div className="h-16" style={{ backgroundColor: hex }} />
       <div className="p-3">
         <p className="text-sm font-medium text-espresso">{name}</p>
-        <p className="tabular text-xs text-espresso/70">{hex}</p>
+        <p className="tabular text-xs text-espresso/80">{hex}</p>
         <div className="mt-1.5 flex flex-col gap-0.5">
           <ContrastPill ratio={contrastRatio(hex, bg)} min={WCAG_AA_TEXT} />
         </div>
@@ -118,7 +118,7 @@ export function ComponentsShowcase() {
             {STATUS_LIST.map((s) => (
               <div key={s.key} className="rounded-card border border-taupe bg-white p-4">
                 <StatusBadge status={s.key} />
-                <p className="tabular mt-2 text-xs text-espresso/70">{s.hex}</p>
+                <p className="tabular mt-2 text-xs text-espresso/80">{s.hex}</p>
                 <div className="mt-1 flex flex-col gap-0.5">
                   <ContrastPill ratio={contrastRatio(s.hex, brand.cream)} min={WCAG_AA_TEXT} />
                   <ContrastPill ratio={contrastRatio(s.hex, brand.white)} min={WCAG_AA_TEXT} />
@@ -164,7 +164,7 @@ export function ComponentsShowcase() {
             <Button disabled>Disabled</Button>
             <Button loading>Loading</Button>
           </div>
-          <p className="text-xs text-espresso/70">Tab to a button to see the bronze focus-visible ring (not a native outline).</p>
+          <p className="text-xs text-espresso/80">Tab to a button to see the bronze focus-visible ring (not a native outline).</p>
         </Section>
 
         <Section title="Input, Select, Checkbox, Radio">

@@ -14,7 +14,7 @@ export function Select({ label, optional, error, id, className = '', children, .
     <div className="flex flex-col gap-1.5">
       <label htmlFor={fieldId} className="text-sm font-medium text-espresso">
         {label}
-        {optional && <span className="font-normal text-espresso/60"> (optional)</span>}
+        {optional && <span className="font-normal text-espresso/80"> (optional)</span>}
       </label>
       <div className="relative">
         <select

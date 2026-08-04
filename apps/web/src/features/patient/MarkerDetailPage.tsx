@@ -13,21 +13,29 @@ interface TrendPoint {
   reportId: string;
   sampleDate: string;
   value: number;
+  unit: string;
+  converted: boolean;
+  originalValue: number;
+  originalUnit: string;
   status: MarkerStatus;
   referenceLow: number;
   referenceHigh: number;
+  sourceKey: string;
+  sourceLabel: string;
 }
 
 interface MarkerDetail {
   markerId: string;
   name: string;
   unit: string;
+  crossSourceComparable: boolean;
   latest: {
     value: number;
     unit: string;
     referenceLow: number;
     referenceHigh: number;
     status: MarkerStatus;
+    sourceLabel: string;
   };
   trend: TrendPoint[];
   outOfRangeNotice: string | null;
@@ -80,6 +88,7 @@ export function MarkerDetailPage() {
           <div className="mt-2">
             <StatusBadge status={detail.latest.status} />
           </div>
+          <p className="mt-1 text-xs text-espresso/80">{detail.latest.sourceLabel}</p>
           <div className="mt-6">
             <RangeBar
               value={detail.latest.value}
@@ -92,7 +101,7 @@ export function MarkerDetailPage() {
 
         <Card>
           <p className="eyebrow mb-4">Trend over time</p>
-          <TrendChart data={detail.trend} />
+          <TrendChart data={detail.trend} crossSourceComparable={detail.crossSourceComparable} />
         </Card>
       </div>
 

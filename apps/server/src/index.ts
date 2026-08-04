@@ -5,6 +5,7 @@ import cron from 'node-cron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { env } from './config/env.js';
+import { runProductionBootChecks } from './lib/productionBootChecks.js';
 import { prisma } from './db/client.js';
 import { runSessionCleanupJob } from './jobs/sessionCleanup.js';
 import { runRetentionReviewJob } from './jobs/retentionReview.js';
@@ -19,6 +20,8 @@ import { patientsRouter } from './modules/patients/router.js';
 import { contentRouter } from './modules/content/router.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+runProductionBootChecks();
 
 const app = express();
 

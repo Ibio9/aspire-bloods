@@ -48,6 +48,10 @@ const envSchema = z.object({
     .default('false')
     .transform((v) => v === 'true'),
 
+  // Comma-separated list of admin emails — the ONLY way to grant the
+  // ADMIN role (see lib/adminAccess.ts). Required in production.
+  ADMIN_EMAILS: z.string().optional().default(''),
+
   LOGIN_RATE_LIMIT_MAX: z.coerce.number().default(5),
   LOGIN_RATE_LIMIT_WINDOW_MINUTES: z.coerce.number().default(15),
   OTP_RATE_LIMIT_MAX: z.coerce.number().default(5),

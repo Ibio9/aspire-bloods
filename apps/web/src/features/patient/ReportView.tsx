@@ -62,7 +62,7 @@ export function ReportView() {
   return (
     <main className="min-h-screen px-6 py-16 md:px-16 bg-cream">
       <TwoTierHeading eyebrow={`Sample date ${report.sampleDate}`} title={report.panelName} />
-      {report.sourceLabel && <p className="mt-2 text-sm text-espresso/60">{report.sourceLabel}</p>}
+      {report.sourceLabel && <p className="mt-2 text-sm text-espresso/80">{report.sourceLabel}</p>}
 
       <div className="mt-6 flex flex-wrap gap-3">
         <Button variant="secondary" onClick={() => handleDownload('original-pdf-link')}>
@@ -81,7 +81,7 @@ export function ReportView() {
               <p className="tabular mt-1 text-2xl text-espresso">
                 {m.value} <span className="text-sm">{m.unit}</span>
               </p>
-              <p className="tabular text-xs text-espresso/70">
+              <p className="tabular text-xs text-espresso/80">
                 Reference range: {m.referenceLow}–{m.referenceHigh}
               </p>
               <div className="mt-3">

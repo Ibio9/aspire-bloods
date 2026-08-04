@@ -84,7 +84,13 @@ authRouter.post('/login', loginRateLimiter, asyncHandler(async (req, res) => {
     const result = await login(parsed.data.email, parsed.data.password, req.cookies?.device_id, clientIp(req));
 
     if (result.trustedDeviceSkippedOtp) {
-      const session = await loginWithTrustedDevice(result.userId!, result.role!, clientIp(req), req.header('user-agent') ?? null);
+      const session = await loginWithTrustedDevice(
+        result.userId!,
+        result.email!,
+        result.role!,
+        clientIp(req),
+        req.header('user-agent') ?? null,
+      );
       setAccessTokenCookie(res, session.accessToken);
       setRefreshTokenCookie(res, session.refreshTokenRaw);
       setCsrfCookie(res, generateCsrfToken());
@@ -156,7 +162,10 @@ authRouter.get('/me', authGuard, asyncHandler(async (req, res) => {
   res.json({
     id: user.id,
     email: user.email,
-    role: user.role,
+    // req.user.role, not user.role — authGuard already re-derived this
+    // from ADMIN_EMAILS; the raw DB column must never be shown or trusted
+    // directly (see lib/adminAccess.ts).
+    role: req.user!.role,
     displayName: user.patientProfile
       ? `${user.patientProfile.firstName} ${user.patientProfile.lastName}`
       : user.staffProfile

@@ -173,7 +173,7 @@ export function ReportDetailPage() {
   return (
     <main className="min-h-screen px-6 py-16 md:px-16 bg-cream">
       <TwoTierHeading eyebrow={`${report.panel.name} — ${patientName}`} title={report.status.replace(/_/g, ' ')} />
-      {report.sourceLabel && <p className="mt-2 text-sm text-espresso/60">{report.sourceLabel}</p>}
+      {report.sourceLabel && <p className="mt-2 text-sm text-espresso/80">{report.sourceLabel}</p>}
 
       {error && (
         <p role="alert" className="mt-4 text-sm text-status-significantHigh">
@@ -213,7 +213,7 @@ export function ReportDetailPage() {
       {user?.role === 'CLINICIAN' && report.status === 'ADMIN_VERIFIED' && (
         <Card className="mt-6 max-w-xl">
           <label htmlFor="review-note" className="text-sm font-medium text-espresso">
-            Note <span className="font-normal text-espresso/60">(optional, kept in the audit log)</span>
+            Note <span className="font-normal text-espresso/80">(optional, kept in the audit log)</span>
           </label>
           <textarea
             id="review-note"
@@ -316,7 +316,7 @@ export function ReportDetailPage() {
                 <p className="tabular text-lg text-espresso">
                   {r.value} {r.unit}
                 </p>
-                <p className="tabular text-sm text-espresso/70">
+                <p className="tabular text-sm text-espresso/80">
                   Range: {r.referenceRange.low}–{r.referenceRange.high}
                 </p>
                 <div className="mt-1">

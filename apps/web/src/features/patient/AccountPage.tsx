@@ -4,6 +4,7 @@ import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Skeleton } from '../../components/ui/Skeleton';
+import { Modal } from '../../components/ui/Modal';
 import { apiFetch, ApiError } from '../../lib/api';
 
 interface ConsentStatus {
@@ -26,6 +27,8 @@ export function AccountPage() {
   const [consents, setConsents] = useState<ConsentStatus[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [erasureRequested, setErasureRequested] = useState(false);
+  const [confirmingErasure, setConfirmingErasure] = useState(false);
+  const [erasureSubmitting, setErasureSubmitting] = useState(false);
 
   async function load() {
     const data = await apiFetch<ConsentStatus[]>('/patient/me/consents');
@@ -52,11 +55,15 @@ export function AccountPage() {
 
   async function handleErasureRequest() {
     setError(null);
+    setErasureSubmitting(true);
     try {
       await apiFetch('/patient/me/erasure-request', { method: 'POST' });
       setErasureRequested(true);
+      setConfirmingErasure(false);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Something went wrong');
+    } finally {
+      setErasureSubmitting(false);
     }
   }
 
@@ -115,13 +122,35 @@ export function AccountPage() {
                 Your request has been received. Our team will confirm next steps by email.
               </p>
             ) : (
-              <Button variant="destructive" className="mt-4" onClick={handleErasureRequest}>
+              <Button variant="destructive" className="mt-4" onClick={() => setConfirmingErasure(true)}>
                 Request account deletion
               </Button>
             )}
           </Card>
         </div>
       </div>
+
+      <Modal
+        open={confirmingErasure}
+        onClose={() => setConfirmingErasure(false)}
+        title="Request account deletion?"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setConfirmingErasure(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" loading={erasureSubmitting} onClick={handleErasureRequest}>
+              Yes, request deletion
+            </Button>
+          </>
+        }
+      >
+        <p>
+          This starts erasure of your personal details. Clinical results are retained for the period required by
+          law, but your profile and contact details will be removed from our records. This can&apos;t be undone once
+          our team actions it.
+        </p>
+      </Modal>
     </main>
   );
 }
