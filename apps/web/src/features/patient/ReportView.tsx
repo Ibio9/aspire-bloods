@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/Button';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { apiFetch } from '../../lib/api';
+import { API_BASE_URL } from '../../lib/apiBase';
 
 interface MarkerCard {
   markerId: string;
@@ -38,7 +39,7 @@ export function ReportView() {
   async function handleDownload(kind: 'original-pdf-link' | 'summary-pdf-link') {
     if (!id) return;
     const { url } = await apiFetch<{ url: string }>(`/patient/reports/${id}/${kind}`);
-    window.open(url, '_blank');
+    window.open(`${API_BASE_URL}${url}`, '_blank');
   }
 
   if (!report) {

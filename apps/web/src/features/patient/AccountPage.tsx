@@ -8,6 +8,7 @@ import { Modal } from '../../components/ui/Modal';
 import { CopyButton } from '../../components/ui/CopyButton';
 import { useToast } from '../../components/ui/Toast';
 import { apiFetch, ApiError } from '../../lib/api';
+import { API_BASE_URL } from '../../lib/apiBase';
 import { useAuth } from '../../lib/AuthContext';
 
 interface ConsentStatus {
@@ -63,7 +64,7 @@ export function AccountPage() {
   }
 
   function handleExport() {
-    window.open('/api/patient/me/export', '_blank');
+    window.open(`${API_BASE_URL}/api/patient/me/export`, '_blank');
     show('Your data export is downloading.');
   }
 

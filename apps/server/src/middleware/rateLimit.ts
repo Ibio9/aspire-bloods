@@ -1,5 +1,6 @@
 import rateLimit from 'express-rate-limit';
 import { env } from '../config/env.js';
+import { PostgresRateLimitStore } from '../lib/postgresRateLimitStore.js';
 
 export const loginRateLimiter = rateLimit({
   windowMs: env.LOGIN_RATE_LIMIT_WINDOW_MINUTES * 60 * 1000,
@@ -7,6 +8,7 @@ export const loginRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many login attempts. Please try again later.' },
+  store: new PostgresRateLimitStore('login'),
 });
 
 // Deliberately stricter than login — unauthenticated account creation is a
@@ -18,6 +20,7 @@ export const signupRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many signup attempts. Please try again later.' },
+  store: new PostgresRateLimitStore('signup'),
 });
 
 export const otpRateLimiter = rateLimit({
@@ -26,4 +29,5 @@ export const otpRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many verification attempts. Please try again later.' },
+  store: new PostgresRateLimitStore('otp'),
 });

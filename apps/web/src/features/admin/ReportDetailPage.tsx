@@ -9,6 +9,7 @@ import { Table, TableHead, TableBody, TableRow, TableHeaderCell, TableCell } fro
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { CopyButton } from '../../components/ui/CopyButton';
 import { apiFetch, ApiError } from '../../lib/api';
+import { API_BASE_URL } from '../../lib/apiBase';
 import { useAuth } from '../../lib/AuthContext';
 
 interface MarkerOption {
@@ -154,7 +155,7 @@ export function ReportDetailPage() {
   async function handleDownload() {
     if (!id) return;
     const { url } = await apiFetch<{ url: string }>(`/reports/${id}/download-link`);
-    window.open(url, '_blank');
+    window.open(`${API_BASE_URL}${url}`, '_blank');
   }
 
   if (!report) {

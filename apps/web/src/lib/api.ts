@@ -1,3 +1,5 @@
+import { API_BASE_URL } from './apiBase';
+
 function readCookie(name: string): string | null {
   const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
   return match ? decodeURIComponent(match[1]) : null;
@@ -51,7 +53,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
     if (csrfToken) headers.set('X-CSRF-Token', csrfToken);
   }
 
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${API_BASE_URL}/api${path}`, {
     ...options,
     method,
     headers,

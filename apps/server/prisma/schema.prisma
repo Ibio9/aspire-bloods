@@ -476,3 +476,14 @@ model ErasureRequest {
 
   @@index([userId])
 }
+
+// Backs the login/signup/OTP rate limiters with a store that survives
+// restarts and redeploys — the default express-rate-limit store is
+// in-memory and silently resets protection on every Railway deploy.
+model RateLimitHit {
+  key     String   @id
+  count   Int      @default(1)
+  resetAt DateTime
+
+  @@index([resetAt])
+}

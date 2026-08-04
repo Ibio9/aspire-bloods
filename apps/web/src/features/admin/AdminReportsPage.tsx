@@ -7,6 +7,7 @@ import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Tabs } from '../../components/ui/Tabs';
 import { apiFetch, ApiError } from '../../lib/api';
+import { API_BASE_URL } from '../../lib/apiBase';
 
 interface PatientOption {
   id: string;
@@ -81,7 +82,7 @@ function PdfUploadForm({
       formData.append('sampleDate', sampleDate);
       formData.append('file', file);
 
-      const res = await fetch('/api/reports', {
+      const res = await fetch(`${API_BASE_URL}/api/reports`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'X-CSRF-Token': readCsrfCookie() },

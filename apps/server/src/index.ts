@@ -1,15 +1,15 @@
 import 'dotenv/config';
 import express from 'express';
 import cookieParser from 'cookie-parser';
+import cors from 'cors';
 import cron from 'node-cron';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { env } from './config/env.js';
 import { runProductionBootChecks } from './lib/productionBootChecks.js';
 import { prisma } from './db/client.js';
 import { runSessionCleanupJob } from './jobs/sessionCleanup.js';
 import { runRetentionReviewJob } from './jobs/retentionReview.js';
 import { runErasurePurgeJob } from './jobs/erasurePurge.js';
+import { purgeExpiredRateLimitHits } from './lib/postgresRateLimitStore.js';
 import { securityHeaders } from './middleware/securityHeaders.js';
 import { authRouter } from './modules/auth/router.js';
 import { reportsRouter } from './modules/reports/router.js';
@@ -18,8 +18,6 @@ import { adminRouter } from './modules/admin/router.js';
 import { filesRouter } from './modules/storage/filesRouter.js';
 import { patientsRouter } from './modules/patients/router.js';
 import { contentRouter } from './modules/content/router.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 runProductionBootChecks();
 
@@ -30,6 +28,11 @@ if (env.NODE_ENV === 'production') {
   app.set('trust proxy', 1); // Railway sits behind a reverse proxy — needed for correct req.ip and secure cookies
 }
 app.use(securityHeaders);
+// API-only service — the frontend is a separate Vercel deploy on its own
+// origin, so this is a real cross-origin request, not same-site laxness.
+// Locked to the exact configured frontend origin; credentials required
+// since auth relies on httpOnly cookies, not an Authorization header.
+app.use(cors({ origin: env.APP_BASE_URL, credentials: true }));
 app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
 
@@ -50,13 +53,9 @@ app.get('/api/health', async (_req, res) => {
   }
 });
 
-if (env.NODE_ENV === 'production') {
-  const webDist = path.resolve(__dirname, '../../web/dist');
-  app.use(express.static(webDist));
-  app.get('*', (_req, res) => {
-    res.sendFile(path.join(webDist, 'index.html'));
-  });
-}
+app.use((_req, res) => {
+  res.status(404).json({ error: 'Not found' });
+});
 
 // Last-resort error boundary: an uncaught error in any route (sync throw or
 // a rejected promise forwarded via asyncHandler) must return a 500, never
@@ -75,6 +74,9 @@ process.on('unhandledRejection', (reason) => {
 // so one bad run never crashes the scheduler (or the process).
 cron.schedule('*/15 * * * *', () => {
   runSessionCleanupJob().catch((e) => console.error('sessionCleanupJob failed:', e));
+});
+cron.schedule('*/15 * * * *', () => {
+  purgeExpiredRateLimitHits().catch((e) => console.error('rateLimitHit purge failed:', e));
 });
 cron.schedule('0 3 * * *', () => {
   runRetentionReviewJob().catch((e) => console.error('retentionReviewJob failed:', e));
