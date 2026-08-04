@@ -1,0 +1,478 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  PATIENT
+  ADMIN
+  CLINICIAN
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  DISABLED
+}
+
+enum TwoFactorMethod {
+  EMAIL
+  SMS
+}
+
+enum Sex {
+  MALE
+  FEMALE
+  ANY
+}
+
+enum MarkerReviewStatus {
+  DRAFT
+  REVIEWED
+  PUBLISHED
+}
+
+enum ReportStatus {
+  UPLOADED
+  PARSED
+  ADMIN_VERIFIED
+  CHANGES_REQUESTED
+  CLINICIAN_REVIEWED
+  RELEASED
+}
+
+enum MarkerStatus {
+  IN_RANGE
+  HIGH
+  LOW
+  SIGNIFICANT_HIGH
+  SIGNIFICANT_LOW
+}
+
+enum EscalationSeverity {
+  MILD
+  SIGNIFICANT
+}
+
+enum ConsentType {
+  DATA_PROCESSING
+  RESULTS_STORAGE
+  COMMS_EMAIL
+  COMMS_SMS
+}
+
+enum FileKind {
+  RANDOX_PDF
+  ASPIRE_SUMMARY_PDF
+}
+
+enum ActorType {
+  USER
+  SYSTEM
+}
+
+enum ErasureStatus {
+  REQUESTED
+  SCHEDULED
+  COMPLETED
+}
+
+// ---------------------------------------------------------------------------
+// Identity & auth
+// ---------------------------------------------------------------------------
+
+model User {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  passwordHash      String
+  role              UserRole
+  status            UserStatus @default(INVITED)
+  twoFactorMethod   TwoFactorMethod @default(EMAIL)
+  phoneNumberEncrypted String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  patientProfile    PatientProfile?
+  staffProfile      StaffProfile?
+  inviteTokens      InviteToken[]
+  otpCodes          OtpCode[]
+  refreshTokens     RefreshToken[]
+  trustedDevices    TrustedDevice[]
+  consentRecords    ConsentRecord[]
+  erasureRequests   ErasureRequest[]
+  auditLogEntries   AuditLogEntry[] @relation("ActorUser")
+
+  reportsAsPatient  Report[] @relation("PatientReports")
+  reportsUploaded   Report[] @relation("UploadedByStaff")
+  reportsVerified   Report[] @relation("VerifiedByStaff")
+  reportsReviewed   Report[] @relation("ReviewedByStaff")
+}
+
+model PatientProfile {
+  id                              String   @id @default(uuid())
+  userId                          String   @unique
+  user                            User     @relation(fields: [userId], references: [id])
+  title                           String?
+  firstName                       String
+  lastName                        String
+  sex                             Sex?
+  dobEncrypted                    String
+  contactNumberEncrypted          String
+  addressEncrypted                String
+  postcode                        String
+  gpName                          String?
+  gpAddressEncrypted              String?
+  medicationEncrypted              String?
+  allergiesEncrypted              String?
+  emergencyContactName            String?
+  emergencyContactNumberEncrypted String?
+  createdAt                       DateTime @default(now())
+  updatedAt                       DateTime @updatedAt
+}
+
+model StaffProfile {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id])
+  firstName    String
+  lastName     String
+  postNominals String?
+  roleTitle    String?
+  createdAt    DateTime @default(now())
+}
+
+model InviteToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model OtpCode {
+  id          String          @id @default(uuid())
+  userId      String
+  user        User            @relation(fields: [userId], references: [id])
+  codeHash    String
+  channel     TwoFactorMethod
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  attempts    Int             @default(0)
+  createdAt   DateTime        @default(now())
+
+  @@index([userId])
+}
+
+model RefreshToken {
+  id                String    @id @default(uuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id])
+  tokenHash         String    @unique
+  expiresAt         DateTime
+  revokedAt         DateTime?
+  replacedByTokenId String?
+  ipAddress         String?
+  userAgent         String?
+  createdAt         DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model TrustedDevice {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  deviceIdHash String
+  trustedUntil DateTime
+  createdAt    DateTime @default(now())
+
+  @@unique([userId, deviceIdHash])
+}
+
+// ---------------------------------------------------------------------------
+// Consent
+// ---------------------------------------------------------------------------
+
+model ConsentVersion {
+  id            String   @id @default(uuid())
+  type          ConsentType
+  version       Int
+  bodyText      String
+  effectiveFrom DateTime @default(now())
+  records       ConsentRecord[]
+
+  @@unique([type, version])
+}
+
+model ConsentRecord {
+  id               String         @id @default(uuid())
+  userId           String
+  user             User           @relation(fields: [userId], references: [id])
+  consentVersionId String
+  consentVersion   ConsentVersion @relation(fields: [consentVersionId], references: [id])
+  granted          Boolean
+  ipAddress        String
+  createdAt        DateTime       @default(now())
+  withdrawnAt      DateTime?
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Panels, markers, reference ranges, explanation copy — fully data-driven
+// ---------------------------------------------------------------------------
+
+model Panel {
+  id          String        @id @default(uuid())
+  key         String        @unique
+  name        String
+  description String?
+  isActive    Boolean       @default(true)
+  markers     PanelMarker[]
+  reports     Report[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Marker {
+  id                     String             @id @default(uuid())
+  key                    String             @unique
+  name                   String
+  defaultUnit            String
+  severityMultiplier     Float              @default(1.5)
+  severityAbsoluteDelta  Float?
+  // Phase 2 §2.4: whether it's safe to plot this marker's results across
+  // multiple sources on one trend line. Defaults true; set false for a
+  // marker where sources report genuinely incompatible values (no
+  // reliable conversion) — the chart then says so instead of drawing a
+  // misleading line. Also overridden at read-time if a conversion a
+  // series actually needs isn't in the registry (lib/unitConversion.ts),
+  // regardless of this flag — never draw a guess.
+  crossSourceComparable  Boolean            @default(true)
+  panels                 PanelMarker[]
+  referenceRanges        ReferenceRange[]
+  explanation            MarkerExplanation?
+  results                ReportResult[]
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+}
+
+// Phase 2 §2.2: every result set records where it came from. Admin-
+// extensible without a deploy; seeded with randox_pdf, aspire_inhouse,
+// manual_entry. No source may bypass the clinician review gate — that's
+// enforced by the Report state machine itself, not by anything here.
+model Source {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  reports   Report[]
+}
+
+model PanelMarker {
+  id        String @id @default(uuid())
+  panelId   String
+  panel     Panel  @relation(fields: [panelId], references: [id])
+  markerId  String
+  marker    Marker @relation(fields: [markerId], references: [id])
+  sortOrder Int    @default(0)
+  isAddOn   Boolean @default(false)
+
+  @@unique([panelId, markerId])
+  @@index([markerId])
+}
+
+model ReferenceRange {
+  id        String   @id @default(uuid())
+  markerId  String
+  marker    Marker   @relation(fields: [markerId], references: [id])
+  sex       Sex      @default(ANY)
+  ageMin    Int?
+  ageMax    Int?
+  unit      String
+  low       Float
+  high      Float
+  source    String?
+  createdAt DateTime @default(now())
+  results   ReportResult[]
+
+  @@index([markerId])
+}
+
+model MarkerExplanation {
+  id               String             @id @default(uuid())
+  markerId         String             @unique
+  marker           Marker             @relation(fields: [markerId], references: [id])
+  whatItIs         String
+  highMeans        String?
+  lowMeans         String?
+  lifestyleContext String?
+  reviewStatus     MarkerReviewStatus @default(DRAFT)
+  reviewedById     String?
+  reviewedAt       DateTime?
+  version          Int                @default(1)
+  updatedAt        DateTime           @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Reports — the release state machine
+// ---------------------------------------------------------------------------
+
+model Report {
+  id           String       @id @default(uuid())
+  patientId    String
+  patient      User         @relation("PatientReports", fields: [patientId], references: [id])
+  panelId      String
+  panel        Panel        @relation(fields: [panelId], references: [id])
+  sourceId     String
+  source       Source       @relation(fields: [sourceId], references: [id])
+  sampleDate   DateTime
+  receivedDate DateTime     @default(now())
+  status       ReportStatus @default(UPLOADED)
+
+  uploadedById String
+  uploadedBy   User      @relation("UploadedByStaff", fields: [uploadedById], references: [id])
+  verifiedById String?
+  verifiedBy   User?     @relation("VerifiedByStaff", fields: [verifiedById], references: [id])
+  verifiedAt   DateTime?
+  reviewedById String?
+  reviewedBy   User?     @relation("ReviewedByStaff", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime?
+  releasedAt   DateTime?
+
+  originalPdfFileId String?     @unique
+  originalPdfFile   StoredFile? @relation("OriginalPdf", fields: [originalPdfFileId], references: [id])
+  generatedFiles    StoredFile[] @relation("GeneratedFiles")
+
+  results          ReportResult[]
+  escalationEvents EscalationEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([patientId])
+  @@index([panelId])
+  @@index([sourceId])
+}
+
+model ReportResult {
+  id               String         @id @default(uuid())
+  reportId         String
+  report           Report         @relation(fields: [reportId], references: [id])
+  markerId         String
+  marker           Marker         @relation(fields: [markerId], references: [id])
+  valueEncrypted   String
+  unit             String
+  referenceRangeId String
+  referenceRange   ReferenceRange @relation(fields: [referenceRangeId], references: [id])
+  status           MarkerStatus
+  rawParsedValue   String?
+  createdAt        DateTime       @default(now())
+
+  @@unique([reportId, markerId])
+  @@index([markerId])
+}
+
+model StoredFile {
+  id               String   @id @default(uuid())
+  kind             FileKind
+  storageKey       String
+  originalFilename String
+  mimeType         String
+  sizeBytes        Int
+  createdAt        DateTime @default(now())
+
+  originalForReport   Report? @relation("OriginalPdf")
+  generatedForReportId String?
+  generatedForReport   Report? @relation("GeneratedFiles", fields: [generatedForReportId], references: [id])
+
+  @@index([generatedForReportId])
+}
+
+// ---------------------------------------------------------------------------
+// Escalation
+// ---------------------------------------------------------------------------
+
+model EscalationEvent {
+  id               String             @id @default(uuid())
+  reportId         String
+  report           Report             @relation(fields: [reportId], references: [id])
+  severity         EscalationSeverity
+  channelsNotified String[]
+  flaggedMarkerIds String[]
+  createdAt        DateTime           @default(now())
+  acknowledgedAt   DateTime?
+
+  @@index([reportId])
+}
+
+// ---------------------------------------------------------------------------
+// Editable clinical copy (single place for GP-contact prompt, disclaimers)
+// ---------------------------------------------------------------------------
+
+model CopyBlock {
+  id        String   @id @default(uuid())
+  slug      String   @unique
+  body      String
+  version   Int      @default(1)
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Audit log — insert-only
+// ---------------------------------------------------------------------------
+
+model AuditLogEntry {
+  id          String    @id @default(uuid())
+  actorUserId String?
+  actorUser   User?     @relation("ActorUser", fields: [actorUserId], references: [id])
+  actorType   ActorType @default(USER)
+  action      String
+  targetType  String
+  targetId    String?
+  ipAddress   String?
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+
+  @@index([actorUserId])
+  @@index([createdAt])
+  @@index([targetType, targetId])
+}
+
+// ---------------------------------------------------------------------------
+// Retention & erasure
+// ---------------------------------------------------------------------------
+
+model RetentionPolicy {
+  id                  String    @id @default(uuid())
+  dataType            String    @unique
+  retentionPeriodDays Int
+  lastReviewedAt      DateTime?
+  createdAt           DateTime  @default(now())
+}
+
+model ErasureRequest {
+  id               String        @id @default(uuid())
+  userId           String
+  user             User          @relation(fields: [userId], references: [id])
+  status           ErasureStatus @default(REQUESTED)
+  requestedAt      DateTime      @default(now())
+  purgeScheduledAt DateTime?
+  purgedAt         DateTime?
+  notes            String?
+
+  @@index([userId])
+}

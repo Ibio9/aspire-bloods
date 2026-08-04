@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aspire
+      POSTGRES_PASSWORD: aspire_dev_password
+      POSTGRES_DB: aspire_bloods
+    ports:
+      - "5432:5432"
+    volumes:
+      - aspire_bloods_pg_data:/var/lib/postgresql/data
+
+volumes:
+  aspire_bloods_pg_data:

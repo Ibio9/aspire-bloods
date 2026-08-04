@@ -1,0 +1,193 @@
+import { Router } from 'express';
+import multer from 'multer';
+import { z } from 'zod';
+import { verifyReportRequestSchema, manualEntryRequestSchema } from '@aspire-bloods/shared';
+import { authGuard } from '../../middleware/authGuard.js';
+import { roleGuard } from '../../middleware/roleGuard.js';
+import { verifyCsrf } from '../../middleware/csrf.js';
+import { asyncHandler } from '../../lib/asyncHandler.js';
+import { ReportError, uploadReport, parseReport, verifyReport, reviewReport, releaseReport, getReportDetail, listReportsForAdmin } from './service.js';
+import { createManualEntryReport } from './manualEntryService.js';
+import { checkAndEscalate } from '../escalation/service.js';
+import { prisma } from '../../db/client.js';
+import { generateFileToken } from '../../lib/signedUrl.js';
+
+export const reportsRouter = Router();
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype !== 'application/pdf') {
+      return cb(new Error('Only PDF files are accepted'));
+    }
+    cb(null, true);
+  },
+});
+
+const uploadRequestSchema = z.object({
+  patientId: z.string().uuid(),
+  panelId: z.string().uuid(),
+  sourceId: z.string().uuid(),
+  sampleDate: z.string().min(1),
+});
+
+const reviewRequestSchema = z.object({
+  approve: z.boolean(),
+  note: z.string().max(2000).optional(),
+});
+
+function handleReportError(e: unknown, res: import('express').Response) {
+  if (e instanceof ReportError) {
+    res.status(e.status).json({ error: e.message });
+    return true;
+  }
+  return false;
+}
+
+reportsRouter.use(authGuard);
+
+reportsRouter.get(
+  '/',
+  roleGuard('ADMIN', 'CLINICIAN'),
+  asyncHandler(async (_req, res) => {
+    const reports = await listReportsForAdmin();
+    res.json(reports);
+  }),
+);
+
+reportsRouter.post(
+  '/',
+  roleGuard('ADMIN'),
+  verifyCsrf,
+  upload.single('file'),
+  asyncHandler(async (req, res) => {
+    const parsed = uploadRequestSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    if (!req.file) return res.status(400).json({ error: 'A PDF file is required' });
+
+    try {
+      const report = await uploadReport({
+        ...parsed.data,
+        fileBuffer: req.file.buffer,
+        originalFilename: req.file.originalname,
+        mimeType: req.file.mimetype,
+        uploadedById: req.user!.id,
+        ip: req.ip ?? null,
+      });
+      res.status(201).json(report);
+    } catch (e) {
+      if (!handleReportError(e, res)) throw e;
+    }
+  }),
+);
+
+reportsRouter.post(
+  '/manual-entry',
+  roleGuard('ADMIN'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const parsed = manualEntryRequestSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+    try {
+      const result = await createManualEntryReport({
+        ...parsed.data,
+        enteredById: req.user!.id,
+        ip: req.ip ?? null,
+      });
+      if (result.status === 'confirmation_required') {
+        return res.status(200).json(result);
+      }
+      res.status(201).json(result);
+    } catch (e) {
+      if (!handleReportError(e, res)) throw e;
+    }
+  }),
+);
+
+reportsRouter.get(
+  '/:id',
+  roleGuard('ADMIN', 'CLINICIAN'),
+  asyncHandler(async (req, res) => {
+    try {
+      const report = await getReportDetail(req.params.id);
+      res.json(report);
+    } catch (e) {
+      if (!handleReportError(e, res)) throw e;
+    }
+  }),
+);
+
+reportsRouter.get(
+  '/:id/download-link',
+  roleGuard('ADMIN', 'CLINICIAN'),
+  asyncHandler(async (req, res) => {
+    const report = await prisma.report.findUnique({ where: { id: req.params.id } });
+    if (!report?.originalPdfFileId) return res.status(404).json({ error: 'No file on this report' });
+    res.json({ url: `/api/files/download?token=${generateFileToken(report.originalPdfFileId)}` });
+  }),
+);
+
+reportsRouter.post(
+  '/:id/parse',
+  roleGuard('ADMIN'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    try {
+      const result = await parseReport(req.params.id, req.user!.id, req.ip ?? null);
+      res.json(result);
+    } catch (e) {
+      if (!handleReportError(e, res)) throw e;
+    }
+  }),
+);
+
+reportsRouter.post(
+  '/:id/verify',
+  roleGuard('ADMIN'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const parsed = verifyReportRequestSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+    try {
+      await verifyReport(req.params.id, parsed.data, req.user!.id, req.ip ?? null);
+      res.json({ ok: true });
+    } catch (e) {
+      if (!handleReportError(e, res)) throw e;
+    }
+  }),
+);
+
+reportsRouter.post(
+  '/:id/review',
+  roleGuard('CLINICIAN'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const parsed = reviewRequestSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+    try {
+      await reviewReport(req.params.id, parsed.data.approve, parsed.data.note, req.user!.id, req.ip ?? null);
+      res.json({ ok: true });
+    } catch (e) {
+      if (!handleReportError(e, res)) throw e;
+    }
+  }),
+);
+
+reportsRouter.post(
+  '/:id/release',
+  roleGuard('CLINICIAN'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    try {
+      const report = await releaseReport(req.params.id, req.user!.id, req.ip ?? null);
+      await checkAndEscalate(report.id);
+      res.json({ ok: true });
+    } catch (e) {
+      if (!handleReportError(e, res)) throw e;
+    }
+  }),
+);

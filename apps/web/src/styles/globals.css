@@ -1,0 +1,66 @@
+@import '@fontsource/cormorant-garamond/400.css';
+@import '@fontsource/cormorant-garamond/500.css';
+@import '@fontsource/cormorant-garamond/600.css';
+@import '@fontsource/cormorant-garamond/500-italic.css';
+@import '@fontsource/cormorant-garamond/600-italic.css';
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/inter/700.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    @apply bg-cream text-espresso font-body;
+  }
+
+  /* Bronze-tinted focus ring everywhere, replacing every browser default
+     (Chrome/Safari/Firefox native focus rings differ and none use brand
+     colour). outline- meets 3:1 against both cream and white. */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-bronze rounded-sm;
+  }
+
+  /* Chrome/Edge autofill forces its own yellow/blue background + font via
+     an internal UA shadow style that -webkit-text-fill-color and a huge
+     transition-delay box-shadow trick are the only reliable overrides for. */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-text-fill-color: theme('colors.espresso.DEFAULT');
+    -webkit-box-shadow: 0 0 0px 1000px theme('colors.white') inset;
+    transition: background-color 9999s ease-in-out 0s;
+  }
+}
+
+@layer components {
+  .eyebrow {
+    @apply font-eyebrow uppercase tracking-eyebrow text-xs text-espresso;
+  }
+
+  .display-heading {
+    @apply font-display text-4xl md:text-5xl text-espresso;
+  }
+
+  .card {
+    @apply bg-white border border-taupe rounded-card shadow-card;
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .input-base {
+    @apply w-full rounded-card border border-taupe bg-white px-3.5 py-2.5 text-espresso placeholder:text-espresso/40 transition duration-150 ease-out;
+  }
+  .input-base:hover:not(:disabled) {
+    @apply border-bronze/60;
+  }
+  .input-base:disabled {
+    @apply bg-cream/60 text-espresso/40 cursor-not-allowed;
+  }
+}
