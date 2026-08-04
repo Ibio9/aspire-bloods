@@ -12,7 +12,7 @@ If you believe you've found a security issue in this codebase, please contact th
 - **Mandatory 2FA**: every patient login requires a 6-digit OTP (email by default; SMS behind `SMS_ENABLED`, off by default). OTP codes are hashed at rest, single-use, expire after 10 minutes, and are invalidated after 5 incorrect attempts.
 - **"Trust this device"** is capped at 30 days and is a distinct, hashed, per-device token — not a blanket bypass of 2FA.
 - **Sessions**: short-lived access token (JWT, 15 min default) + rotating opaque refresh token (hashed at rest, 30-day default), both httpOnly, `SameSite=Lax`, `Secure` in production. Refresh tokens are single-use — each refresh revokes the old token and issues a new one (rotation), so a stolen refresh token has a narrow window of use before rotation invalidates it.
-- **Rate limiting**: login and OTP-verify endpoints are hard-limited per IP (`express-rate-limit`, configurable via env), independent of the OTP attempt counter above.
+- **Rate limiting**: login, signup, and OTP-verify endpoints are hard-limited per IP (`express-rate-limit`, configurable via env), independent of the OTP attempt counter above. Backed by a Postgres-based store (`lib/postgresRateLimitStore.ts`), not the default in-memory one — the in-memory store loses all limiter state on every process restart, which on Railway means every deploy.
 - **No user enumeration**: login failure responses are identical whether the email doesn't exist or the password is wrong; a dummy Argon2 hash is verified against in the not-found case to keep timing consistent.
 
 ## Authorization
