@@ -1,6 +1,8 @@
 import { prisma } from '../../db/client.js';
 import { decryptField } from '../../lib/crypto.js';
 import { recordAuditLog } from '../../lib/auditLog.js';
+import { sourceLabel } from '../../lib/sourceLabel.js';
+import { convertToDisplayUnit, hasKnownConversion } from '../../lib/unitConversion.js';
 import type { ConsentType } from '@aspire-bloods/shared';
 
 export class PatientAccessError extends Error {
@@ -15,7 +17,7 @@ export class PatientAccessError extends Error {
 export async function listReportsForPatient(patientId: string) {
   const reports = await prisma.report.findMany({
     where: { patientId },
-    include: { panel: true, results: true },
+    include: { panel: true, source: true, results: true },
     orderBy: { sampleDate: 'desc' },
   });
 
@@ -30,6 +32,7 @@ export async function listReportsForPatient(patientId: string) {
       markerCount: released ? r.results.length : undefined,
       inRangeCount: released ? r.results.length - attentionCount : undefined,
       attentionCount: released ? attentionCount : undefined,
+      sourceLabel: released ? sourceLabel(r.source.key, r.source.name) : undefined,
     };
   });
 }
@@ -39,6 +42,7 @@ export async function getReleasedReportForPatient(patientId: string, reportId: s
     where: { id: reportId },
     include: {
       panel: true,
+      source: true,
       results: { include: { marker: { include: { explanation: true } }, referenceRange: true } },
     },
   });
@@ -51,6 +55,7 @@ export async function getReleasedReportForPatient(patientId: string, reportId: s
     reportId: report.id,
     panelName: report.panel.name,
     sampleDate: report.sampleDate.toISOString().slice(0, 10),
+    sourceLabel: sourceLabel(report.source.key, report.source.name),
     markers: report.results.map((r) => ({
       markerId: r.markerId,
       name: r.marker.name,
@@ -70,7 +75,7 @@ export async function getMarkerTrendForPatient(patientId: string, markerId: stri
 
   const results = await prisma.reportResult.findMany({
     where: { markerId, report: { patientId, status: 'RELEASED' } },
-    include: { report: true, referenceRange: true },
+    include: { report: { include: { source: true } }, referenceRange: true },
     orderBy: { report: { sampleDate: 'asc' } },
   });
 
@@ -78,14 +83,46 @@ export async function getMarkerTrendForPatient(patientId: string, markerId: stri
 
   const explanationVisible = marker.explanation && ['REVIEWED', 'PUBLISHED'].includes(marker.explanation.reviewStatus);
 
-  const trend = results.map((r) => ({
-    reportId: r.reportId,
-    sampleDate: r.report.sampleDate.toISOString().slice(0, 10),
-    value: Number(decryptField(r.valueEncrypted)),
-    status: r.status,
-    referenceLow: r.referenceRange.low,
-    referenceHigh: r.referenceRange.high,
-  }));
+  // Phase 2 §2.3/§2.4: normalise to one display unit (the marker's own
+  // default) for plotting, via an explicit, named conversion — never a
+  // silent coercion. Every point keeps its original value/unit alongside
+  // the converted one. If any point can't be converted (no known rule),
+  // the whole series is downgraded to not-comparable rather than mixing
+  // units on one axis.
+  const displayUnit = marker.defaultUnit;
+  let allConvertible = true;
+
+  const trend = results.map((r) => {
+    const rawValue = Number(decryptField(r.valueEncrypted));
+    const valueConversion = convertToDisplayUnit(marker.key, rawValue, r.unit, displayUnit);
+    const rangeConvertible = hasKnownConversion(marker.key, r.referenceRange.unit, displayUnit);
+    if (r.unit !== displayUnit && !valueConversion.converted) allConvertible = false;
+    if (r.referenceRange.unit !== displayUnit && !rangeConvertible) allConvertible = false;
+
+    const lowConversion = convertToDisplayUnit(marker.key, r.referenceRange.low, r.referenceRange.unit, displayUnit);
+    const highConversion = convertToDisplayUnit(marker.key, r.referenceRange.high, r.referenceRange.unit, displayUnit);
+
+    return {
+      reportId: r.reportId,
+      sampleDate: r.report.sampleDate.toISOString().slice(0, 10),
+      value: valueConversion.value,
+      unit: valueConversion.unit,
+      converted: valueConversion.converted,
+      originalValue: valueConversion.originalValue,
+      originalUnit: valueConversion.originalUnit,
+      status: r.status,
+      referenceLow: lowConversion.value,
+      referenceHigh: highConversion.value,
+      sourceKey: r.report.source.key,
+      sourceLabel: sourceLabel(r.report.source.key, r.report.source.name),
+    };
+  });
+
+  // Final flag: the admin/marker-config setting AND actual convertibility
+  // both have to hold. A marker can be flagged comparable in principle but
+  // still fail here if a specific pair of units has no registered rule —
+  // we never draw a line across values we can't honestly relate.
+  const crossSourceComparable = marker.crossSourceComparable && allConvertible;
 
   const latest = trend[trend.length - 1];
 
@@ -98,12 +135,13 @@ export async function getMarkerTrendForPatient(patientId: string, markerId: stri
   return {
     markerId: marker.id,
     name: marker.name,
-    unit: latest.referenceLow !== undefined ? results[results.length - 1].unit : marker.defaultUnit,
+    unit: displayUnit,
+    crossSourceComparable,
     latest: {
       markerId: marker.id,
       name: marker.name,
       value: latest.value,
-      unit: results[results.length - 1].unit,
+      unit: latest.unit,
       referenceLow: latest.referenceLow,
       referenceHigh: latest.referenceHigh,
       status: latest.status,
