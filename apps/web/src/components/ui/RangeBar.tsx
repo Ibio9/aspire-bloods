@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { status as statusTokens, type MarkerStatus } from '@aspire-bloods/shared';
 
 interface RangeBarProps {
@@ -30,19 +31,32 @@ export function RangeBar({ value, low, high, status }: RangeBarProps) {
 
   const dotColor = status === 'IN_RANGE' ? statusTokens.inRange.hex : statusTokens[STATUS_MAP[status]].hex;
 
+  // Sweeps in from the middle of the band to its true position once, on mount — a two-step
+  // render (start position, then true position after a frame) so the browser has something to
+  // transition between. motion-safe: strips the transition entirely under reduced-motion, so it
+  // lands straight at the true position instead of "moving slowly."
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setSettled(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+  const displayLeft = settled ? pointLeft : bandLeft + bandWidth / 2;
+
+  const statusLabel = statusTokens[status === 'IN_RANGE' ? 'inRange' : STATUS_MAP[status]].label;
+
   return (
-    <div className="w-full">
-      <div className="relative h-2 rounded-full bg-cream-300">
+    <div className="w-full" role="img" aria-label={`Result ${value}, reference range ${low} to ${high}, status: ${statusLabel}`}>
+      <div className="relative h-2 rounded-full bg-cream-300" aria-hidden="true">
         <div
           className="absolute h-2 rounded-full bg-taupe"
           style={{ left: `${bandLeft}%`, width: `${bandWidth}%` }}
         />
         <div
-          className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow"
-          style={{ left: `${pointLeft}%`, backgroundColor: dotColor }}
+          className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow motion-safe:transition-[left] motion-safe:duration-500 motion-safe:ease-out"
+          style={{ left: `${displayLeft}%`, backgroundColor: dotColor }}
         />
       </div>
-      <div className="mt-1.5 flex justify-between text-xs tabular text-espresso">
+      <div className="mt-1.5 flex justify-between text-xs tabular text-espresso" aria-hidden="true">
         <span>{low}</span>
         <span>{high}</span>
       </div>

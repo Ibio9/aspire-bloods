@@ -137,7 +137,7 @@ export function AdminReportsPage() {
           </div>
           {error && <p className="text-sm text-status-significantHigh">{error}</p>}
           <Button type="submit" loading={submitting} className="self-start">
-            {submitting ? 'Uploading…' : 'Upload'}
+            Upload
           </Button>
         </form>
       </Card>
@@ -145,8 +145,13 @@ export function AdminReportsPage() {
       <div className="mt-10">
         <p className="eyebrow mb-4">All reports</p>
         <div className="flex flex-col gap-3">
-          {reports.map((r) => (
-            <Link key={r.id} to={`/admin/reports/${r.id}`}>
+          {reports.map((r, i) => (
+            <Link
+              key={r.id}
+              to={`/admin/reports/${r.id}`}
+              className="stagger-item motion-safe:animate-riseIn rounded-card"
+              style={{ animationDelay: `${i * 30}ms` }}
+            >
               <Card interactive className="flex items-center justify-between">
                 <div>
                   <p className="font-medium text-espresso">

@@ -28,7 +28,10 @@ export function PatientHome() {
     <main className="min-h-screen px-6 py-16 md:px-16 bg-cream">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <TwoTierHeading eyebrow="Aspire Clinic — Patient Portal" title="Your results" />
-        <Link to="/account" className="text-sm font-medium text-bronze underline underline-offset-2">
+        <Link
+          to="/account"
+          className="text-sm font-medium text-bronze-600 underline underline-offset-2 transition duration-150 ease-out hover:text-bronze-700"
+        >
           Account &amp; privacy
         </Link>
       </div>
@@ -52,9 +55,14 @@ export function PatientHome() {
         </div>
       ) : (
         <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {reports.map((r) =>
+          {reports.map((r, i) =>
             r.patientStatus === 'RELEASED' ? (
-              <Link key={r.reportId} to={`/reports/${r.reportId}`} className="motion-safe:animate-riseIn">
+              <Link
+                key={r.reportId}
+                to={`/reports/${r.reportId}`}
+                className="stagger-item motion-safe:animate-riseIn rounded-card"
+                style={{ animationDelay: `${i * 30}ms` }}
+              >
                 <Card interactive className="h-full">
                   <p className="eyebrow mb-1">{r.sampleDate}</p>
                   <p className="text-lg font-medium text-espresso">{r.panelName}</p>
@@ -66,7 +74,11 @@ export function PatientHome() {
                 </Card>
               </Link>
             ) : (
-              <Card key={r.reportId} className="h-full motion-safe:animate-riseIn opacity-75">
+              <Card
+                key={r.reportId}
+                className="stagger-item h-full motion-safe:animate-riseIn opacity-75"
+                style={{ animationDelay: `${i * 30}ms` }}
+              >
                 <p className="eyebrow mb-1">{r.sampleDate}</p>
                 <p className="text-lg font-medium text-espresso">{r.panelName}</p>
                 <p className="mt-3 text-sm text-espresso">Results pending — we'll let you know when they're ready.</p>

@@ -7,6 +7,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { RangeBar } from '../../components/ui/RangeBar';
 import { TrendChart } from '../../components/ui/TrendChart';
 import { Skeleton } from '../../components/ui/Skeleton';
+import { CopyButton } from '../../components/ui/CopyButton';
 import { apiFetch } from '../../lib/api';
 
 interface TrendPoint {
@@ -74,8 +75,9 @@ export function MarkerDetailPage() {
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
           <p className="eyebrow mb-4">Latest result</p>
-          <p className="tabular text-4xl text-espresso">
+          <p className="flex items-baseline gap-1 tabular text-4xl text-espresso">
             {detail.latest.value} <span className="text-lg">{detail.latest.unit}</span>
+            <CopyButton value={`${detail.latest.value} ${detail.latest.unit}`} label="Copy result value" className="ml-1" />
           </p>
           <div className="mt-2">
             <StatusBadge status={detail.latest.status} />

@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from 'react';
+import { useCallback, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Input } from '../../components/ui/Input';
+import { OtpInput } from '../../components/ui/OtpInput';
 import { Checkbox } from '../../components/ui/Checkbox';
 import { Button } from '../../components/ui/Button';
 import { apiFetch, ApiError } from '../../lib/api';
@@ -8,6 +9,16 @@ import { useAuth } from '../../lib/AuthContext';
 import { AuthSplitLayout } from './AuthSplitLayout';
 
 type Step = { kind: 'credentials' } | { kind: 'otp'; challengeId: string };
+
+function validateEmail(value: string): string | undefined {
+  if (!value) return 'Email address is required.';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Enter a valid email address.';
+  return undefined;
+}
+
+function validateRequired(value: string): string | undefined {
+  return value ? undefined : 'Password is required.';
+}
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -42,23 +53,30 @@ export function LoginPage() {
     }
   }
 
-  async function handleOtp(e: FormEvent) {
+  const submitOtp = useCallback(
+    async (submittedCode: string) => {
+      if (step.kind !== 'otp' || submitting) return;
+      setError(null);
+      setSubmitting(true);
+      try {
+        await apiFetch('/auth/otp/verify', {
+          method: 'POST',
+          body: JSON.stringify({ challengeId: step.challengeId, code: submittedCode, trustDevice }),
+        });
+        await refresh();
+        navigate('/');
+      } catch (e) {
+        setError(e instanceof ApiError ? e.message : 'Something went wrong');
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [step, submitting, trustDevice, refresh, navigate],
+  );
+
+  function handleOtp(e: FormEvent) {
     e.preventDefault();
-    if (step.kind !== 'otp') return;
-    setError(null);
-    setSubmitting(true);
-    try {
-      await apiFetch('/auth/otp/verify', {
-        method: 'POST',
-        body: JSON.stringify({ challengeId: step.challengeId, code, trustDevice }),
-      });
-      await refresh();
-      navigate('/');
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Something went wrong');
-    } finally {
-      setSubmitting(false);
-    }
+    void submitOtp(code);
   }
 
   return (
@@ -76,6 +94,7 @@ export function LoginPage() {
               name="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              validate={validateEmail}
               autoComplete="username"
               autoFocus
             />
@@ -85,6 +104,7 @@ export function LoginPage() {
               name="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              validate={validateRequired}
               autoComplete="current-password"
             />
             {error && (
@@ -93,11 +113,14 @@ export function LoginPage() {
               </p>
             )}
             <Button type="submit" loading={submitting} className="w-full">
-              {submitting ? 'Signing in…' : 'Sign in'}
+              Sign in
             </Button>
             <p className="text-center text-sm text-espresso/80">
               New patient?{' '}
-              <Link to="/signup" className="font-medium text-bronze underline underline-offset-2">
+              <Link
+                to="/signup"
+                className="font-medium text-bronze-600 underline underline-offset-2 transition duration-150 ease-out hover:text-bronze-700"
+              >
                 Create an account
               </Link>
             </p>
@@ -112,15 +135,17 @@ export function LoginPage() {
           </p>
 
           <form onSubmit={handleOtp} className="mt-8 flex flex-col gap-5" noValidate>
-            <Input
+            <OtpInput
               label="Verification code"
-              name="code"
-              inputMode="numeric"
-              maxLength={6}
               autoFocus
               value={code}
-              onChange={(e) => setCode(e.target.value)}
-              className="tabular text-center text-lg tracking-widest"
+              onChange={(v) => {
+                setError(null);
+                setCode(v);
+              }}
+              onComplete={submitOtp}
+              disabled={submitting}
+              error={!!error}
             />
             <Checkbox
               name="trustDevice"
@@ -134,7 +159,7 @@ export function LoginPage() {
               </p>
             )}
             <Button type="submit" loading={submitting} className="w-full">
-              {submitting ? 'Verifying…' : 'Verify and sign in'}
+              Verify and sign in
             </Button>
           </form>
         </>
