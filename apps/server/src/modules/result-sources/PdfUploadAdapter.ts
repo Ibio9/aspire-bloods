@@ -10,7 +10,7 @@ import { NotImplementedError } from './ResultSourceAdapter.js';
 // the same adapter serves any PDF-based source (Randox or Aspire's own
 // in-house reports) — the admin picks the actual Source at upload time.
 const ROW_PATTERN =
-  /^([A-Za-zµ][A-Za-z0-9µ%()/\-.,'\s]*?)\s+([\d]+\.?\d*)\s*([A-Za-zµ%/^0-9]{0,15})\s*[\[(]?\s*([\d]+\.?\d*)\s*(?:-|–|to)\s*([\d]+\.?\d*)\s*[\])]?\s*$/;
+  /^([A-Za-zµ][A-Za-z0-9µ%()/\-.,'\s]*?)\s+([\d]+\.?\d*)\s*([A-Za-zµ%/^0-9]{0,15})\s*[[(]?\s*([\d]+\.?\d*)\s*(?:-|–|to)\s*([\d]+\.?\d*)\s*[\])]?\s*$/;
 
 const DATE_PATTERNS = [
   /sample\s*date[:\s]+(\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4})/i,
@@ -21,8 +21,8 @@ const DATE_PATTERNS = [
 function parseLooseDate(raw: string): string | null {
   const parts = raw.split(/[/\-.]/).map((p) => p.trim());
   if (parts.length !== 3) return null;
-  let [d, m, y] = parts;
-  if (y.length === 2) y = `20${y}`;
+  const [d, m, yRaw] = parts;
+  const y = yRaw.length === 2 ? `20${yRaw}` : yRaw;
   const iso = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
   return Number.isNaN(Date.parse(iso)) ? null : iso;
 }
