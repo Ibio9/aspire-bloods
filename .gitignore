@@ -11,3 +11,4 @@ test-results/
 storage/
 apps/server/prisma/dev.db
 .turbo/
+.vercel/

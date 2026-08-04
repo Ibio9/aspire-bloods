@@ -51,16 +51,17 @@ SMS is disabled by default (`SMS_ENABLED=false`) — Twilio is wired up but inac
 ## Tests
 
 ```
+npm run typecheck     # tsc, both workspaces
+npm run lint           # eslint, both workspaces
 npm test              # vitest, both workspaces
 npm run test:e2e      # Playwright — auth+2FA and the release-gate
 ```
 
-## Deploying (Railway)
+CI (`.github/workflows/ci.yml`) runs all four on every PR and push to `main`; branch protection requires it to pass before merging — see [DEPLOYMENT.md](DEPLOYMENT.md).
 
-- One Railway web service (this repo's root `package.json` + `engines.node: 20.x` is enough for Railpack to detect it) running `npm run build && npm start`.
-- One Railway Postgres service — set `DATABASE_URL` from it.
-- Set all the other `.env.example` variables as Railway environment variables (never commit real secrets).
-- Run `npx prisma migrate deploy` (not `migrate dev`) against production, then seed data as needed (the seed script's demo patient/staff accounts are for local dev — review before running against production).
+## Deploying
+
+Split topology: `apps/web` deploys to Vercel, `apps/server` + Postgres deploy to Railway, on `bloods.aspireshield.com` / `api.bloods.aspireshield.com`. Full first-time setup, exact dashboard steps, the cookie-domain reasoning, secrets-by-platform table, rollback, DB restore, and the post-deploy smoke checklist are all in **[DEPLOYMENT.md](DEPLOYMENT.md)**.
 
 ## What's a placeholder / not live yet
 

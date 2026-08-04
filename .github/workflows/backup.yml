@@ -1,0 +1,63 @@
+name: Database backup
+
+on:
+  schedule:
+    # 03:15 UTC daily — outside the low-traffic-but-not-zero UK overnight window,
+    # and offset from the minute mark so it isn't fighting other scheduled jobs.
+    - cron: "15 3 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  backup:
+    name: pg_dump to off-platform storage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Dump and compress
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "BACKUP_DATABASE_URL secret is not set — see DEPLOYMENT.md. Failing loudly rather than silently skipping the backup." >&2
+            exit 1
+          fi
+          STAMP=$(date -u +%Y-%m-%dT%H-%M-%SZ)
+          echo "DUMP_FILE=aspire-bloods-${STAMP}.sql.gz" >> "$GITHUB_ENV"
+          pg_dump "$DATABASE_URL" --format=plain --no-owner --no-privileges | gzip -9 > "aspire-bloods-${STAMP}.sql.gz"
+
+      - name: Upload to off-platform storage (S3-compatible)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_ACCESS_KEY }}
+          AWS_EndPoint: ${{ secrets.BACKUP_S3_ENDPOINT }}
+        run: |
+          set -euo pipefail
+          if [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ] || [ -z "${AWS_EndPoint:-}" ]; then
+            echo "BACKUP_S3_* secrets are not set — see DEPLOYMENT.md. Failing loudly rather than silently skipping the upload." >&2
+            exit 1
+          fi
+          pip install --quiet awscli
+          aws s3 cp "$DUMP_FILE" "s3://${{ secrets.BACKUP_S3_BUCKET }}/$DUMP_FILE" --endpoint-url "$AWS_EndPoint"
+          echo "Uploaded $DUMP_FILE"
+
+      - name: Prune backups older than retention period
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_ACCESS_KEY }}
+          AWS_EndPoint: ${{ secrets.BACKUP_S3_ENDPOINT }}
+        run: |
+          set -euo pipefail
+          # 35 days: covers a full billing-cycle-plus-buffer of daily backups without
+          # unbounded storage growth. Adjust alongside the retention note in DEPLOYMENT.md.
+          CUTOFF=$(date -u -d '35 days ago' +%Y-%m-%d)
+          aws s3 ls "s3://${{ secrets.BACKUP_S3_BUCKET }}/" --endpoint-url "$AWS_EndPoint" | while read -r line; do
+            FILE_DATE=$(echo "$line" | awk '{print $1}')
+            FILE_NAME=$(echo "$line" | awk '{print $4}')
+            if [[ -n "$FILE_NAME" && "$FILE_DATE" < "$CUTOFF" ]]; then
+              echo "Deleting expired backup: $FILE_NAME"
+              aws s3 rm "s3://${{ secrets.BACKUP_S3_BUCKET }}/$FILE_NAME" --endpoint-url "$AWS_EndPoint"
+            fi
+          done

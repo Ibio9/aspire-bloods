@@ -34,6 +34,14 @@ function assertDevOtpBypassDisabled(): void {
   }
 }
 
+function assertRealEmailProviderConfigured(): void {
+  if (!env.RESEND_API_KEY) {
+    throw new Error(
+      'Refusing to boot in production: RESEND_API_KEY is not set. Without it, ResendEmailProvider falls back to printing emails — including OTP codes and patient email addresses — to the server console, which would put PII in Railway logs.',
+    );
+  }
+}
+
 /**
  * Phase 4 §4.5: fail loudly at startup, not silently at first request, if
  * production is misconfigured. Called once from index.ts before the
@@ -46,4 +54,5 @@ export function runProductionBootChecks(): void {
   assertAdminEmailsConfigured();
   assertNoPlaceholderSecrets();
   assertDevOtpBypassDisabled();
+  assertRealEmailProviderConfigured();
 }

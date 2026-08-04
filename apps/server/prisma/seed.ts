@@ -308,6 +308,19 @@ async function main() {
     });
   }
 
+  // Dev staff logins + a demo patient — never in production. Admin access
+  // is entirely env-driven (ADMIN_EMAILS, see lib/adminAccess.ts), so
+  // there is no legitimate reason for the seed script to create a
+  // login-ready admin account in production; doing so would mean a
+  // well-known hardcoded password (the SEED_*_PASSWORD override exists,
+  // but the fallback below is public in this repo's history) sitting on
+  // a real account. Skipped outright rather than trusted to be
+  // remembered at seed time.
+  if (process.env.NODE_ENV === 'production') {
+    console.log('NODE_ENV=production — skipping dev staff users and demo patient.');
+    return;
+  }
+
   console.log('Seeding dev staff users...');
   const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? 'DevAdminPass123!';
   const clinicianPassword = process.env.SEED_CLINICIAN_PASSWORD ?? 'DevClinicianPass123!';

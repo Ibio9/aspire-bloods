@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { randomUUID } from 'node:crypto';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
@@ -59,11 +60,15 @@ app.use((_req, res) => {
 
 // Last-resort error boundary: an uncaught error in any route (sync throw or
 // a rejected promise forwarded via asyncHandler) must return a 500, never
-// crash the process and take down every other user's session with it.
-app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('Unhandled request error:', err);
+// crash the process and take down every other user's session with it. The
+// full error (which may include stack traces, SQL, or file paths) goes only
+// to the server log, keyed by a correlation ID the client can quote back —
+// the response body itself never carries that detail.
+app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const correlationId = randomUUID();
+  console.error(`[${correlationId}] Unhandled error on ${req.method} ${req.path}:`, err);
   if (res.headersSent) return;
-  res.status(500).json({ error: 'Something went wrong. Please try again.' });
+  res.status(500).json({ error: 'Something went wrong. Please try again.', correlationId });
 });
 
 process.on('unhandledRejection', (reason) => {
