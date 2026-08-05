@@ -7,6 +7,7 @@ interface CurrentUser {
   email: string;
   role: UserRole;
   displayName: string;
+  hasPatientProfile: boolean;
 }
 
 interface AuthContextValue {

@@ -1,5 +1,5 @@
 import { useCallback, useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Input } from '../../components/ui/Input';
 import { OtpInput } from '../../components/ui/OtpInput';
 import { Checkbox } from '../../components/ui/Checkbox';
@@ -115,15 +115,6 @@ export function LoginPage() {
             <Button type="submit" loading={submitting} className="w-full">
               Sign in
             </Button>
-            <p className="text-center text-sm text-espresso/80">
-              New patient?{' '}
-              <Link
-                to="/signup"
-                className="inline-block py-3 -my-3 font-medium text-bronze-600 underline underline-offset-2 transition duration-150 ease-out hover:text-bronze-700"
-              >
-                Create an account
-              </Link>
-            </p>
           </form>
         </>
       ) : (

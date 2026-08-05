@@ -56,6 +56,11 @@ const envSchema = z.object({
   LOGIN_RATE_LIMIT_WINDOW_MINUTES: z.coerce.number().default(15),
   OTP_RATE_LIMIT_MAX: z.coerce.number().default(5),
   OTP_RATE_LIMIT_WINDOW_MINUTES: z.coerce.number().default(15),
+  // Registration is now admin-only (see modules/auth/service.ts signup()) —
+  // deliberately stricter and a longer window than login, since legitimate
+  // volume is a handful of practice staff, ever.
+  SIGNUP_RATE_LIMIT_MAX: z.coerce.number().default(5),
+  SIGNUP_RATE_LIMIT_WINDOW_MINUTES: z.coerce.number().default(60),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -42,6 +42,26 @@ function assertRealEmailProviderConfigured(): void {
   }
 }
 
+function assertValidCookieDomain(): void {
+  if (env.COOKIE_DOMAIN === 'localhost') {
+    throw new Error(
+      'Refusing to boot in production: COOKIE_DOMAIN is still "localhost" (the dev default). Set it to the real parent domain, e.g. blood.aspireshield.com — see DEPLOYMENT.md.',
+    );
+  }
+  if (env.COOKIE_DOMAIN.startsWith('.')) {
+    // RFC 6265 domain-matching already covers all subdomains without a
+    // leading dot — that syntax is a pre-RFC-6265 (Netscape-era) artefact,
+    // and at least one cookie-serialising library in this app's dependency
+    // tree rejects it outright ("option domain is invalid"), which
+    // surfaced as a 500 on every successful login/OTP-verify (the first
+    // point a session cookie actually gets set). Reject it here instead of
+    // letting it crash the first real request.
+    throw new Error(
+      `Refusing to boot in production: COOKIE_DOMAIN ("${env.COOKIE_DOMAIN}") starts with a leading dot. Remove it — e.g. "blood.aspireshield.com", not ".blood.aspireshield.com". The leading dot is unnecessary (RFC 6265 domain-matching already includes subdomains) and at least one cookie library in use rejects it outright.`,
+    );
+  }
+}
+
 /**
  * Phase 4 §4.5: fail loudly at startup, not silently at first request, if
  * production is misconfigured. Called once from index.ts before the
@@ -55,4 +75,5 @@ export function runProductionBootChecks(): void {
   assertNoPlaceholderSecrets();
   assertDevOtpBypassDisabled();
   assertRealEmailProviderConfigured();
+  assertValidCookieDomain();
 }

@@ -68,8 +68,13 @@ authRouter.post('/signup', signupRateLimiter, asyncHandler(async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
   try {
+    // Same shape as /login's otp_required response — registration and
+    // first-login are one fused flow, verified through the same
+    // /auth/otp/verify endpoint. There is no other success response: 2FA
+    // enrolment isn't a separate optional step, it's the only way this
+    // call can end in anything other than a rejection.
     const result = await signup(parsed.data, clientIp(req));
-    res.status(201).json(result);
+    res.json({ status: 'otp_required', challengeId: result.challengeId, devOtpCode: result.devOtpCode });
   } catch (e) {
     if (e instanceof AuthError) return res.status(e.status).json({ error: e.message });
     throw e;
@@ -171,5 +176,9 @@ authRouter.get('/me', authGuard, asyncHandler(async (req, res) => {
       : user.staffProfile
         ? `${user.staffProfile.firstName} ${user.staffProfile.lastName}`
         : user.email,
+    // Self-registered admins are patient-shaped accounts underneath (see
+    // auth/service.ts signup()) — this is what lets the frontend show
+    // "my results" alongside the admin console on the same account.
+    hasPatientProfile: !!user.patientProfile,
   });
 }));

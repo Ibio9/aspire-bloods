@@ -11,15 +11,15 @@ export const loginRateLimiter = rateLimit({
   store: new PostgresRateLimitStore('login'),
 });
 
-// Deliberately stricter than login — unauthenticated account creation is a
-// more consequential action to let someone brute-force/script than a login
-// attempt against an existing account.
+// Registration is admin-only (ADMIN_EMAILS-gated, see auth/service.ts) —
+// hard-limited on a longer window than login, since legitimate volume is a
+// handful of practice staff registering once, ever.
 export const signupRateLimiter = rateLimit({
-  windowMs: env.LOGIN_RATE_LIMIT_WINDOW_MINUTES * 60 * 1000,
-  max: Math.min(env.LOGIN_RATE_LIMIT_MAX, 5),
+  windowMs: env.SIGNUP_RATE_LIMIT_WINDOW_MINUTES * 60 * 1000,
+  max: env.SIGNUP_RATE_LIMIT_MAX,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many signup attempts. Please try again later.' },
+  message: { error: 'Too many attempts. Please try again later.' },
   store: new PostgresRateLimitStore('signup'),
 });
 

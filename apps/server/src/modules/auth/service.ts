@@ -143,17 +143,36 @@ async function createProfileAndConsents(
 }
 
 /**
- * Self-service signup. Coexists with the admin-invite flow rather than
- * replacing it — the account is created ACTIVE immediately, but mandatory
- * 2FA on first login (OTP emailed to the address just entered) is the
- * real ownership check: someone who doesn't control that inbox can never
- * actually complete a login, so a separate "verify your email" step would
- * be redundant with infrastructure that already exists.
+ * Self-registration — admin-only. ADMIN_EMAILS is the sole source of the
+ * ADMIN role (see lib/adminAccess.ts); this is not a second way to grant
+ * it, it's the ONLY way an ADMIN_EMAILS address ever gets a working
+ * account, since there is deliberately no "make user an admin" button
+ * anywhere. Patients still arrive by invite only — self-service signup for
+ * patients was removed.
+ *
+ * Every rejection reason (email not on the admin list, account already
+ * exists, ...) returns the exact same generic error — this must never leak
+ * whether a given address is on ADMIN_EMAILS.
+ *
+ * The account is created ACTIVE, but — unlike the old patient signup flow —
+ * this does NOT return a plain success. It immediately issues an OTP
+ * challenge and returns the same { challengeId, devOtpCode } shape as
+ * login()'s otp_required response, verified through the same
+ * POST /auth/otp/verify endpoint. There is no code path that returns a
+ * session, or any other terminal "you're registered" state, without that
+ * verification succeeding — 2FA enrolment is mandatory and unskippable
+ * because it is structurally the only way this flow can end.
  */
-export async function signup(input: SignupRequest, ip: string | null) {
+const REGISTRATION_REJECTED = 'Unable to complete registration with these details.';
+
+export async function signup(input: SignupRequest, ip: string | null): Promise<LoginResult> {
+  if (!isAdminEmail(input.email)) {
+    throw new AuthError(REGISTRATION_REJECTED, 400);
+  }
+
   const existing = await prisma.user.findUnique({ where: { email: input.email } });
   if (existing) {
-    throw new AuthError('An account with this email already exists', 409);
+    throw new AuthError(REGISTRATION_REJECTED, 400);
   }
 
   const user = await prisma.$transaction(async (tx) => {
@@ -161,6 +180,11 @@ export async function signup(input: SignupRequest, ip: string | null) {
       data: {
         email: input.email,
         passwordHash: await hashPassword(input.password),
+        // Stored role stays PATIENT — ADMIN is derived from ADMIN_EMAILS on
+        // every request (authGuard's effectiveRole()), never read from this
+        // column for that email. This is also what makes the "same account
+        // shows both the admin area and their own results" requirement work
+        // for free: it's a real patient-shaped account underneath.
         role: 'PATIENT',
         status: 'ACTIVE',
         twoFactorMethod: 'EMAIL',
@@ -179,8 +203,20 @@ export async function signup(input: SignupRequest, ip: string | null) {
     targetId: user.id,
     ipAddress: ip,
   });
+  // Distinct from ACCOUNT_SIGNED_UP and from ADMIN_ACCESS_GRANTED (logged
+  // later, at session-issuance) — this is specifically "an admin-capable
+  // account was created," logged once, at creation time.
+  await recordAuditLog({
+    actorUserId: user.id,
+    action: 'ADMIN_ACCOUNT_CREATED',
+    targetType: 'User',
+    targetId: user.id,
+    ipAddress: ip,
+    metadata: { email: user.email },
+  });
 
-  return { userId: user.id };
+  const challenge = await createOtpChallenge(user, ip);
+  return { trustedDeviceSkippedOtp: false, ...challenge };
 }
 
 export async function activateAccount(input: ActivateAccountRequest, ip: string | null) {
@@ -229,6 +265,71 @@ interface LoginResult {
   devOtpCode?: string;
 }
 
+type OtpChallengeUser = { id: string; email: string; twoFactorMethod: 'EMAIL' | 'SMS'; phoneNumberEncrypted: string | null };
+
+/**
+ * Shared by login() (non-trusted-device path) and signup() (mandatory
+ * enrolment) — creating the OtpCode row and sending it is identical either
+ * way; the only difference is what happens after verification.
+ *
+ * Logging here is deliberately structured around IDs, never content: the
+ * OTP code and the recipient's email/phone never appear in a log line,
+ * only the challengeId (opaque, meaningless without DB access) and userId.
+ */
+async function createOtpChallenge(
+  user: OtpChallengeUser,
+  ip: string | null,
+): Promise<{ challengeId: string; devOtpCode?: string }> {
+  const channel = user.twoFactorMethod === 'SMS' && !isSmsEnabled() ? 'EMAIL' : user.twoFactorMethod;
+  const code = generateOtpCode();
+  const otp = await prisma.otpCode.create({
+    data: {
+      userId: user.id,
+      codeHash: hashToken(code),
+      channel,
+      expiresAt: new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000),
+    },
+  });
+
+  try {
+    if (channel === 'SMS') {
+      if (!user.phoneNumberEncrypted) {
+        throw new AuthError('No SMS number on file for this account', 400);
+      }
+      await smsProvider.sendSms({
+        to: decryptField(user.phoneNumberEncrypted),
+        body: `Your Aspire Bloods verification code is ${code}. It expires in ${OTP_TTL_MINUTES} minutes.`,
+      });
+    } else {
+      await emailProvider.sendEmail({
+        to: user.email,
+        subject: 'Your Aspire Bloods verification code',
+        text: `Your verification code is ${code}. It expires in ${OTP_TTL_MINUTES} minutes. If you didn't request this, you can ignore this email.`,
+        html: `<p>Your verification code is <strong>${code}</strong>.</p><p>It expires in ${OTP_TTL_MINUTES} minutes. If you didn't request this, you can ignore this email.</p>`,
+      });
+    }
+  } catch (e) {
+    // A send failure must not leave the client staring at a challengeId
+    // that can never be verified with a code that never arrived — surface
+    // it as a clean rejection, not a 500, and log enough to diagnose the
+    // provider-side failure without the code or address.
+    console.error('[otp] send failed', { challengeId: otp.id, channel, error: e instanceof Error ? e.message : e });
+    if (e instanceof AuthError) throw e;
+    throw new AuthError('Could not send a verification code. Please try again shortly.', 502);
+  }
+
+  console.log('[otp] challenge created', { challengeId: otp.id, channel, ip: ip ?? 'unknown' });
+
+  return {
+    challengeId: otp.id,
+    // Explicit opt-in only (EXPOSE_DEV_OTP_CODE=true) — lets e2e tests and
+    // local dev read the code straight from the login response instead of
+    // scraping the email/SMS provider log. Off by default everywhere, and
+    // impossible to enable in production — see productionBootChecks.ts.
+    devOtpCode: env.EXPOSE_DEV_OTP_CODE ? code : undefined,
+  };
+}
+
 export async function login(
   email: string,
   password: string,
@@ -265,42 +366,8 @@ export async function login(
     }
   }
 
-  const channel = user.twoFactorMethod === 'SMS' && !isSmsEnabled() ? 'EMAIL' : user.twoFactorMethod;
-  const code = generateOtpCode();
-  const otp = await prisma.otpCode.create({
-    data: {
-      userId: user.id,
-      codeHash: hashToken(code),
-      channel,
-      expiresAt: new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000),
-    },
-  });
-
-  if (channel === 'SMS') {
-    if (!user.phoneNumberEncrypted) {
-      throw new AuthError('No SMS number on file for this account', 400);
-    }
-    await smsProvider.sendSms({
-      to: decryptField(user.phoneNumberEncrypted),
-      body: `Your Aspire Bloods verification code is ${code}. It expires in ${OTP_TTL_MINUTES} minutes.`,
-    });
-  } else {
-    await emailProvider.sendEmail({
-      to: user.email,
-      subject: 'Your Aspire Bloods verification code',
-      text: `Your verification code is ${code}. It expires in ${OTP_TTL_MINUTES} minutes. If you didn't request this, you can ignore this email.`,
-      html: `<p>Your verification code is <strong>${code}</strong>.</p><p>It expires in ${OTP_TTL_MINUTES} minutes. If you didn't request this, you can ignore this email.</p>`,
-    });
-  }
-
-  return {
-    trustedDeviceSkippedOtp: false,
-    challengeId: otp.id,
-    // Explicit opt-in only (EXPOSE_DEV_OTP_CODE=true) — lets e2e tests and
-    // local dev read the code straight from the login response instead of
-    // scraping the email/SMS provider log. Off by default everywhere.
-    devOtpCode: env.EXPOSE_DEV_OTP_CODE ? code : undefined,
-  };
+  const challenge = await createOtpChallenge(user, ip);
+  return { trustedDeviceSkippedOtp: false, ...challenge };
 }
 
 interface OtpVerifyResult {
@@ -320,22 +387,33 @@ export async function verifyOtp(
 ): Promise<OtpVerifyResult> {
   const otp = await prisma.otpCode.findUnique({ where: { id: challengeId } });
   if (!otp || otp.consumedAt || otp.expiresAt < new Date()) {
+    console.warn('[otp] verify rejected: missing_consumed_or_expired', { challengeId });
     throw new AuthError('This verification code has expired. Please log in again.', 400);
   }
   if (otp.attempts >= OTP_MAX_ATTEMPTS) {
+    console.warn('[otp] verify rejected: max_attempts', { challengeId, attempts: otp.attempts });
     throw new AuthError('Too many incorrect attempts. Please log in again.', 429);
   }
 
   if (otp.codeHash !== hashToken(code)) {
     await prisma.otpCode.update({ where: { id: otp.id }, data: { attempts: { increment: 1 } } });
+    console.warn('[otp] verify rejected: incorrect_code', { challengeId, attempts: otp.attempts + 1 });
     throw new AuthError('Incorrect code', 400);
   }
 
   await prisma.otpCode.update({ where: { id: otp.id }, data: { consumedAt: new Date() } });
 
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: otp.userId } });
+  // findUnique, not findUniqueOrThrow — a user row genuinely missing here
+  // (never expected: users are anonymised, not deleted) must still fail as
+  // a clean rejection, not an unhandled throw that surfaces as a 500.
+  const user = await prisma.user.findUnique({ where: { id: otp.userId } });
+  if (!user || user.status !== 'ACTIVE') {
+    console.warn('[otp] verify rejected: user_missing_or_inactive', { challengeId, userId: otp.userId });
+    throw new AuthError('This verification code has expired. Please log in again.', 400);
+  }
 
   const result = await issueSession(user.id, user.email, user.role, ip, userAgent);
+  console.log('[otp] verify success', { challengeId, userId: user.id });
 
   let deviceIdToTrust: string | undefined;
   if (trustDevice) {
