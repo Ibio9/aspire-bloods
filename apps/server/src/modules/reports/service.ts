@@ -19,7 +19,7 @@ export class ReportError extends Error {
 
 export async function uploadReport(input: {
   patientId: string;
-  panelId: string;
+  panelId: string | null;
   sourceId: string;
   sampleDate: string;
   fileBuffer: Buffer;
@@ -32,9 +32,11 @@ export async function uploadReport(input: {
   if (!patient || patient.role !== 'PATIENT') {
     throw new ReportError('Patient not found', 404);
   }
-  const panel = await prisma.panel.findUnique({ where: { id: input.panelId } });
-  if (!panel) {
-    throw new ReportError('Panel not found', 404);
+  if (input.panelId) {
+    const panel = await prisma.panel.findUnique({ where: { id: input.panelId } });
+    if (!panel) {
+      throw new ReportError('Panel not found', 404);
+    }
   }
   const source = await prisma.source.findUnique({ where: { id: input.sourceId } });
   if (!source || !source.isActive) {
@@ -93,7 +95,7 @@ export async function parseReport(reportId: string, actorUserId: string, ip: str
   const buffer = await storageAdapter.read(report.originalPdfFile.storageKey);
   const parsed = await resultSourceAdapter.normaliseReport(buffer);
 
-  const panelMarkers = report.panel.markers.map((pm) => pm.marker);
+  const panelMarkers = report.panel?.markers.map((pm) => pm.marker) ?? [];
   const allMarkers = await prisma.marker.findMany();
 
   const rows = parsed.rows.map((row) => {

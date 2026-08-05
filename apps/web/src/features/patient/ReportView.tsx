@@ -10,6 +10,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { apiFetch } from '../../lib/api';
 import { API_BASE_URL } from '../../lib/apiBase';
+import { reportTitle } from '../../lib/reportTitle';
 
 interface MarkerCard {
   markerId: string;
@@ -25,7 +26,7 @@ interface MarkerCard {
 
 interface ReportDetail {
   reportId: string;
-  panelName: string;
+  panelName: string | null;
   sampleDate: string;
   sourceLabel?: string;
   markers: MarkerCard[];
@@ -63,10 +64,13 @@ export function ReportView() {
     );
   }
 
+  const title = reportTitle(report.panelName, report.markers.length, report.sampleDate);
+  const crumbLabel = report.panelName ? `${report.panelName}, ${report.sampleDate}` : title;
+
   return (
     <>
-      <Breadcrumbs items={[{ label: 'Your results', to: '/my-results' }, { label: `${report.panelName}, ${report.sampleDate}` }]} />
-      <TwoTierHeading eyebrow={`Sample date ${report.sampleDate}`} title={report.panelName} />
+      <Breadcrumbs items={[{ label: 'Your results', to: '/my-results' }, { label: crumbLabel }]} />
+      <TwoTierHeading eyebrow={report.panelName ? `Sample date ${report.sampleDate}` : 'Individual markers'} title={title} />
       {report.sourceLabel && <p className="mt-2 text-sm text-espresso/80">{report.sourceLabel}</p>}
 
       <div className="mt-6 flex flex-wrap gap-3">

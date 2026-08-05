@@ -5,10 +5,11 @@ import { Card } from '../../components/ui/Card';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { apiFetch } from '../../lib/api';
+import { reportTitle } from '../../lib/reportTitle';
 
 interface ReportSummary {
   reportId: string;
-  panelName: string;
+  panelName: string | null;
   sampleDate: string;
   patientStatus: 'PENDING' | 'RELEASED';
   markerCount?: number;
@@ -56,8 +57,10 @@ export function PatientHome() {
                 style={{ animationDelay: `${i * 30}ms` }}
               >
                 <Card interactive className="h-full">
-                  <p className="eyebrow mb-1.5">{r.sampleDate}</p>
-                  <p className="font-display text-2xl leading-tight text-espresso">{r.panelName}</p>
+                  <p className="eyebrow mb-1.5">{r.panelName ? r.sampleDate : 'Individual markers'}</p>
+                  <p className="font-display text-2xl leading-tight text-espresso">
+                    {reportTitle(r.panelName, r.markerCount, r.sampleDate)}
+                  </p>
                   <p className="mt-4 text-sm text-espresso">
                     {r.inRangeCount} in range
                     {r.attentionCount ? `, ${r.attentionCount} need${r.attentionCount === 1 ? 's' : ''} attention` : ''}
@@ -71,8 +74,10 @@ export function PatientHome() {
                 className="stagger-item h-full motion-safe:animate-riseIn opacity-75"
                 style={{ animationDelay: `${i * 30}ms` }}
               >
-                <p className="eyebrow mb-1.5">{r.sampleDate}</p>
-                <p className="font-display text-2xl leading-tight text-espresso">{r.panelName}</p>
+                <p className="eyebrow mb-1.5">{r.panelName ? r.sampleDate : 'Individual markers'}</p>
+                <p className="font-display text-2xl leading-tight text-espresso">
+                  {reportTitle(r.panelName, r.markerCount, r.sampleDate)}
+                </p>
                 <p className="mt-4 text-sm text-espresso">Results pending — we'll let you know when they're ready.</p>
               </Card>
             ),

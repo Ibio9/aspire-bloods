@@ -63,7 +63,10 @@ function ChartTooltip({ active, payload }: any) {
   const point: TrendPoint = payload[0].payload;
   return (
     <div className="rounded-card border border-taupe bg-white px-3 py-2 text-xs shadow-card">
-      <p className="tabular font-medium text-espresso">{point.value}</p>
+      <p className="tabular font-medium text-espresso">
+        {point.value} {point.unit && <span className="font-normal text-espresso/80">{point.unit}</span>}
+      </p>
+      <p className="mt-0.5 tabular text-espresso/80">{point.sampleDate}</p>
       {point.sourceLabel && <p className="mt-0.5 text-espresso/80">{point.sourceLabel}</p>}
       {point.converted && (
         <p className="mt-0.5 text-espresso/80">

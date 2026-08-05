@@ -33,8 +33,6 @@ interface MarkerSeed {
   lowMeans?: string;
   lifestyleContext?: string;
   severityMultiplier?: number;
-  /** Add-on surcharge in GBP — only set for markers sold as an add-on across panels (brief: Omega-3 Index, AMH, Free Testosterone, Calprotectin). */
-  addOnPriceGBP?: number;
 }
 
 const markers: MarkerSeed[] = [
@@ -77,7 +75,7 @@ const markers: MarkerSeed[] = [
   // either under Aspire's current agreement. See EXCLUDED_MARKER_KEYS below,
   // which also detaches/deactivates them if they exist from an older seed.
   { key: 'lp-pla2', name: 'Lp-PLA2', unit: 'ng/mL', low: 0, high: 200, whatItIs: 'An enzyme linked to inflammation within blood vessel walls.', highMeans: 'Associated with increased cardiovascular risk, independent of cholesterol levels.', lifestyleContext: 'Anti-inflammatory lifestyle habits — diet, exercise, not smoking — support lower levels.' },
-  { key: 'omega-3-index', name: 'Omega-3 Index', unit: '%', low: 8, high: 999, whatItIs: 'The proportion of omega-3 fatty acids in your red blood cell membranes.', lowMeans: 'Lower levels are linked to increased cardiovascular risk.', lifestyleContext: 'Oily fish, or omega-3 supplementation, raises this over 2–3 months.', addOnPriceGBP: 59.6 },
+  { key: 'omega-3-index', name: 'Omega-3 Index', unit: '%', low: 8, high: 999, whatItIs: 'The proportion of omega-3 fatty acids in your red blood cell membranes.', lowMeans: 'Lower levels are linked to increased cardiovascular risk.', lifestyleContext: 'Oily fish, or omega-3 supplementation, raises this over 2–3 months.' },
 
   // --- Glycaemic ---
   { key: 'glucose', name: 'Fasting Glucose', unit: 'mmol/L', low: 3.9, high: 5.5, whatItIs: 'The amount of sugar circulating in your blood after fasting.', highMeans: 'Can indicate insulin resistance or a risk of developing diabetes.', lifestyleContext: 'Reducing refined carbohydrates and regular activity both help regulate blood sugar.' },
@@ -89,7 +87,7 @@ const markers: MarkerSeed[] = [
   { key: 'il-6', name: 'IL-6 (Interleukin-6)', unit: 'pg/mL', low: 0, high: 7, whatItIs: 'A signalling protein involved in the body’s inflammatory response.', highMeans: 'Can reflect acute or chronic inflammation.', lifestyleContext: 'Sleep, stress management, and reducing chronic inflammation sources all help.' },
   { key: 'tnf-alpha', name: 'TNF-α (Tumour Necrosis Factor Alpha)', unit: 'pg/mL', low: 0, high: 8.1, whatItIs: 'A signalling protein that helps regulate immune and inflammatory responses.', highMeans: 'Can reflect chronic inflammation.', lifestyleContext: 'Interpreted alongside other inflammatory markers rather than alone.' },
   { key: 'homocysteine', name: 'Homocysteine', unit: 'µmol/L', low: 0, high: 15, whatItIs: 'An amino acid linked to B-vitamin status and cardiovascular health.', highMeans: 'Can reflect B12, B6, or folate deficiency, and is linked to cardiovascular risk.', lifestyleContext: 'Often improves with adequate B-vitamin and folate intake.' },
-  { key: 'calprotectin', name: 'Calprotectin', unit: 'µg/g', low: 0, high: 50, whatItIs: 'A marker of inflammation specifically within the gut, usually measured from a stool sample.', highMeans: 'Can indicate gut inflammation and may warrant further investigation.', lifestyleContext: 'Best interpreted alongside your wider digestive symptoms and history.' /* add-on across panels; no B2B price supplied in the agreement */ },
+  { key: 'calprotectin', name: 'Calprotectin', unit: 'µg/g', low: 0, high: 50, whatItIs: 'A marker of inflammation specifically within the gut, usually measured from a stool sample.', highMeans: 'Can indicate gut inflammation and may warrant further investigation.', lifestyleContext: 'Best interpreted alongside your wider digestive symptoms and history.' },
   { key: 'esr', name: 'ESR (Erythrocyte Sedimentation Rate)', unit: 'mm/hr', low: 0, high: 20, whatItIs: 'A general marker of inflammation in the body.', highMeans: 'Can reflect infection, inflammation, or other underlying conditions.', lifestyleContext: 'A non-specific marker, usually interpreted alongside other results and symptoms.' },
   { key: 'uric-acid', name: 'Uric Acid', unit: 'µmol/L', low: 140, high: 420, whatItIs: 'A waste product from the breakdown of purines in food and cells.', highMeans: 'Can be linked to gout risk or metabolic factors.', lifestyleContext: 'Reducing alcohol and purine-rich foods (e.g. red meat, shellfish) can help.' },
 
@@ -112,10 +110,10 @@ const markers: MarkerSeed[] = [
   // --- Hormones ---
   { key: 'testosterone', name: 'Testosterone', unit: 'nmol/L', low: 8.6, high: 29, sex: 'MALE', whatItIs: 'The primary male sex hormone, also present in smaller amounts in women.', highMeans: 'Can reflect certain hormonal conditions.', lowMeans: 'Can contribute to low energy, reduced libido, and mood changes.', lifestyleContext: 'Sleep, resistance exercise, and healthy weight all support natural levels.' },
   { key: 'testosterone-f', name: 'Testosterone', unit: 'nmol/L', low: 0.3, high: 1.7, sex: 'FEMALE', whatItIs: 'A sex hormone present in smaller amounts in women, important for energy and libido.', highMeans: 'Can reflect conditions such as PCOS.', lowMeans: 'Can contribute to low energy and reduced libido.', lifestyleContext: 'Sleep, resistance exercise, and healthy weight all support natural levels.' },
-  { key: 'free-testosterone', name: 'Free Testosterone', unit: 'pmol/L', low: 198, high: 619, sex: 'MALE', whatItIs: 'The portion of testosterone that’s freely available for your body to use.', lowMeans: 'Can better explain symptoms than total testosterone alone, especially if SHBG is abnormal.', lifestyleContext: 'Sleep, resistance exercise, and healthy weight all support natural levels.', addOnPriceGBP: 20.6 },
-  { key: 'free-testosterone', name: 'Free Testosterone', unit: 'pmol/L', low: 1.0, high: 8.5, sex: 'FEMALE', whatItIs: 'The portion of testosterone that’s freely available for your body to use.', lowMeans: 'Can better explain symptoms than total testosterone alone, especially if SHBG is abnormal.', lifestyleContext: 'Sleep, resistance exercise, and healthy weight all support natural levels.', addOnPriceGBP: 20.6 },
+  { key: 'free-testosterone', name: 'Free Testosterone', unit: 'pmol/L', low: 198, high: 619, sex: 'MALE', whatItIs: 'The portion of testosterone that’s freely available for your body to use.', lowMeans: 'Can better explain symptoms than total testosterone alone, especially if SHBG is abnormal.', lifestyleContext: 'Sleep, resistance exercise, and healthy weight all support natural levels.' },
+  { key: 'free-testosterone', name: 'Free Testosterone', unit: 'pmol/L', low: 1.0, high: 8.5, sex: 'FEMALE', whatItIs: 'The portion of testosterone that’s freely available for your body to use.', lowMeans: 'Can better explain symptoms than total testosterone alone, especially if SHBG is abnormal.', lifestyleContext: 'Sleep, resistance exercise, and healthy weight all support natural levels.' },
   { key: 'oestradiol', name: 'Oestradiol', unit: 'pmol/L', low: 100, high: 500, sex: 'FEMALE', whatItIs: 'The main form of oestrogen, central to the menstrual cycle and bone health.', lowMeans: 'Can relate to menopause or reduced ovarian function.', lifestyleContext: 'Levels vary naturally across the menstrual cycle and life stage.' },
-  { key: 'amh', name: 'AMH (Anti-Müllerian Hormone)', unit: 'pmol/L', low: 7.0, high: 35.0, sex: 'FEMALE', whatItIs: 'A hormone that reflects your remaining ovarian egg reserve.', lowMeans: 'Suggests a lower ovarian reserve — relevant context for fertility planning, not a diagnosis.', highMeans: 'Can be associated with conditions such as PCOS.', lifestyleContext: 'AMH declines naturally with age; a single result is best discussed in context.', addOnPriceGBP: 44.7 },
+  { key: 'amh', name: 'AMH (Anti-Müllerian Hormone)', unit: 'pmol/L', low: 7.0, high: 35.0, sex: 'FEMALE', whatItIs: 'A hormone that reflects your remaining ovarian egg reserve.', lowMeans: 'Suggests a lower ovarian reserve — relevant context for fertility planning, not a diagnosis.', highMeans: 'Can be associated with conditions such as PCOS.', lifestyleContext: 'AMH declines naturally with age; a single result is best discussed in context.' },
   { key: 'fsh', name: 'FSH (Follicle Stimulating Hormone)', unit: 'IU/L', low: 1.5, high: 12.4, whatItIs: 'A hormone that regulates the menstrual cycle and sperm production.', highMeans: 'Can relate to reduced ovarian reserve or menopause.', lifestyleContext: 'Timing in the menstrual cycle significantly affects this result.' },
   { key: 'lh', name: 'LH (Luteinising Hormone)', unit: 'IU/L', low: 1.7, high: 8.6, whatItIs: 'A hormone that triggers ovulation and supports testosterone production.', lifestyleContext: 'Timing in the menstrual cycle significantly affects this result.' },
   { key: 'progesterone', name: 'Progesterone', unit: 'nmol/L', low: 0, high: 999, sex: 'FEMALE', whatItIs: 'A hormone essential for the menstrual cycle and early pregnancy.', lifestyleContext: 'Timing in the menstrual cycle significantly affects this result — usually tested mid-luteal phase.' },
@@ -129,42 +127,36 @@ const panelDefinitions: {
   key: string;
   name: string;
   description: string;
-  b2bPriceGBP?: number;
   markerKeys: { key: string; isAddOn?: boolean }[];
 }[] = [
   {
     key: 'ran-chip-insight-360',
     name: 'Ran Chip Insight 360',
     description: 'Randox’s most comprehensive panel — a full 360-degree view across blood count, organ function, cardiovascular, metabolic, and inflammatory markers.',
-    b2bPriceGBP: 380,
     markerKeys: ['haemoglobin','haemoglobin-f','wbc','platelets','rbc','haematocrit','mcv','rdw','neutrophils','lymphocytes','alt','ast','ggt','bilirubin','albumin','alp','total-protein','creatinine','egfr','urea','sodium','potassium','total-cholesterol','hdl','ldl','triglycerides','chol-hdl-ratio','glucose','hba1c','tsh','free-t4','free-t3','vitamin-d','vitamin-b12','folate','ferritin','iron','calcium','hs-crp','esr','uric-acid'].map((key) => ({ key })),
   },
   {
     key: 'signature',
     name: 'Signature',
     description: 'A focused general health check covering blood count, key organ function, and cardiovascular markers.',
-    b2bPriceGBP: 575,
     markerKeys: ['haemoglobin','haemoglobin-f','wbc','platelets','alt','creatinine','egfr','total-cholesterol','hdl','ldl','triglycerides','glucose','tsh'].map((key) => ({ key })),
   },
   {
     key: 'advanced-gp3-male',
     name: 'Advanced GP3 (Male)',
     description: 'Comprehensive men’s health panel spanning organ function, cardiovascular, metabolic, and male hormone markers.',
-    b2bPriceGBP: 210,
     markerKeys: ['haemoglobin','wbc','platelets','alt','ast','ggt','creatinine','egfr','total-cholesterol','hdl','ldl','triglycerides','glucose','hba1c','tsh','free-t4','free-t3','vitamin-d','vitamin-b12','ferritin','testosterone','shbg'].map((key) => ({ key })),
   },
   {
     key: 'advanced-gp3-female',
     name: 'Advanced GP3 (Female)',
     description: 'Comprehensive women’s health panel spanning organ function, cardiovascular, metabolic, and female hormone markers.',
-    b2bPriceGBP: 210,
     markerKeys: ['haemoglobin-f','wbc','platelets','alt','ast','ggt','creatinine','egfr','total-cholesterol','hdl','ldl','triglycerides','glucose','hba1c','tsh','free-t4','free-t3','vitamin-d','vitamin-b12','ferritin','testosterone-f','oestradiol','shbg'].map((key) => ({ key })),
   },
   {
     key: 'nutritional-health-hsc15',
     name: 'Nutritional Health HSC15',
     description: 'A 15-marker panel focused on vitamin, mineral, and nutritional status.',
-    // No B2B price supplied in the agreement for this panel.
     markerKeys: ['vitamin-d','vitamin-b12','folate','ferritin','iron','tibc','calcium','rbc-magnesium','zinc','haemoglobin','albumin','total-protein','uric-acid','hba1c'].map((key) => ({ key })),
   },
   {
@@ -245,13 +237,12 @@ async function main() {
   for (const m of markers) {
     const marker = await prisma.marker.upsert({
       where: { key: m.key },
-      update: { addOnPriceGBP: m.addOnPriceGBP ?? null },
+      update: {},
       create: {
         key: m.key,
         name: m.name,
         defaultUnit: m.unit,
         severityMultiplier: m.severityMultiplier ?? 1.5,
-        addOnPriceGBP: m.addOnPriceGBP,
       },
     });
     markerIdByKey.set(m.key, marker.id);
@@ -291,8 +282,8 @@ async function main() {
   for (const p of panelDefinitions) {
     const panel = await prisma.panel.upsert({
       where: { key: p.key },
-      update: { name: p.name, description: p.description, b2bPriceGBP: p.b2bPriceGBP ?? null },
-      create: { key: p.key, name: p.name, description: p.description, b2bPriceGBP: p.b2bPriceGBP },
+      update: { name: p.name, description: p.description },
+      create: { key: p.key, name: p.name, description: p.description },
     });
     panelIdByKey.set(p.key, panel.id);
 

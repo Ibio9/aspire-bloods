@@ -66,7 +66,7 @@ interface ReportDetail {
   voidedAt: string | null;
   voidReason: string | null;
   voidedBy: { email: string; staffProfile: { firstName: string; lastName: string } | null } | null;
-  panel: { name: string };
+  panel: { name: string } | null;
   patient: { id: string; email: string; patientProfile: { firstName: string; lastName: string } | null };
   results: VerifiedResult[];
 }
@@ -208,6 +208,7 @@ export function ReportDetailPage() {
     : null;
 
   const sampleDateLabel = new Date(report.sampleDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const panelLabel = report.panel?.name ?? `No panel — ${report.results.length} marker${report.results.length === 1 ? '' : 's'}`;
 
   return (
     <>
@@ -215,7 +216,7 @@ export function ReportDetailPage() {
         items={[
           { label: 'Patients', to: '/admin/patients' },
           { label: patientName, to: `/admin/patients/${report.patient.id}` },
-          { label: `${report.panel.name}, ${sampleDateLabel}` },
+          { label: `${panelLabel}, ${sampleDateLabel}` },
         ]}
       />
 
@@ -223,12 +224,12 @@ export function ReportDetailPage() {
           screen partway down a long verify table is a real clinical risk, not just a UX nicety. */}
       <div className="sticky top-[61px] z-20 -mx-6 mb-4 border-b border-taupe bg-cream/95 px-6 py-2.5 backdrop-blur md:-mx-10 md:px-10">
         <p className="truncate text-sm font-medium text-espresso">
-          {patientName} <span className="text-espresso/50">·</span> {report.panel.name}{' '}
+          {patientName} <span className="text-espresso/50">·</span> {panelLabel}{' '}
           <span className="text-espresso/50">·</span> <span className="tabular">{sampleDateLabel}</span>
         </p>
       </div>
 
-      <TwoTierHeading eyebrow={`${report.panel.name} — ${patientName}`} title={report.status.replace(/_/g, ' ')} />
+      <TwoTierHeading eyebrow={`${panelLabel} — ${patientName}`} title={report.status.replace(/_/g, ' ')} />
       <p className="mt-2 flex items-center gap-1 text-sm text-espresso/80">
         {report.patient.email}
         <CopyButton value={report.patient.email} label="Copy patient email" />

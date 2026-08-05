@@ -254,10 +254,6 @@ model Panel {
   name        String
   description String?
   isActive    Boolean       @default(true)
-  // B2B price per the Randox agreement, in GBP. Nullable — some panels
-  // (e.g. Nutritional Health HSC15) have no listed price yet; the UI
-  // renders those as "—" rather than £0.
-  b2bPriceGBP Float?
   markers     PanelMarker[]
   reports     Report[]
   createdAt   DateTime      @default(now())
@@ -276,10 +272,6 @@ model Marker {
   // history of any report that already used it. Excluded markers are
   // filtered out of the picker endpoints but never deleted.
   isActive               Boolean            @default(true)
-  // Add-on surcharge in GBP, for markers sold as an add-on to a base panel
-  // (e.g. Omega-3 Index, AMH, Free Testosterone, Calprotectin). Null for
-  // markers that are only ever part of a panel's base price.
-  addOnPriceGBP          Float?
   // Phase 2 §2.4: whether it's safe to plot this marker's results across
   // multiple sources on one trend line. Defaults true; set false for a
   // marker where sources report genuinely incompatible values (no
@@ -362,8 +354,12 @@ model Report {
   id           String       @id @default(uuid())
   patientId    String
   patient      User         @relation("PatientReports", fields: [patientId], references: [id])
-  panelId      String
-  panel        Panel        @relation(fields: [panelId], references: [id])
+  // Aspire runs its own testing and one-off markers alongside packaged
+  // Randox panels — not every report has a panel. Null means "individual
+  // markers"; every downstream read path (title, PDF, exports, search)
+  // must handle that case rather than assuming panel always exists.
+  panelId      String?
+  panel        Panel?       @relation(fields: [panelId], references: [id])
   sourceId     String
   source       Source       @relation(fields: [sourceId], references: [id])
   sampleDate   DateTime

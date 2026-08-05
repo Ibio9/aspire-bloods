@@ -38,7 +38,7 @@ interface ReportRow {
   id: string;
   status: string;
   sampleDate: string;
-  panel: { name: string };
+  panel: { name: string } | null;
   source: { name: string };
   patient: { email: string; patientProfile: { firstName: string; lastName: string } | null };
 }
@@ -60,7 +60,10 @@ function PdfUploadForm({
   onDone: () => void;
 }) {
   const [patientId, setPatientId] = useState('');
-  const [panelId, setPanelId] = useState('');
+  // 'none' rather than '' — the Select component treats a "" option as a
+  // non-real placeholder and disables the field when nothing else is
+  // configured, but "no panel" must stay a genuine, always-pickable choice.
+  const [panelId, setPanelId] = useState('none');
   const [sourceId, setSourceId] = useState('');
   const [sampleDate, setSampleDate] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -78,7 +81,7 @@ function PdfUploadForm({
     try {
       const formData = new FormData();
       formData.append('patientId', patientId);
-      formData.append('panelId', panelId);
+      if (panelId !== 'none') formData.append('panelId', panelId);
       formData.append('sourceId', sourceId);
       formData.append('sampleDate', sampleDate);
       formData.append('file', file);
@@ -95,7 +98,7 @@ function PdfUploadForm({
       }
       setFile(null);
       setPatientId('');
-      setPanelId('');
+      setPanelId('none');
       setSourceId('');
       setSampleDate('');
       onDone();
@@ -124,14 +127,8 @@ function PdfUploadForm({
             </option>
           ))}
         </Select>
-        <Select
-          label="Panel"
-          name="panelId"
-          emptyMessage="No panels configured — add one under Content & configuration."
-          value={panelId}
-          onChange={(e) => setPanelId(e.target.value)}
-        >
-          <option value="">Select a panel…</option>
+        <Select label="Panel" name="panelId" value={panelId} onChange={(e) => setPanelId(e.target.value)}>
+          <option value="none">No panel — individual markers</option>
           {panels.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -191,7 +188,7 @@ function ManualEntryForm({
   onDone: () => void;
 }) {
   const [patientId, setPatientId] = useState('');
-  const [panelId, setPanelId] = useState('');
+  const [panelId, setPanelId] = useState('none');
   const [sampleDate, setSampleDate] = useState('');
   const [rows, setRows] = useState<ManualRow[]>([emptyRow()]);
   const [implausible, setImplausible] = useState<{ markerName: string; reason: string }[] | null>(null);
@@ -224,7 +221,13 @@ function ManualEntryForm({
         | { status: 'created'; reportId: string }
       >('/reports/manual-entry', {
         method: 'POST',
-        body: JSON.stringify({ patientId, panelId, sampleDate, results, confirmed }),
+        body: JSON.stringify({
+          patientId,
+          panelId: panelId === 'none' ? null : panelId,
+          sampleDate,
+          results,
+          confirmed,
+        }),
       });
       if (result.status === 'confirmation_required') {
         setImplausible(result.implausible);
@@ -232,7 +235,7 @@ function ManualEntryForm({
       }
       setImplausible(null);
       setPatientId('');
-      setPanelId('');
+      setPanelId('none');
       setSampleDate('');
       setRows([emptyRow()]);
       onDone();
@@ -272,14 +275,8 @@ function ManualEntryForm({
             </option>
           ))}
         </Select>
-        <Select
-          label="Panel"
-          name="manualPanelId"
-          emptyMessage="No panels configured — add one under Content & configuration."
-          value={panelId}
-          onChange={(e) => setPanelId(e.target.value)}
-        >
-          <option value="">Select a panel…</option>
+        <Select label="Panel" name="manualPanelId" value={panelId} onChange={(e) => setPanelId(e.target.value)}>
+          <option value="none">No panel — individual markers</option>
           {panels.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -445,7 +442,7 @@ export function AdminReportsPage() {
                     {r.patient.patientProfile
                       ? `${r.patient.patientProfile.firstName} ${r.patient.patientProfile.lastName}`
                       : r.patient.email}{' '}
-                    — {r.panel.name}
+                    — {r.panel?.name ?? 'No panel'}
                   </p>
                   <p className="text-sm text-espresso">
                     Sample date: {r.sampleDate.slice(0, 10)} · {r.source.name}

@@ -29,9 +29,12 @@ const CONVERSIONS: Record<string, ConversionRule> = {
   // Triglycerides: 1 mmol/L = 88.57 mg/dL
   'triglycerides:mmol/L->mg/dL': { factor: 88.57 },
   'triglycerides:mg/dL->mmol/L': { factor: 1 / 88.57 },
-  // Creatinine: 1 µmol/L = 0.0113 mg/dL
-  'creatinine:umol/L->mg/dL': { factor: 0.0113 },
-  'creatinine:mg/dL->umol/L': { factor: 1 / 0.0113 },
+  // Creatinine: 1 µmol/L = 0.0113 mg/dL. Key uses the actual micro sign
+  // (µ, U+00B5) to match the seeded/report unit string exactly — an
+  // ASCII "u" here would silently never match and this conversion would
+  // never fire.
+  'creatinine:µmol/L->mg/dL': { factor: 0.0113 },
+  'creatinine:mg/dL->µmol/L': { factor: 1 / 0.0113 },
   // HbA1c: NGSP % to IFCC mmol/mol — not a simple ratio, standard formula
   'hba1c:%->mmol/mol': { factor: 10.929, offset: -23.5 },
   'hba1c:mmol/mol->%': { factor: 1 / 10.929, offset: 23.5 / 10.929 },
