@@ -5,6 +5,16 @@ export interface ParsedMarkerRow {
   referenceLow: number | null;
   referenceHigh: number | null;
   rawLine: string;
+  // A non-numeric result ("Not detected", "Reactive", …) — set instead of
+  // value for qualitative markers. Never both.
+  resultText: string | null;
+  // True whenever the parser extracted something but isn't confident
+  // enough to treat it as ready-to-save — a single-sided threshold whose
+  // direction can't be inferred from text alone, a qualitative result, a
+  // row split across a page break, etc. The admin verify table must
+  // surface this rather than silently accepting a guessed range.
+  needsReview: boolean;
+  reviewReason: string | null;
 }
 
 export interface ParsedReport {

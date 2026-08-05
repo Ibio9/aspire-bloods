@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
@@ -7,6 +7,7 @@ import { Checkbox } from '../../components/ui/Checkbox';
 import { Button } from '../../components/ui/Button';
 import { Tabs } from '../../components/ui/Tabs';
 import { Skeleton } from '../../components/ui/Skeleton';
+import { EmptyState } from '../../components/ui/EmptyState';
 import { useToast } from '../../components/ui/Toast';
 import { apiFetch, ApiError } from '../../lib/api';
 
@@ -36,6 +37,7 @@ interface PanelRow {
   description: string | null;
   isActive: boolean;
   b2bPriceGBP: number | null;
+  compositionConfirmed: boolean;
   markers: PanelMarkerRow[];
 }
 
@@ -125,6 +127,16 @@ function PanelsAndMarkersTab() {
       await load();
     } catch (e) {
       show(e instanceof ApiError ? e.message : 'Could not create marker.', 'error');
+    }
+  }
+
+  async function confirmComposition(panel: PanelRow) {
+    try {
+      await apiFetch(`/panels/${panel.id}`, { method: 'PATCH', body: JSON.stringify({ compositionConfirmed: true }) });
+      show('Marked as confirmed against the real panel spec.', 'success');
+      await load();
+    } catch (e) {
+      show(e instanceof ApiError ? e.message : 'Could not update panel.', 'error');
     }
   }
 
@@ -247,12 +259,41 @@ function PanelsAndMarkersTab() {
         </Card>
       </div>
 
+      {panels.length === 0 && (
+        <EmptyState
+          title="No panels configured yet"
+          description="Create a panel above to get started — patients can't be given a report until at least one panel with markers exists."
+        />
+      )}
+
       {panels.map((panel) => (
         <Card key={panel.id}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="font-medium text-espresso">{panel.name}</p>
               <p className="text-sm text-espresso/80">{panel.key}</p>
+              {!panel.compositionConfirmed && (
+                <p className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-status-high">
+                  <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
+                    <path
+                      d="M8 1.5 L15 14 H1 Z M8 6.5 V9.5 M8 11.5 h.01"
+                      stroke="currentColor"
+                      strokeWidth="1.4"
+                      fill="none"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  Seeded default — not yet confirmed against the real panel spec
+                  <button
+                    type="button"
+                    onClick={() => confirmComposition(panel)}
+                    className="ml-1 underline underline-offset-2 hover:no-underline"
+                  >
+                    Mark confirmed
+                  </button>
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-4">
               <label className="flex flex-col gap-1 text-xs">
@@ -278,6 +319,9 @@ function PanelsAndMarkersTab() {
           </div>
 
           <div className="mt-4 flex flex-col gap-2">
+            {panel.markers.length === 0 && (
+              <p className="text-sm text-espresso/80">No markers in this panel yet — add one below.</p>
+            )}
             {panel.markers.map((pm) => (
               <div key={pm.id} className="flex flex-wrap items-center gap-3 border-b border-taupe pb-2 last:border-b-0">
                 <span className="flex-1 text-sm text-espresso">
@@ -335,6 +379,9 @@ function PanelsAndMarkersTab() {
 
       <Card>
         <p className="eyebrow mb-4">All markers</p>
+        {markers.length === 0 && (
+          <EmptyState title="No markers configured yet" description="Create a marker above before it can be added to a panel." />
+        )}
         <div className="flex flex-col gap-2">
           {markers.map((m) => (
             <div key={m.id} className="flex flex-wrap items-center gap-3 border-b border-taupe pb-2 last:border-b-0">
@@ -352,6 +399,203 @@ function PanelsAndMarkersTab() {
           ))}
         </div>
       </Card>
+    </div>
+  );
+}
+
+interface ReviewQueueRow {
+  markerId: string;
+  markerName: string;
+  markerKey: string;
+  explanation: {
+    whatItIs: string;
+    highMeans: string | null;
+    lowMeans: string | null;
+    lifestyleContext: string | null;
+    reviewStatus: 'DRAFT' | 'REVIEWED' | 'PUBLISHED';
+    version: number;
+    reviewedAt: string | null;
+  } | null;
+}
+
+const PAGE_SIZE = 12;
+
+function ReviewStatusPill({ status }: { status: 'DRAFT' | 'REVIEWED' | 'PUBLISHED' }) {
+  const approved = status !== 'DRAFT';
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
+        approved ? 'bg-status-inRange/10 text-status-inRange' : 'bg-status-high/10 text-status-high'
+      }`}
+    >
+      {approved ? (
+        <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2 8.5 L6 12.5 L14 3.5" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      ) : (
+        <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M4 4 L12 12 M12 4 L4 12" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+        </svg>
+      )}
+      {approved ? `Clinician-approved (${status.toLowerCase()})` : 'Draft — not visible to patients'}
+    </span>
+  );
+}
+
+function ReviewQueueTab() {
+  const { show } = useToast();
+  const [rows, setRows] = useState<ReviewQueueRow[] | null>(null);
+  const [page, setPage] = useState(0);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [approving, setApproving] = useState(false);
+
+  async function load() {
+    const data = await apiFetch<ReviewQueueRow[]>('/panels/markers/explanations');
+    setRows(data);
+  }
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const pageRows = useMemo(() => {
+    if (!rows) return [];
+    return rows.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+  }, [rows, page]);
+
+  const pageCount = rows ? Math.max(1, Math.ceil(rows.length / PAGE_SIZE)) : 1;
+  const draftCount = rows?.filter((r) => !r.explanation || r.explanation.reviewStatus === 'DRAFT').length ?? 0;
+
+  const allPageSelected = pageRows.length > 0 && pageRows.every((r) => selected.has(r.markerId));
+
+  function toggleRow(markerId: string) {
+    setSelected((s) => {
+      const next = new Set(s);
+      if (next.has(markerId)) next.delete(markerId);
+      else next.add(markerId);
+      return next;
+    });
+  }
+
+  function toggleSelectAllOnPage() {
+    setSelected((s) => {
+      const next = new Set(s);
+      if (allPageSelected) {
+        for (const r of pageRows) next.delete(r.markerId);
+      } else {
+        for (const r of pageRows) next.add(r.markerId);
+      }
+      return next;
+    });
+  }
+
+  async function approveSelected() {
+    if (selected.size === 0) return;
+    setApproving(true);
+    try {
+      const result = await apiFetch<{ ok: boolean; count: number }>('/panels/markers/explanations/bulk-review-status', {
+        method: 'POST',
+        body: JSON.stringify({ markerIds: Array.from(selected), reviewStatus: 'REVIEWED' }),
+      });
+      show(`Approved ${result.count} marker${result.count === 1 ? '' : 's'}.`, 'success');
+      setSelected(new Set());
+      await load();
+    } catch (e) {
+      show(e instanceof ApiError ? e.message : 'Could not approve selected markers.', 'error');
+    } finally {
+      setApproving(false);
+    }
+  }
+
+  if (!rows) return <Skeleton className="h-64 w-full" />;
+
+  if (rows.length === 0) {
+    return (
+      <EmptyState
+        title="No markers configured yet"
+        description="Marker copy has nothing to review until markers exist — add one from the Panels & markers tab."
+      />
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-espresso/80">
+          {draftCount} of {rows.length} marker{rows.length === 1 ? '' : 's'} still in draft — invisible to patients until approved.
+        </p>
+        <Button onClick={approveSelected} loading={approving} disabled={selected.size === 0}>
+          Approve selected ({selected.size})
+        </Button>
+      </div>
+
+      <Card className="p-0 overflow-hidden">
+        <div className="flex items-center gap-3 border-b border-taupe bg-cream/50 px-4 py-3">
+          <Checkbox
+            name="select-all-page"
+            label="Select all on this page"
+            checked={allPageSelected}
+            onChange={toggleSelectAllOnPage}
+          />
+        </div>
+        <div className="divide-y divide-taupe">
+          {pageRows.map((row) => {
+            const status = row.explanation?.reviewStatus ?? 'DRAFT';
+            return (
+              <div key={row.markerId} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-start">
+                <div className="pt-0.5">
+                  <Checkbox
+                    name={`select-${row.markerId}`}
+                    label=""
+                    aria-label={`Select ${row.markerName}`}
+                    checked={selected.has(row.markerId)}
+                    onChange={() => toggleRow(row.markerId)}
+                  />
+                </div>
+                <div className="flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-medium text-espresso">{row.markerName}</p>
+                    <ReviewStatusPill status={status} />
+                  </div>
+                  {row.explanation ? (
+                    <div className="mt-2 flex flex-col gap-1.5 text-sm text-espresso/90">
+                      <p>{row.explanation.whatItIs}</p>
+                      {row.explanation.highMeans && (
+                        <p className="text-espresso/80">
+                          <span className="font-medium text-espresso">High: </span>
+                          {row.explanation.highMeans}
+                        </p>
+                      )}
+                      {row.explanation.lowMeans && (
+                        <p className="text-espresso/80">
+                          <span className="font-medium text-espresso">Low: </span>
+                          {row.explanation.lowMeans}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm text-espresso/80">No copy written yet.</p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      {pageCount > 1 && (
+        <div className="flex items-center justify-center gap-3">
+          <Button variant="ghost" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>
+            Previous
+          </Button>
+          <span className="text-sm text-espresso/80">
+            Page {page + 1} of {pageCount}
+          </span>
+          <Button variant="ghost" onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))} disabled={page >= pageCount - 1}>
+            Next
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -559,6 +803,7 @@ export function ContentConfigPage() {
         <Tabs
           items={[
             { id: 'panels', label: 'Panels & markers', content: <PanelsAndMarkersTab /> },
+            { id: 'review-queue', label: 'Explanation review queue', content: <ReviewQueueTab /> },
             { id: 'explanations', label: 'Marker explanations', content: <ExplanationsTab /> },
             { id: 'copy', label: 'Patient-facing wording', content: <CopyBlocksTab /> },
           ]}

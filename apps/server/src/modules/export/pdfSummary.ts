@@ -71,26 +71,59 @@ export async function generateAspireSummaryPdf(reportId: string): Promise<Buffer
   );
   doc.moveDown(1);
 
-  // Results table
+  // Results table. Every column for a row is drawn at one fixed y that we
+  // computed and reserved space for *before* drawing anything — pdfkit's
+  // text() auto-inserts a page break mid-call when an explicit y would run
+  // past the bottom margin, and since every column in a row reused the same
+  // stale y captured at the top of the loop, a row landing near a page
+  // boundary used to have each of its five columns land on five different
+  // pages once the report had enough markers to reach one (see hardening
+  // notes — this broke on real reports of ~35+ markers). Reserving space
+  // up front and calling addPage() ourselves, once, before the row starts,
+  // is what actually fixes that.
   const colX = [56, 250, 320, 400, 470];
-  doc.font('Helvetica-Bold').fontSize(9).fillColor(ESPRESSO);
-  doc.text('Marker', colX[0], doc.y, { continued: false });
-  doc.text('Result', colX[1], doc.y - 11);
-  doc.text('Unit', colX[2], doc.y - 11);
-  doc.text('Range', colX[3], doc.y - 11);
-  doc.text('Status', colX[4], doc.y - 11);
-  doc.moveTo(56, doc.y + 4).lineTo(539, doc.y + 4).strokeColor(TAUPE).stroke();
-  doc.moveDown(0.7);
+  const nameWidth = 190;
+  const bottomY = doc.page.height - doc.page.margins.bottom;
 
+  function drawTableHeader() {
+    doc.font('Helvetica-Bold').fontSize(9).fillColor(ESPRESSO);
+    const headerY = doc.y;
+    doc.text('Marker', colX[0], headerY);
+    doc.text('Result', colX[1], headerY);
+    doc.text('Unit', colX[2], headerY);
+    doc.text('Range', colX[3], headerY);
+    doc.text('Status', colX[4], headerY);
+    doc.moveTo(56, headerY + 13).lineTo(539, headerY + 13).strokeColor(TAUPE).stroke();
+    doc.y = headerY + 18;
+  }
+
+  drawTableHeader();
   doc.font('Helvetica').fontSize(9);
+
   for (const r of report.results) {
+    const statusLabel = STATUS_LABEL[r.status] ?? r.status;
+    const rowHeight =
+      Math.max(
+        doc.heightOfString(r.marker.name, { width: nameWidth }),
+        doc.heightOfString(statusLabel, { width: 90 }),
+        12,
+      ) + 6;
+
+    if (doc.y + rowHeight > bottomY) {
+      doc.addPage();
+      doc.font('Helvetica-Bold').fontSize(9).fillColor(ESPRESSO).text('(continued)', 56, doc.y);
+      doc.moveDown(0.5);
+      drawTableHeader();
+      doc.font('Helvetica').fontSize(9);
+    }
+
     const y = doc.y;
-    doc.fillColor(ESPRESSO).text(r.marker.name, colX[0], y, { width: 190 });
+    doc.fillColor(ESPRESSO).text(r.marker.name, colX[0], y, { width: nameWidth });
     doc.text(String(Number(decryptField(r.valueEncrypted))), colX[1], y);
     doc.text(r.unit, colX[2], y);
     doc.text(`${r.referenceRange.low}–${r.referenceRange.high}`, colX[3], y);
-    doc.fillColor(r.status === 'IN_RANGE' ? ESPRESSO : BRONZE).text(STATUS_LABEL[r.status] ?? r.status, colX[4], y, { width: 90 });
-    doc.moveDown(0.9);
+    doc.fillColor(r.status === 'IN_RANGE' ? ESPRESSO : BRONZE).text(statusLabel, colX[4], y, { width: 90 });
+    doc.y = y + rowHeight;
   }
 
   const leftMargin = 56;

@@ -30,6 +30,9 @@ interface ParsedRow {
   unit: string | null;
   referenceLow: number | null;
   referenceHigh: number | null;
+  resultText: string | null;
+  needsReview: boolean;
+  reviewReason: string | null;
 }
 
 interface ResultEdit {
@@ -129,17 +132,27 @@ export function ReportDetailPage() {
   async function handleVerify() {
     if (!id) return;
     setError(null);
+
+    const included = rows.filter((r) => r.matchedMarkerId);
+    const incomplete = included.filter(
+      (r) => r.value == null || !r.unit || r.referenceLow == null || r.referenceHigh == null,
+    );
+    if (incomplete.length > 0) {
+      setError(
+        `${incomplete.length} matched row${incomplete.length === 1 ? '' : 's'} ${incomplete.length === 1 ? 'is' : 'are'} missing a value, unit, or reference range — the parser flagged ${incomplete.length === 1 ? 'it' : 'them'} for manual entry (see "Needs review" below). Fill every field in before saving, or unmatch the row to skip it.`,
+      );
+      return;
+    }
+
     setBusy(true);
     try {
-      const results = rows
-        .filter((r) => r.matchedMarkerId)
-        .map((r) => ({
-          markerId: r.matchedMarkerId!,
-          value: Number(r.value),
-          unit: r.unit ?? '',
-          referenceLow: Number(r.referenceLow),
-          referenceHigh: Number(r.referenceHigh),
-        }));
+      const results = included.map((r) => ({
+        markerId: r.matchedMarkerId!,
+        value: Number(r.value),
+        unit: r.unit ?? '',
+        referenceLow: Number(r.referenceLow),
+        referenceHigh: Number(r.referenceHigh),
+      }));
       await apiFetch(`/reports/${id}/verify`, {
         method: 'POST',
         body: JSON.stringify({ sampleDate: new Date(sampleDate).toISOString(), results }),
@@ -294,6 +307,7 @@ export function ReportDetailPage() {
           <Table>
             <TableHead>
               <TableRow>
+                <TableHeaderCell>Status</TableHeaderCell>
                 <TableHeaderCell>Raw line</TableHeaderCell>
                 <TableHeaderCell>Marker</TableHeaderCell>
                 <TableHeaderCell>Value</TableHeaderCell>
@@ -304,7 +318,37 @@ export function ReportDetailPage() {
             </TableHead>
             <TableBody>
               {rows.map((row, i) => (
-                <TableRow key={i}>
+                <TableRow key={i} className={row.needsReview ? 'bg-status-high/5' : undefined}>
+                  <TableCell>
+                    {row.needsReview ? (
+                      <span
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-status-high"
+                        title={row.reviewReason ?? 'Needs review'}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
+                          <path
+                            d="M8 1.5 L15 14 H1 Z M8 6.5 V9.5 M8 11.5 h.01"
+                            stroke="currentColor"
+                            strokeWidth="1.4"
+                            fill="none"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                        Needs review
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-status-inRange">
+                        <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
+                          <path d="M2 8.5 L6 12.5 L14 3.5" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        Extracted
+                      </span>
+                    )}
+                    {row.resultText && (
+                      <p className="mt-1 text-xs text-espresso/80">Reported as: “{row.resultText}”</p>
+                    )}
+                  </TableCell>
                   <TableCell className="max-w-[240px] truncate" title={row.rawLine}>
                     {row.rawLine}
                   </TableCell>

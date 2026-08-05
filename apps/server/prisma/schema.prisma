@@ -258,6 +258,13 @@ model Panel {
   // (e.g. Nutritional Health HSC15) have no listed price yet; the UI
   // renders those as "—" rather than £0.
   b2bPriceGBP Float?
+  // False until an admin explicitly confirms this panel's marker list
+  // against the real Randox panel spec via the panel editor. Seeded panels
+  // start false (composition was guessed from public positioning, not a
+  // spec sheet — see prisma/seed.ts). Any admin edit through the panel
+  // editor (add/remove/reorder) flips it true — the point isn't to gate
+  // functionality, only to stop the guessed default from looking verified.
+  compositionConfirmed Boolean @default(false)
   markers     PanelMarker[]
   reports     Report[]
   createdAt   DateTime      @default(now())

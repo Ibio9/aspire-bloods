@@ -108,6 +108,9 @@ const updatePanelSchema = z.object({
   description: z.string().max(2000).nullable().optional(),
   isActive: z.boolean().optional(),
   b2bPriceGBP: z.number().min(0).nullable().optional(),
+  // Lets an admin confirm composition is correct as-is (no marker changes
+  // needed) without that being indistinguishable from "never reviewed".
+  compositionConfirmed: z.boolean().optional(),
 });
 
 panelsRouter.patch(
@@ -219,9 +222,10 @@ panelsRouter.post(
     const parsed = addPanelMarkerSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-    const panelMarker = await prisma.panelMarker.create({
-      data: { panelId: req.params.panelId, ...parsed.data },
-    });
+    const [panelMarker] = await prisma.$transaction([
+      prisma.panelMarker.create({ data: { panelId: req.params.panelId, ...parsed.data } }),
+      prisma.panel.update({ where: { id: req.params.panelId }, data: { compositionConfirmed: true } }),
+    ]);
 
     await recordAuditLog({
       actorUserId: req.user!.id,
@@ -249,10 +253,10 @@ panelsRouter.patch(
     const parsed = updatePanelMarkerSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-    const panelMarker = await prisma.panelMarker.update({
-      where: { id: req.params.panelMarkerId },
-      data: parsed.data,
-    });
+    const [panelMarker] = await prisma.$transaction([
+      prisma.panelMarker.update({ where: { id: req.params.panelMarkerId }, data: parsed.data }),
+      prisma.panel.update({ where: { id: req.params.panelId }, data: { compositionConfirmed: true } }),
+    ]);
 
     await recordAuditLog({
       actorUserId: req.user!.id,
@@ -272,7 +276,10 @@ panelsRouter.delete(
   roleGuard('ADMIN'),
   verifyCsrf,
   asyncHandler(async (req, res) => {
-    await prisma.panelMarker.delete({ where: { id: req.params.panelMarkerId } });
+    await prisma.$transaction([
+      prisma.panelMarker.delete({ where: { id: req.params.panelMarkerId } }),
+      prisma.panel.update({ where: { id: req.params.panelId }, data: { compositionConfirmed: true } }),
+    ]);
 
     await recordAuditLog({
       actorUserId: req.user!.id,
@@ -395,6 +402,92 @@ panelsRouter.patch(
     });
 
     res.json(explanation);
+  }),
+);
+
+// Bulk review queue (hardening §1): every marker's explanation copy in one
+// list, readable and approvable in a single pass, instead of clicking into
+// each marker individually. Markers without an explanation row yet (should
+// not happen post-seed, but defensive) are reported with a null explanation
+// so the queue can still show "no copy written" rather than silently
+// omitting the marker.
+panelsRouter.get(
+  '/markers/explanations',
+  asyncHandler(async (_req, res) => {
+    const markers = await prisma.marker.findMany({
+      where: { isActive: true },
+      include: { explanation: true },
+      orderBy: { name: 'asc' },
+    });
+    res.json(
+      markers.map((m) => ({
+        markerId: m.id,
+        markerName: m.name,
+        markerKey: m.key,
+        explanation: m.explanation
+          ? {
+              whatItIs: m.explanation.whatItIs,
+              highMeans: m.explanation.highMeans,
+              lowMeans: m.explanation.lowMeans,
+              lifestyleContext: m.explanation.lifestyleContext,
+              reviewStatus: m.explanation.reviewStatus,
+              version: m.explanation.version,
+              reviewedAt: m.explanation.reviewedAt,
+            }
+          : null,
+      })),
+    );
+  }),
+);
+
+const bulkReviewExplanationSchema = z.object({
+  markerIds: z.array(z.string().uuid()).min(1),
+  reviewStatus: z.enum(['DRAFT', 'REVIEWED', 'PUBLISHED']),
+});
+
+// Single action approves every selected marker's copy in one pass, but each
+// marker still gets its own audit row (targetId = that MarkerExplanation) —
+// "approved 40 markers in bulk" must be reconstructable as 40 individual,
+// attributable approvals, not one opaque batch entry.
+panelsRouter.post(
+  '/markers/explanations/bulk-review-status',
+  roleGuard('ADMIN', 'CLINICIAN'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const parsed = bulkReviewExplanationSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+    const explanations = await prisma.markerExplanation.findMany({
+      where: { markerId: { in: parsed.data.markerIds } },
+    });
+    if (explanations.length === 0) {
+      return res.status(404).json({ error: 'No matching explanations found' });
+    }
+
+    const now = new Date();
+    await prisma.$transaction(
+      explanations.map((e) =>
+        prisma.markerExplanation.update({
+          where: { id: e.id },
+          data: { reviewStatus: parsed.data.reviewStatus, reviewedById: req.user!.id, reviewedAt: now },
+        }),
+      ),
+    );
+
+    await Promise.all(
+      explanations.map((e) =>
+        recordAuditLog({
+          actorUserId: req.user!.id,
+          action: 'MARKER_EXPLANATION_REVIEW_STATUS_CHANGED',
+          targetType: 'MarkerExplanation',
+          targetId: e.id,
+          ipAddress: req.ip ?? null,
+          metadata: { reviewStatus: parsed.data.reviewStatus, bulk: true },
+        }),
+      ),
+    );
+
+    res.json({ ok: true, count: explanations.length });
   }),
 );
 

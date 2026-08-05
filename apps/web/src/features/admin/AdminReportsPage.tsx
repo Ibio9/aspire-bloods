@@ -7,6 +7,7 @@ import { Select } from '../../components/ui/Select';
 import { FileDropzone } from '../../components/ui/FileDropzone';
 import { DateField } from '../../components/ui/DateField';
 import { Tabs } from '../../components/ui/Tabs';
+import { EmptyState } from '../../components/ui/EmptyState';
 import { apiFetch, ApiError } from '../../lib/api';
 import { API_BASE_URL } from '../../lib/apiBase';
 
@@ -109,30 +110,53 @@ function PdfUploadForm({
   return (
     <Card className="max-w-2xl">
       <form onSubmit={handleUpload} className="flex flex-col gap-5">
-        <Select label="Patient" name="patientId" searchable value={patientId} onChange={(e) => setPatientId(e.target.value)}>
-          <option value="">Select a patient…</option>
-          {patients.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.displayName} ({p.email})
-            </option>
-          ))}
-        </Select>
-        <Select label="Panel" name="panelId" value={panelId} onChange={(e) => setPanelId(e.target.value)}>
-          <option value="">Select a panel…</option>
-          {panels.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </Select>
-        <Select label="Source" name="sourceId" value={sourceId} onChange={(e) => setSourceId(e.target.value)}>
-          <option value="">Select a source…</option>
-          {sources.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </Select>
+        <div>
+          <Select label="Patient" name="patientId" searchable value={patientId} onChange={(e) => setPatientId(e.target.value)}>
+            <option value="">Select a patient…</option>
+            {patients.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.displayName} ({p.email})
+              </option>
+            ))}
+          </Select>
+          {patients.length === 0 && (
+            <p className="mt-1.5 text-sm text-espresso/80">
+              No patients yet — <Link to="/admin/patients" className="underline underline-offset-2">invite one</Link> first.
+            </p>
+          )}
+        </div>
+        <div>
+          <Select label="Panel" name="panelId" value={panelId} onChange={(e) => setPanelId(e.target.value)}>
+            <option value="">Select a panel…</option>
+            {panels.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </Select>
+          {panels.length === 0 && (
+            <p className="mt-1.5 text-sm text-espresso/80">
+              No panels configured yet —{' '}
+              <Link to="/admin/content" className="underline underline-offset-2">set one up</Link> on the content page.
+            </p>
+          )}
+        </div>
+        <div>
+          <Select label="Source" name="sourceId" value={sourceId} onChange={(e) => setSourceId(e.target.value)}>
+            <option value="">Select a source…</option>
+            {sources.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </Select>
+          {sources.length === 0 && (
+            <p className="mt-1.5 text-sm text-espresso/80">
+              No sources configured yet —{' '}
+              <Link to="/admin/content" className="underline underline-offset-2">add one</Link> on the content page.
+            </p>
+          )}
+        </div>
         <DateField label="Sample date" name="sampleDate" value={sampleDate} onChange={setSampleDate} />
         <FileDropzone label="PDF report" file={file} onChange={setFile} accept="application/pdf" />
         {error && (
@@ -237,23 +261,44 @@ function ManualEntryForm({
           For Aspire's own in-house testing — enter values directly instead of uploading a PDF. Goes through the
           same verify-and-release process as everything else.
         </p>
-        <Select label="Patient" name="manualPatientId" searchable value={patientId} onChange={(e) => setPatientId(e.target.value)}>
-          <option value="">Select a patient…</option>
-          {patients.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.displayName} ({p.email})
-            </option>
-          ))}
-        </Select>
-        <Select label="Panel" name="manualPanelId" value={panelId} onChange={(e) => setPanelId(e.target.value)}>
-          <option value="">Select a panel…</option>
-          {panels.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </Select>
+        <div>
+          <Select label="Patient" name="manualPatientId" searchable value={patientId} onChange={(e) => setPatientId(e.target.value)}>
+            <option value="">Select a patient…</option>
+            {patients.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.displayName} ({p.email})
+              </option>
+            ))}
+          </Select>
+          {patients.length === 0 && (
+            <p className="mt-1.5 text-sm text-espresso/80">
+              No patients yet — <Link to="/admin/patients" className="underline underline-offset-2">invite one</Link> first.
+            </p>
+          )}
+        </div>
+        <div>
+          <Select label="Panel" name="manualPanelId" value={panelId} onChange={(e) => setPanelId(e.target.value)}>
+            <option value="">Select a panel…</option>
+            {panels.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </Select>
+          {panels.length === 0 && (
+            <p className="mt-1.5 text-sm text-espresso/80">
+              No panels configured yet —{' '}
+              <Link to="/admin/content" className="underline underline-offset-2">set one up</Link> on the content page.
+            </p>
+          )}
+        </div>
         <DateField label="Sample date" name="manualSampleDate" value={sampleDate} onChange={setSampleDate} />
+        {markers.length === 0 && (
+          <p className="text-sm text-espresso/80">
+            No markers configured yet —{' '}
+            <Link to="/admin/content" className="underline underline-offset-2">add one</Link> on the content page before entering results.
+          </p>
+        )}
 
         <div className="flex flex-col gap-3">
           <p className="eyebrow">Results</p>
@@ -421,7 +466,12 @@ export function AdminReportsPage() {
               </Card>
             </Link>
           ))}
-          {reports.length === 0 && <p className="text-espresso">No reports yet.</p>}
+          {reports.length === 0 && (
+            <EmptyState
+              title="No reports yet"
+              description="Upload a PDF or enter results manually above once a patient and panel exist."
+            />
+          )}
         </div>
       </div>
     </main>
