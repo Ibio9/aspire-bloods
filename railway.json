@@ -1,11 +1,10 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
-    "builder": "RAILPACK",
-    "buildCommand": "npm ci --workspace=packages/shared --workspace=apps/server --include-workspace-root && npm run build --workspace=packages/shared && npm run prisma:generate --workspace=apps/server && npm run build --workspace=apps/server"
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "apps/server/Dockerfile"
   },
   "deploy": {
-    "startCommand": "npm run start --workspace=apps/server",
     "healthcheckPath": "/api/health",
     "healthcheckTimeout": 30,
     "restartPolicyType": "ON_FAILURE",

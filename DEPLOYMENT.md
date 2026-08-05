@@ -38,10 +38,14 @@ I already checked: git history has no committed `.env` files and no secret-shape
 ### 2. Railway — API + Postgres
 
 - [ ] New Railway project. **Add a Postgres service** first (Railway → New → Database → PostgreSQL) — this gives you `DATABASE_URL` automatically for the next step.
-- [ ] **Add a second service** → Deploy from GitHub repo → select `Ibio9/aspire-bloods`. Leave **Root Directory at the repo root** (not `apps/server`) — this is an npm-workspaces monorepo, and `apps/server`'s dependency on `packages/shared` only resolves correctly when `npm ci` runs from the root. `railway.json` at the repo root already tells Railway how to scope the actual build/start to the server:
-  - Build: `packages/shared` built first, then Prisma client generated, then `apps/server` compiled
-  - Start: `prisma migrate deploy && node dist/index.js` — **a failed migration exits non-zero before the server ever starts listening**, so Railway's healthcheck never passes and it keeps the previous deployment serving traffic instead of cutting over to a broken schema
+- [ ] **Add a second service** → Deploy from GitHub repo → select `Ibio9/aspire-bloods`. Leave **Root Directory at the repo root** (not `apps/server`) — this is an npm-workspaces monorepo, and `apps/server`'s dependency on `packages/shared` only resolves correctly when `npm ci` runs from the root. `railway.json` at the repo root points Railway at `apps/server/Dockerfile` (built with the repo root as context) rather than letting Railway auto-detect a build — a plain auto-detected build was installing and trying to build `apps/web` too (it isn't needed here at all; it deploys separately, to Vercel) and hit a file-locking error doing it. The Dockerfile:
+  - Installs only `packages/shared` + `apps/server`'s dependencies (`npm ci --workspace=...`, one install, nothing implicit running before or after it)
+  - Builds `packages/shared`, generates the Prisma client, builds `apps/server`, installs OpenSSL (Prisma's query engine needs it and the slim base image doesn't include it)
+  - Copies only the built output + production node_modules into a fresh runtime layer
+  - Start command: `prisma migrate deploy && node dist/index.js` — **a failed migration exits non-zero before the server ever starts listening**, so Railway's healthcheck never passes and it keeps the previous deployment serving traffic instead of cutting over to a broken schema
   - Healthcheck path: `/api/health`
+
+  Built and ran this exact Dockerfile locally end-to-end before committing it (`docker build`, then `docker run` against the real local Postgres) — confirmed the migration step runs, the production boot checks pass, and `/api/health` responds correctly.
 - [ ] Service → **Variables**, add every variable from `.env.example` except `DATABASE_URL` (Railway injects that automatically from the Postgres service — use the "Add Reference" picker rather than pasting it). In particular:
   - `NODE_ENV=production`
   - `APP_BASE_URL=https://bloods.aspireshield.com`

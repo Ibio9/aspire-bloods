@@ -1,0 +1,36 @@
+# Keeps the build context Railway uploads/copies small and free of
+# machine-local artifacts. node_modules in particular must never be
+# copied in — it was the direct cause of an EBUSY on
+# apps/web/node_modules/.vite during a Railway build (a leftover local
+# Vite dep-optimization cache getting carried into the image, which the
+# scoped `npm ci` in railway.json then tried to reconcile against). The
+# actual install always happens fresh inside the build, from
+# package-lock.json — none of this should ever be needed, only shipped.
+node_modules/
+**/node_modules/
+
+dist/
+**/dist/
+build/
+**/build/
+
+.git/
+
+# Local build/tooling caches
+.turbo/
+**/.turbo/
+.vite/
+**/.vite/
+coverage/
+**/coverage/
+playwright-report/
+test-results/
+
+# Local-only data, never meant to leave this machine
+apps/server/storage/
+apps/server/prisma/dev.db
+*.log
+
+.env
+.env.local
+.vercel/

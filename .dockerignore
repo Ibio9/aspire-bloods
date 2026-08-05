@@ -1,0 +1,32 @@
+# Mirrors .railwayignore — Railway's Railpack builder goes through a
+# container-image build even without a literal Dockerfile, and some
+# build backends respect .dockerignore specifically rather than
+# .railwayignore. Keeping both means whichever one Railway actually
+# reads, the machine-local node_modules/build-cache junk stays out of
+# the image either way.
+node_modules/
+**/node_modules/
+
+dist/
+**/dist/
+build/
+**/build/
+
+.git/
+
+.turbo/
+**/.turbo/
+.vite/
+**/.vite/
+coverage/
+**/coverage/
+playwright-report/
+test-results/
+
+apps/server/storage/
+apps/server/prisma/dev.db
+*.log
+
+.env
+.env.local
+.vercel/
