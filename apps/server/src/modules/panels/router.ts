@@ -6,6 +6,8 @@ import { roleGuard } from '../../middleware/roleGuard.js';
 import { verifyCsrf } from '../../middleware/csrf.js';
 import { asyncHandler } from '../../lib/asyncHandler.js';
 import { recordAuditLog } from '../../lib/auditLog.js';
+import { decryptField } from '../../lib/crypto.js';
+import { resolveReferenceRange, ageFromDob } from '../../lib/resolveReferenceRange.js';
 
 export const panelsRouter = Router();
 
@@ -395,6 +397,42 @@ panelsRouter.patch(
     });
 
     res.json(explanation);
+  }),
+);
+
+// Convenience pre-fill for the verify / manual-entry forms — resolves the
+// best sex/age-matching range from the marker's catalogue (Content &
+// configuration) for the given patient. Never authoritative: whatever the
+// admin confirms at verify time is what actually gets saved on the report
+// (reports/service.ts verifyReport), same as the PDF-parse marker-name
+// match this mirrors in spirit (matchMarker.ts).
+panelsRouter.get(
+  '/markers/:markerId/resolved-range',
+  asyncHandler(async (req, res) => {
+    const patientId = typeof req.query.patientId === 'string' ? req.query.patientId : undefined;
+
+    const marker = await prisma.marker.findUnique({
+      where: { id: req.params.markerId },
+      include: { referenceRanges: true },
+    });
+    if (!marker) return res.status(404).json({ error: 'Marker not found' });
+
+    let sex: 'MALE' | 'FEMALE' | 'ANY' | null = null;
+    let age: number | null = null;
+    if (patientId) {
+      const patient = await prisma.user.findUnique({ where: { id: patientId }, include: { patientProfile: true } });
+      if (patient?.patientProfile) {
+        sex = patient.patientProfile.sex ?? null;
+        age = ageFromDob(decryptField(patient.patientProfile.dobEncrypted));
+      }
+    }
+
+    const resolved = resolveReferenceRange(marker.referenceRanges, sex, age);
+    res.json(
+      resolved
+        ? { referenceRangeId: resolved.id, low: resolved.low, high: resolved.high, unit: resolved.unit }
+        : null,
+    );
   }),
 );
 

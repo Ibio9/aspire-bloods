@@ -4,7 +4,8 @@ import { Input } from '../../components/ui/Input';
 import { OtpInput } from '../../components/ui/OtpInput';
 import { Checkbox } from '../../components/ui/Checkbox';
 import { Button } from '../../components/ui/Button';
-import { apiFetch, ApiError } from '../../lib/api';
+import { apiFetch } from '../../lib/api';
+import { authErrorMessage } from '../../lib/authErrors';
 import { useAuth } from '../../lib/AuthContext';
 import { LOGOUT_REASON_KEY } from '../../lib/AuthContext';
 import { AuthSplitLayout } from './AuthSplitLayout';
@@ -60,7 +61,7 @@ export function LoginPage() {
         setStep({ kind: 'otp', challengeId: result.challengeId });
       }
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Something went wrong');
+      setError(authErrorMessage(e));
     } finally {
       setSubmitting(false);
     }
@@ -79,7 +80,7 @@ export function LoginPage() {
         await refresh();
         navigate('/');
       } catch (e) {
-        setError(e instanceof ApiError ? e.message : 'Something went wrong');
+        setError(authErrorMessage(e));
       } finally {
         setSubmitting(false);
       }
@@ -135,6 +136,10 @@ export function LoginPage() {
               Sign in
             </Button>
           </form>
+          <p className="mt-5 text-xs text-espresso/60">
+            Trouble signing in? Check you've activated your account from your invitation email, and that your
+            password is correct — repeated failed attempts will briefly lock the account.
+          </p>
         </>
       ) : (
         <>

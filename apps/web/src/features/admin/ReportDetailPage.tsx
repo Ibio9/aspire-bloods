@@ -9,12 +9,14 @@ import { DateField } from '../../components/ui/DateField';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { Table, TableHead, TableBody, TableRow, TableHeaderCell, TableCell } from '../../components/ui/Table';
 import { StatusBadge } from '../../components/ui/StatusBadge';
+import { ReportProgress } from '../../components/ui/ReportProgress';
 import { CopyButton } from '../../components/ui/CopyButton';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
 import { useToast } from '../../components/ui/Toast';
 import { apiFetch, ApiError } from '../../lib/api';
 import { API_BASE_URL } from '../../lib/apiBase';
 import { useAuth } from '../../lib/AuthContext';
+import type { ReportStatus } from '../../lib/reportStatus';
 
 interface MarkerOption {
   id: string;
@@ -123,8 +125,26 @@ export function ReportDetailPage() {
     }
   }
 
-  function updateRow(index: number, patch: Partial<ParsedRow>) {
-    setRows((rs) => rs.map((r, i) => (i === index ? { ...r, ...patch } : r)));
+  function updateRow(index: number, patch: Partial<ParsedRow> | ((row: ParsedRow) => Partial<ParsedRow>)) {
+    setRows((rs) => rs.map((r, i) => (i === index ? { ...r, ...(typeof patch === 'function' ? patch(r) : patch) } : r)));
+  }
+
+  // The PDF's own printed range always wins (that's what "reference ranges
+  // read from the result, not the marker" means) — this only fills in a
+  // sex/age-resolved suggestion from the marker catalogue when the parse
+  // came back with no range at all for that row, e.g. an OCR miss.
+  function fillMissingRange(index: number, markerId: string) {
+    if (!markerId || !report) return;
+    void apiFetch<{ low: number; high: number; unit: string } | null>(
+      `/panels/markers/${markerId}/resolved-range?patientId=${report.patient.id}`,
+    ).then((resolved) => {
+      if (!resolved) return;
+      updateRow(index, (row) =>
+        row.referenceLow == null && row.referenceHigh == null
+          ? { referenceLow: resolved.low, referenceHigh: resolved.high, unit: row.unit ?? resolved.unit }
+          : {},
+      );
+    });
   }
 
   async function handleVerify() {
@@ -228,12 +248,16 @@ export function ReportDetailPage() {
         </p>
       </div>
 
-      <TwoTierHeading eyebrow={`${report.panel.name} — ${patientName}`} title={report.status.replace(/_/g, ' ')} />
+      <TwoTierHeading eyebrow={`${patientName} — ${sampleDateLabel}`} title={report.panel.name} />
       <p className="mt-2 flex items-center gap-1 text-sm text-espresso/80">
         {report.patient.email}
         <CopyButton value={report.patient.email} label="Copy patient email" />
       </p>
       {report.sourceLabel && <p className="mt-1 text-sm text-espresso/80">{report.sourceLabel}</p>}
+
+      <div className="mt-6 max-w-xl">
+        <ReportProgress status={report.status as ReportStatus} voided={!!report.voidedAt} />
+      </div>
 
       {report.voidedAt && (
         <Card className="mt-4 max-w-xl border-status-significantHigh bg-white">
@@ -336,7 +360,11 @@ export function ReportDetailPage() {
                       emptyMessage="No markers configured yet."
                       name={`matched-marker-${i}`}
                       value={row.matchedMarkerId ?? ''}
-                      onChange={(e) => updateRow(i, { matchedMarkerId: e.target.value || null })}
+                      onChange={(e) => {
+                        const markerId = e.target.value || null;
+                        updateRow(i, { matchedMarkerId: markerId });
+                        if (markerId) fillMissingRange(i, markerId);
+                      }}
                     >
                       <option value="">— unmatched, skip —</option>
                       {markers.map((m) => (

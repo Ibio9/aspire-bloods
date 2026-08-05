@@ -1,12 +1,17 @@
 import { z } from 'zod';
 
-export const verifiedResultRowSchema = z.object({
-  markerId: z.string().uuid(),
-  value: z.number(),
-  unit: z.string().min(1),
-  referenceLow: z.number(),
-  referenceHigh: z.number(),
-});
+export const verifiedResultRowSchema = z
+  .object({
+    markerId: z.string().uuid(),
+    value: z.number(),
+    unit: z.string().min(1),
+    referenceLow: z.number(),
+    referenceHigh: z.number(),
+  })
+  .refine((r) => r.referenceLow < r.referenceHigh, {
+    message: 'Reference low must be less than reference high',
+    path: ['referenceHigh'],
+  });
 
 export const verifyReportRequestSchema = z.object({
   sampleDate: z.string().datetime(),

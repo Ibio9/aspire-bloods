@@ -227,7 +227,28 @@ reportsRouter.post(
   asyncHandler(async (req, res) => {
     try {
       const report = await releaseReport(req.params.id, req.user!.id, req.ip ?? null);
-      await checkAndEscalate(report.id);
+      // Release has already committed at this point — a notification-side
+      // failure (email/SMS provider down) must not surface as a release
+      // failure to the admin, who would otherwise retry a release that
+      // already succeeded and get a confusing 409. Escalation itself is
+      // still exactly-once: releaseReport() can only ever succeed once per
+      // report (see the status guard above), so this call site runs once.
+      try {
+        await checkAndEscalate(report.id);
+      } catch (escalationError) {
+        console.error('[escalation] failed after successful release', {
+          reportId: report.id,
+          error: escalationError instanceof Error ? escalationError.message : escalationError,
+        });
+        await recordAuditLog({
+          actorUserId: req.user!.id,
+          action: 'ESCALATION_FAILED',
+          targetType: 'Report',
+          targetId: report.id,
+          ipAddress: req.ip ?? null,
+          metadata: { error: escalationError instanceof Error ? escalationError.message : String(escalationError) },
+        });
+      }
       res.json({ ok: true });
     } catch (e) {
       if (!handleReportError(e, res)) throw e;

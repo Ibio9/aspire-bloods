@@ -6,6 +6,8 @@ interface SelectProps {
   name?: string;
   id?: string;
   value: string;
+  /** Short explanatory line under the label — for a picker whose purpose isn't obvious from the label alone. */
+  hint?: string;
   /** Kept as a native-change-event shape so existing call sites (`onChange={(e) => setX(e.target.value)}`)
    * didn't need to change when this moved off a real <select> onto the custom Listbox. */
   onChange: (e: ChangeEvent<HTMLSelectElement>) => void;
@@ -72,6 +74,7 @@ export function Select({
   searchable,
   hideLabel,
   emptyMessage,
+  hint,
   className = '',
   children,
 }: SelectProps) {
@@ -92,6 +95,7 @@ export function Select({
         {label}
         {optional && <span className="font-normal text-espresso/80"> (optional)</span>}
       </label>
+      {hint && !hideLabel && <p className="-mt-1 text-xs text-espresso/80">{hint}</p>}
       <Listbox
         id={fieldId}
         name={name}

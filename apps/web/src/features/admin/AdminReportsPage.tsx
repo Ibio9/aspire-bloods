@@ -1,5 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -9,6 +9,7 @@ import { DateField } from '../../components/ui/DateField';
 import { Tabs } from '../../components/ui/Tabs';
 import { apiFetch, ApiError, extractErrorMessage } from '../../lib/api';
 import { API_BASE_URL } from '../../lib/apiBase';
+import { statusLabel, stageIndex, type ReportStatus } from '../../lib/reportStatus';
 
 interface PatientOption {
   id: string;
@@ -20,6 +21,25 @@ interface PatientOption {
 interface PanelOption {
   id: string;
   name: string;
+  description?: string | null;
+  markers: { marker: { name: string } }[];
+}
+
+// A "panel" is a test package — a bundle of markers run on one sample
+// (Insight 360, Signature, Advanced GP3...). Nobody outside the lab knows
+// that word, so every picker that offers one spells it out: how many
+// markers, and a few by name, right under the field the moment one's picked.
+function PanelSummary({ panel }: { panel: PanelOption }) {
+  const count = panel.markers.length;
+  if (count === 0) return null;
+  const examples = panel.markers.slice(0, 4).map((pm) => pm.marker.name);
+  const more = count - examples.length;
+  return (
+    <p className="text-xs text-espresso/80">
+      {count} marker{count === 1 ? '' : 's'} — {examples.join(', ')}
+      {more > 0 ? `, +${more} more` : ''}
+    </p>
+  );
 }
 
 interface SourceOption {
@@ -36,7 +56,8 @@ interface MarkerOption {
 
 interface ReportRow {
   id: string;
-  status: string;
+  status: ReportStatus;
+  voidedAt: string | null;
   sampleDate: string;
   panel: { name: string };
   source: { name: string };
@@ -124,22 +145,27 @@ function PdfUploadForm({
             </option>
           ))}
         </Select>
+        <div className="flex flex-col gap-1.5">
+          <Select
+            label="Which test package?"
+            hint="A panel is a bundle of markers run on one sample — e.g. Insight 360, Signature, Advanced GP3."
+            name="panelId"
+            emptyMessage="No panels configured — add one under Content & configuration."
+            value={panelId}
+            onChange={(e) => setPanelId(e.target.value)}
+          >
+            <option value="">Select a panel…</option>
+            {panels.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </Select>
+          {panelId && <PanelSummary panel={panels.find((p) => p.id === panelId)!} />}
+        </div>
         <Select
-          label="Panel"
-          name="panelId"
-          emptyMessage="No panels configured — add one under Content & configuration."
-          value={panelId}
-          onChange={(e) => setPanelId(e.target.value)}
-        >
-          <option value="">Select a panel…</option>
-          {panels.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </Select>
-        <Select
-          label="Source"
+          label="Where was this analysed?"
+          hint="The lab or process that produced this result."
           name="sourceId"
           emptyMessage="No sources configured — add one under Content & configuration."
           value={sourceId}
@@ -198,8 +224,8 @@ function ManualEntryForm({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  function updateRow(i: number, patch: Partial<ManualRow>) {
-    setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  function updateRow(i: number, patch: Partial<ManualRow> | ((row: ManualRow) => Partial<ManualRow>)) {
+    setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, ...(typeof patch === 'function' ? patch(r) : patch) } : r)));
   }
 
   function markerUnit(markerId: string): string {
@@ -272,20 +298,24 @@ function ManualEntryForm({
             </option>
           ))}
         </Select>
-        <Select
-          label="Panel"
-          name="manualPanelId"
-          emptyMessage="No panels configured — add one under Content & configuration."
-          value={panelId}
-          onChange={(e) => setPanelId(e.target.value)}
-        >
-          <option value="">Select a panel…</option>
-          {panels.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </Select>
+        <div className="flex flex-col gap-1.5">
+          <Select
+            label="Which test package?"
+            hint="A panel is a bundle of markers run on one sample — e.g. Insight 360, Signature, Advanced GP3."
+            name="manualPanelId"
+            emptyMessage="No panels configured — add one under Content & configuration."
+            value={panelId}
+            onChange={(e) => setPanelId(e.target.value)}
+          >
+            <option value="">Select a panel…</option>
+            {panels.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </Select>
+          {panelId && <PanelSummary panel={panels.find((p) => p.id === panelId)!} />}
+        </div>
         <DateField label="Sample date" name="manualSampleDate" value={sampleDate} onChange={setSampleDate} />
 
         <div className="flex flex-col gap-3">
@@ -300,7 +330,24 @@ function ManualEntryForm({
                   emptyMessage="No markers configured yet."
                   name={`marker-${i}`}
                   value={row.markerId}
-                  onChange={(e) => updateRow(i, { markerId: e.target.value, unit: markerUnit(e.target.value) })}
+                  onChange={(e) => {
+                    const markerId = e.target.value;
+                    updateRow(i, { markerId, unit: markerUnit(markerId) });
+                    // Sex/age-specific catalogue range, as a starting point only — always
+                    // editable, and only ever fills fields the admin hasn't already typed into.
+                    if (markerId && patientId) {
+                      void apiFetch<{ low: number; high: number; unit: string } | null>(
+                        `/panels/markers/${markerId}/resolved-range?patientId=${patientId}`,
+                      ).then((resolved) => {
+                        if (!resolved) return;
+                        updateRow(i, (current) =>
+                          current.referenceLow === '' && current.referenceHigh === ''
+                            ? { referenceLow: String(resolved.low), referenceHigh: String(resolved.high), unit: current.unit || resolved.unit }
+                            : {},
+                        );
+                      });
+                    }
+                  }}
                 >
                   <option value="">Select marker…</option>
                   {markers.map((m) => (
@@ -382,12 +429,31 @@ function ManualEntryForm({
   );
 }
 
+// Reports still open in the pipeline sort first — closest to release (most
+// time-sensitive) first — then released reports trail behind, newest first.
+// Mirrors the same "sorted by what's blocking them" ordering as the
+// dashboard's awaiting-action queue (lib/reportStatus.ts).
+function sortReports(reports: ReportRow[]): ReportRow[] {
+  return reports.slice().sort((a, b) => {
+    const aOpen = !a.voidedAt && a.status !== 'RELEASED';
+    const bOpen = !b.voidedAt && b.status !== 'RELEASED';
+    if (aOpen !== bOpen) return aOpen ? -1 : 1;
+    if (aOpen && bOpen) {
+      const stageDiff = stageIndex(b.status) - stageIndex(a.status);
+      if (stageDiff !== 0) return stageDiff;
+    }
+    return b.sampleDate.localeCompare(a.sampleDate);
+  });
+}
+
 export function AdminReportsPage() {
   const [patients, setPatients] = useState<PatientOption[]>([]);
   const [panels, setPanels] = useState<PanelOption[]>([]);
   const [sources, setSources] = useState<SourceOption[]>([]);
   const [markers, setMarkers] = useState<MarkerOption[]>([]);
   const [reports, setReports] = useState<ReportRow[]>([]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const statusFilter = searchParams.get('status');
 
   async function loadAll() {
     const [p, pan, src, mk, r] = await Promise.all([
@@ -407,6 +473,11 @@ export function AdminReportsPage() {
   useEffect(() => {
     void loadAll();
   }, []);
+
+  const visibleReports = useMemo(() => {
+    const sorted = sortReports(reports);
+    return statusFilter ? sorted.filter((r) => r.status === statusFilter) : sorted;
+  }, [reports, statusFilter]);
 
   return (
     <>
@@ -430,9 +501,20 @@ export function AdminReportsPage() {
       </div>
 
       <div className="mt-10">
-        <p className="eyebrow mb-4">All reports</p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="eyebrow">{statusFilter ? `Reports — ${statusLabel(statusFilter as ReportStatus)}` : 'All reports'}</p>
+          {statusFilter && (
+            <Button variant="ghost" onClick={() => setSearchParams({})}>
+              Clear filter
+            </Button>
+          )}
+        </div>
+        <p className="mt-1 mb-4 text-xs text-espresso/60">
+          Reports still moving through the pipeline are listed first, closest-to-release first — released reports
+          trail behind, most recent first.
+        </p>
         <div className="flex flex-col gap-3">
-          {reports.map((r, i) => (
+          {visibleReports.map((r, i) => (
             <Link
               key={r.id}
               to={`/admin/reports/${r.id}`}
@@ -451,11 +533,11 @@ export function AdminReportsPage() {
                     Sample date: {r.sampleDate.slice(0, 10)} · {r.source.name}
                   </p>
                 </div>
-                <span className="eyebrow">{r.status.replace(/_/g, ' ')}</span>
+                <span className="eyebrow">{r.voidedAt ? 'Voided' : statusLabel(r.status)}</span>
               </Card>
             </Link>
           ))}
-          {reports.length === 0 && <p className="text-espresso">No reports yet.</p>}
+          {visibleReports.length === 0 && <p className="text-espresso">No reports match.</p>}
         </div>
       </div>
     </>

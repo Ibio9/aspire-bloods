@@ -73,7 +73,9 @@ export function PatientHome() {
               >
                 <p className="eyebrow mb-1.5">{r.sampleDate}</p>
                 <p className="font-display text-2xl leading-tight text-espresso">{r.panelName}</p>
-                <p className="mt-4 text-sm text-espresso">Results pending — we'll let you know when they're ready.</p>
+                <p className="mt-4 text-sm text-espresso">
+                  Your results are with the clinical team and will be available shortly.
+                </p>
               </Card>
             ),
           )}

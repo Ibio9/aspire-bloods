@@ -1,12 +1,25 @@
 import type { ReactNode } from 'react';
 
+interface AuthSplitLayoutProps {
+  children: ReactNode;
+  eyebrow?: string;
+  headline?: string;
+  supporting?: string;
+  /** Widens the form column for content that genuinely needs it (the multi-section registration
+   * form) — the left panel stays identical either way, which is what makes this "the same layout". */
+  wide?: boolean;
+}
+
 /**
  * The split composition from the Aspire Rota sign-in benchmark: a dark
  * espresso-to-ink gradient panel carrying the wordmark and positioning,
  * form on cream to the right. Warmer and more spacious than the rota's
  * staff-tool version — this is patient-facing, not internal.
+ *
+ * Login and signup share this exact left panel; only the copy on it and the
+ * width of the right-hand form column differ per caller.
  */
-export function AuthSplitLayout({ children }: { children: ReactNode }) {
+export function AuthSplitLayout({ children, eyebrow, headline, supporting, wide }: AuthSplitLayoutProps) {
   return (
     <main className="min-h-screen md:flex">
       <div className="relative flex min-h-[280px] flex-col justify-between overflow-hidden bg-gradient-to-br from-espresso to-ink px-8 py-10 text-cream md:min-h-screen md:w-[42%] md:px-14 md:py-16">
@@ -22,15 +35,15 @@ export function AuthSplitLayout({ children }: { children: ReactNode }) {
 
         <div className="relative motion-safe:animate-riseIn">
           <p className="font-eyebrow text-xs uppercase tracking-eyebrow text-taupe">
-            Blood test results, done properly
+            {eyebrow ?? 'Blood test results, done properly'}
           </p>
           {/* bronze-300 not bronze: the brand accent fails contrast against its own dark family (1.95:1) — this tint clears 3:1 for large text, verified */}
           <p className="mt-8 font-display italic text-3xl text-bronze-300 md:text-4xl">Aspire</p>
           <h1 className="mt-4 max-w-sm font-display text-3xl leading-tight text-cream md:text-4xl">
-            Your results, explained — not just handed to you.
+            {headline ?? 'Your results, explained — not just handed to you.'}
           </h1>
           <p className="mt-4 max-w-xs text-sm text-cream/70">
-            Sign in to see your panels, track markers over time, and understand what they mean for you.
+            {supporting ?? 'Sign in to see your panels, track markers over time, and understand what they mean for you.'}
           </p>
         </div>
 
@@ -43,7 +56,7 @@ export function AuthSplitLayout({ children }: { children: ReactNode }) {
       </div>
 
       <div className="flex flex-1 items-center justify-center bg-cream px-6 py-16 md:px-16">
-        <div className="w-full max-w-md motion-safe:animate-riseIn">{children}</div>
+        <div className={`w-full motion-safe:animate-riseIn ${wide ? 'max-w-3xl' : 'max-w-md'}`}>{children}</div>
       </div>
     </main>
   );

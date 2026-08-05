@@ -5,7 +5,7 @@ import { Select } from '../../components/ui/Select';
 import { DateField } from '../../components/ui/DateField';
 import { Checkbox } from '../../components/ui/Checkbox';
 import { Button } from '../../components/ui/Button';
-import { ApiError } from '../../lib/api';
+import { authErrorMessage } from '../../lib/authErrors';
 
 export interface ProfileFormData {
   title?: string;
@@ -108,7 +108,7 @@ export function RegistrationForm({ showEmailField, submitLabel, onSubmit }: Regi
         consents,
       });
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Something went wrong');
+      setError(authErrorMessage(e));
     } finally {
       setSubmitting(false);
     }

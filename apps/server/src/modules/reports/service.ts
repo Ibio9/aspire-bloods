@@ -86,6 +86,7 @@ export async function parseReport(reportId: string, actorUserId: string, ip: str
     include: { originalPdfFile: true, panel: { include: { markers: { include: { marker: true } } } } },
   });
   if (!report || !report.originalPdfFile) throw new ReportError('Report not found', 404);
+  if (report.voidedAt) throw new ReportError('This report has been voided and cannot be progressed', 409);
   if (!['UPLOADED', 'PARSED', 'CHANGES_REQUESTED'].includes(report.status)) {
     throw new ReportError(`Cannot parse a report in status ${report.status}`, 409);
   }
@@ -140,6 +141,7 @@ export async function verifyReport(
     include: { patient: { include: { patientProfile: true } }, source: true },
   });
   if (!report) throw new ReportError('Report not found', 404);
+  if (report.voidedAt) throw new ReportError('This report has been voided and cannot be progressed', 409);
   if (!['PARSED', 'ADMIN_VERIFIED', 'CHANGES_REQUESTED'].includes(report.status)) {
     throw new ReportError(`Cannot verify a report in status ${report.status}`, 409);
   }
@@ -223,6 +225,7 @@ export async function reviewReport(
 ) {
   const report = await prisma.report.findUnique({ where: { id: reportId } });
   if (!report) throw new ReportError('Report not found', 404);
+  if (report.voidedAt) throw new ReportError('This report has been voided and cannot be progressed', 409);
   if (report.status !== 'ADMIN_VERIFIED') {
     throw new ReportError(`Cannot review a report in status ${report.status}`, 409);
   }
@@ -247,6 +250,7 @@ export async function reviewReport(
 export async function releaseReport(reportId: string, actorUserId: string, ip: string | null) {
   const report = await prisma.report.findUnique({ where: { id: reportId } });
   if (!report) throw new ReportError('Report not found', 404);
+  if (report.voidedAt) throw new ReportError('This report has been voided and cannot be progressed', 409);
   if (report.status !== 'CLINICIAN_REVIEWED') {
     throw new ReportError(`Cannot release a report in status ${report.status}`, 409);
   }

@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card } from '../../components/ui/Card';
+import { Skeleton } from '../../components/ui/Skeleton';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { apiFetch } from '../../lib/api';
 import { useAuth } from '../../lib/AuthContext';
 import { readRecentPatients, type RecentPatient } from '../../lib/recentPatients';
+import { bucketAwaitingAction, type AwaitingActionBucket } from '../../lib/reportStatus';
 
 interface NavCard {
   to: string;
@@ -28,20 +32,65 @@ function timeAgo(iso: string): string {
   return `${Math.round(hours / 24)}d ago`;
 }
 
+interface ReportSummary {
+  id: string;
+  status: string;
+  voidedAt: string | null;
+}
+
 export function AdminDashboard() {
   const { user } = useAuth();
   const [recent, setRecent] = useState<RecentPatient[]>([]);
+  const [buckets, setBuckets] = useState<AwaitingActionBucket[] | null>(null);
 
   useEffect(() => {
     setRecent(readRecentPatients());
+    void apiFetch<ReportSummary[]>('/reports').then((reports) => setBuckets(bucketAwaitingAction(reports)));
   }, []);
+
+  const totalAwaitingAction = buckets?.reduce((sum, b) => sum + b.count, 0) ?? 0;
 
   return (
     <>
       <p className="eyebrow">Aspire Clinic — Admin console</p>
       <h1 className="display-heading mt-2 leading-[1.05]">Welcome, {user?.displayName ?? ''}</h1>
 
-      <div className="mt-12 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      {/* This is the admin's actual job, so it leads the page (brief §1) —
+          counted and sorted by what's blocking each report, most
+          time-sensitive first. */}
+      <div className="mt-10">
+        <p className="eyebrow mb-4">Reports awaiting action{totalAwaitingAction > 0 ? ` (${totalAwaitingAction})` : ''}</p>
+        {buckets === null ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {[0, 1, 2].map((i) => (
+              <Card key={i}>
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="mt-3 h-6 w-16" />
+              </Card>
+            ))}
+          </div>
+        ) : buckets.length === 0 ? (
+          <EmptyState title="Nothing waiting" description="Every report is either released or hasn't been uploaded yet." />
+        ) : (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {buckets.map((b, i) => (
+              <Link
+                key={b.status}
+                to={`/admin?status=${b.status}`}
+                className="stagger-item motion-safe:animate-riseIn rounded-card"
+                style={{ animationDelay: `${i * 30}ms` }}
+              >
+                <Card interactive className="h-full">
+                  <p className="tabular text-3xl font-medium text-espresso">{b.count}</p>
+                  <p className="mt-1.5 text-sm text-espresso">{b.label}</p>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-14 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {CARDS.filter((c) => !c.adminOnly || user?.role === 'ADMIN').map((card, i) => (
           <Link
             key={card.to}
