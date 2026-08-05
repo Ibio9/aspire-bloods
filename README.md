@@ -61,7 +61,7 @@ CI (`.github/workflows/ci.yml`) runs all four on every PR and push to `main`; br
 
 ## Deploying
 
-Split topology: `apps/web` deploys to Vercel, `apps/server` + Postgres deploy to Railway, on `bloods.aspireshield.com` / `api.bloods.aspireshield.com`. Full first-time setup, exact dashboard steps, the cookie-domain reasoning, secrets-by-platform table, rollback, DB restore, and the post-deploy smoke checklist are all in **[DEPLOYMENT.md](DEPLOYMENT.md)**.
+Split topology: `apps/web` deploys to Vercel, `apps/server` + Postgres deploy to Railway, on `blood.aspireshield.com` / `api.blood.aspireshield.com`. Full first-time setup, exact dashboard steps, the cookie-domain reasoning, secrets-by-platform table, rollback, DB restore, and the post-deploy smoke checklist are all in **[DEPLOYMENT.md](DEPLOYMENT.md)**.
 
 ## What's a placeholder / not live yet
 
