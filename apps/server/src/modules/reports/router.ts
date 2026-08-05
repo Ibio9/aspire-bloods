@@ -6,11 +6,23 @@ import { authGuard } from '../../middleware/authGuard.js';
 import { roleGuard } from '../../middleware/roleGuard.js';
 import { verifyCsrf } from '../../middleware/csrf.js';
 import { asyncHandler } from '../../lib/asyncHandler.js';
-import { ReportError, uploadReport, parseReport, verifyReport, reviewReport, releaseReport, getReportDetail, listReportsForAdmin } from './service.js';
+import {
+  ReportError,
+  uploadReport,
+  parseReport,
+  verifyReport,
+  reviewReport,
+  releaseReport,
+  voidReport,
+  editReleasedReportResult,
+  getReportDetail,
+  listReportsForAdmin,
+} from './service.js';
 import { createManualEntryReport } from './manualEntryService.js';
 import { checkAndEscalate } from '../escalation/service.js';
 import { prisma } from '../../db/client.js';
 import { generateFileToken } from '../../lib/signedUrl.js';
+import { recordAuditLog } from '../../lib/auditLog.js';
 
 export const reportsRouter = Router();
 
@@ -37,6 +49,16 @@ const reviewRequestSchema = z.object({
   note: z.string().max(2000).optional(),
 });
 
+const voidRequestSchema = z.object({
+  reason: z.string().min(1).max(2000),
+});
+
+const editResultRequestSchema = z.object({
+  value: z.number(),
+  unit: z.string().min(1),
+  reason: z.string().min(1).max(2000),
+});
+
 function handleReportError(e: unknown, res: import('express').Response) {
   if (e instanceof ReportError) {
     res.status(e.status).json({ error: e.message });
@@ -50,8 +72,17 @@ reportsRouter.use(authGuard);
 reportsRouter.get(
   '/',
   roleGuard('ADMIN', 'CLINICIAN'),
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
     const reports = await listReportsForAdmin();
+    // Every admin/clinician view of patient data is audited, not just
+    // edits — a list view surfaces every patient's name/status at once.
+    await recordAuditLog({
+      actorUserId: req.user!.id,
+      action: 'PATIENT_DATA_VIEWED',
+      targetType: 'Report',
+      ipAddress: req.ip ?? null,
+      metadata: { view: 'admin_reports_list', count: reports.length },
+    });
     res.json(reports);
   }),
 );
@@ -112,6 +143,14 @@ reportsRouter.get(
   asyncHandler(async (req, res) => {
     try {
       const report = await getReportDetail(req.params.id);
+      await recordAuditLog({
+        actorUserId: req.user!.id,
+        action: 'PATIENT_DATA_VIEWED',
+        targetType: 'Report',
+        targetId: report.id,
+        ipAddress: req.ip ?? null,
+        metadata: { view: 'report_detail', patientId: report.patientId },
+      });
       res.json(report);
     } catch (e) {
       if (!handleReportError(e, res)) throw e;
@@ -160,9 +199,13 @@ reportsRouter.post(
   }),
 );
 
+// This practice's admins are its clinicians — ADMIN can do the full
+// review+release itself, with no separate clinician sign-off required.
+// CLINICIAN stays too, unchanged, for a genuine second-reviewer workflow
+// if this practice ever has one.
 reportsRouter.post(
   '/:id/review',
-  roleGuard('CLINICIAN'),
+  roleGuard('ADMIN', 'CLINICIAN'),
   verifyCsrf,
   asyncHandler(async (req, res) => {
     const parsed = reviewRequestSchema.safeParse(req.body);
@@ -179,12 +222,53 @@ reportsRouter.post(
 
 reportsRouter.post(
   '/:id/release',
-  roleGuard('CLINICIAN'),
+  roleGuard('ADMIN', 'CLINICIAN'),
   verifyCsrf,
   asyncHandler(async (req, res) => {
     try {
       const report = await releaseReport(req.params.id, req.user!.id, req.ip ?? null);
       await checkAndEscalate(report.id);
+      res.json({ ok: true });
+    } catch (e) {
+      if (!handleReportError(e, res)) throw e;
+    }
+  }),
+);
+
+reportsRouter.post(
+  '/:id/void',
+  roleGuard('ADMIN'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const parsed = voidRequestSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+    try {
+      await voidReport(req.params.id, parsed.data.reason, req.user!.id, req.ip ?? null);
+      res.json({ ok: true });
+    } catch (e) {
+      if (!handleReportError(e, res)) throw e;
+    }
+  }),
+);
+
+reportsRouter.patch(
+  '/:id/results/:resultId',
+  roleGuard('ADMIN'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const parsed = editResultRequestSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+    try {
+      await editReleasedReportResult(
+        req.params.resultId,
+        parsed.data.value,
+        parsed.data.unit,
+        parsed.data.reason,
+        req.user!.id,
+        req.ip ?? null,
+      );
       res.json({ ok: true });
     } catch (e) {
       if (!handleReportError(e, res)) throw e;

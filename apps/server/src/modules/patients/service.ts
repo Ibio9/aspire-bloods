@@ -15,8 +15,11 @@ export class PatientAccessError extends Error {
 }
 
 export async function listReportsForPatient(patientId: string) {
+  // Voided is a state change, not a deletion — it disappears from every
+  // patient-facing query but stays fully intact (and visible, marked) for
+  // admins. See reports/service.ts voidReport().
   const reports = await prisma.report.findMany({
-    where: { patientId },
+    where: { patientId, voidedAt: null },
     include: { panel: true, source: true, results: true },
     orderBy: { sampleDate: 'desc' },
   });
@@ -47,7 +50,7 @@ export async function getReleasedReportForPatient(patientId: string, reportId: s
     },
   });
 
-  if (!report || report.patientId !== patientId || report.status !== 'RELEASED') {
+  if (!report || report.patientId !== patientId || report.status !== 'RELEASED' || report.voidedAt) {
     throw new PatientAccessError();
   }
 
@@ -65,6 +68,9 @@ export async function getReleasedReportForPatient(patientId: string, reportId: s
       referenceHigh: r.referenceRange.high,
       status: r.status,
       gloss: r.marker.explanation?.whatItIs ?? '',
+      // A clinical record that silently changes is worse than no record —
+      // the patient always sees the current value, but knows it changed.
+      amendedAt: r.amendedAt,
     })),
   };
 }
@@ -74,7 +80,7 @@ export async function getMarkerTrendForPatient(patientId: string, markerId: stri
   if (!marker) throw new PatientAccessError();
 
   const results = await prisma.reportResult.findMany({
-    where: { markerId, report: { patientId, status: 'RELEASED' } },
+    where: { markerId, report: { patientId, status: 'RELEASED', voidedAt: null } },
     include: { report: { include: { source: true } }, referenceRange: true },
     orderBy: { report: { sampleDate: 'asc' } },
   });
@@ -115,6 +121,7 @@ export async function getMarkerTrendForPatient(patientId: string, markerId: stri
       referenceHigh: highConversion.value,
       sourceKey: r.report.source.key,
       sourceLabel: sourceLabel(r.report.source.key, r.report.source.name),
+      amendedAt: r.amendedAt,
     };
   });
 
@@ -147,6 +154,7 @@ export async function getMarkerTrendForPatient(patientId: string, markerId: stri
       status: latest.status,
       sourceLabel: latest.sourceLabel,
       gloss: marker.explanation?.whatItIs ?? '',
+      amendedAt: latest.amendedAt,
     },
     trend,
     outOfRangeNotice,

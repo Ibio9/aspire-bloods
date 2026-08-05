@@ -267,6 +267,123 @@ export async function releaseReport(reportId: string, actorUserId: string, ip: s
   return prisma.report.findUniqueOrThrow({ where: { id: reportId } });
 }
 
+/**
+ * Void — a state change, not a deletion. The report row, every ReportResult,
+ * and the full audit trail all stay exactly as they were; voidedAt is what
+ * every patient-facing query filters on to make it disappear from the
+ * patient's view, while admin queries keep showing it (marked voided).
+ * Allowed from any non-voided status — a report can be voided even before
+ * release (e.g. uploaded against the wrong patient entirely).
+ */
+export async function voidReport(reportId: string, reason: string, actorUserId: string, ip: string | null) {
+  const report = await prisma.report.findUnique({ where: { id: reportId } });
+  if (!report) throw new ReportError('Report not found', 404);
+  if (report.voidedAt) {
+    throw new ReportError('This report is already voided', 409);
+  }
+
+  await prisma.report.update({
+    where: { id: reportId },
+    data: { voidedAt: new Date(), voidedById: actorUserId, voidReason: reason },
+  });
+
+  await recordAuditLog({
+    actorUserId,
+    action: 'REPORT_VOIDED',
+    targetType: 'Report',
+    targetId: reportId,
+    ipAddress: ip,
+    metadata: { reason, statusAtVoid: report.status },
+  });
+}
+
+/**
+ * Editing a value on an already-RELEASED report versions, never overwrites.
+ * The ReportResult itself still holds only the current value (so every
+ * other read path doesn't need to know about history) but the prior value,
+ * who changed it, when, and why are preserved in ReportResultEdit — a
+ * clinical record that silently changes is worse than no record at all.
+ * The pre-release path (verifyReport, re-verify) is deliberately separate
+ * and still overwrites — nothing has been shown to the patient yet there.
+ */
+export async function editReleasedReportResult(
+  resultId: string,
+  newValue: number,
+  newUnit: string,
+  reason: string,
+  actorUserId: string,
+  ip: string | null,
+) {
+  if (!reason.trim()) {
+    throw new ReportError('A reason is required to edit a released result', 400);
+  }
+
+  const result = await prisma.reportResult.findUnique({
+    where: { id: resultId },
+    include: { report: true, marker: true, referenceRange: true },
+  });
+  if (!result) throw new ReportError('Result not found', 404);
+  if (result.report.status !== 'RELEASED') {
+    throw new ReportError('Can only amend a value on a released report — use verify for anything not yet released', 409);
+  }
+  if (result.report.voidedAt) {
+    throw new ReportError('Cannot amend a value on a voided report', 409);
+  }
+
+  const newStatus = computeMarkerStatus(
+    newValue,
+    result.referenceRange.low,
+    result.referenceRange.high,
+    result.marker.severityMultiplier,
+    result.marker.severityAbsoluteDelta,
+  );
+  const now = new Date();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.reportResultEdit.create({
+      data: {
+        reportResultId: result.id,
+        previousValueEncrypted: result.valueEncrypted,
+        previousUnit: result.unit,
+        previousStatus: result.status,
+        newValueEncrypted: encryptField(String(newValue)),
+        newUnit,
+        newStatus,
+        reason,
+        changedById: actorUserId,
+        changedAt: now,
+      },
+    });
+
+    await tx.reportResult.update({
+      where: { id: result.id },
+      data: {
+        valueEncrypted: encryptField(String(newValue)),
+        unit: newUnit,
+        status: newStatus,
+        amendedAt: now,
+      },
+    });
+  });
+
+  await recordAuditLog({
+    actorUserId,
+    action: 'REPORT_RESULT_AMENDED',
+    targetType: 'ReportResult',
+    targetId: result.id,
+    ipAddress: ip,
+    metadata: {
+      reportId: result.reportId,
+      markerId: result.markerId,
+      previousValue: decryptField(result.valueEncrypted),
+      previousUnit: result.unit,
+      newValue,
+      newUnit,
+      reason,
+    },
+  });
+}
+
 export async function getReportDetail(reportId: string) {
   const report = await prisma.report.findUnique({
     where: { id: reportId },
@@ -274,7 +391,14 @@ export async function getReportDetail(reportId: string) {
       panel: true,
       source: true,
       patient: { include: { patientProfile: true } },
-      results: { include: { marker: true, referenceRange: true } },
+      voidedBy: { include: { staffProfile: true } },
+      results: {
+        include: {
+          marker: true,
+          referenceRange: true,
+          edits: { include: { changedBy: { include: { staffProfile: true } } }, orderBy: { changedAt: 'desc' } },
+        },
+      },
       originalPdfFile: true,
     },
   });
@@ -286,6 +410,20 @@ export async function getReportDetail(reportId: string) {
     results: report.results.map((r) => ({
       ...r,
       value: Number(decryptField(r.valueEncrypted)),
+      edits: r.edits.map((e) => ({
+        id: e.id,
+        previousValue: Number(decryptField(e.previousValueEncrypted)),
+        previousUnit: e.previousUnit,
+        previousStatus: e.previousStatus,
+        newValue: Number(decryptField(e.newValueEncrypted)),
+        newUnit: e.newUnit,
+        newStatus: e.newStatus,
+        reason: e.reason,
+        changedByName: e.changedBy.staffProfile
+          ? `${e.changedBy.staffProfile.firstName} ${e.changedBy.staffProfile.lastName}`
+          : e.changedBy.email,
+        changedAt: e.changedAt,
+      })),
     })),
   };
 }

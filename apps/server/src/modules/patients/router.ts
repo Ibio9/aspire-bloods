@@ -9,6 +9,7 @@ import { generateFileToken } from '../../lib/signedUrl.js';
 import { generateAspireSummaryPdf } from '../export/pdfSummary.js';
 import { storageAdapter } from '../storage/LocalDiskStorageAdapter.js';
 import { buildDsarExport } from './dsarService.js';
+import { recordAuditLog } from '../../lib/auditLog.js';
 import {
   PatientAccessError,
   listReportsForPatient,
@@ -21,7 +22,11 @@ import {
 
 export const patientsRouter = Router();
 
-patientsRouter.use(authGuard, roleGuard('PATIENT'));
+// Widened beyond PATIENT so an admin who is also a patient of the practice
+// sees their own results through this exact same route — one account, no
+// second login. Every function here is already scoped to req.user!.id, so
+// there's no cross-patient access risk in allowing ADMIN/CLINICIAN through.
+patientsRouter.use(authGuard, roleGuard('PATIENT', 'ADMIN', 'CLINICIAN'));
 
 function handleAccessError(e: unknown, res: import('express').Response) {
   if (e instanceof PatientAccessError) {
@@ -31,10 +36,26 @@ function handleAccessError(e: unknown, res: import('express').Response) {
   return false;
 }
 
+// An admin viewing their OWN results through this route is still an
+// admin viewing patient data, and is still audited — the "admin" framing
+// is about the identity of the viewer, not whose data it is.
+async function auditIfAdminViewer(req: import('express').Request, view: string, targetType: string, targetId?: string) {
+  if (req.user!.role === 'PATIENT') return;
+  await recordAuditLog({
+    actorUserId: req.user!.id,
+    action: 'PATIENT_DATA_VIEWED',
+    targetType,
+    targetId: targetId ?? req.user!.id,
+    ipAddress: req.ip ?? null,
+    metadata: { view, ownData: true },
+  });
+}
+
 patientsRouter.get(
   '/reports',
   asyncHandler(async (req, res) => {
     const reports = await listReportsForPatient(req.user!.id);
+    await auditIfAdminViewer(req, 'own_reports_list', 'User');
     res.json(reports);
   }),
 );
@@ -44,6 +65,7 @@ patientsRouter.get(
   asyncHandler(async (req, res) => {
     try {
       const report = await getReleasedReportForPatient(req.user!.id, req.params.id);
+      await auditIfAdminViewer(req, 'own_report_detail', 'Report', req.params.id);
       res.json(report);
     } catch (e) {
       if (!handleAccessError(e, res)) throw e;
@@ -56,6 +78,7 @@ patientsRouter.get(
   asyncHandler(async (req, res) => {
     try {
       const detail = await getMarkerTrendForPatient(req.user!.id, req.params.markerId);
+      await auditIfAdminViewer(req, 'own_marker_detail', 'Marker', req.params.markerId);
       res.json(detail);
     } catch (e) {
       if (!handleAccessError(e, res)) throw e;
@@ -106,6 +129,7 @@ patientsRouter.get(
   '/me/consents',
   asyncHandler(async (req, res) => {
     const statuses = await getConsentStatus(req.user!.id);
+    await auditIfAdminViewer(req, 'own_consents', 'User');
     res.json(statuses);
   }),
 );
