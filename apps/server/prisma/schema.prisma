@@ -100,6 +100,18 @@ model User {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
+  // Admin-initiated deactivation — distinct from the DISABLED status set by
+  // the erasure-purge job (which also anonymises the profile). Deactivation
+  // blocks login and revokes existing sessions but retains all data
+  // untouched, and is reversible. deactivatedAt is the marker that
+  // distinguishes "deactivated" from "erased" even though both currently
+  // set status: DISABLED.
+  deactivatedAt       DateTime?
+  deactivatedById      String?
+  deactivatedBy        User?     @relation("DeactivatedByStaff", fields: [deactivatedById], references: [id])
+  deactivationReason   String?
+  deactivatedAccounts  User[]    @relation("DeactivatedByStaff")
+
   patientProfile    PatientProfile?
   staffProfile      StaffProfile?
   inviteTokens      InviteToken[]
@@ -114,6 +126,8 @@ model User {
   reportsUploaded   Report[] @relation("UploadedByStaff")
   reportsVerified   Report[] @relation("VerifiedByStaff")
   reportsReviewed   Report[] @relation("ReviewedByStaff")
+  reportsVoided     Report[] @relation("VoidedByStaff")
+  resultEdits       ReportResultEdit[] @relation("ResultEditedByStaff")
 }
 
 model PatientProfile {
@@ -353,6 +367,14 @@ model Report {
   reviewedAt   DateTime?
   releasedAt   DateTime?
 
+  // Void is a state change, not a deletion — the row, every ReportResult,
+  // and the full audit trail all stay intact. Voided reports are filtered
+  // out of every patient-facing query but remain visible (marked) to admins.
+  voidedAt     DateTime?
+  voidedById   String?
+  voidedBy     User?     @relation("VoidedByStaff", fields: [voidedById], references: [id])
+  voidReason   String?
+
   originalPdfFileId String?     @unique
   originalPdfFile   StoredFile? @relation("OriginalPdf", fields: [originalPdfFileId], references: [id])
   generatedFiles    StoredFile[] @relation("GeneratedFiles")
@@ -382,8 +404,37 @@ model ReportResult {
   rawParsedValue   String?
   createdAt        DateTime       @default(now())
 
+  // Set (and refreshed) whenever a RELEASED report's value is amended —
+  // never on the pre-release verify/re-verify overwrite path, which isn't
+  // "amendment" since nothing has been shown to the patient yet. Patient
+  // view shows the current value plus "amended on {amendedAt}".
+  amendedAt DateTime?
+  edits     ReportResultEdit[]
+
   @@unique([reportId, markerId])
   @@index([markerId])
+}
+
+// One immutable row per post-release edit — versioned, never overwritten.
+// A RELEASED report's ReportResult itself still holds only the CURRENT
+// value (so every other read path doesn't need to know about history), but
+// every prior value is preserved here with who changed it, when, and why.
+model ReportResultEdit {
+  id                  String       @id @default(uuid())
+  reportResultId      String
+  reportResult        ReportResult @relation(fields: [reportResultId], references: [id])
+  previousValueEncrypted String
+  previousUnit        String
+  previousStatus      MarkerStatus
+  newValueEncrypted   String
+  newUnit             String
+  newStatus           MarkerStatus
+  reason              String
+  changedById         String
+  changedBy           User         @relation("ResultEditedByStaff", fields: [changedById], references: [id])
+  changedAt           DateTime     @default(now())
+
+  @@index([reportResultId])
 }
 
 model StoredFile {
