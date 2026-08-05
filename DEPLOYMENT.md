@@ -3,14 +3,14 @@
 ## Topology
 
 ```
-bloods.aspireshield.com          →  Vercel   (apps/web — static SPA)
-api.bloods.aspireshield.com      →  Railway  (apps/server — Node API)
+blood.aspireshield.com          →  Vercel   (apps/web — static SPA)
+api.blood.aspireshield.com      →  Railway  (apps/server — Node API)
                                      Railway  (Postgres, same project)
 ```
 
-Two separate deploys, not one service serving both. This matters for one specific reason: the session cookie is `httpOnly` and the API is the only thing that can set or read it. If the frontend and API sat on unrelated domains (`*.vercel.app` and `*.railway.app`), that cookie would be **third-party** from the browser's point of view — Safari and Firefox block third-party cookies outright, and Chrome is moving the same direction. Putting both under one parent domain (`bloods.aspireshield.com`) with the cookie scoped to `.bloods.aspireshield.com` keeps it first-party: every browser treats a cookie set by `api.bloods.aspireshield.com` as valid for `bloods.aspireshield.com` too, because they share a registrable domain.
+Two separate deploys, not one service serving both. This matters for one specific reason: the session cookie is `httpOnly` and the API is the only thing that can set or read it. If the frontend and API sat on unrelated domains (`*.vercel.app` and `*.railway.app`), that cookie would be **third-party** from the browser's point of view — Safari and Firefox block third-party cookies outright, and Chrome is moving the same direction. Putting both under one parent domain (`blood.aspireshield.com`) with the cookie scoped to `.blood.aspireshield.com` keeps it first-party: every browser treats a cookie set by `api.blood.aspireshield.com` as valid for `blood.aspireshield.com` too, because they share a registrable domain.
 
-This is why `COOKIE_DOMAIN=.bloods.aspireshield.com` (leading dot, see `.env.example`) is not optional in production — without it the cookie is scoped to the API subdomain only and the frontend will never see it, and login will appear to succeed (the API sets the cookie) but every subsequent request will look unauthenticated.
+This is why `COOKIE_DOMAIN=.blood.aspireshield.com` (leading dot, see `.env.example`) is not optional in production — without it the cookie is scoped to the API subdomain only and the frontend will never see it, and login will appear to succeed (the API sets the cookie) but every subsequent request will look unauthenticated.
 
 **If the custom domains aren't live yet** (DNS not propagated, certs not issued) and you need a working deploy sooner: add a Vercel rewrite proxying `/api/*` to the Railway `*.up.railway.app` URL, which makes every request same-origin from the browser's perspective and sidesteps the cookie problem entirely, at the cost of an extra hop through Vercel's edge for every API call. This isn't wired up by default because the Railway URL doesn't exist until you've created the service — see "Fallback: same-origin proxy" below if you need it.
 
@@ -29,10 +29,6 @@ This is why `COOKIE_DOMAIN=.bloods.aspireshield.com` (leading dot, see `.env.exa
   - Require a pull request before merging
   - Require status checks to pass before merging → select the `verify` job from the CI workflow (it'll appear in the list after the first CI run on a PR)
   - Do not allow direct pushes (no bypass for anyone, including yourself, unless you deliberately want an escape hatch)
-- [ ] **Settings → Secrets and variables → Actions**, add (for the backup workflow — see "Backups" below):
-  - `BACKUP_DATABASE_URL`
-  - `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY`, `BACKUP_S3_ENDPOINT`, `BACKUP_S3_BUCKET`
-
 I already checked: git history has no committed `.env` files and no secret-shaped strings anywhere in any commit (checked file-by-name and by content-pattern across the full history) — safe to push as-is.
 
 ### 2. Railway — API + Postgres
@@ -48,26 +44,32 @@ I already checked: git history has no committed `.env` files and no secret-shape
   Built and ran this exact Dockerfile locally end-to-end before committing it (`docker build`, then `docker run` against the real local Postgres) — confirmed the migration step runs, the production boot checks pass, and `/api/health` responds correctly.
 - [ ] Service → **Variables**, add every variable from `.env.example` except `DATABASE_URL` (Railway injects that automatically from the Postgres service — use the "Add Reference" picker rather than pasting it). In particular:
   - `NODE_ENV=production`
-  - `APP_BASE_URL=https://bloods.aspireshield.com`
-  - `API_BASE_URL=https://api.bloods.aspireshield.com`
-  - `COOKIE_DOMAIN=.bloods.aspireshield.com` (leading dot)
+  - `APP_BASE_URL=https://blood.aspireshield.com`
+  - `API_BASE_URL=https://api.blood.aspireshield.com`
+  - `COOKIE_DOMAIN=.blood.aspireshield.com` (leading dot)
   - `ADMIN_EMAILS=<the practice's real admin email(s)>`
   - `EXPOSE_DEV_OTP_CODE=false` (or just leave it unset)
   - Real secrets for `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `CSRF_SECRET`, `FILE_SIGNING_SECRET`, `ENCRYPTION_KEY` — generate with the commands in the README, **not** the placeholder values from `.env.example`. The app refuses to boot in production if it detects the literal placeholder strings or a missing `ADMIN_EMAILS`/`RESEND_API_KEY`/`EXPOSE_DEV_OTP_CODE=true` — see `lib/productionBootChecks.ts`.
   - `RESEND_API_KEY=<real Resend key>` — required; without it the email provider falls back to printing OTP codes and patient addresses to the console.
   - `STORAGE_ROOT=/data/storage` (see "PDF storage" below)
-- [ ] Service → **Settings → Networking → Generate Domain**, or add the custom domain directly: `api.bloods.aspireshield.com`. Railway will show a CNAME target — that's the IONOS record below.
+- [ ] Service → **Settings → Networking → Generate Domain**, or add the custom domain directly: `api.blood.aspireshield.com`. Railway will show a CNAME target — that's the IONOS record below.
 - [ ] Service → **Settings → Volumes → New Volume**, mount path `/data/storage`. This is where uploaded PDFs live — see reasoning below.
 
 **PDF storage — Railway Volume, not object storage.** The original `StorageAdapter` interface was built swappable specifically for this decision (`LocalDiskStorageAdapter` now, `S3StorageAdapter` later if ever needed). At this practice's scale (single API instance, not planning horizontal scaling), a Railway Volume gets you off the ephemeral container filesystem with **zero code changes** — the existing HMAC-signed-URL download flow, encryption-at-rest handling, and `StorageAdapter` abstraction all keep working exactly as designed, just pointed at a persistent mount instead of the container's disk. Object storage (S3/R2) would be more "correct" for a multi-instance or high-scale deployment, but that's not this deployment, and it means a new external account, new credentials to secure, and a new adapter to write for a scaling need that doesn't exist yet. If the practice later needs multi-instance Railway or wants geo-redundant file storage, swapping in `S3StorageAdapter` behind the same interface is the clean upgrade path — nothing else in the codebase would need to change.
 
+- [ ] **Add a third service** for the nightly backup → same GitHub repo, but set it to build `apps/server/backup.Dockerfile` (Settings → Source → this repo, then Settings → Build → set the Dockerfile path) — **not** the app's own `Dockerfile`; this one only needs `pg_dump` and the AWS CLI, not Node. Service → **Settings → Cron Schedule**, set `15 3 * * *` (03:15 UTC daily). This makes it a cron service: Railway runs the container to completion on that schedule instead of keeping it always-on, so it isn't billed as a running service between backups.
+  - Variables:
+    - `DATABASE_URL` — use the **private** reference to the Postgres service (Railway's internal networking, e.g. `postgres.railway.internal`), the same "Add Reference" picker as the API service uses. This is the whole point of running the backup as a Railway service instead of a GitHub Action: Postgres never needs a public network exposure for backups to work.
+    - `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY`, `BACKUP_S3_ENDPOINT`, `BACKUP_S3_BUCKET` — see "Backups" below for where these come from (R2 bucket + API token)
+    - `BACKUP_RETENTION_DAYS=35` (optional — this is already the default if unset)
+
 ### 3. Vercel — frontend
 
-- [ ] New Vercel project → import `Ibio9/aspire-bloods` from GitHub. Framework preset: **Vite**. Leave the root directory as the repo root — `vercel.json` at the repo root already sets `buildCommand` (builds `packages/shared` first, then `apps/web`), `outputDirectory` (`apps/web/dist`), the SPA rewrite (so client-side routes don't 404 on refresh), and security headers (HSTS, `X-Content-Type-Options`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`, and a CSP that only allows `connect-src` to `https://api.bloods.aspireshield.com` — no third-party fonts/analytics/anything).
+- [ ] New Vercel project → import `Ibio9/aspire-bloods` from GitHub. Framework preset: **Vite**. Leave the root directory as the repo root — `vercel.json` at the repo root already sets `buildCommand` (builds `packages/shared` first, then `apps/web`), `outputDirectory` (`apps/web/dist`), the SPA rewrite (so client-side routes don't 404 on refresh), and security headers (HSTS, `X-Content-Type-Options`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`, and a CSP that only allows `connect-src` to `https://api.blood.aspireshield.com` — no third-party fonts/analytics/anything).
 - [ ] Project → **Settings → Environment Variables**, add `VITE_API_BASE_URL`:
-  - **Production**: `https://api.bloods.aspireshield.com`
+  - **Production**: `https://api.blood.aspireshield.com`
   - **Preview**: the staging Railway API URL — **never** the production URL (see "Preview deploys" below)
-- [ ] Project → **Settings → Domains**, add `bloods.aspireshield.com`. Vercel will show the record to add — that's the other IONOS record below.
+- [ ] Project → **Settings → Domains**, add `blood.aspireshield.com`. Vercel will show the record to add — that's the other IONOS record below.
 
 ### 5. Preview deploys → separate staging API
 
@@ -77,7 +79,7 @@ Every PR gets a Vercel preview deploy automatically once the project is connecte
 - [ ] Set that staging API service's own env vars — same list as production, but `ADMIN_EMAILS` pointing at a test admin address, `RESEND_API_KEY` can reuse the same Resend account (emails just go to whatever test addresses you sign up with), and `APP_BASE_URL` set to `*` is not valid for CORS — instead set it to Vercel's preview URL pattern is not possible either (previews get unique URLs per-deploy). Simplest working setup: set staging's `APP_BASE_URL` to your primary preview testing URL, or relax CORS specifically on the staging service only (never on production) to accept any `*.vercel.app` origin.
 - [ ] Get the staging API's Railway-assigned URL (`<staging-service>.up.railway.app`) and set it as `VITE_API_BASE_URL` under the **Preview** environment in Vercel's project settings (step above).
 
-Production `VITE_API_BASE_URL` (Production environment) always points at `api.bloods.aspireshield.com`, never at staging — the environment-scoped variables in Vercel keep these from ever crossing over.
+Production `VITE_API_BASE_URL` (Production environment) always points at `api.blood.aspireshield.com`, never at staging — the environment-scoped variables in Vercel keep these from ever crossing over.
 
 ### 4. IONOS — DNS
 
@@ -85,17 +87,17 @@ You mentioned the apex domain (`aspireshield.com`) already has a CNAME conflict 
 
 | Type | Host/Name | Points to | Notes |
 |---|---|---|---|
-| CNAME | `bloods` | (the target Vercel shows you in Domains — typically `cname.vercel-dns.com`) | frontend |
-| CNAME | `api.bloods` | (the target Railway shows you in Networking — typically `<service>.up.railway.app`) | API |
+| CNAME | `blood` | (the target Vercel shows you in Domains — typically `cname.vercel-dns.com`) | frontend |
+| CNAME | `api.blood` | (the target Railway shows you in Networking — typically `<service>.up.railway.app`) | API |
 
 After adding both, verify against a public resolver rather than your own machine's (which may have a stale cached answer):
 
 ```
-nslookup bloods.aspireshield.com 8.8.8.8
-nslookup api.bloods.aspireshield.com 8.8.8.8
+nslookup blood.aspireshield.com 8.8.8.8
+nslookup api.blood.aspireshield.com 8.8.8.8
 ```
 
-Both should resolve to the CNAME targets above. Once they do, both Vercel and Railway will automatically issue TLS certificates (Let's Encrypt) for their respective domains — this can take a few minutes after DNS first resolves. Confirm both `https://bloods.aspireshield.com` and `https://api.bloods.aspireshield.com/api/health` load over HTTPS, and that plain `http://` on either redirects to `https://`.
+Both should resolve to the CNAME targets above. Once they do, both Vercel and Railway will automatically issue TLS certificates (Let's Encrypt) for their respective domains — this can take a few minutes after DNS first resolves. Confirm both `https://blood.aspireshield.com` and `https://api.blood.aspireshield.com/api/health` load over HTTPS, and that plain `http://` on either redirects to `https://`.
 
 ### Fallback: same-origin proxy (only if custom domains aren't ready)
 
@@ -109,16 +111,15 @@ If you need a working deploy before DNS/certs are sorted: in `vercel.json`, add 
 
 ## Secrets — where each one lives
 
-| Secret | Railway | Vercel | GitHub Actions |
+| Secret | Railway (API service) | Railway (backup cron service) | Vercel |
 |---|---|---|---|
-| `DATABASE_URL` | ✅ (auto-injected from Postgres service) | | |
+| `DATABASE_URL` | ✅ (auto-injected from Postgres service) | ✅ (**private** reference — never the public connection string) | |
 | `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` / `CSRF_SECRET` / `FILE_SIGNING_SECRET` / `ENCRYPTION_KEY` | ✅ | | |
 | `ADMIN_EMAILS` | ✅ | | |
 | `RESEND_API_KEY` | ✅ | | |
 | `COOKIE_DOMAIN` / `APP_BASE_URL` / `API_BASE_URL` | ✅ | | |
-| `VITE_API_BASE_URL` | | ✅ | |
-| `BACKUP_DATABASE_URL` (Railway Postgres's **public** connection string — GitHub's runners are outside Railway's private network) | | | ✅ |
-| `BACKUP_S3_*` (off-platform backup target credentials) | | | ✅ |
+| `BACKUP_S3_*` / `BACKUP_RETENTION_DAYS` (off-platform backup target) | | ✅ | |
+| `VITE_API_BASE_URL` | | | ✅ |
 
 Nothing above should ever be committed to the repo — `.env`, `.env.local`, and friends are gitignored, and `.env.example` only ever holds placeholder values (the app refuses to boot in production if it detects the literal placeholder strings).
 
@@ -133,7 +134,11 @@ Both Railway and Vercel auto-deploy on push to `main` once connected to the GitH
 
 ## Database restore
 
-Backups are automated via `.github/workflows/backup.yml` — a daily `pg_dump` (03:15 UTC), gzip-compressed, uploaded to S3-compatible off-platform storage (Cloudflare R2 recommended: free egress, generous free tier, S3-compatible API so the workflow's `aws s3` calls work against it unchanged — set `BACKUP_S3_ENDPOINT` to your R2 account's S3 endpoint). Retention: **35 days**, pruned automatically by the same workflow. This is deliberately separate from whatever backup tier Railway's own Postgres plan includes — a Railway-only backup doesn't help if the incident is Railway itself (account issue, region outage, accidental project deletion).
+Backups run as a Railway **Cron Service** (`apps/server/backup.Dockerfile` + `apps/server/scripts/backup.sh`, set up in the Railway section above), not a GitHub Action — the earlier GitHub Actions version needed Railway Postgres's connection string to be **publicly** reachable, since GitHub's runners are outside Railway's private network; running the same job as a Railway service instead means it can use the **private** `DATABASE_URL` (Railway's internal networking) and Postgres never needs to be exposed to the internet at all.
+
+Nightly at 03:15 UTC: `pg_dump`, gzip-compressed, uploaded to S3-compatible off-platform storage (Cloudflare R2 recommended: free egress, generous free tier, S3-compatible API). Retention: **35 days**, pruned automatically by the same script. This is deliberately separate from whatever backup tier Railway's own Postgres plan includes — a Railway-only backup doesn't help if the incident is Railway itself (account issue, region outage, accidental project deletion). The script fails loudly (non-zero exit, explicit message) rather than silently skipping if `DATABASE_URL` or any `BACKUP_S3_*` variable is missing.
+
+Built and ran this exact image locally before committing it: real `pg_dump` against the local Postgres, real upload/list/delete against a local MinIO instance standing in for R2 — confirmed the dump, the upload, and both branches of the prune logic (kept a recent backup, deleted an artificially-expired one) all actually work, not just that the script reads correctly.
 
 To restore:
 
@@ -144,7 +149,7 @@ psql "<target DATABASE_URL>" < restore.sql
 
 Restoring into a **new** empty database and re-pointing `DATABASE_URL` (rather than restoring over the live one) is the safer default unless you specifically intend to discard everything written since the backup.
 
-**You need to do, once, before backups start working**: create the R2 (or S3) bucket and access keys, then add the five `BACKUP_*` secrets in GitHub (step 1 above). Until those exist, the backup workflow will fail loudly every night (by design — it exits non-zero with an explicit message rather than silently skipping) instead of pretending backups are happening.
+**You need to do, once, before backups start working**: create the R2 (or S3) bucket and an access key pair, then add the `BACKUP_S3_*` variables on the Railway backup cron service (Railway section, step above). Until those exist, the cron job will fail loudly every night (by design) instead of pretending backups are happening — check that service's logs after the first scheduled run.
 
 ## Post-deploy smoke checklist
 
@@ -164,10 +169,10 @@ Run through this after the first production deploy, and after any deploy that to
 ## What I could not do myself
 
 - Creating the GitHub repo, pushing to it, and configuring branch protection (no `gh` CLI or GitHub credentials in this environment)
-- Creating the Railway project/services, setting environment variables, generating domains, creating the volume
+- Creating the Railway project/services (including the backup cron service), setting environment variables, generating domains, creating the volume
 - Creating the Vercel project, setting environment variables, adding the domain
 - Adding the IONOS DNS records
-- Creating an R2/S3 bucket and access keys for backups, and adding the five `BACKUP_*` GitHub secrets
+- Creating an R2/S3 bucket and access keys for backups, and adding the `BACKUP_S3_*` variables on the Railway backup service
 - Verifying DNS propagation, certificate issuance, and the Safari cookie behavior in production — all of this needs the real domains to exist first
 
 Everything else — the code changes needed to make the split topology, cookie domain, CORS, migration-gated deploys, persistent rate limiting, and PDF storage all actually work — is done and committed.
