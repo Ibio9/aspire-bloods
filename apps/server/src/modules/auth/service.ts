@@ -506,10 +506,17 @@ export async function refreshSession(refreshTokenRaw: string, ip: string | null,
   return { ...next, userId: user.id, role: user.role };
 }
 
-export async function logout(refreshTokenRaw: string | undefined) {
+export async function logout(refreshTokenRaw: string | undefined, ip: string | null) {
   if (!refreshTokenRaw) return;
   const existing = await prisma.refreshToken.findUnique({ where: { tokenHash: hashToken(refreshTokenRaw) } });
   if (existing && !existing.revokedAt) {
     await prisma.refreshToken.update({ where: { id: existing.id }, data: { revokedAt: new Date() } });
+    await recordAuditLog({
+      actorUserId: existing.userId,
+      action: 'LOGOUT',
+      targetType: 'User',
+      targetId: existing.userId,
+      ipAddress: ip,
+    });
   }
 }

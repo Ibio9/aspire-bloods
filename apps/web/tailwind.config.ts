@@ -29,7 +29,11 @@ export default {
         eyebrow: typography.eyebrow.letterSpacing,
       },
       borderRadius: {
-        card: '0.375rem',
+        // Soft, generous radii (brief §3: "soft radius" on dropdowns/cards) — card and input are
+        // deliberately different values so a dropdown panel or date popover sitting on top of an
+        // input reads as a distinct, slightly softer surface rather than a uniform stack.
+        card: '1rem',
+        input: '0.625rem',
       },
       boxShadow: {
         card: '0 1px 2px 0 rgb(66 60 54 / 0.05)',

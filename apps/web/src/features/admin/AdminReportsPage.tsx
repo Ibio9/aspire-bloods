@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
+import { FileDropzone } from '../../components/ui/FileDropzone';
+import { DateField } from '../../components/ui/DateField';
 import { Tabs } from '../../components/ui/Tabs';
 import { apiFetch, ApiError } from '../../lib/api';
 import { API_BASE_URL } from '../../lib/apiBase';
@@ -108,7 +109,7 @@ function PdfUploadForm({
   return (
     <Card className="max-w-2xl">
       <form onSubmit={handleUpload} className="flex flex-col gap-5">
-        <Select label="Patient" name="patientId" value={patientId} onChange={(e) => setPatientId(e.target.value)}>
+        <Select label="Patient" name="patientId" searchable value={patientId} onChange={(e) => setPatientId(e.target.value)}>
           <option value="">Select a patient…</option>
           {patients.map((p) => (
             <option key={p.id} value={p.id}>
@@ -132,20 +133,8 @@ function PdfUploadForm({
             </option>
           ))}
         </Select>
-        <Input label="Sample date" name="sampleDate" type="date" value={sampleDate} onChange={(e) => setSampleDate(e.target.value)} />
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="pdf-file" className="text-sm font-medium text-espresso">
-            PDF report
-          </label>
-          <input
-            id="pdf-file"
-            type="file"
-            accept="application/pdf"
-            required
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            className="text-sm text-espresso file:mr-3 file:rounded-full file:border-0 file:bg-bronze file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-bronze-600"
-          />
-        </div>
+        <DateField label="Sample date" name="sampleDate" value={sampleDate} onChange={setSampleDate} />
+        <FileDropzone label="PDF report" file={file} onChange={setFile} accept="application/pdf" />
         {error && (
           <p role="alert" className="text-sm text-status-significantHigh">
             {error}
@@ -248,7 +237,7 @@ function ManualEntryForm({
           For Aspire's own in-house testing — enter values directly instead of uploading a PDF. Goes through the
           same verify-and-release process as everything else.
         </p>
-        <Select label="Patient" name="manualPatientId" value={patientId} onChange={(e) => setPatientId(e.target.value)}>
+        <Select label="Patient" name="manualPatientId" searchable value={patientId} onChange={(e) => setPatientId(e.target.value)}>
           <option value="">Select a patient…</option>
           {patients.map((p) => (
             <option key={p.id} value={p.id}>
@@ -264,31 +253,29 @@ function ManualEntryForm({
             </option>
           ))}
         </Select>
-        <Input
-          label="Sample date"
-          name="manualSampleDate"
-          type="date"
-          value={sampleDate}
-          onChange={(e) => setSampleDate(e.target.value)}
-        />
+        <DateField label="Sample date" name="manualSampleDate" value={sampleDate} onChange={setSampleDate} />
 
         <div className="flex flex-col gap-3">
           <p className="eyebrow">Results</p>
           {rows.map((row, i) => (
             <div key={i} className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-              <select
-                aria-label="Marker"
-                className="input-base py-2 sm:col-span-2"
-                value={row.markerId}
-                onChange={(e) => updateRow(i, { markerId: e.target.value, unit: markerUnit(e.target.value) })}
-              >
-                <option value="">Select marker…</option>
-                {markers.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
+              <div className="sm:col-span-2">
+                <Select
+                  label={`Marker for row ${i + 1}`}
+                  hideLabel
+                  searchable
+                  name={`marker-${i}`}
+                  value={row.markerId}
+                  onChange={(e) => updateRow(i, { markerId: e.target.value, unit: markerUnit(e.target.value) })}
+                >
+                  <option value="">Select marker…</option>
+                  {markers.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
               <input
                 type="number"
                 step="any"

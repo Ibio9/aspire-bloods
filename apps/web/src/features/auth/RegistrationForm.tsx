@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
+import { DateField } from '../../components/ui/DateField';
 import { Checkbox } from '../../components/ui/Checkbox';
 import { Button } from '../../components/ui/Button';
 import { ApiError } from '../../lib/api';
@@ -79,6 +80,10 @@ export function RegistrationForm({ showEmailField, submitLabel, onSubmit }: Regi
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!form.dob) {
+      setError('Date of birth is required.');
+      return;
+    }
     setSubmitting(true);
     try {
       await onSubmit({
@@ -143,13 +148,12 @@ export function RegistrationForm({ showEmailField, submitLabel, onSubmit }: Regi
           />
         </div>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          <Input
+          <DateField
             label="Date of birth"
             name="dob"
-            type="date"
             value={form.dob}
-            onChange={(e) => set('dob', e.target.value)}
-            validate={required('Date of birth')}
+            onChange={(v) => set('dob', v)}
+            max={new Date().toISOString().slice(0, 10)}
           />
           <Select label="Sex" name="sex" optional value={form.sex} onChange={(e) => set('sex', e.target.value)}>
             <option value="">Prefer not to say</option>

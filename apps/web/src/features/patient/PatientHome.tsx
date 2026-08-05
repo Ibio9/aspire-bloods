@@ -4,6 +4,7 @@ import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { AccountMenu } from '../../components/AccountMenu';
 import { apiFetch } from '../../lib/api';
 
 interface ReportSummary {
@@ -28,12 +29,7 @@ export function PatientHome() {
     <main className="min-h-screen px-6 py-16 md:px-16 bg-cream">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <TwoTierHeading eyebrow="Aspire Clinic — Patient Portal" title="Your results" />
-        <Link
-          to="/account"
-          className="inline-flex items-center py-3 -my-3 text-sm font-medium text-bronze-600 underline underline-offset-2 transition duration-150 ease-out hover:text-bronze-700"
-        >
-          Account &amp; privacy
-        </Link>
+        <AccountMenu links={[{ to: '/account', label: 'Account & privacy' }]} />
       </div>
 
       {reports === null ? (

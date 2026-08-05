@@ -16,7 +16,9 @@ panelsRouter.get(
   asyncHandler(async (_req, res) => {
     const panels = await prisma.panel.findMany({
       where: { isActive: true },
-      include: { markers: { include: { marker: true }, orderBy: { sortOrder: 'asc' } } },
+      include: {
+        markers: { where: { marker: { isActive: true } }, include: { marker: true }, orderBy: { sortOrder: 'asc' } },
+      },
       orderBy: { name: 'asc' },
     });
     res.json(panels);
@@ -25,8 +27,11 @@ panelsRouter.get(
 
 panelsRouter.get(
   '/markers',
-  asyncHandler(async (_req, res) => {
-    const markers = await prisma.marker.findMany({ orderBy: { name: 'asc' } });
+  asyncHandler(async (req, res) => {
+    const markers = await prisma.marker.findMany({
+      where: req.query.all === 'true' ? undefined : { isActive: true },
+      orderBy: { name: 'asc' },
+    });
     res.json(markers);
   }),
 );
@@ -69,6 +74,7 @@ const createPanelSchema = z.object({
     .regex(/^[a-z0-9-]+$/, 'Use lowercase letters, numbers and hyphens only'),
   name: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
+  b2bPriceGBP: z.number().min(0).nullable().optional(),
 });
 
 panelsRouter.post(
@@ -101,6 +107,7 @@ const updatePanelSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   description: z.string().max(2000).nullable().optional(),
   isActive: z.boolean().optional(),
+  b2bPriceGBP: z.number().min(0).nullable().optional(),
 });
 
 panelsRouter.patch(
@@ -136,6 +143,7 @@ const createMarkerSchema = z.object({
   defaultUnit: z.string().min(1).max(30),
   severityMultiplier: z.number().min(0).optional(),
   crossSourceComparable: z.boolean().optional(),
+  addOnPriceGBP: z.number().min(0).nullable().optional(),
 });
 
 panelsRouter.post(
@@ -170,6 +178,8 @@ const updateMarkerSchema = z.object({
   severityMultiplier: z.number().min(0).optional(),
   severityAbsoluteDelta: z.number().min(0).nullable().optional(),
   crossSourceComparable: z.boolean().optional(),
+  isActive: z.boolean().optional(),
+  addOnPriceGBP: z.number().min(0).nullable().optional(),
 });
 
 panelsRouter.patch(

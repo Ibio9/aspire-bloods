@@ -254,6 +254,10 @@ model Panel {
   name        String
   description String?
   isActive    Boolean       @default(true)
+  // B2B price per the Randox agreement, in GBP. Nullable — some panels
+  // (e.g. Nutritional Health HSC15) have no listed price yet; the UI
+  // renders those as "—" rather than £0.
+  b2bPriceGBP Float?
   markers     PanelMarker[]
   reports     Report[]
   createdAt   DateTime      @default(now())
@@ -267,6 +271,15 @@ model Marker {
   defaultUnit            String
   severityMultiplier     Float              @default(1.5)
   severityAbsoluteDelta  Float?
+  // Mirrors Panel.isActive — lets an admin retire a marker Randox can no
+  // longer supply (or that was seeded in error) without breaking the FK
+  // history of any report that already used it. Excluded markers are
+  // filtered out of the picker endpoints but never deleted.
+  isActive               Boolean            @default(true)
+  // Add-on surcharge in GBP, for markers sold as an add-on to a base panel
+  // (e.g. Omega-3 Index, AMH, Free Testosterone, Calprotectin). Null for
+  // markers that are only ever part of a panel's base price.
+  addOnPriceGBP          Float?
   // Phase 2 §2.4: whether it's safe to plot this marker's results across
   // multiple sources on one trend line. Defaults true; set false for a
   // marker where sources report genuinely incompatible values (no

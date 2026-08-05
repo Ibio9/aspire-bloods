@@ -19,6 +19,7 @@ import { ReportView } from './features/patient/ReportView';
 import { MarkerDetailPage } from './features/patient/MarkerDetailPage';
 import { AccountPage } from './features/patient/AccountPage';
 import { Footer } from './components/Footer';
+import { SessionGuard } from './components/SessionGuard';
 import { ComponentsShowcase } from './features/dev/ComponentsShowcase';
 
 // Routes a patient's own data is reachable on — widened beyond PATIENT so
@@ -32,6 +33,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <ToastProvider>
+          <SessionGuard />
           {/* Off-screen until focused, then the very first tabbable thing on any page — lets
               keyboard users jump past nothing-yet (there's no persistent nav) straight into the
               page's own content region below. */}

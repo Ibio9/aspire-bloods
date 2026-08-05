@@ -152,7 +152,7 @@ authRouter.post('/refresh', asyncHandler(async (req, res) => {
 }));
 
 authRouter.post('/logout', verifyCsrf, asyncHandler(async (req, res) => {
-  await logout(req.cookies?.refresh_token);
+  await logout(req.cookies?.refresh_token, clientIp(req));
   clearAuthCookies(res);
   res.json({ status: 'logged_out' });
 }));

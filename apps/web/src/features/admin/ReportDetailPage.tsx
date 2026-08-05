@@ -3,7 +3,8 @@ import { useParams } from 'react-router-dom';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
+import { Select } from '../../components/ui/Select';
+import { DateField } from '../../components/ui/DateField';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { Table, TableHead, TableBody, TableRow, TableHeaderCell, TableCell } from '../../components/ui/Table';
 import { StatusBadge } from '../../components/ui/StatusBadge';
@@ -288,7 +289,7 @@ export function ReportDetailPage() {
         <div className="mt-8">
           <p className="eyebrow mb-4">Verify extracted results — correct anything before saving</p>
           <div className="mb-4 max-w-xs">
-            <Input label="Sample date" name="sampleDate" type="date" value={sampleDate} onChange={(e) => setSampleDate(e.target.value)} />
+            <DateField label="Sample date" name="sampleDate" value={sampleDate} onChange={setSampleDate} />
           </div>
           <Table>
             <TableHead>
@@ -308,8 +309,11 @@ export function ReportDetailPage() {
                     {row.rawLine}
                   </TableCell>
                   <TableCell>
-                    <select
-                      className="input-base py-1.5"
+                    <Select
+                      label={`Matched marker for "${row.rawName}"`}
+                      hideLabel
+                      searchable
+                      name={`matched-marker-${i}`}
                       value={row.matchedMarkerId ?? ''}
                       onChange={(e) => updateRow(i, { matchedMarkerId: e.target.value || null })}
                     >
@@ -319,7 +323,7 @@ export function ReportDetailPage() {
                           {m.name}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </TableCell>
                   <TableCell>
                     <input

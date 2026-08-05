@@ -15,9 +15,17 @@ interface AuthContextValue {
   loading: boolean;
   refresh: () => Promise<void>;
   setUser: (user: CurrentUser | null) => void;
+  /** Revokes the session server-side (refresh token + cookies), then clears local state. Never throws —
+   * the local sign-out proceeds even if the network call fails, so a flaky connection can't strand
+   * someone in a "signed in" UI they can't actually use. */
+  logout: (reason?: 'idle' | 'expired') => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+/** Stashed for the next /login screen to read and clear — carries why the session ended
+ * across the navigation that follows a logout, without needing a query param or router state. */
+export const LOGOUT_REASON_KEY = 'aspire_logout_reason';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<CurrentUser | null>(null);
@@ -36,11 +44,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const logout = useCallback(async (reason?: 'idle' | 'expired') => {
+    try {
+      await apiFetch('/auth/logout', { method: 'POST' });
+    } catch {
+      // Local state still clears below — an unreachable server shouldn't leave the UI
+      // showing an authenticated view nobody can actually use.
+    }
+    if (reason) sessionStorage.setItem(LOGOUT_REASON_KEY, reason);
+    setUser(null);
+  }, []);
+
   useEffect(() => {
     void refresh();
+
+    // Back/forward-cache restore: the browser can bring an old, pre-logout DOM/JS
+    // state back to life on history navigation without re-running app bootstrap.
+    // Re-checking on every such restore closes that gap regardless of how the
+    // previous page state got there.
+    function onPageShow(e: PageTransitionEvent) {
+      if (e.persisted) void refresh();
+    }
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
   }, [refresh]);
 
-  return <AuthContext.Provider value={{ user, loading, refresh, setUser }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, loading, refresh, setUser, logout }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

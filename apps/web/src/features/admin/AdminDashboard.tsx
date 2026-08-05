@@ -1,8 +1,7 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
-import { Button } from '../../components/ui/Button';
-import { apiFetch } from '../../lib/api';
+import { AccountMenu } from '../../components/AccountMenu';
 import { useAuth } from '../../lib/AuthContext';
 
 interface NavCard {
@@ -20,29 +19,13 @@ const CARDS: NavCard[] = [
 ];
 
 export function AdminDashboard() {
-  const { user, setUser } = useAuth();
-  const navigate = useNavigate();
-
-  async function handleLogout() {
-    await apiFetch('/auth/logout', { method: 'POST' });
-    setUser(null);
-    navigate('/login');
-  }
+  const { user } = useAuth();
 
   return (
     <main className="min-h-screen px-6 py-16 md:px-16 bg-cream">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <TwoTierHeading eyebrow="Aspire Clinic — Admin console" title={`Welcome, ${user?.displayName ?? ''}`} />
-        <div className="flex gap-3">
-          {user?.hasPatientProfile && (
-            <Link to="/my-results">
-              <Button variant="secondary">My results</Button>
-            </Link>
-          )}
-          <Button variant="secondary" onClick={handleLogout}>
-            Sign out
-          </Button>
-        </div>
+        <AccountMenu links={user?.hasPatientProfile ? [{ to: '/my-results', label: 'My results' }] : []} />
       </div>
 
       <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

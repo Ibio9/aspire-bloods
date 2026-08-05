@@ -4,6 +4,8 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
+import { FileDropzone } from '../../components/ui/FileDropzone';
+import { DateField } from '../../components/ui/DateField';
 import { Checkbox } from '../../components/ui/Checkbox';
 import { Radio } from '../../components/ui/Radio';
 import { StatusBadge } from '../../components/ui/StatusBadge';
@@ -143,6 +145,10 @@ const trendData = [
 export function ComponentsShowcase() {
   const [modalOpen, setModalOpen] = useState(false);
   const [checkError, setCheckError] = useState(false);
+  const [demoSelect, setDemoSelect] = useState('');
+  const [demoSearchableSelect, setDemoSearchableSelect] = useState('');
+  const [demoFile, setDemoFile] = useState<File | null>(null);
+  const [demoDate, setDemoDate] = useState('');
 
   return (
     <main className="min-h-screen bg-cream px-6 py-16 md:px-16">
@@ -251,10 +257,27 @@ export function ComponentsShowcase() {
             validate={(v) => (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? undefined : 'Enter a valid email address.')}
           />
           <Input label="Disabled" name="demo5" disabled defaultValue="Can't edit this" />
-          <Select label="Select" name="demo6">
-            <option>Option one</option>
-            <option>Option two</option>
+          <Select label="Select" name="demo6" value={demoSelect} onChange={(e) => setDemoSelect(e.target.value)}>
+            <option value="">Choose…</option>
+            <option value="one">Option one</option>
+            <option value="two">Option two</option>
           </Select>
+          <Select
+            label="Searchable select (long list)"
+            name="demo6b"
+            searchable
+            value={demoSearchableSelect}
+            onChange={(e) => setDemoSearchableSelect(e.target.value)}
+          >
+            <option value="">Choose…</option>
+            {['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot', 'Golf', 'Hotel', 'India', 'Juliet'].map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </Select>
+          <FileDropzone label="File dropzone" file={demoFile} onChange={setDemoFile} accept="application/pdf" />
+          <DateField label="Date picker" name="demo8" value={demoDate} onChange={setDemoDate} />
         </div>
         <div className="flex flex-col gap-1 max-w-md">
           <Checkbox name="demoCheck1" label="Unchecked checkbox" />

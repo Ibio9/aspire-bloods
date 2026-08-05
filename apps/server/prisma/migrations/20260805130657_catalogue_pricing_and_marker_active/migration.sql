@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "Marker" ADD COLUMN     "addOnPriceGBP" DOUBLE PRECISION,
+ADD COLUMN     "isActive" BOOLEAN NOT NULL DEFAULT true;
+
+-- AlterTable
+ALTER TABLE "Panel" ADD COLUMN     "b2bPriceGBP" DOUBLE PRECISION;

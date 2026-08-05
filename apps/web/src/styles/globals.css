@@ -105,15 +105,17 @@
 
 @layer components {
   .eyebrow {
-    @apply font-eyebrow uppercase tracking-eyebrow text-xs text-espresso;
+    @apply font-eyebrow uppercase tracking-eyebrow text-xs text-espresso/80;
   }
 
   .display-heading {
     @apply font-display text-4xl md:text-5xl text-espresso;
   }
 
+  /* Lighter off-white, not pure white — cards read as a distinct surface floating a shade above
+     the cream page rather than a hard-white cutout (brief §3.7: "depth from tonal layering"). */
   .card {
-    @apply bg-white border border-taupe rounded-card shadow-card;
+    @apply bg-cream-50 border border-taupe rounded-card shadow-card;
   }
 
   .tabular {
@@ -121,13 +123,20 @@
   }
 
   .input-base {
-    @apply w-full rounded-card border border-taupe bg-white px-3.5 py-2.5 text-espresso placeholder:text-espresso/40 transition duration-150 ease-out;
+    @apply w-full rounded-input border border-taupe bg-white px-3.5 py-2.5 text-espresso placeholder:text-espresso/40 transition duration-150 ease-out;
   }
   .input-base:hover:not(:disabled) {
     @apply border-bronze/60;
   }
   .input-base:disabled {
-    @apply bg-cream/60 text-espresso/40 cursor-not-allowed;
+    @apply bg-cream-300 text-espresso/40 cursor-not-allowed;
+  }
+  /* Bronze focus BORDER, not the global outline ring (brief §3.6) — form fields get their own
+     focus treatment since a ring sitting right on top of a hairline-bordered field reads as
+     doubled-up chrome. Still :focus-visible only, still a real 2px state (not just a colour
+     swap), so it stays a visible, non-colour-only indicator per WCAG 2.4.7. */
+  .input-base:focus-visible {
+    @apply outline-none border-bronze border-2 px-[13px] py-[9px];
   }
 
   /* Off-screen until keyboard-focused, then drops into view above

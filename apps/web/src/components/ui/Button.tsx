@@ -73,7 +73,10 @@ export function Button({
       onClick={handleClick}
       {...props}
     >
-      <span className={loading ? 'invisible' : 'contents'}>{children}</span>
+      {/* opacity-0, not invisible — visibility:hidden strips the accessible name from the button
+          while loading, so a screen reader announces nothing at the moment it matters most.
+          opacity-0 keeps the label in the accessibility tree while still hiding it visually. */}
+      <span className={loading ? 'opacity-0' : 'contents'}>{children}</span>
       {loading && (
         <span className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
           <Spinner />

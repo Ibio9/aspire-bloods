@@ -6,7 +6,19 @@ import { Checkbox } from '../../components/ui/Checkbox';
 import { Button } from '../../components/ui/Button';
 import { apiFetch, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/AuthContext';
+import { LOGOUT_REASON_KEY } from '../../lib/AuthContext';
 import { AuthSplitLayout } from './AuthSplitLayout';
+
+const LOGOUT_REASON_COPY: Record<string, string> = {
+  idle: "You were signed out after a period of inactivity, to keep your results secure.",
+  expired: 'Your session has expired — please sign in again.',
+};
+
+function readAndClearLogoutReason(): string | null {
+  const reason = sessionStorage.getItem(LOGOUT_REASON_KEY);
+  if (reason) sessionStorage.removeItem(LOGOUT_REASON_KEY);
+  return reason ? (LOGOUT_REASON_COPY[reason] ?? null) : null;
+}
 
 type Step = { kind: 'credentials' } | { kind: 'otp'; challengeId: string };
 
@@ -30,6 +42,7 @@ export function LoginPage() {
   const [trustDevice, setTrustDevice] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [sessionNotice] = useState(readAndClearLogoutReason);
 
   async function handleCredentials(e: FormEvent) {
     e.preventDefault();
@@ -86,6 +99,12 @@ export function LoginPage() {
           <p className="eyebrow mb-2">Patient portal</p>
           <h2 className="font-display text-4xl leading-tight text-espresso">Sign in</h2>
           <p className="mt-3 text-sm text-espresso/80">Enter your details below to access your results.</p>
+
+          {sessionNotice && (
+            <p role="status" className="mt-4 rounded-input border border-taupe bg-cream-50 px-3.5 py-2.5 text-sm text-espresso">
+              {sessionNotice}
+            </p>
+          )}
 
           <form onSubmit={handleCredentials} className="mt-8 flex flex-col gap-5" noValidate>
             <Input

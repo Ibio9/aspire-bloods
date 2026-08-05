@@ -7,6 +7,7 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { Modal } from '../../components/ui/Modal';
 import { CopyButton } from '../../components/ui/CopyButton';
 import { useToast } from '../../components/ui/Toast';
+import { AccountMenu } from '../../components/AccountMenu';
 import { apiFetch, ApiError } from '../../lib/api';
 import { API_BASE_URL } from '../../lib/apiBase';
 import { useAuth } from '../../lib/AuthContext';
@@ -85,7 +86,10 @@ export function AccountPage() {
 
   return (
     <main className="min-h-screen px-6 py-16 md:px-16 bg-cream">
-      <TwoTierHeading eyebrow="Aspire Clinic — Patient Portal" title="Your account & privacy" />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <TwoTierHeading eyebrow="Aspire Clinic — Patient Portal" title="Your account & privacy" />
+        <AccountMenu links={[{ to: '/my-results', label: 'Your results' }]} />
+      </div>
 
       {user && (
         <p className="mt-4 flex items-center gap-1 text-sm text-espresso/80">
