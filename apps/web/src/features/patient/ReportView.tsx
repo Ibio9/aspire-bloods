@@ -18,6 +18,7 @@ interface MarkerCard {
   referenceHigh: number;
   status: MarkerStatus;
   gloss: string;
+  amendedAt?: string | null;
 }
 
 interface ReportDetail {
@@ -90,8 +91,11 @@ export function ReportView() {
               <p className="tabular text-xs text-espresso/80">
                 Reference range: {m.referenceLow}–{m.referenceHigh}
               </p>
-              <div className="mt-3">
+              <div className="mt-3 flex items-center gap-2">
                 <StatusBadge status={m.status} />
+                {m.amendedAt && (
+                  <span className="text-xs text-espresso/80">Amended {new Date(m.amendedAt).toLocaleDateString('en-GB')}</span>
+                )}
               </div>
               <p className="mt-3 text-sm text-espresso/90">{m.gloss}</p>
             </Card>

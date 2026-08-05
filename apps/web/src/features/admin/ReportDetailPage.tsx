@@ -8,6 +8,8 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { Table, TableHead, TableBody, TableRow, TableHeaderCell, TableCell } from '../../components/ui/Table';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { CopyButton } from '../../components/ui/CopyButton';
+import { ConfirmModal } from '../../components/ui/ConfirmModal';
+import { useToast } from '../../components/ui/Toast';
 import { apiFetch, ApiError } from '../../lib/api';
 import { API_BASE_URL } from '../../lib/apiBase';
 import { useAuth } from '../../lib/AuthContext';
@@ -29,13 +31,29 @@ interface ParsedRow {
   referenceHigh: number | null;
 }
 
+interface ResultEdit {
+  id: string;
+  previousValue: number;
+  previousUnit: string;
+  previousStatus: string;
+  newValue: number;
+  newUnit: string;
+  newStatus: string;
+  reason: string;
+  changedByName: string;
+  changedAt: string;
+}
+
 interface VerifiedResult {
+  id: string;
   markerId: string;
   marker: { name: string };
   value: number;
   unit: string;
   status: 'IN_RANGE' | 'HIGH' | 'LOW' | 'SIGNIFICANT_HIGH' | 'SIGNIFICANT_LOW';
   referenceRange: { low: number; high: number };
+  amendedAt: string | null;
+  edits: ResultEdit[];
 }
 
 interface ReportDetail {
@@ -43,6 +61,9 @@ interface ReportDetail {
   status: string;
   sampleDate: string;
   sourceLabel?: string;
+  voidedAt: string | null;
+  voidReason: string | null;
+  voidedBy: { email: string; staffProfile: { firstName: string; lastName: string } | null } | null;
   panel: { name: string };
   patient: { email: string; patientProfile: { firstName: string; lastName: string } | null };
   results: VerifiedResult[];
@@ -51,6 +72,7 @@ interface ReportDetail {
 export function ReportDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const { show } = useToast();
   const [report, setReport] = useState<ReportDetail | null>(null);
   const [markers, setMarkers] = useState<MarkerOption[]>([]);
   const [rows, setRows] = useState<ParsedRow[]>([]);
@@ -58,6 +80,12 @@ export function ReportDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
+  const [voidOpen, setVoidOpen] = useState(false);
+  const [editingResult, setEditingResult] = useState<VerifiedResult | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [editUnit, setEditUnit] = useState('');
+
+  const canActAsClinician = user?.role === 'ADMIN' || user?.role === 'CLINICIAN';
 
   async function load() {
     if (!id) return;
@@ -171,6 +199,11 @@ export function ReportDetailPage() {
   const patientName = report.patient.patientProfile
     ? `${report.patient.patientProfile.firstName} ${report.patient.patientProfile.lastName}`
     : report.patient.email;
+  const voidedByName = report.voidedBy
+    ? report.voidedBy.staffProfile
+      ? `${report.voidedBy.staffProfile.firstName} ${report.voidedBy.staffProfile.lastName}`
+      : report.voidedBy.email
+    : null;
 
   return (
     <main className="min-h-screen px-6 py-16 md:px-16 bg-cream">
@@ -180,6 +213,20 @@ export function ReportDetailPage() {
         <CopyButton value={report.patient.email} label="Copy patient email" />
       </p>
       {report.sourceLabel && <p className="mt-1 text-sm text-espresso/80">{report.sourceLabel}</p>}
+
+      {report.voidedAt && (
+        <Card className="mt-4 max-w-xl border-status-significantHigh bg-white">
+          <p className="font-medium text-status-significantHigh">Voided</p>
+          <p className="mt-1 text-sm text-espresso">
+            {new Date(report.voidedAt).toLocaleString('en-GB')} by {voidedByName}
+            {report.voidReason ? ` — “${report.voidReason}”` : ''}
+          </p>
+          <p className="mt-1 text-sm text-espresso/80">
+            This report no longer appears in the patient's own view. It remains here, and in the audit log, for
+            admin reference.
+          </p>
+        </Card>
+      )}
 
       {error && (
         <p role="alert" className="mt-4 text-sm text-status-significantHigh">
@@ -198,7 +245,7 @@ export function ReportDetailPage() {
           </Button>
         )}
 
-        {user?.role === 'CLINICIAN' && report.status === 'ADMIN_VERIFIED' && (
+        {canActAsClinician && report.status === 'ADMIN_VERIFIED' && (
           <>
             <Button onClick={() => handleReview(true)} loading={busy}>
               Approve
@@ -209,14 +256,20 @@ export function ReportDetailPage() {
           </>
         )}
 
-        {user?.role === 'CLINICIAN' && report.status === 'CLINICIAN_REVIEWED' && (
+        {canActAsClinician && report.status === 'CLINICIAN_REVIEWED' && (
           <Button onClick={handleRelease} loading={busy}>
             Release to patient
           </Button>
         )}
+
+        {user?.role === 'ADMIN' && !report.voidedAt && (
+          <Button variant="destructive" onClick={() => setVoidOpen(true)}>
+            Void report
+          </Button>
+        )}
       </div>
 
-      {user?.role === 'CLINICIAN' && report.status === 'ADMIN_VERIFIED' && (
+      {canActAsClinician && report.status === 'ADMIN_VERIFIED' && (
         <Card className="mt-6 max-w-xl">
           <label htmlFor="review-note" className="text-sm font-medium text-espresso">
             Note <span className="font-normal text-espresso/80">(optional, kept in the audit log)</span>
@@ -325,14 +378,116 @@ export function ReportDetailPage() {
                 <p className="tabular text-sm text-espresso/80">
                   Range: {r.referenceRange.low}–{r.referenceRange.high}
                 </p>
-                <div className="mt-1">
+                <div className="mt-1 flex items-center gap-2">
                   <StatusBadge status={r.status} />
+                  {r.amendedAt && (
+                    <span className="text-xs text-espresso/80">Amended {new Date(r.amendedAt).toLocaleDateString('en-GB')}</span>
+                  )}
                 </div>
+                {user?.role === 'ADMIN' && report.status === 'RELEASED' && !report.voidedAt && (
+                  <Button
+                    variant="ghost"
+                    className="mt-2"
+                    onClick={() => {
+                      setEditingResult(r);
+                      setEditValue(String(r.value));
+                      setEditUnit(r.unit);
+                    }}
+                  >
+                    Edit value
+                  </Button>
+                )}
+                {r.edits.length > 0 && (
+                  <div className="mt-3 border-t border-taupe pt-2">
+                    <p className="text-xs font-medium text-espresso/80">Amendment history</p>
+                    <ul className="mt-1 flex flex-col gap-1">
+                      {r.edits.map((e) => (
+                        <li key={e.id} className="text-xs text-espresso/80">
+                          {new Date(e.changedAt).toLocaleDateString('en-GB')}: {e.previousValue} {e.previousUnit} →{' '}
+                          {e.newValue} {e.newUnit} by {e.changedByName} — “{e.reason}”
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </Card>
             ))}
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={voidOpen}
+        onClose={() => setVoidOpen(false)}
+        title="Void this report?"
+        requireReason
+        reasonLabel="Reason (kept in the audit log)"
+        confirmLabel="Void report"
+        confirmingLabel="Voiding…"
+        onConfirm={async (reason) => {
+          await apiFetch(`/reports/${id}/void`, { method: 'POST', body: JSON.stringify({ reason }) });
+          show('Report voided.', 'success');
+          setVoidOpen(false);
+          await load();
+        }}
+      >
+        <p>
+          <strong>{patientName}</strong> will no longer see this report anywhere in their portal. It stays in the
+          database and the audit log, and remains visible here, marked voided. This is a state change, not a
+          deletion — the record is never destroyed.
+        </p>
+      </ConfirmModal>
+
+      <ConfirmModal
+        open={!!editingResult}
+        onClose={() => setEditingResult(null)}
+        title="Amend this result?"
+        requireReason
+        reasonLabel="Reason for the change (kept in the audit log)"
+        confirmLabel="Save amendment"
+        confirmingLabel="Saving…"
+        onConfirm={async (reason) => {
+          if (!editingResult) return;
+          await apiFetch(`/reports/${id}/results/${editingResult.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ value: Number(editValue), unit: editUnit, reason }),
+          });
+          show('Result amended.', 'success');
+          setEditingResult(null);
+          await load();
+        }}
+      >
+        {editingResult && (
+          <>
+            <p>
+              This report has already been released to <strong>{patientName}</strong>. The change is versioned, not
+              overwritten — the previous value, who changed it, when, and the reason are all kept and shown to
+              admins. The patient sees the new value with an "amended" note and date.
+            </p>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="edit-value" className="text-sm font-medium text-espresso">
+                  Currently {editingResult.value} {editingResult.unit} — new value
+                </label>
+                <input
+                  id="edit-value"
+                  type="number"
+                  step="any"
+                  className="input-base tabular"
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="edit-unit" className="text-sm font-medium text-espresso">
+                  Unit
+                </label>
+                <input id="edit-unit" className="input-base" value={editUnit} onChange={(e) => setEditUnit(e.target.value)} />
+              </div>
+            </div>
+          </>
+        )}
+      </ConfirmModal>
     </main>
   );
 }

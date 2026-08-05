@@ -23,6 +23,7 @@ interface TrendPoint {
   referenceHigh: number;
   sourceKey: string;
   sourceLabel: string;
+  amendedAt?: string | null;
 }
 
 interface MarkerDetail {
@@ -37,6 +38,7 @@ interface MarkerDetail {
     referenceHigh: number;
     status: MarkerStatus;
     sourceLabel: string;
+    amendedAt?: string | null;
   };
   trend: TrendPoint[];
   outOfRangeNotice: string | null;
@@ -87,8 +89,13 @@ export function MarkerDetailPage() {
             {detail.latest.value} <span className="text-lg">{detail.latest.unit}</span>
             <CopyButton value={`${detail.latest.value} ${detail.latest.unit}`} label="Copy result value" className="ml-1" />
           </p>
-          <div className="mt-2">
+          <div className="mt-2 flex items-center gap-2">
             <StatusBadge status={detail.latest.status} />
+            {detail.latest.amendedAt && (
+              <span className="text-xs text-espresso/80">
+                Amended {new Date(detail.latest.amendedAt).toLocaleDateString('en-GB')}
+              </span>
+            )}
           </div>
           <p className="mt-1 text-xs text-espresso/80">{detail.latest.sourceLabel}</p>
           <div className="mt-6">
