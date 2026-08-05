@@ -313,6 +313,7 @@ function PanelsAndMarkersTab() {
                 label="Add marker"
                 name={`add-${panel.id}`}
                 searchable
+                emptyMessage="Every active marker is already on this panel."
                 value={addToPanel[panel.id] ?? ''}
                 onChange={(e) => setAddToPanel((s) => ({ ...s, [panel.id]: e.target.value }))}
               >
@@ -418,7 +419,14 @@ function ExplanationsTab() {
   return (
     <div className="flex flex-col gap-6">
       <Card className="max-w-md">
-        <Select label="Marker" name="explanationMarker" searchable value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
+        <Select
+          label="Marker"
+          name="explanationMarker"
+          searchable
+          emptyMessage="No markers configured yet."
+          value={selectedId}
+          onChange={(e) => setSelectedId(e.target.value)}
+        >
           <option value="">Select a marker…</option>
           {markers.map((m) => (
             <option key={m.id} value={m.id}>
@@ -552,7 +560,7 @@ function CopyBlocksTab() {
 
 export function ContentConfigPage() {
   return (
-    <main className="min-h-screen px-6 py-16 md:px-16 bg-cream">
+    <>
       <TwoTierHeading eyebrow="Aspire Clinic — Admin console" title="Content & configuration" />
 
       <div className="mt-8">
@@ -564,6 +572,6 @@ export function ContentConfigPage() {
           ]}
         />
       </div>
-    </main>
+    </>
   );
 }

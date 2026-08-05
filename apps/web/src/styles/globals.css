@@ -108,8 +108,10 @@
     @apply font-eyebrow uppercase tracking-eyebrow text-xs text-espresso/80;
   }
 
+  /* Generously sized (brief: "currently too timid, let it be large") with tight leading —
+     display type reads as a statement, not a slightly-bigger paragraph. */
   .display-heading {
-    @apply font-display text-4xl md:text-5xl text-espresso;
+    @apply font-display text-5xl md:text-6xl leading-[1.05] text-espresso;
   }
 
   /* Lighter off-white, not pure white — cards read as a distinct surface floating a shade above

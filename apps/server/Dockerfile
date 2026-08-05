@@ -45,6 +45,16 @@ COPY --from=build /app/packages/shared/package.json ./packages/shared/
 COPY --from=build /app/apps/server/dist ./apps/server/dist
 COPY --from=build /app/apps/server/package.json ./apps/server/
 COPY --from=build /app/apps/server/prisma ./apps/server/prisma
+# prisma/seed.ts (run at every boot — see "start" below) imports from
+# ../src/lib and ../src/db with relative paths, and is executed via tsx
+# rather than compiled, so the TS source it imports has to exist here too —
+# only dist/ was copied before, which made `tsx prisma/seed.ts` fail at
+# container startup with ERR_MODULE_NOT_FOUND on every one of those
+# imports. tsx itself doesn't need a separate copy: `npm ci` in the build
+# stage installs devDependencies (nothing here sets NODE_ENV=production
+# until the runtime stage below), and the whole node_modules directory is
+# copied wholesale two lines up, so it's already present.
+COPY --from=build /app/apps/server/src ./apps/server/src
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build /app/node_modules/@prisma ./node_modules/@prisma
 

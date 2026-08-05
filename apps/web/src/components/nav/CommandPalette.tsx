@@ -1,0 +1,160 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
+import { apiFetch } from '../../lib/api';
+import { recordPatientView } from '../../lib/recentPatients';
+
+interface PatientOption {
+  id: string;
+  email: string;
+  displayName: string;
+}
+
+interface StaticDestination {
+  label: string;
+  to: string;
+  hint: string;
+}
+
+const DESTINATIONS: StaticDestination[] = [
+  { label: 'Reports & entry', to: '/admin', hint: 'Upload PDFs, enter results, verify and release' },
+  { label: 'Patients', to: '/admin/patients', hint: 'Search and manage patient accounts' },
+  { label: 'Panels & content', to: '/admin/content', hint: 'Panels, markers, reference ranges, wording' },
+  { label: 'Audit log', to: '/admin/audit-log', hint: 'Full system-wide activity' },
+];
+
+/**
+ * Cmd/Ctrl+K anywhere in the admin console (also openable from the top-bar
+ * search button — AdminShell owns the open state so both triggers agree).
+ * Two result groups: static section jumps (always shown, filtered by
+ * label) and patients (fetched once, filtered client-side by name/email) —
+ * the single fastest way to get from anywhere to any patient without
+ * walking the sidebar.
+ */
+export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [query, setQuery] = useState('');
+  const [patients, setPatients] = useState<PatientOption[] | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [open, onClose]);
+
+  useEffect(() => {
+    if (open) {
+      setQuery('');
+      setActiveIndex(0);
+      inputRef.current?.focus();
+      if (!patients) void apiFetch<PatientOption[]>('/admin/patients').then(setPatients);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const matchedDestinations = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return DESTINATIONS;
+    return DESTINATIONS.filter((d) => d.label.toLowerCase().includes(q));
+  }, [query]);
+
+  const matchedPatients = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q || !patients) return [];
+    return patients.filter((p) => p.displayName.toLowerCase().includes(q) || p.email.toLowerCase().includes(q)).slice(0, 8);
+  }, [query, patients]);
+
+  type Result = { kind: 'destination'; item: StaticDestination } | { kind: 'patient'; item: PatientOption };
+  const results: Result[] = [
+    ...matchedDestinations.map((item) => ({ kind: 'destination' as const, item })),
+    ...matchedPatients.map((item) => ({ kind: 'patient' as const, item })),
+  ];
+
+  function go(result: Result) {
+    if (result.kind === 'destination') {
+      navigate(result.item.to);
+    } else {
+      recordPatientView(result.item.id, result.item.displayName);
+      navigate(`/admin/patients/${result.item.id}`);
+    }
+    onClose();
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex((i) => Math.min(i + 1, results.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (results[activeIndex]) go(results[activeIndex]);
+    }
+  }
+
+  if (!open) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex items-start justify-center px-4 pt-[12vh]">
+      <div className="absolute inset-0 bg-espresso/50 motion-safe:animate-fadeIn" onClick={onClose} aria-hidden="true" />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Search"
+        className="relative flex max-h-[60vh] w-full max-w-lg flex-col overflow-hidden rounded-card border border-taupe bg-cream-50 shadow-card motion-safe:animate-riseIn"
+      >
+        <div className="border-b border-taupe px-4 py-3">
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setActiveIndex(0);
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder="Jump to a patient or section…"
+            aria-label="Search"
+            className="w-full bg-transparent text-base text-espresso placeholder:text-espresso/40 outline-none"
+          />
+        </div>
+        <div className="scroll-thin flex-1 overflow-y-auto p-1.5">
+          {results.length === 0 && <p className="px-3 py-4 text-sm text-espresso/60">No matches.</p>}
+          {matchedDestinations.length > 0 && (
+            <p className="px-3 pb-1 pt-2 text-xs font-medium uppercase tracking-eyebrow text-espresso/50">Go to</p>
+          )}
+          {results.map((r, i) => (
+            <button
+              key={r.kind === 'destination' ? r.item.to : r.item.id}
+              type="button"
+              onClick={() => go(r)}
+              onMouseEnter={() => setActiveIndex(i)}
+              className={`flex w-full flex-col items-start rounded-input px-3 py-2.5 text-left transition-colors duration-100 ${
+                i === activeIndex ? 'bg-bronze text-white' : 'text-espresso'
+              }`}
+            >
+              <span className="text-sm font-medium">{r.kind === 'destination' ? r.item.label : r.item.displayName}</span>
+              <span className={`text-xs ${i === activeIndex ? 'text-white/80' : 'text-espresso/60'}`}>
+                {r.kind === 'destination' ? r.item.hint : r.item.email}
+              </span>
+            </button>
+          ))}
+          {query && matchedPatients.length > 0 && (
+            <p className="px-3 pb-1 pt-3 text-xs font-medium uppercase tracking-eyebrow text-espresso/50">Patients</p>
+          )}
+        </div>
+        <div className="flex items-center justify-between border-t border-taupe px-4 py-2 text-xs text-espresso/60">
+          <span>↑↓ to navigate, ↵ to select</span>
+          <span>Esc to close</span>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}

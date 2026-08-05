@@ -7,7 +7,7 @@ import { Select } from '../../components/ui/Select';
 import { FileDropzone } from '../../components/ui/FileDropzone';
 import { DateField } from '../../components/ui/DateField';
 import { Tabs } from '../../components/ui/Tabs';
-import { apiFetch, ApiError } from '../../lib/api';
+import { apiFetch, ApiError, extractErrorMessage } from '../../lib/api';
 import { API_BASE_URL } from '../../lib/apiBase';
 
 interface PatientOption {
@@ -90,8 +90,8 @@ function PdfUploadForm({
         body: formData,
       });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new ApiError(body.error ?? 'Upload failed', res.status);
+        const body = await res.json().catch(() => null);
+        throw new ApiError(extractErrorMessage(body), res.status, body);
       }
       setFile(null);
       setPatientId('');
@@ -108,8 +108,15 @@ function PdfUploadForm({
 
   return (
     <Card className="max-w-2xl">
-      <form onSubmit={handleUpload} className="flex flex-col gap-5">
-        <Select label="Patient" name="patientId" searchable value={patientId} onChange={(e) => setPatientId(e.target.value)}>
+      <form onSubmit={handleUpload} className="flex flex-col gap-5" noValidate>
+        <Select
+          label="Patient"
+          name="patientId"
+          searchable
+          emptyMessage="No patients yet — invite one from the Patients page first."
+          value={patientId}
+          onChange={(e) => setPatientId(e.target.value)}
+        >
           <option value="">Select a patient…</option>
           {patients.map((p) => (
             <option key={p.id} value={p.id}>
@@ -117,7 +124,13 @@ function PdfUploadForm({
             </option>
           ))}
         </Select>
-        <Select label="Panel" name="panelId" value={panelId} onChange={(e) => setPanelId(e.target.value)}>
+        <Select
+          label="Panel"
+          name="panelId"
+          emptyMessage="No panels configured — add one under Content & configuration."
+          value={panelId}
+          onChange={(e) => setPanelId(e.target.value)}
+        >
           <option value="">Select a panel…</option>
           {panels.map((p) => (
             <option key={p.id} value={p.id}>
@@ -125,7 +138,13 @@ function PdfUploadForm({
             </option>
           ))}
         </Select>
-        <Select label="Source" name="sourceId" value={sourceId} onChange={(e) => setSourceId(e.target.value)}>
+        <Select
+          label="Source"
+          name="sourceId"
+          emptyMessage="No sources configured — add one under Content & configuration."
+          value={sourceId}
+          onChange={(e) => setSourceId(e.target.value)}
+        >
           <option value="">Select a source…</option>
           {sources.map((s) => (
             <option key={s.id} value={s.id}>
@@ -232,12 +251,20 @@ function ManualEntryForm({
           void submit(false);
         }}
         className="flex flex-col gap-5"
+        noValidate
       >
         <p className="text-sm text-espresso/80">
           For Aspire's own in-house testing — enter values directly instead of uploading a PDF. Goes through the
           same verify-and-release process as everything else.
         </p>
-        <Select label="Patient" name="manualPatientId" searchable value={patientId} onChange={(e) => setPatientId(e.target.value)}>
+        <Select
+          label="Patient"
+          name="manualPatientId"
+          searchable
+          emptyMessage="No patients yet — invite one from the Patients page first."
+          value={patientId}
+          onChange={(e) => setPatientId(e.target.value)}
+        >
           <option value="">Select a patient…</option>
           {patients.map((p) => (
             <option key={p.id} value={p.id}>
@@ -245,7 +272,13 @@ function ManualEntryForm({
             </option>
           ))}
         </Select>
-        <Select label="Panel" name="manualPanelId" value={panelId} onChange={(e) => setPanelId(e.target.value)}>
+        <Select
+          label="Panel"
+          name="manualPanelId"
+          emptyMessage="No panels configured — add one under Content & configuration."
+          value={panelId}
+          onChange={(e) => setPanelId(e.target.value)}
+        >
           <option value="">Select a panel…</option>
           {panels.map((p) => (
             <option key={p.id} value={p.id}>
@@ -264,6 +297,7 @@ function ManualEntryForm({
                   label={`Marker for row ${i + 1}`}
                   hideLabel
                   searchable
+                  emptyMessage="No markers configured yet."
                   name={`marker-${i}`}
                   value={row.markerId}
                   onChange={(e) => updateRow(i, { markerId: e.target.value, unit: markerUnit(e.target.value) })}
@@ -375,7 +409,7 @@ export function AdminReportsPage() {
   }, []);
 
   return (
-    <main className="min-h-screen px-6 py-16 md:px-16 bg-cream">
+    <>
       <TwoTierHeading eyebrow="Aspire Clinic — Admin" title="Reports" />
 
       <div className="mt-8">
@@ -424,6 +458,6 @@ export function AdminReportsPage() {
           {reports.length === 0 && <p className="text-espresso">No reports yet.</p>}
         </div>
       </div>
-    </main>
+    </>
   );
 }

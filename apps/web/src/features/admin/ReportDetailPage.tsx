@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { Breadcrumbs } from '../../components/nav/Breadcrumbs';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -66,7 +67,7 @@ interface ReportDetail {
   voidReason: string | null;
   voidedBy: { email: string; staffProfile: { firstName: string; lastName: string } | null } | null;
   panel: { name: string };
-  patient: { email: string; patientProfile: { firstName: string; lastName: string } | null };
+  patient: { id: string; email: string; patientProfile: { firstName: string; lastName: string } | null };
   results: VerifiedResult[];
 }
 
@@ -189,11 +190,11 @@ export function ReportDetailPage() {
 
   if (!report) {
     return (
-      <main className="min-h-screen px-6 py-16 md:px-16 bg-cream" aria-busy="true" aria-label="Loading report">
+      <div aria-busy="true" aria-label="Loading report">
         <Skeleton className="h-4 w-56" />
         <Skeleton className="mt-3 h-9 w-72" />
         <Skeleton className="mt-8 h-10 w-64" />
-      </main>
+      </div>
     );
   }
 
@@ -206,8 +207,27 @@ export function ReportDetailPage() {
       : report.voidedBy.email
     : null;
 
+  const sampleDateLabel = new Date(report.sampleDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
   return (
-    <main className="min-h-screen px-6 py-16 md:px-16 bg-cream">
+    <>
+      <Breadcrumbs
+        items={[
+          { label: 'Patients', to: '/admin/patients' },
+          { label: patientName, to: `/admin/patients/${report.patient.id}` },
+          { label: `${report.panel.name}, ${sampleDateLabel}` },
+        ]}
+      />
+
+      {/* Sticky once the page heading scrolls past it — losing track of whose results are on
+          screen partway down a long verify table is a real clinical risk, not just a UX nicety. */}
+      <div className="sticky top-[61px] z-20 -mx-6 mb-4 border-b border-taupe bg-cream/95 px-6 py-2.5 backdrop-blur md:-mx-10 md:px-10">
+        <p className="truncate text-sm font-medium text-espresso">
+          {patientName} <span className="text-espresso/50">·</span> {report.panel.name}{' '}
+          <span className="text-espresso/50">·</span> <span className="tabular">{sampleDateLabel}</span>
+        </p>
+      </div>
+
       <TwoTierHeading eyebrow={`${report.panel.name} — ${patientName}`} title={report.status.replace(/_/g, ' ')} />
       <p className="mt-2 flex items-center gap-1 text-sm text-espresso/80">
         {report.patient.email}
@@ -313,6 +333,7 @@ export function ReportDetailPage() {
                       label={`Matched marker for "${row.rawName}"`}
                       hideLabel
                       searchable
+                      emptyMessage="No markers configured yet."
                       name={`matched-marker-${i}`}
                       value={row.matchedMarkerId ?? ''}
                       onChange={(e) => updateRow(i, { matchedMarkerId: e.target.value || null })}
@@ -492,6 +513,6 @@ export function ReportDetailPage() {
           </>
         )}
       </ConfirmModal>
-    </main>
+    </>
   );
 }

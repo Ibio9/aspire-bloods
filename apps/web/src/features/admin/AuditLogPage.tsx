@@ -59,7 +59,7 @@ export function AuditLogPage() {
   }
 
   return (
-    <main className="min-h-screen px-6 py-16 md:px-16 bg-cream">
+    <>
       <TwoTierHeading eyebrow="Aspire Clinic — Admin console" title="Audit log" />
       <p className="mt-3 max-w-prose text-sm text-espresso/80">
         Every admin and clinician action, and every view of patient data — including other admins' own activity.
@@ -67,7 +67,7 @@ export function AuditLogPage() {
       </p>
 
       <Card className="mt-6">
-        <form onSubmit={handleFilter} className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+        <form onSubmit={handleFilter} className="grid grid-cols-1 gap-4 sm:grid-cols-4" noValidate>
           <Input label="Actor email contains" name="actorEmail" optional value={actorEmail} onChange={(e) => setActorEmail(e.target.value)} />
           <Input label="Action" name="action" optional placeholder="e.g. REPORT_RELEASED" value={action} onChange={(e) => setAction(e.target.value)} />
           <Input label="Target type" name="targetType" optional placeholder="e.g. Report" value={targetType} onChange={(e) => setTargetType(e.target.value)} />
@@ -134,6 +134,6 @@ export function AuditLogPage() {
           </div>
         </>
       )}
-    </main>
+    </>
   );
 }

@@ -14,21 +14,37 @@ function isFlattenedZodError(value: unknown): value is FlattenedZodError {
   return !!value && typeof value === 'object' && ('formErrors' in value || 'fieldErrors' in value);
 }
 
+// Zod field keys are the raw schema property name (camelCase, often "xId" for a
+// foreign key) — not something to show a user verbatim. "panelId" reads as a field
+// name; "Panel" reads as a label. Strips a trailing "Id" and splits camelCase into
+// words rather than maintaining a per-endpoint label map, which would drift out of
+// sync with the schemas the moment a new field is added.
+function humanizeFieldName(key: string): string {
+  const words = key.replace(/Id$/, '').replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 /**
  * Route error bodies come in two shapes: a plain `{ error: "message" }` from
  * our own AuthError/ReportError classes, or `{ error: zodError.flatten() }`
  * from schema validation — which nests the useful message inside
  * fieldErrors, not formErrors (formErrors is usually empty for per-field
  * validation failures). Missing that nesting was silently downgrading every
- * validation error to a generic "Something went wrong".
+ * validation error to a generic "Something went wrong". Field-level messages
+ * are prefixed with a humanized field name ("Panel: Required") — the bare
+ * message alone ("Required") doesn't say what's required when a form has
+ * several fields and only one throws.
  */
-function extractErrorMessage(body: unknown): string {
+export function extractErrorMessage(body: unknown): string {
   const error = (body as { error?: unknown } | null)?.error;
   if (typeof error === 'string') return error;
   if (isFlattenedZodError(error)) {
     if (error.formErrors?.[0]) return error.formErrors[0];
-    const firstFieldError = Object.values(error.fieldErrors ?? {}).find((msgs) => msgs && msgs.length > 0);
-    if (firstFieldError?.[0]) return firstFieldError[0];
+    const firstField = Object.entries(error.fieldErrors ?? {}).find(([, msgs]) => msgs && msgs.length > 0);
+    if (firstField) {
+      const [key, msgs] = firstField;
+      return `${humanizeFieldName(key)}: ${msgs![0]}`;
+    }
   }
   return 'Something went wrong';
 }

@@ -18,6 +18,8 @@ import { PatientHome } from './features/patient/PatientHome';
 import { ReportView } from './features/patient/ReportView';
 import { MarkerDetailPage } from './features/patient/MarkerDetailPage';
 import { AccountPage } from './features/patient/AccountPage';
+import { AdminShell } from './components/nav/AdminShell';
+import { PatientShell } from './components/nav/PatientShell';
 import { Footer } from './components/Footer';
 import { SessionGuard } from './components/SessionGuard';
 import { ComponentsShowcase } from './features/dev/ComponentsShowcase';
@@ -34,112 +36,71 @@ export default function App() {
       <AuthProvider>
         <ToastProvider>
           <SessionGuard />
-          {/* Off-screen until focused, then the very first tabbable thing on any page — lets
-              keyboard users jump past nothing-yet (there's no persistent nav) straight into the
-              page's own content region below. */}
+          {/* Off-screen until focused, then the very first tabbable thing on any page. */}
           <a href="#main-content" className="skip-link">
             Skip to content
           </a>
           <div id="main-content">
-            <PageTransition>
-              <Routes>
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/activate" element={<ActivatePage />} />
-                <Route path="/signup" element={<SignupPage />} />
-                <Route
-                  path="/"
-                  element={
-                    <ProtectedRoute>
-                      <HomeRouter />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/my-results"
-                  element={
-                    <RoleProtectedRoute roles={[...PATIENT_DATA_ROLES]}>
-                      <PatientHome />
-                    </RoleProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/reports/:id"
-                  element={
-                    <RoleProtectedRoute roles={[...PATIENT_DATA_ROLES]}>
-                      <ReportView />
-                    </RoleProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/markers/:markerId"
-                  element={
-                    <RoleProtectedRoute roles={[...PATIENT_DATA_ROLES]}>
-                      <MarkerDetailPage />
-                    </RoleProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/account"
-                  element={
-                    <RoleProtectedRoute roles={[...PATIENT_DATA_ROLES]}>
-                      <AccountPage />
-                    </RoleProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin"
-                  element={
-                    <RoleProtectedRoute roles={['ADMIN', 'CLINICIAN']}>
-                      <AdminReportsPage />
-                    </RoleProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/reports/:id"
-                  element={
-                    <RoleProtectedRoute roles={['ADMIN', 'CLINICIAN']}>
-                      <ReportDetailPage />
-                    </RoleProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/patients"
-                  element={
-                    <RoleProtectedRoute roles={['ADMIN', 'CLINICIAN']}>
-                      <PatientsListPage />
-                    </RoleProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/patients/:id"
-                  element={
-                    <RoleProtectedRoute roles={['ADMIN', 'CLINICIAN']}>
-                      <PatientDetailPage />
-                    </RoleProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/audit-log"
-                  element={
-                    <RoleProtectedRoute roles={['ADMIN']}>
-                      <AuditLogPage />
-                    </RoleProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/content"
-                  element={
-                    <RoleProtectedRoute roles={['ADMIN', 'CLINICIAN']}>
-                      <ContentConfigPage />
-                    </RoleProtectedRoute>
-                  }
-                />
-                {/* Dev-only design system review — tree-shaken out of production builds entirely, not just hidden. */}
-                {import.meta.env.DEV && <Route path="/dev/components" element={<ComponentsShowcase />} />}
-                {import.meta.env.DEV && <Route path="/dev/interactions" element={<ComponentsShowcase />} />}
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </PageTransition>
+            <Routes>
+              <Route path="/login" element={<PageTransition><LoginPage /></PageTransition>} />
+              <Route path="/activate" element={<PageTransition><ActivatePage /></PageTransition>} />
+              <Route path="/signup" element={<PageTransition><SignupPage /></PageTransition>} />
+              <Route
+                path="/"
+                element={
+                  <ProtectedRoute>
+                    <HomeRouter />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Patient shell — light sticky top bar, not the admin sidebar. Widened to
+                  PATIENT_DATA_ROLES so an admin-who-is-also-a-patient sees their own results
+                  through the same pages. */}
+              <Route
+                element={
+                  <RoleProtectedRoute roles={[...PATIENT_DATA_ROLES]}>
+                    <PatientShell />
+                  </RoleProtectedRoute>
+                }
+              >
+                <Route path="/my-results" element={<PatientHome />} />
+                <Route path="/reports/:id" element={<ReportView />} />
+                <Route path="/markers/:markerId" element={<MarkerDetailPage />} />
+                <Route path="/account" element={<AccountPage />} />
+              </Route>
+
+              {/* Admin shell — persistent sidebar, shared across every admin/clinician screen. */}
+              <Route
+                element={
+                  <RoleProtectedRoute roles={['ADMIN', 'CLINICIAN']}>
+                    <AdminShell />
+                  </RoleProtectedRoute>
+                }
+              >
+                <Route path="/admin" element={<AdminReportsPage />} />
+                <Route path="/admin/reports/:id" element={<ReportDetailPage />} />
+                <Route path="/admin/patients" element={<PatientsListPage />} />
+                <Route path="/admin/patients/:id" element={<PatientDetailPage />} />
+                <Route path="/admin/content" element={<ContentConfigPage />} />
+              </Route>
+              {/* Audit log is ADMIN-only (not CLINICIAN) — kept as its own guarded route rather
+                  than loosening the shell group above. */}
+              <Route
+                element={
+                  <RoleProtectedRoute roles={['ADMIN']}>
+                    <AdminShell />
+                  </RoleProtectedRoute>
+                }
+              >
+                <Route path="/admin/audit-log" element={<AuditLogPage />} />
+              </Route>
+
+              {/* Dev-only design system review — tree-shaken out of production builds entirely, not just hidden. */}
+              {import.meta.env.DEV && <Route path="/dev/components" element={<PageTransition><ComponentsShowcase /></PageTransition>} />}
+              {import.meta.env.DEV && <Route path="/dev/interactions" element={<PageTransition><ComponentsShowcase /></PageTransition>} />}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
           </div>
           <Footer />
         </ToastProvider>

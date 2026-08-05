@@ -59,7 +59,7 @@ export function PatientsListPage() {
   }
 
   return (
-    <main className="min-h-screen px-6 py-16 md:px-16 bg-cream">
+    <>
       <TwoTierHeading eyebrow="Aspire Clinic — Admin console" title="Patients" />
 
       <div className="mt-8 max-w-md">
@@ -127,6 +127,6 @@ export function PatientsListPage() {
           </Table>
         </div>
       )}
-    </main>
+    </>
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { Breadcrumbs } from '../../components/nav/Breadcrumbs';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -8,6 +9,7 @@ import { Table, TableHead, TableBody, TableRow, TableHeaderCell, TableCell } fro
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
 import { useToast } from '../../components/ui/Toast';
 import { apiFetch, ApiError } from '../../lib/api';
+import { recordPatientView } from '../../lib/recentPatients';
 
 interface PatientProfileDetail {
   id: string;
@@ -85,6 +87,7 @@ export function PatientDetailPage() {
     setConsents(c);
     setReports(r);
     setAuditTrail(a.entries);
+    recordPatientView(id, p.profile ? `${p.profile.firstName} ${p.profile.lastName}` : p.email);
   }, [id]);
 
   useEffect(() => {
@@ -93,11 +96,11 @@ export function PatientDetailPage() {
 
   if (!profile) {
     return (
-      <main className="min-h-screen px-6 py-16 md:px-16 bg-cream" aria-busy="true" aria-label="Loading patient">
+      <div aria-busy="true" aria-label="Loading patient">
         <Skeleton className="h-4 w-28" />
         <Skeleton className="mt-3 h-9 w-64" />
         <Skeleton className="mt-8 h-64 w-full" />
-      </main>
+      </div>
     );
   }
 
@@ -119,13 +122,9 @@ export function PatientDetailPage() {
   }
 
   return (
-    <main className="min-h-screen px-6 py-16 md:px-16 bg-cream">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <TwoTierHeading eyebrow="Aspire Clinic — Admin console" title={name} />
-        <Link to="/admin/patients" className="text-sm font-medium text-bronze-600 underline underline-offset-2">
-          Back to patients
-        </Link>
-      </div>
+    <>
+      <Breadcrumbs items={[{ label: 'Patients', to: '/admin/patients' }, { label: name }]} />
+      <TwoTierHeading eyebrow="Aspire Clinic — Admin console" title={name} />
 
       {error && (
         <p role="alert" className="mt-4 text-sm text-status-significantHigh">
@@ -410,6 +409,6 @@ export function PatientDetailPage() {
           law regardless. Only the patient's personal/contact details are de-identified once the purge runs.
         </p>
       </ConfirmModal>
-    </main>
+    </>
   );
 }

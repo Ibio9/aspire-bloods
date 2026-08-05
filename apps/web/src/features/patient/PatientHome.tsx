@@ -4,7 +4,6 @@ import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
-import { AccountMenu } from '../../components/AccountMenu';
 import { apiFetch } from '../../lib/api';
 
 interface ReportSummary {
@@ -26,14 +25,11 @@ export function PatientHome() {
   }, []);
 
   return (
-    <main className="min-h-screen px-6 py-16 md:px-16 bg-cream">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <TwoTierHeading eyebrow="Aspire Clinic — Patient Portal" title="Your results" />
-        <AccountMenu links={[{ to: '/account', label: 'Account & privacy' }]} />
-      </div>
+    <>
+      <TwoTierHeading eyebrow="Aspire Clinic — Patient Portal" title="Your results" />
 
       {reports === null ? (
-        <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true" aria-label="Loading your results">
+        <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true" aria-label="Loading your results">
           {[0, 1, 2].map((i) => (
             <Card key={i}>
               <Skeleton className="h-3 w-24" />
@@ -50,7 +46,7 @@ export function PatientHome() {
           />
         </div>
       ) : (
-        <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {reports.map((r, i) =>
             r.patientStatus === 'RELEASED' ? (
               <Link
@@ -60,13 +56,13 @@ export function PatientHome() {
                 style={{ animationDelay: `${i * 30}ms` }}
               >
                 <Card interactive className="h-full">
-                  <p className="eyebrow mb-1">{r.sampleDate}</p>
-                  <p className="text-lg font-medium text-espresso">{r.panelName}</p>
-                  <p className="mt-3 text-sm text-espresso">
+                  <p className="eyebrow mb-1.5">{r.sampleDate}</p>
+                  <p className="font-display text-2xl leading-tight text-espresso">{r.panelName}</p>
+                  <p className="mt-4 text-sm text-espresso">
                     {r.inRangeCount} in range
                     {r.attentionCount ? `, ${r.attentionCount} need${r.attentionCount === 1 ? 's' : ''} attention` : ''}
                   </p>
-                  {r.sourceLabel && <p className="mt-2 text-xs text-espresso/80">{r.sourceLabel}</p>}
+                  {r.sourceLabel && <p className="mt-2 text-xs text-espresso/60">{r.sourceLabel}</p>}
                 </Card>
               </Link>
             ) : (
@@ -75,14 +71,14 @@ export function PatientHome() {
                 className="stagger-item h-full motion-safe:animate-riseIn opacity-75"
                 style={{ animationDelay: `${i * 30}ms` }}
               >
-                <p className="eyebrow mb-1">{r.sampleDate}</p>
-                <p className="text-lg font-medium text-espresso">{r.panelName}</p>
-                <p className="mt-3 text-sm text-espresso">Results pending — we'll let you know when they're ready.</p>
+                <p className="eyebrow mb-1.5">{r.sampleDate}</p>
+                <p className="font-display text-2xl leading-tight text-espresso">{r.panelName}</p>
+                <p className="mt-4 text-sm text-espresso">Results pending — we'll let you know when they're ready.</p>
               </Card>
             ),
           )}
         </div>
       )}
-    </main>
+    </>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { MarkerReviewStatus, MarkerStatus } from '@aspire-bloods/shared';
+import { Breadcrumbs } from '../../components/nav/Breadcrumbs';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { StatusBadge } from '../../components/ui/StatusBadge';
@@ -9,6 +10,7 @@ import { TrendChart } from '../../components/ui/TrendChart';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { CopyButton } from '../../components/ui/CopyButton';
 import { apiFetch } from '../../lib/api';
+import type { MarkerNavState } from './markerNavState';
 
 interface TrendPoint {
   reportId: string;
@@ -53,7 +55,11 @@ interface MarkerDetail {
 
 export function MarkerDetailPage() {
   const { markerId } = useParams<{ markerId: string }>();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [detail, setDetail] = useState<MarkerDetail | null>(null);
+
+  const navState = location.state as MarkerNavState | null;
 
   useEffect(() => {
     if (markerId) void apiFetch<MarkerDetail>(`/patient/markers/${markerId}`).then(setDetail);
@@ -61,7 +67,7 @@ export function MarkerDetailPage() {
 
   if (!detail) {
     return (
-      <main className="min-h-screen px-6 py-16 md:px-16 bg-cream" aria-busy="true" aria-label="Loading marker detail">
+      <div aria-busy="true" aria-label="Loading marker detail">
         <Skeleton className="h-4 w-28" />
         <Skeleton className="mt-3 h-9 w-64" />
         <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -74,13 +80,62 @@ export function MarkerDetailPage() {
             <Skeleton className="mt-3 h-48 w-full" />
           </Card>
         </div>
-      </main>
+      </div>
     );
   }
 
+  // Only present when arriving from a report's marker grid (see ReportView) — a direct/deep
+  // link has no report context to page through, so the arrows simply don't render.
+  const siblingIndex = navState?.markerIds.indexOf(markerId ?? '') ?? -1;
+  const prevMarkerId = navState && siblingIndex > 0 ? navState.markerIds[siblingIndex - 1] : null;
+  const nextMarkerId = navState && siblingIndex >= 0 && siblingIndex < navState.markerIds.length - 1 ? navState.markerIds[siblingIndex + 1] : null;
+
+  function goToSibling(id: string) {
+    navigate(`/markers/${id}`, { state: navState });
+  }
+
   return (
-    <main className="min-h-screen px-6 py-16 md:px-16 bg-cream motion-safe:animate-riseIn">
-      <TwoTierHeading eyebrow="Marker detail" title={detail.name} />
+    <div className="motion-safe:animate-riseIn">
+      <Breadcrumbs
+        items={
+          navState
+            ? [{ label: 'Your results', to: '/my-results' }, { label: navState.panelName, to: `/reports/${navState.reportId}` }, { label: detail.name }]
+            : [{ label: 'Your results', to: '/my-results' }, { label: detail.name }]
+        }
+      />
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <TwoTierHeading eyebrow="Marker detail" title={detail.name} />
+        {navState && (siblingIndex >= 0) && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={!prevMarkerId}
+              onClick={() => prevMarkerId && goToSibling(prevMarkerId)}
+              className="rounded-full border border-taupe p-2 text-espresso transition duration-150 ease-out hover:border-bronze/60 hover:text-bronze disabled:cursor-not-allowed disabled:opacity-30"
+              aria-label="Previous marker in this report"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                <path d="M9 2 4 7l5 5" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            <span className="text-xs text-espresso/60">
+              {siblingIndex + 1} of {navState.markerIds.length}
+            </span>
+            <button
+              type="button"
+              disabled={!nextMarkerId}
+              onClick={() => nextMarkerId && goToSibling(nextMarkerId)}
+              className="rounded-full border border-taupe p-2 text-espresso transition duration-150 ease-out hover:border-bronze/60 hover:text-bronze disabled:cursor-not-allowed disabled:opacity-30"
+              aria-label="Next marker in this report"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                <path d="M5 2l5 5-5 5" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </div>
+        )}
+      </div>
 
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
@@ -142,6 +197,6 @@ export function MarkerDetailPage() {
           </>
         )}
       </Card>
-    </main>
+    </div>
   );
 }

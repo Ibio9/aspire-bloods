@@ -115,7 +115,7 @@ export function RegistrationForm({ showEmailField, submitLabel, onSubmit }: Regi
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-10">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-10" noValidate>
       <Card className="flex flex-col gap-5">
         <p className="eyebrow">Your details</p>
         {showEmailField && (
