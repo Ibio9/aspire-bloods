@@ -65,19 +65,33 @@ const envSchema = z.object({
   // ADMIN role (see lib/adminAccess.ts). Required in production.
   ADMIN_EMAILS: z.string().optional().default(''),
 
-  LOGIN_RATE_LIMIT_MAX: z.coerce.number().default(5),
-  LOGIN_RATE_LIMIT_WINDOW_MINUTES: z.coerce.number().default(15),
+  // How long a self-signup verification link stays good for. Short by
+  // design — it only has to survive someone switching to their inbox.
+  EMAIL_VERIFICATION_TTL_HOURS: z.coerce.number().default(24),
+
+  // --- Lockout ---
+  // Both limits are in SECONDS, not minutes, because the login window is
+  // now short enough that minutes can't express it. The lockout exists to
+  // stop someone brute-forcing patient records; it is not there to punish
+  // a person who mistyped their own password twice. At 10-in-2-minutes it
+  // should be invisible in normal use, and the counter is cleared outright
+  // on any successful sign-in (see modules/auth/router.ts).
+  LOGIN_RATE_LIMIT_MAX: z.coerce.number().default(10),
+  LOGIN_RATE_LIMIT_WINDOW_SECONDS: z.coerce.number().default(120),
+  // Deliberately NOT loosened alongside login. A password has an enormous
+  // search space; a six-digit code has a million, and an attacker who has
+  // already reached this step holds a valid password. Tight stays tight.
   OTP_RATE_LIMIT_MAX: z.coerce.number().default(5),
-  OTP_RATE_LIMIT_WINDOW_MINUTES: z.coerce.number().default(15),
+  OTP_RATE_LIMIT_WINDOW_SECONDS: z.coerce.number().default(900),
   // Separate budget from OTP verification: resend causes an outbound
   // email/SMS, and a patient legitimately asking for a second code must
   // not thereby lose the attempts they need to enter it.
   OTP_RESEND_RATE_LIMIT_MAX: z.coerce.number().default(4),
-  // Registration is now admin-only (see modules/auth/service.ts signup()) —
-  // deliberately stricter and a longer window than login, since legitimate
-  // volume is a handful of practice staff, ever.
-  SIGNUP_RATE_LIMIT_MAX: z.coerce.number().default(5),
-  SIGNUP_RATE_LIMIT_WINDOW_MINUTES: z.coerce.number().default(60),
+  // Registration is open to anyone (see modules/auth/service.ts signup()),
+  // so this is an anti-abuse ceiling on account creation from one address,
+  // not a gate on who may register.
+  SIGNUP_RATE_LIMIT_MAX: z.coerce.number().default(10),
+  SIGNUP_RATE_LIMIT_WINDOW_SECONDS: z.coerce.number().default(3600),
 });
 
 export type Env = z.infer<typeof envSchema>;

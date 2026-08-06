@@ -6,10 +6,19 @@ import {
   activateAccountRequestSchema,
   inviteRequestSchema,
   signupRequestSchema,
+  verifyEmailRequestSchema,
+  resendVerificationRequestSchema,
 } from '@aspire-bloods/shared';
 import { authGuard } from '../../middleware/authGuard.js';
 import { roleGuard } from '../../middleware/roleGuard.js';
-import { loginRateLimiter, otpRateLimiter, otpResendRateLimiter, signupRateLimiter } from '../../middleware/rateLimit.js';
+import {
+  loginRateLimiter,
+  otpRateLimiter,
+  otpResendRateLimiter,
+  signupRateLimiter,
+  emailVerificationResendRateLimiter,
+  resetLoginAttempts,
+} from '../../middleware/rateLimit.js';
 import { verifyCsrf, generateCsrfToken } from '../../middleware/csrf.js';
 import {
   setAccessTokenCookie,
@@ -25,6 +34,8 @@ import {
   createInvite,
   activateAccount,
   signup,
+  verifyEmail,
+  resendVerificationEmail,
   login,
   loginWithTrustedDevice,
   verifyOtp,
@@ -84,22 +95,48 @@ authRouter.post('/activate', asyncHandler(async (req, res) => {
   }
 }));
 
+// Open registration. This endpoint never returns a session and never
+// returns a 2FA challenge — it can only ever say "we've emailed you". The
+// ordering the practice asked for (verify the address, THEN enrol 2FA) is
+// enforced by there being no other exit: /auth/verify-email is what issues
+// the OTP challenge, and /auth/otp/verify is what issues the session.
 authRouter.post('/signup', signupRateLimiter, asyncHandler(async (req, res) => {
   const parsed = signupRequestSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
   try {
-    // Same shape as /login's otp_required response — registration and
-    // first-login are one fused flow, verified through the same
-    // /auth/otp/verify endpoint. There is no other success response: 2FA
-    // enrolment isn't a separate optional step, it's the only way this
-    // call can end in anything other than a rejection.
     const result = await signup(parsed.data, clientIp(req));
+    res.status(201).json(result);
+  } catch (e) {
+    if (e instanceof AuthError) return res.status(e.status).json({ error: e.message });
+    throw e;
+  }
+}));
+
+// Step two of registration: the emailed link lands here, and the response is
+// the same otp_required shape /login returns, so the client reuses the exact
+// same 2FA step component either way.
+authRouter.post('/verify-email', asyncHandler(async (req, res) => {
+  const parsed = verifyEmailRequestSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'This confirmation link is incomplete.' });
+
+  try {
+    const result = await verifyEmail(parsed.data.token, clientIp(req));
     res.json(otpChallengeResponse(result));
   } catch (e) {
     if (e instanceof AuthError) return res.status(e.status).json({ error: e.message });
     throw e;
   }
+}));
+
+// Always 202 with the same body, whether or not anything was sent — see
+// resendVerificationEmail()'s anti-enumeration note.
+authRouter.post('/verify-email/resend', emailVerificationResendRateLimiter, asyncHandler(async (req, res) => {
+  const parsed = resendVerificationRequestSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const result = await resendVerificationEmail(parsed.data.email, clientIp(req));
+  res.status(202).json({ status: 'verification_sent', ...result });
 }));
 
 authRouter.post('/login', loginRateLimiter, asyncHandler(async (req, res) => {
@@ -108,6 +145,13 @@ authRouter.post('/login', loginRateLimiter, asyncHandler(async (req, res) => {
 
   try {
     const result = await login(parsed.data.email, parsed.data.password, req.cookies?.device_id, clientIp(req));
+
+    // Credentials were right, so this connection's failed-attempt count is
+    // noise from a person mistyping, not evidence of guessing. Clearing it
+    // here (rather than only letting the window age out) is what stops a
+    // successful sign-in from leaving someone half-way to a lockout on
+    // their next one.
+    await resetLoginAttempts(loginRateLimiter, req);
 
     if (result.trustedDeviceSkippedOtp) {
       const session = await loginWithTrustedDevice(

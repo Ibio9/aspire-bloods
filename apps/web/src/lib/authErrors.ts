@@ -18,10 +18,34 @@ const CLINIC_CONTACT = 'clinical-team@aspireshield.com';
  * a network-level failure), and everything else (which the server already
  * phrases humanely per-case: expired/incorrect code, expired invite, etc).
  */
+/**
+ * How long a 429 says to wait, in seconds, or null if this wasn't a lockout.
+ * The server puts the real number in the body (see the API's
+ * middleware/rateLimit.ts) precisely so the UI can count it down instead of
+ * saying "shortly" — a locked-out person needs to know whether to wait or to
+ * go and do something else, and "shortly" answers neither.
+ */
+export function lockoutSeconds(e: unknown): number | null {
+  if (!(e instanceof ApiError) || e.status !== 429) return null;
+  const seconds = (e.details as { retryAfterSeconds?: unknown } | null)?.retryAfterSeconds;
+  return typeof seconds === 'number' && seconds > 0 ? Math.ceil(seconds) : null;
+}
+
+export function formatCountdown(totalSeconds: number): string {
+  if (totalSeconds < 60) return `${totalSeconds} second${totalSeconds === 1 ? '' : 's'}`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  const minutePart = `${minutes} minute${minutes === 1 ? '' : 's'}`;
+  return seconds === 0 ? minutePart : `${minutePart} ${seconds}s`;
+}
+
 export function authErrorMessage(e: unknown): string {
   if (e instanceof ApiError) {
     if (e.status === 429) {
-      return `${e.message} This is a temporary lock to protect your account — it will clear on its own shortly.`;
+      const wait = lockoutSeconds(e);
+      return wait
+        ? `${e.message} You can try again in ${formatCountdown(wait)}.`
+        : `${e.message} This is a temporary lock to protect your account.`;
     }
     if (e.status === 502 || e.status === 503) {
       return `We couldn't send that just now — our email/SMS service is temporarily unavailable. Please try again in a few minutes, or contact ${CLINIC_CONTACT} if this continues.`;

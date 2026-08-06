@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { linkResultRequestSchema, unlinkResultRequestSchema } from '@aspire-bloods/shared';
 import { prisma } from '../../db/client.js';
 import { authGuard } from '../../middleware/authGuard.js';
 import { roleGuard } from '../../middleware/roleGuard.js';
@@ -22,6 +23,12 @@ import {
   updateCopyBlock,
   listIngestionLog,
 } from './service.js';
+import {
+  getLinkingQueue,
+  linkResultToPatient,
+  unlinkResult,
+  dismissUnmatchedResult,
+} from './linkingService.js';
 
 export const adminRouter = Router();
 
@@ -113,6 +120,93 @@ const paginationSchema = z.object({
   limit: z.coerce.number().min(1).max(200).default(50),
   offset: z.coerce.number().min(0).default(0),
 });
+
+// ---------------------------------------------------------------------------
+// Result linking — accounts with nothing attached, beside results with nobody
+// attached. See modules/admin/linkingService.ts for the matching rules; this
+// router does no matching of its own.
+// ---------------------------------------------------------------------------
+
+// Shows every unlinked patient's name, date of birth and contact number side
+// by side — about as concentrated a view of patient data as exists in this
+// app, so it's audited like any other, not treated as "just a worklist".
+adminRouter.get(
+  '/linking',
+  asyncHandler(async (req, res) => {
+    const queue = await getLinkingQueue();
+    await recordAuditLog({
+      actorUserId: req.user!.id,
+      action: 'PATIENT_DATA_VIEWED',
+      targetType: 'User',
+      ipAddress: req.ip ?? null,
+      metadata: {
+        view: 'result_linking_queue',
+        unlinkedAccounts: queue.unlinkedAccounts.length,
+        unmatchedResults: queue.unmatchedResults.length,
+      },
+    });
+    res.json(queue);
+  }),
+);
+
+// ADMIN only, not CLINICIAN: deciding whose results these are is a records
+// action, and it's the one the practice most wants a single accountable
+// identity attached to.
+adminRouter.post(
+  '/linking/:id/link',
+  roleGuard('ADMIN'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const parsed = linkResultRequestSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+    try {
+      const result = await linkResultToPatient(
+        req.params.id,
+        { patientId: parsed.data.patientId, confirmedDob: parsed.data.confirmedDob },
+        req.user!.id,
+        req.ip ?? null,
+      );
+      res.status(201).json({ ok: true, ...result });
+    } catch (e) {
+      if (!handleAdminError(e, res)) throw e;
+    }
+  }),
+);
+
+adminRouter.post(
+  '/linking/:id/unlink',
+  roleGuard('ADMIN'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const parsed = unlinkResultRequestSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+    try {
+      const result = await unlinkResult(req.params.id, parsed.data.reason, req.user!.id, req.ip ?? null);
+      res.json({ ok: true, ...result });
+    } catch (e) {
+      if (!handleAdminError(e, res)) throw e;
+    }
+  }),
+);
+
+adminRouter.post(
+  '/linking/:id/dismiss',
+  roleGuard('ADMIN'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const parsed = unlinkResultRequestSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+    try {
+      await dismissUnmatchedResult(req.params.id, parsed.data.reason, req.user!.id, req.ip ?? null);
+      res.json({ ok: true });
+    } catch (e) {
+      if (!handleAdminError(e, res)) throw e;
+    }
+  }),
+);
 
 adminRouter.get(
   '/patients/:id/audit-trail',

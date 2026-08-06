@@ -1,10 +1,10 @@
-import { useCallback, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { OtpStep, type OtpChallenge } from './OtpStep';
 import { apiFetch } from '../../lib/api';
-import { authErrorMessage } from '../../lib/authErrors';
+import { authErrorMessage, formatCountdown, lockoutSeconds } from '../../lib/authErrors';
 import { useAuth } from '../../lib/AuthContext';
 import { LOGOUT_REASON_KEY } from '../../lib/AuthContext';
 import { AuthSplitLayout } from './AuthSplitLayout';
@@ -42,6 +42,22 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [sessionNotice] = useState(readAndClearLogoutReason);
+  // Seconds left on a lockout, ticking. Null when there isn't one.
+  const [lockedFor, setLockedFor] = useState<number | null>(null);
+
+  // The lock lifts on its own, so the copy has to as well — otherwise
+  // someone who waited the full two minutes is still looking at a screen
+  // telling them they're locked out.
+  useEffect(() => {
+    if (lockedFor === null) return;
+    if (lockedFor <= 0) {
+      setLockedFor(null);
+      setError(null);
+      return;
+    }
+    const t = setTimeout(() => setLockedFor((s) => (s === null ? null : s - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [lockedFor]);
 
   async function handleCredentials(e: FormEvent) {
     e.preventDefault();
@@ -52,6 +68,7 @@ export function LoginPage() {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       });
+      setLockedFor(null);
       if (result.status === 'authenticated') {
         await refresh();
         navigate(consumeRedirect() ?? '/');
@@ -67,7 +84,13 @@ export function LoginPage() {
         });
       }
     } catch (e) {
-      setError(authErrorMessage(e));
+      const wait = lockoutSeconds(e);
+      if (wait !== null) {
+        setLockedFor(wait);
+        setError(null);
+      } else {
+        setError(authErrorMessage(e));
+      }
     } finally {
       setSubmitting(false);
     }
@@ -136,16 +159,40 @@ export function LoginPage() {
                 {error}
               </p>
             )}
-            <Button type="submit" loading={submitting} className="w-full">
+            {/* A count, not "shortly". Someone locked out needs to know
+                whether to wait or come back later, and the number is the
+                only thing that answers that. Icon + heading carry the state
+                alongside the colour, per the house rule. */}
+            {lockedFor !== null && (
+              <div
+                role="alert"
+                className="flex gap-3 rounded-input border border-status-significantHigh bg-cream-50 px-4 py-3"
+              >
+                <svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" className="mt-0.5 shrink-0 text-status-significantHigh">
+                  <rect x="3.5" y="7" width="9" height="6.5" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
+                  <path d="M5.75 7V5.25a2.25 2.25 0 0 1 4.5 0V7" fill="none" stroke="currentColor" strokeWidth="1.4" />
+                </svg>
+                <div>
+                  <p className="text-sm font-medium text-espresso">Sign-in paused</p>
+                  <p className="mt-1 text-sm leading-relaxed text-espresso/80">
+                    Too many attempts from this connection. You can try again in{' '}
+                    <span className="tabular font-medium">{formatCountdown(lockedFor)}</span>.
+                  </p>
+                </div>
+              </div>
+            )}
+            <Button type="submit" loading={submitting} disabled={lockedFor !== null} className="w-full">
               Sign in
             </Button>
           </form>
           {/* One compact line: the full version ran three lines and was the
-              thing pushing the card past the fold. The lockout warning stays
-              because it's the one part a patient can't infer. */}
-          <p className="mt-[var(--auth-step)] text-xs leading-relaxed text-espresso/60">
-            Trouble signing in? Activate your account from your invitation email first — repeated failed
-            attempts briefly lock it.
+              thing pushing the card past the fold. */}
+          <p className="mt-[var(--auth-step)] text-sm leading-relaxed text-espresso/80">
+            Don't have an account?{' '}
+            <Link to="/signup" className="rounded-sm font-medium text-bronze underline underline-offset-2 hover:text-bronze-700">
+              Create one
+            </Link>
+            . If the clinic invited you by email, use the link in that invitation instead.
           </p>
         </>
       ) : (

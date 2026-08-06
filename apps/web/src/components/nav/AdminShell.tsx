@@ -20,6 +20,9 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { to: '/admin', label: 'Reports & entry', icon: ReportsIcon },
   { to: '/admin/patients', label: 'Patients', icon: PatientsIcon },
+  // Sits directly under Patients: it's the same subject (who is who) at the
+  // moment it matters most, not a reporting screen.
+  { to: '/admin/linking', label: 'Result linking', icon: PatientsIcon, adminOnly: true },
   { to: '/admin/content', label: 'Panels & content', icon: ContentIcon },
   { to: '/admin/audit-log', label: 'Audit log', icon: AuditIcon, adminOnly: true },
   { to: '/admin/ingestion-log', label: 'Ingestion log', icon: AuditIcon, adminOnly: true },

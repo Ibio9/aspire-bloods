@@ -14,8 +14,10 @@ export interface ProfileFormData {
   sex?: string;
   dob: string;
   contactNumber: string;
-  address: string;
-  postcode: string;
+  // Optional in the 'signup' variant — a self-registering patient is only
+  // asked for what safe result-linking actually needs.
+  address?: string;
+  postcode?: string;
   gpName?: string;
   gpAddress?: string;
   medication?: string;
@@ -34,6 +36,20 @@ export interface ConsentsData {
 interface RegistrationFormProps {
   /** Signup needs an email field; activation doesn't (the invited email is already fixed). */
   showEmailField?: boolean;
+  /**
+   * 'full' — the practice's whole registration form (brief §1/§2), used when
+   * the clinic invited someone and is onboarding them properly.
+   *
+   * 'signup' — the four things a self-registering patient actually has to
+   * give us: who they are, when they were born, how to reach them, and a
+   * password. Date of birth and contact number aren't there for the file;
+   * they're what an admin matches an incoming result against before
+   * attaching it to this person, which is why they're the two optional-
+   * looking fields that aren't optional. Address, GP and emergency contact
+   * are all things the clinic collects at the appointment, and asking for
+   * them here just makes an empty account feel like a gate.
+   */
+  variant?: 'full' | 'signup';
   submitLabel: string;
   onSubmit: (data: { email?: string; password: string; profile: ProfileFormData; consents: ConsentsData }) => Promise<void>;
 }
@@ -42,10 +58,12 @@ const required = (fieldLabel: string) => (value: string) => (value.trim() ? unde
 
 /**
  * Shared by both the admin-invite activation flow and self-service signup
- * — same registration-form field set (brief §1/§2) either way; only how
- * the account gets created differs, which the caller handles via onSubmit.
+ * — same underlying field set either way; the variant decides how much of
+ * it is asked for, and the caller handles how the account gets created via
+ * onSubmit.
  */
-export function RegistrationForm({ showEmailField, submitLabel, onSubmit }: RegistrationFormProps) {
+export function RegistrationForm({ showEmailField, variant = 'full', submitLabel, onSubmit }: RegistrationFormProps) {
+  const full = variant === 'full';
   const [email, setEmail] = useState('');
   const [form, setForm] = useState({
     title: '',
@@ -96,8 +114,8 @@ export function RegistrationForm({ showEmailField, submitLabel, onSubmit }: Regi
           sex: form.sex || undefined,
           dob: form.dob,
           contactNumber: form.contactNumber,
-          address: form.address,
-          postcode: form.postcode,
+          address: form.address || undefined,
+          postcode: form.postcode || undefined,
           gpName: form.gpName || undefined,
           gpAddress: form.gpAddress || undefined,
           medication: form.medication || undefined,
@@ -171,23 +189,33 @@ export function RegistrationForm({ showEmailField, submitLabel, onSubmit }: Regi
           value={form.contactNumber}
           onChange={(e) => set('contactNumber', e.target.value)}
           validate={required('Contact number')}
+          hint={
+            full
+              ? undefined
+              : 'Along with your date of birth, this is how the clinic confirms a result is yours before attaching it to your account.'
+          }
         />
-        <Input
-          label="Home address"
-          name="address"
-          value={form.address}
-          onChange={(e) => set('address', e.target.value)}
-          validate={required('Home address')}
-        />
-        <Input
-          label="Postcode"
-          name="postcode"
-          value={form.postcode}
-          onChange={(e) => set('postcode', e.target.value)}
-          validate={required('Postcode')}
-        />
+        {full && (
+          <>
+            <Input
+              label="Home address"
+              name="address"
+              value={form.address}
+              onChange={(e) => set('address', e.target.value)}
+              validate={required('Home address')}
+            />
+            <Input
+              label="Postcode"
+              name="postcode"
+              value={form.postcode}
+              onChange={(e) => set('postcode', e.target.value)}
+              validate={required('Postcode')}
+            />
+          </>
+        )}
       </Card>
 
+      {full && (
       <Card padding="tight" className="flex flex-col gap-[calc(var(--auth-step)*0.9)]">
         <p className="eyebrow">GP &amp; medical details</p>
         <p className="text-sm text-espresso -mt-2">
@@ -217,7 +245,9 @@ export function RegistrationForm({ showEmailField, submitLabel, onSubmit }: Regi
           onChange={(e) => set('allergies', e.target.value)}
         />
       </Card>
+      )}
 
+      {full && (
       <Card padding="tight" className="flex flex-col gap-[calc(var(--auth-step)*0.9)]">
         <p className="eyebrow">Emergency contact</p>
         <Input
@@ -235,6 +265,7 @@ export function RegistrationForm({ showEmailField, submitLabel, onSubmit }: Regi
           onChange={(e) => set('emergencyContactNumber', e.target.value)}
         />
       </Card>
+      )}
 
       <Card padding="tight" className="flex flex-col gap-[calc(var(--auth-step)*0.9)]">
         <p className="eyebrow">Set your password</p>

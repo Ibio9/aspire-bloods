@@ -25,6 +25,13 @@ interface RandoxMarkerPayload {
 interface RandoxResultPayload {
   id: string;
   patientRef: string | null;
+  // Randox's own record of who the sample belongs to. Carried through so an
+  // admin has something to match against when patientRef doesn't resolve to
+  // one of our accounts — never used to match automatically.
+  patientFirstName?: string | null;
+  patientLastName?: string | null;
+  patientDob?: string | null;
+  patientContactNumber?: string | null;
   profileKey: string | null;
   sampleDate: string | null;
   status: 'partial' | 'final';
@@ -117,6 +124,12 @@ export class RandoxApiAdapter implements ResultSourceAdapter {
       panelName: null,
       panelKey: payload.profileKey,
       externalPatientRef: payload.patientRef,
+      claimedPatient: {
+        firstName: payload.patientFirstName ?? null,
+        lastName: payload.patientLastName ?? null,
+        dob: payload.patientDob ?? null,
+        contactNumber: payload.patientContactNumber ?? null,
+      },
       isPartial: payload.status === 'partial',
       extractionMethod: 'api',
       rows: payload.markers.map(mapRow),
