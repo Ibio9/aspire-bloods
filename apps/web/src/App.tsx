@@ -15,7 +15,12 @@ import { PatientDetailPage } from './features/admin/PatientDetailPage';
 import { AuditLogPage } from './features/admin/AuditLogPage';
 import { IngestionLogPage } from './features/admin/IngestionLogPage';
 import { ContentConfigPage } from './features/admin/ContentConfigPage';
+import { PatientOverview } from './features/patient/PatientOverview';
 import { PatientHome } from './features/patient/PatientHome';
+import { AllMarkersPage } from './features/patient/AllMarkersPage';
+import { TrendsPage } from './features/patient/TrendsPage';
+import { MarkerLibraryPage } from './features/patient/MarkerLibraryPage';
+import { DocumentsPage } from './features/patient/DocumentsPage';
 import { ReportView } from './features/patient/ReportView';
 import { MarkerDetailPage } from './features/patient/MarkerDetailPage';
 import { AccountPage } from './features/patient/AccountPage';
@@ -55,9 +60,9 @@ export default function App() {
                 }
               />
 
-              {/* Patient shell — light sticky top bar, not the admin sidebar. Widened to
-                  PATIENT_DATA_ROLES so an admin-who-is-also-a-patient sees their own results
-                  through the same pages. */}
+              {/* Patient shell — its own persistent sidebar, warmer and less dense than the
+                  admin one. Widened to PATIENT_DATA_ROLES so an admin-who-is-also-a-patient
+                  sees their own results through the same pages. */}
               <Route
                 element={
                   <RoleProtectedRoute roles={[...PATIENT_DATA_ROLES]}>
@@ -65,7 +70,12 @@ export default function App() {
                   </RoleProtectedRoute>
                 }
               >
+                <Route path="/overview" element={<PatientOverview />} />
                 <Route path="/my-results" element={<PatientHome />} />
+                <Route path="/markers" element={<AllMarkersPage />} />
+                <Route path="/trends" element={<TrendsPage />} />
+                <Route path="/library" element={<MarkerLibraryPage />} />
+                <Route path="/documents" element={<DocumentsPage />} />
                 <Route path="/reports/:id" element={<ReportView />} />
                 <Route path="/markers/:markerId" element={<MarkerDetailPage />} />
                 <Route path="/account" element={<AccountPage />} />

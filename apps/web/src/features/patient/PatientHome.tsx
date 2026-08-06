@@ -1,5 +1,5 @@
 import { useEffect, useState, type KeyboardEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { formatDate } from '@aspire-bloods/shared';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
@@ -99,14 +99,38 @@ function PendingReportCard({ report, index }: { report: ReportSummary; index: nu
 
 export function PatientHome() {
   const [reports, setReports] = useState<ReportSummary[] | null>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    void apiFetch<ReportSummary[]>('/patient/reports').then(setReports);
+    apiFetch<ReportSummary[]>('/patient/reports')
+      .then(setReports)
+      .catch(() => setFailed(true));
   }, []);
+
+  if (failed) {
+    return (
+      <>
+        <TwoTierHeading eyebrow="Aspire Clinic — Patient portal" title="My results" />
+        <Card className="mt-8 max-w-xl">
+          <p className="font-display text-2xl text-espresso">We couldn't load your results</p>
+          <p className="mt-2 text-sm text-espresso/80">
+            Please refresh the page. If it keeps happening, get in touch and we'll sort it out.
+          </p>
+        </Card>
+      </>
+    );
+  }
 
   return (
     <>
-      <TwoTierHeading eyebrow="Aspire Clinic — Patient Portal" title="Your results" />
+      <TwoTierHeading eyebrow="Aspire Clinic — Patient portal" title="My results" />
+      <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
+        Each panel you've had, newest first. To look at a single marker across every panel it appeared in, use{' '}
+        <Link to="/markers" className="rounded-sm font-medium text-bronze-700 underline-offset-4 hover:underline">
+          All markers
+        </Link>
+        .
+      </p>
 
       {reports === null ? (
         <div
@@ -123,10 +147,18 @@ export function PatientHome() {
           ))}
         </div>
       ) : reports.length === 0 ? (
-        <div className="mt-14 max-w-xl">
+        <div className="mt-14 max-w-2xl">
           <EmptyState
             title="No results yet"
-            description="You haven't had any tests yet. Once you've had a sample taken, your results will appear here as soon as they're ready."
+            description="You haven't had any tests yet. Once you've had a sample taken and a clinician has reviewed it, your panel will appear here."
+            action={
+              <Link
+                to="/overview"
+                className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-taupe px-5 py-2.5 text-sm font-medium text-espresso transition duration-150 ease-out hover:border-bronze"
+              >
+                What happens next
+              </Link>
+            }
           />
         </div>
       ) : (

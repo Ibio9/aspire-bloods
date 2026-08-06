@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { CartesianGrid, ComposedChart, Line, ReferenceArea, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { status as statusTokens, brand, formatDate, formatDateShort, type MarkerStatus } from '@aspire-bloods/shared';
+import { status as statusTokens, brand, formatDate, type MarkerStatus } from '@aspire-bloods/shared';
+import { formatAxisDate } from '../../lib/patientPortal';
 
 function useReducedMotion(): boolean {
   const [reduced, setReduced] = useState(
@@ -163,9 +164,9 @@ export function TrendChart({ data, crossSourceComparable = true }: { data: Trend
             <CartesianGrid stroke={brand.taupe} strokeOpacity={0} />
             <XAxis
               dataKey="sampleDate"
-              // ISO never reaches an axis. Short form here purely for width —
-              // the tooltip gives the full "5 August 2026".
-              tickFormatter={(value: string) => formatDateShort(value)}
+              // ISO never reaches an axis. The compact "Aug 26" form is purely
+              // for width — the tooltip gives the full "5 August 2026".
+              tickFormatter={formatAxisDate}
               tick={{ fontSize: 11, fill: brand.espresso }}
               axisLine={{ stroke: brand.taupe }}
               tickLine={false}

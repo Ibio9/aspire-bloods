@@ -8,6 +8,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { Skeleton } from '../../components/ui/Skeleton';
+import { useToast } from '../../components/ui/Toast';
 import { apiFetch } from '../../lib/api';
 import { API_BASE_URL } from '../../lib/apiBase';
 
@@ -36,15 +37,53 @@ interface ReportDetail {
 export function ReportView() {
   const { id } = useParams<{ id: string }>();
   const [report, setReport] = useState<ReportDetail | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [downloading, setDownloading] = useState<string | null>(null);
+  const { show } = useToast();
 
   useEffect(() => {
-    if (id) void apiFetch<ReportDetail>(`/patient/reports/${id}`).then(setReport);
+    if (!id) return;
+    apiFetch<ReportDetail>(`/patient/reports/${id}`)
+      .then(setReport)
+      .catch(() => setFailed(true));
   }, [id]);
 
   async function handleDownload(kind: 'original-pdf-link' | 'summary-pdf-link') {
     if (!id) return;
-    const { url } = await apiFetch<{ url: string }>(`/patient/reports/${id}/${kind}`);
-    window.open(`${API_BASE_URL}${url}`, '_blank');
+    setDownloading(kind);
+    try {
+      const { url } = await apiFetch<{ url: string }>(`/patient/reports/${id}/${kind}`);
+      window.open(`${API_BASE_URL}${url}`, '_blank');
+    } catch {
+      // Manual-entry reports have no original lab PDF, so this button can
+      // legitimately fail — silently doing nothing looked like a broken page.
+      show('That download could not be prepared — please try again.', 'error');
+    } finally {
+      setDownloading(null);
+    }
+  }
+
+  // A report that was voided since the link was sent, or a stale bookmark,
+  // used to sit on the loading skeleton for ever.
+  if (failed) {
+    return (
+      <>
+        <Breadcrumbs items={[{ label: 'Overview', to: '/overview' }, { label: 'My results', to: '/my-results' }, { label: 'Not available' }]} />
+        <TwoTierHeading eyebrow="Aspire Clinic — Patient portal" title="We couldn't open that panel" />
+        <Card className="mt-8 max-w-xl">
+          <p className="text-sm leading-relaxed text-espresso/90">
+            This report may no longer be available, or the link may be out of date. Everything currently released to
+            you is listed under My results.
+          </p>
+          <Link
+            to="/my-results"
+            className="mt-6 inline-flex min-h-[44px] items-center rounded-full border border-taupe px-5 py-2.5 text-sm font-medium text-espresso transition duration-150 ease-out hover:border-bronze"
+          >
+            Back to my results
+          </Link>
+        </Card>
+      </>
+    );
   }
 
   if (!report) {
@@ -70,16 +109,32 @@ export function ReportView() {
 
   return (
     <>
-      <Breadcrumbs items={[{ label: 'Your results', to: '/my-results' }, { label: `${title}, ${sampleDate}` }]} />
+      {/* Three levels now the portal has an Overview above the report list —
+          the trail has to show the whole way back, not just one step. */}
+      <Breadcrumbs
+        items={[
+          { label: 'Overview', to: '/overview' },
+          { label: 'My results', to: '/my-results' },
+          { label: `${title}, ${sampleDate}` },
+        ]}
+      />
       <TwoTierHeading eyebrow={`Sample date ${sampleDate}`} title={title} />
       {report.sourceLabel && <p className="mt-3 text-sm text-espresso/80">{report.sourceLabel}</p>}
 
       <div className="mt-8 flex flex-wrap gap-3">
-        <Button variant="secondary" onClick={() => handleDownload('original-pdf-link')}>
-          Download original report (PDF)
-        </Button>
-        <Button variant="secondary" onClick={() => handleDownload('summary-pdf-link')}>
+        <Button
+          variant="secondary"
+          loading={downloading === 'summary-pdf-link'}
+          onClick={() => void handleDownload('summary-pdf-link')}
+        >
           Download Aspire summary (PDF)
+        </Button>
+        <Button
+          variant="secondary"
+          loading={downloading === 'original-pdf-link'}
+          onClick={() => void handleDownload('original-pdf-link')}
+        >
+          Download original report (PDF)
         </Button>
       </div>
 

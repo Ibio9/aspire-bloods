@@ -1,11 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Link, NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { AccountMenu } from '../AccountMenu';
 import { CommandPalette } from './CommandPalette';
 import { PageTransition } from '../PageTransition';
 import { useAuth } from '../../lib/AuthContext';
 import { Wordmark } from '../Wordmark';
-import { ReportsIcon, PatientsIcon, ContentIcon, AuditIcon, SearchIcon, MenuIcon, CollapseIcon } from './icons';
+import { useDialogFocus } from '../../lib/useDialogFocus';
+import { ReportsIcon, PatientsIcon, ContentIcon, AuditIcon, SearchIcon, MenuIcon, CollapseIcon, CloseIcon } from './icons';
 
 const COLLAPSE_KEY = 'aspire_admin_sidebar_collapsed';
 
@@ -82,7 +83,8 @@ function SidebarContents({ collapsed, onNavigate }: { collapsed: boolean; onNavi
       {user?.hasPatientProfile && (
         <>
           <div className="my-2 border-t border-taupe" />
-          <SidebarLink item={{ to: '/my-results', label: 'My results', icon: ReportsIcon }} collapsed={collapsed} onNavigate={onNavigate} />
+          {/* Crosses into the patient shell — lands on its Overview, same as any patient's home. */}
+          <SidebarLink item={{ to: '/overview', label: 'My results', icon: ReportsIcon }} collapsed={collapsed} onNavigate={onNavigate} />
         </>
       )}
     </nav>
@@ -133,6 +135,7 @@ function AdminTopBar({ onOpenSearch, onOpenDrawer }: { onOpenSearch: () => void;
  * per-page.
  */
 export function AdminShell({ children }: { children?: ReactNode }) {
+  const location = useLocation();
   const [collapsed, setCollapsed] = useState(() => {
     try {
       return localStorage.getItem(COLLAPSE_KEY) === 'true';
@@ -142,6 +145,7 @@ export function AdminShell({ children }: { children?: ReactNode }) {
   });
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const drawerRef = useDialogFocus<HTMLDivElement>(drawerOpen, () => setDrawerOpen(false));
 
   useEffect(() => {
     try {
@@ -151,14 +155,11 @@ export function AdminShell({ children }: { children?: ReactNode }) {
     }
   }, [collapsed]);
 
+  // Route changes close the drawer — a browser back gesture used to leave it
+  // sitting open over the previous page.
   useEffect(() => {
-    if (!drawerOpen) return;
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') setDrawerOpen(false);
-    }
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [drawerOpen]);
+    setDrawerOpen(false);
+  }, [location.pathname]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -194,7 +195,24 @@ export function AdminShell({ children }: { children?: ReactNode }) {
       {drawerOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 bg-espresso/50 motion-safe:animate-fadeIn" onClick={() => setDrawerOpen(false)} aria-hidden="true" />
-          <div className="absolute left-0 top-0 h-full w-72 bg-cream-50 shadow-card motion-safe:animate-riseIn">
+          <div
+            ref={drawerRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Admin navigation"
+            className="absolute left-0 top-0 h-full w-72 bg-cream-50 shadow-card outline-none motion-safe:animate-riseIn"
+          >
+            {/* Tapping the scrim closes it, but a scrim is not a discoverable
+                control — and on a phone the drawer covers most of the screen. */}
+            <button
+              type="button"
+              onClick={() => setDrawerOpen(false)}
+              aria-label="Close navigation menu"
+              className="absolute right-2 top-3 z-10 rounded-input p-2 text-espresso transition duration-150 ease-out hover:bg-cream-200"
+            >
+              <CloseIcon />
+            </button>
             <SidebarContents collapsed={false} onNavigate={() => setDrawerOpen(false)} />
           </div>
         </div>

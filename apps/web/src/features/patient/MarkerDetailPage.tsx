@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { formatDate, type MarkerReviewStatus, type MarkerStatus } from '@aspire-bloods/shared';
 import { Breadcrumbs } from '../../components/nav/Breadcrumbs';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
@@ -58,12 +58,41 @@ export function MarkerDetailPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const [detail, setDetail] = useState<MarkerDetail | null>(null);
+  const [failed, setFailed] = useState(false);
 
   const navState = location.state as MarkerNavState | null;
 
   useEffect(() => {
-    if (markerId) void apiFetch<MarkerDetail>(`/patient/markers/${markerId}`).then(setDetail);
+    if (!markerId) return;
+    setFailed(false);
+    apiFetch<MarkerDetail>(`/patient/markers/${markerId}`)
+      .then(setDetail)
+      .catch(() => setFailed(true));
   }, [markerId]);
+
+  // Now that the sidebar search and All markers both deep-link here, a stale
+  // bookmark or a marker with no released results is far easier to land on
+  // than it was — it used to leave the skeleton up indefinitely.
+  if (failed) {
+    return (
+      <>
+        <Breadcrumbs items={[{ label: 'Overview', to: '/overview' }, { label: 'All markers', to: '/markers' }, { label: 'Not available' }]} />
+        <TwoTierHeading eyebrow="Marker detail" title="We couldn't open that marker" />
+        <Card className="mt-8 max-w-xl">
+          <p className="text-sm leading-relaxed text-espresso/90">
+            You may not have a released result for this marker yet, or the link may be out of date. Everything you
+            have had tested is listed under All markers.
+          </p>
+          <Link
+            to="/markers"
+            className="mt-6 inline-flex min-h-[44px] items-center rounded-full border border-taupe px-5 py-2.5 text-sm font-medium text-espresso transition duration-150 ease-out hover:border-bronze"
+          >
+            See all markers
+          </Link>
+        </Card>
+      </>
+    );
+  }
 
   if (!detail) {
     return (
@@ -99,8 +128,14 @@ export function MarkerDetailPage() {
       <Breadcrumbs
         items={
           navState
-            ? [{ label: 'Your results', to: '/my-results' }, { label: navState.title, to: `/reports/${navState.reportId}` }, { label: detail.name }]
-            : [{ label: 'Your results', to: '/my-results' }, { label: detail.name }]
+            ? [
+                { label: 'Overview', to: '/overview' },
+                { label: navState.title, to: `/reports/${navState.reportId}` },
+                { label: detail.name },
+              ]
+            : // Reached from All markers, Trends, the library or the sidebar search — none of which
+              // is a report, so the trail goes back to the marker list rather than to a panel.
+              [{ label: 'Overview', to: '/overview' }, { label: 'All markers', to: '/markers' }, { label: detail.name }]
         }
       />
 
