@@ -42,11 +42,81 @@ const envSchema = z.object({
   CLINIC_HOURS: z.string().default('Monday to Friday, 9am – 5pm'),
 
   LAB_ADAPTER: z.enum(['RANDOX_PORTAL', 'RANDOX_API']).default('RANDOX_PORTAL'),
-  RANDOX_API_BASE_URL: z.string().optional().default(''),
-  RANDOX_API_KEY: z.string().optional().default(''),
-  // How often the API adapter polls Randox for new/updated results, when
-  // LAB_ADAPTER=RANDOX_API. Cron expression.
-  RANDOX_POLL_CRON: z.string().default('*/15 * * * *'),
+
+  // --- Randox API integration ---------------------------------------------
+  // Master switch. False means nothing Randox-related runs: no polling job,
+  // no ordering endpoints, no config validation. LAB_ADAPTER is a separate,
+  // older switch about which adapter handles *results*; this one is about
+  // whether we talk to Randox's APIs at all.
+  RANDOX_ENABLED: z
+    .string()
+    .default('false')
+    .transform((v) => v === 'true'),
+  // 'mock' runs the entire order → book → poll → ingest flow against
+  // in-process fixtures, which is how this is developed and tested while
+  // sandbox access is pending. Refused in production (see config.ts).
+  RANDOX_TRANSPORT: z.enum(['mock', 'live']).default('mock'),
+
+  // Sandbox base URLs (stes-). Production is a one-variable change each.
+  RANDOX_NEXUS_BASE_URL: z.string().default('https://stes-gpto-appapi-001-apim.azure-api.net/api/'),
+  RANDOX_BOOKING_BASE_URL: z.string().default('https://stes-cb-platform-apim.azure-api.net/booking-platform-api/'),
+
+  // Azure B2C client ids. Documented, not secret — defaulted so a
+  // misconfiguration can't silently point at the wrong application, but
+  // still overridable if Randox issue us different ones for production.
+  RANDOX_NEXUS_CLIENT_ID: z.string().default('791f0001-20d7-4771-b4ab-359b4b9efd21'),
+  RANDOX_BOOKING_CLIENT_ID: z.string().default('0b0399a4-d61f-43fc-a0d0-3311f60cdcb1'),
+
+  // NOT KNOWN YET — access pending. No defaults on purpose: a live boot
+  // without them fails at startup with a message naming each one.
+  RANDOX_NEXUS_SUBSCRIPTION_KEY: z.string().optional().default(''),
+  RANDOX_BOOKING_SUBSCRIPTION_KEY: z.string().optional().default(''),
+  RANDOX_NEXUS_SCOPE: z.string().optional().default(''),
+  RANDOX_BOOKING_SCOPE: z.string().optional().default(''),
+
+  // ROPC token endpoints. One shared value covers the common case (same
+  // B2C tenant and policy for both APIs); the per-API overrides exist
+  // because we have not been able to confirm that they are in fact the same.
+  RANDOX_B2C_TOKEN_URL: z.string().optional().default(''),
+  RANDOX_NEXUS_TOKEN_URL: z.string().optional().default(''),
+  RANDOX_BOOKING_TOKEN_URL: z.string().optional().default(''),
+
+  // ROPC is a password grant, so it needs a service account. Shared pair
+  // with per-API overrides, same reasoning as the token URLs.
+  RANDOX_USERNAME: z.string().optional().default(''),
+  RANDOX_PASSWORD: z.string().optional().default(''),
+  RANDOX_NEXUS_USERNAME: z.string().optional().default(''),
+  RANDOX_NEXUS_PASSWORD: z.string().optional().default(''),
+  RANDOX_BOOKING_USERNAME: z.string().optional().default(''),
+  RANDOX_BOOKING_PASSWORD: z.string().optional().default(''),
+
+  // NOT KNOWN YET — Randox have not issued our clinic id. Every
+  // CreatePendingOrder carries it.
+  RANDOX_CLINIC_ID: z.string().optional().default(''),
+
+  // Which sample collection routes we may offer. Empty by default because
+  // we have not confirmed what we're contractually entitled to; an order
+  // requesting a method that isn't listed here is refused before it's sent.
+  RANDOX_COLLECTION_METHODS: z.string().optional().default(''),
+
+  // File-backed config. Defaults point at the checked-in .example files so
+  // a dev machine always boots; production with RANDOX_TRANSPORT=live
+  // refuses to start while still pointing at them.
+  RANDOX_CODE_MAP_FILE: z.string().default('./config/randox/result-codes.example.json'),
+  RANDOX_ID_MAP_FILE: z.string().default('./config/randox/id-map.example.json'),
+
+  // Randox ask for one poll per outstanding order per hour, staggered by
+  // order creation time. The cron here is how often the *sweeper* wakes up
+  // to look for orders that are due — each individual order is still only
+  // polled once per RANDOX_POLL_INTERVAL_MINUTES.
+  RANDOX_POLL_CRON: z.string().default('*/5 * * * *'),
+  RANDOX_POLL_INTERVAL_MINUTES: z.coerce.number().default(60),
+  // Cap on orders polled per sweep, so a large backlog is spread over
+  // several sweeps rather than hammering Randox in one burst.
+  RANDOX_POLL_BATCH_SIZE: z.coerce.number().default(25),
+  // After this many consecutive failures an order stops being polled and
+  // waits for an admin — it is not retried forever.
+  RANDOX_POLL_MAX_FAILURES: z.coerce.number().default(12),
 
   // PDF extraction: optional. Empty means every PDF upload falls back to
   // the regex extractor and says so in the admin UI — this must never be a

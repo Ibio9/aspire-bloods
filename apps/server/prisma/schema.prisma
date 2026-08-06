@@ -72,6 +72,11 @@ enum ConsentType {
 enum FileKind {
   RANDOX_PDF
   ASPIRE_SUMMARY_PDF
+  // The raw GetOrderResultDetail payload, stored verbatim alongside the
+  // PDF. Kept because the normalised ReportResult rows are a lossy read of
+  // it — anything we didn't map (or voided) is only reconstructable from
+  // the original. Never patient-downloadable; admin/audit use only.
+  RANDOX_RESULT_JSON
 }
 
 enum ActorType {
@@ -140,6 +145,9 @@ model User {
   reportsReviewed   Report[] @relation("ReviewedByStaff")
   reportsVoided     Report[] @relation("VoidedByStaff")
   resultEdits       ReportResultEdit[] @relation("ResultEditedByStaff")
+
+  randoxOrders       RandoxOrder[] @relation("PatientRandoxOrders")
+  randoxOrdersPlaced RandoxOrder[] @relation("RandoxOrderPlacedByStaff")
 }
 
 model PatientProfile {
@@ -306,6 +314,7 @@ model Marker {
   // regardless of this flag — never draw a guess.
   crossSourceComparable  Boolean            @default(true)
   panels                 PanelMarker[]
+  exclusions             ReportResultExclusion[]
   referenceRanges        ReferenceRange[]
   explanation            MarkerExplanation?
   results                ReportResult[]
@@ -428,6 +437,11 @@ model Report {
   results             ReportResult[]
   escalationEvents    EscalationEvent[]
   ingestionLogEntries IngestionLogEntry[]
+  // Markers the lab could not report (void codes). Deliberately NOT
+  // ReportResult rows: a voided value must have no row anywhere a patient
+  // read path could reach it. See ReportResultExclusion.
+  exclusions          ReportResultExclusion[]
+  randoxOrder         RandoxOrder?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -450,6 +464,14 @@ model ReportResult {
   status           MarkerStatus
   rawParsedValue   String?
   createdAt        DateTime       @default(now())
+
+  // Lab caveat codes carried on this result (Randox API only; empty for
+  // every other source). Caveats qualify a result that IS reportable —
+  // anything that makes a result unreportable is a void code, and voided
+  // markers never become a ReportResult at all (see ReportResultExclusion).
+  // Surfaced to admins always; surfaced to patients only for codes whose
+  // patientSafeNote is filled in in the code map.
+  caveatCodes      String[]       @default([])
 
   // Set (and refreshed) whenever a RELEASED report's value is amended —
   // never on the pre-release verify/re-verify overwrite path, which isn't
@@ -609,4 +631,165 @@ model RateLimitHit {
   resetAt DateTime
 
   @@index([resetAt])
+}
+
+// ---------------------------------------------------------------------------
+// Randox API integration (Nexus Lab + Clinic Booking)
+// ---------------------------------------------------------------------------
+
+// Randox's numeric order statuses, named. The wire values are 1–5 and are
+// mapped in modules/randox/types.ts — an unrecognised numeric status is
+// never coerced into one of these; it leaves the order on its previous
+// status and is logged, because guessing "probably complete" on an unknown
+// code is exactly how an unreleased result would leak.
+enum RandoxOrderStatus {
+  INCOMPLETE // 1
+  SUBMITTED // 2
+  PENDING_RESULTS // 3
+  COMPLETE // 4
+  CANCELLED // 5
+}
+
+// Which sample collection routes the practice is contractually entitled to
+// offer. Nothing here is enabled by default — RANDOX_COLLECTION_METHODS
+// gates it, because offering a method Randox hasn't agreed to would create
+// an order they will not fulfil. See modules/randox/config.ts.
+enum RandoxCollectionMethod {
+  IN_CLINIC
+  HOME_KIT
+  MOBILE_PHLEBOTOMY
+}
+
+enum RandoxAppointmentStatus {
+  HELD // HoldAvailabilityBooking succeeded; 30-minute window running
+  BOOKED // CreateRandoxBooking confirmed
+  CANCELLED
+  EXPIRED // the hold lapsed before CreateRandoxBooking was called
+}
+
+// One row per order placed with Randox Nexus. orderNumber is Randox's own
+// Order Number, the reference every downstream call (booking, status,
+// results) is keyed on — and the idempotency key for result delivery.
+model RandoxOrder {
+  id          String            @id @default(uuid())
+  orderNumber String            @unique
+  patientId   String
+  patient     User              @relation("PatientRandoxOrders", fields: [patientId], references: [id])
+  // Staff member who placed it. Null for anything system-initiated.
+  placedById  String?
+  placedBy    User?             @relation("RandoxOrderPlacedByStaff", fields: [placedById], references: [id])
+
+  // Randox's panel/test identifiers exactly as submitted — stored raw so a
+  // later change to the configured ID map never rewrites the history of
+  // what was actually ordered.
+  randoxPanelIds String[]       @default([])
+  randoxTestIds  String[]       @default([])
+
+  collectionMethod RandoxCollectionMethod
+  status           RandoxOrderStatus @default(INCOMPLETE)
+  // The raw numeric status last seen on the wire, including values we don't
+  // recognise — kept so an unmapped status is diagnosable.
+  rawStatusCode    Int?
+
+  // Set once results have been ingested. Unique: one Randox order produces
+  // at most one Report, which is what makes redelivery idempotent.
+  reportId String? @unique
+  report   Report? @relation(fields: [reportId], references: [id])
+
+  // Polling state. nextPollAt is staggered off createdAt (Randox ask for
+  // hourly polling spread across the hour) and backs off on failure. A
+  // future webhook sets these to null and calls the same ingestion entry
+  // point — see modules/randox/pollingJob.ts.
+  nextPollAt       DateTime?
+  lastPolledAt     DateTime?
+  pollAttempts     Int       @default(0)
+  consecutiveFailures Int    @default(0)
+  lastPollError    String?
+
+  completedAt  DateTime?
+  cancelledAt  DateTime?
+  cancelReason String?
+
+  appointment RandoxAppointment?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([patientId])
+  @@index([status, nextPollAt])
+}
+
+// In-clinic collection only. Held then booked: HoldAvailabilityBooking
+// reserves a slot for 30 minutes, CreateRandoxBooking confirms it against
+// the Nexus order number (sent as GPExternalNumber).
+model RandoxAppointment {
+  id      String      @id @default(uuid())
+  orderId String      @unique
+  order   RandoxOrder @relation(fields: [orderId], references: [id])
+
+  serviceLocationId   String
+  serviceLocationName String?
+
+  holdReference    String?
+  holdExpiresAt    DateTime?
+  bookingReference String?
+
+  // Randox return availability in UTC; stored as UTC and only ever
+  // localised at render time.
+  startUtc DateTime
+  endUtc   DateTime?
+
+  status      RandoxAppointmentStatus @default(HELD)
+  cancelledAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([startUtc])
+}
+
+// A marker the lab could not report. This exists instead of a ReportResult
+// so that a voided value is not merely hidden at render time — there is no
+// row holding it anywhere. Patient-facing surfaces show a count and a
+// neutral note; the code and reason are admin-only.
+model ReportResultExclusion {
+  id       String  @id @default(uuid())
+  reportId String
+  report   Report  @relation(fields: [reportId], references: [id])
+  // Null when the incoming marker name didn't match our catalogue at all —
+  // the exclusion is still recorded, keyed on rawMarkerName.
+  markerId String?
+  marker   Marker? @relation(fields: [markerId], references: [id])
+
+  rawMarkerName String
+  // The void code as received. Null when the result was excluded for a
+  // reason other than a code (e.g. no value supplied at all).
+  code String?
+  // False when the code was NOT in the configured map — treated as void by
+  // default. See modules/randox/codes.ts.
+  codeRecognised Boolean @default(false)
+  // Admin-facing explanation. Never shown to a patient.
+  reason String
+
+  createdAt DateTime @default(now())
+
+  @@unique([reportId, rawMarkerName])
+  @@index([reportId])
+  @@index([markerId])
+}
+
+// Every void/caveat code Randox has actually sent us that isn't in the
+// configured map. The real code list isn't available yet, so this table is
+// how we find out what's genuinely arriving rather than guessing — an
+// admin screen reads it and the list gets folded into the code map config.
+model RandoxUnknownCode {
+  code        String   @id
+  sightings   Int      @default(1)
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  // One example so the code can be traced back to a real order.
+  sampleOrderNumber String?
+  sampleMarkerName  String?
+
+  @@index([lastSeenAt])
 }

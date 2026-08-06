@@ -1,0 +1,27 @@
+{
+  "source": "PLACEHOLDER — Randox have not supplied the void/caveat code list yet. Every code below is invented, exists only to exercise the mock fixtures, and MUST be replaced wholesale when the real list arrives. Do not infer any real Randox behaviour from these values.",
+  "codes": {
+    "RX-VOID-HAEM": {
+      "kind": "VOID",
+      "description": "Sample haemolysed — the analyte cannot be reported from this sample."
+    },
+    "RX-VOID-QNS": {
+      "kind": "VOID",
+      "description": "Quantity not sufficient — insufficient sample to run the assay."
+    },
+    "RX-VOID-CLOT": {
+      "kind": "VOID",
+      "description": "Sample clotted."
+    },
+    "RX-CAV-FASTING": {
+      "kind": "CAVEAT",
+      "description": "Patient was not fasted at the time of collection; interpret lipids and glucose with that in mind.",
+      "patientSafeNote": ""
+    },
+    "RX-CAV-DELAY": {
+      "kind": "CAVEAT",
+      "description": "Sample reached the laboratory later than the recommended transit window.",
+      "patientSafeNote": ""
+    }
+  }
+}

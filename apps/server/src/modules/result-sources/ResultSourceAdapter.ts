@@ -39,28 +39,26 @@ export interface ParsedReport {
   // packages/shared formatReportTitle().
   panelName?: string | null;
   rows: ParsedMarkerRow[];
-  // 'api' marks structured data straight from RandoxApiAdapter — no OCR or
-  // model guesswork involved, so it doesn't carry the same fallback concept
-  // PDF extraction does.
+  // 'api' marks structured data straight from a lab API — no OCR or model
+  // guesswork involved, so it doesn't carry the same fallback concept PDF
+  // extraction does.
   extractionMethod: 'llm' | 'regex' | 'api';
   // Set only when extractionMethod is 'regex' because the LLM path was
   // unavailable (no API key, request failed, timed out) — surfaced in the
   // admin UI so a degraded extraction is never mistaken for a clean one.
   fallbackReason?: string | null;
-  // RandoxApiAdapter only: the practice's own patientId, as submitted to
-  // Randox at order time and echoed back on the result — this is how an
-  // inbound API result is matched to one of our accounts. Null/absent for
-  // PDF and manual sources.
+  // API sources only: the practice's own patientId, as submitted to the lab
+  // at order time and echoed back on the result — this is how an inbound
+  // API result is matched to one of our accounts. Null/absent for PDF and
+  // manual sources.
   externalPatientRef?: string | null;
-  // RandoxApiAdapter only: Randox's key for the test profile/panel this
-  // result belongs to, matched against Panel.key. Left null when Randox
-  // doesn't report one we recognise — the report is still valid with no
-  // panel (see formatReportTitle()).
+  // API sources only: the lab's key for the test profile/panel this result
+  // belongs to, matched against Panel.key. Left null when the lab doesn't
+  // report one we recognise — the report is still valid with no panel (see
+  // formatReportTitle()).
   panelKey?: string | null;
-  // RandoxApiAdapter only: true when Randox has indicated more markers for
-  // this order are still pending (a partial report) — see
-  // randoxIngestionService.ts, which merges later deliveries for the same
-  // externalId into the same Report rather than creating duplicates.
+  // API sources only: true when more markers for this order are still
+  // pending (a partial report).
   isPartial?: boolean;
 }
 
@@ -83,12 +81,13 @@ export interface ParsedReport {
  *    normaliseReport()/fetchResults() aren't meaningful here; see
  *    modules/reports/manualEntryService.ts, which bypasses parsing
  *    entirely but still uses the same verify→review→release gate.
- *  - RandoxApiAdapter (live now): Randox's direct results API. fetchResults()
- *    pulls one result by their externalId; normaliseReport() maps their JSON
- *    payload onto the same row shape as the other adapters. Driven by
- *    randoxIngestionService.ts on a schedule, never by the interactive
- *    PDF-upload flow — see that file for patient/marker mapping, dedupe,
- *    and how ingestion still stops short of the release gate.
+ *
+ * Randox's own API is deliberately NOT one of these. It isn't a document to
+ * extract rows from; it's an order lifecycle (place, book, poll, ingest)
+ * with void codes, partial deliveries and redelivery semantics that this
+ * interface has no place to express. It lives in modules/randox/ and joins
+ * the normalised store directly, through the same release gate — see
+ * modules/randox/ingestionService.ts.
  */
 export interface ResultSourceAdapter {
   fetchResults(externalId: string): Promise<Buffer>;

@@ -409,7 +409,15 @@ export async function getMarkerLibraryForPatient(patientId: string) {
 export async function listDocumentsForPatient(patientId: string) {
   const reports = await prisma.report.findMany({
     where: { patientId, status: 'RELEASED', voidedAt: null },
-    include: { panel: true, source: true, originalPdfFile: true, _count: { select: { results: true } } },
+    include: {
+      panel: true,
+      source: true,
+      originalPdfFile: true,
+      _count: { select: { results: true, exclusions: true } },
+      // Only the marker name — never the code, the lab's reason, or any
+      // hint of what the value would have been.
+      exclusions: { select: { rawMarkerName: true, marker: { select: { name: true } } } },
+    },
     orderBy: { sampleDate: 'desc' },
   });
 
@@ -423,5 +431,17 @@ export async function listDocumentsForPatient(patientId: string) {
     markerCount: r._count.results,
     hasOriginalPdf: !!r.originalPdfFileId,
     originalFilename: r.originalPdfFile?.originalFilename ?? null,
+    // A test that was ordered but couldn't be reported. The patient is told
+    // plainly that it wasn't reported, and nothing else — no value, no
+    // greyed-out number, no lab code, no clinical interpretation of why.
+    // Silence would be worse: they paid for the test and would otherwise
+    // just find it missing.
+    unreportedMarkers: r.exclusions.map((x) => x.marker?.name ?? x.rawMarkerName),
+    unreportedNote:
+      r._count.exclusions > 0
+        ? r._count.exclusions === 1
+          ? 'One test on this panel could not be reported. Please contact the clinic if you would like it repeated.'
+          : `${r._count.exclusions} tests on this panel could not be reported. Please contact the clinic if you would like them repeated.`
+        : null,
   }));
 }
