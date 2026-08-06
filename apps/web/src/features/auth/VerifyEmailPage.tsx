@@ -5,6 +5,7 @@ import { authErrorMessage } from '../../lib/authErrors';
 import { useAuth } from '../../lib/AuthContext';
 import { AuthSplitLayout } from './AuthSplitLayout';
 import { OtpStep, type OtpChallenge } from './OtpStep';
+import { consumeRedirect } from '../../lib/redirectAfterLogin';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 
@@ -122,7 +123,11 @@ export function VerifyEmailPage() {
 
   const handleVerified = useCallback(async () => {
     await refresh();
-    navigate('/');
+    // Same rule as the sign-in screen: if a deep link was followed while
+    // signed out, land on the thing that was clicked. A patient who opened a
+    // result link, hit the login wall, registered, and confirmed their email
+    // should arrive at that result — not at the home page having lost it.
+    navigate(consumeRedirect() ?? '/');
   }, [refresh, navigate]);
 
   if (state.kind === 'otp') {

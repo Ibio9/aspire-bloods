@@ -120,3 +120,19 @@ export const emailVerificationResendRateLimiter = rateLimit({
   handler: lockoutResponder('Too many verification emails requested from this connection.'),
   store: new PostgresRateLimitStore('email_verification_resend'),
 });
+
+/**
+ * Asking for a password-reset link is both a send-side action and an
+ * unauthenticated one, so it gets the tightest send budget here. This is not
+ * the enumeration control — requestPasswordReset() answers identically for a
+ * known and an unknown address regardless. It's what stops someone using our
+ * mail server to bombard an inbox they don't own.
+ */
+export const passwordResetRateLimiter = rateLimit({
+  windowMs: env.SIGNUP_RATE_LIMIT_WINDOW_SECONDS * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: lockoutResponder('Too many password reset requests from this connection.'),
+  store: new PostgresRateLimitStore('password_reset'),
+});

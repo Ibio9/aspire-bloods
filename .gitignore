@@ -13,3 +13,5 @@ apps/server/prisma/dev.db
 apps/server/scratch/
 .turbo/
 .vercel/
+test-results/
+playwright-report/

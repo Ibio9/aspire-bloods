@@ -7,7 +7,7 @@ import { verifyCsrf } from '../../middleware/csrf.js';
 import { asyncHandler } from '../../lib/asyncHandler.js';
 import { recordAuditLog } from '../../lib/auditLog.js';
 import { decryptField } from '../../lib/crypto.js';
-import { resolveReferenceRange, ageFromDob } from '../../lib/resolveReferenceRange.js';
+import { resolveReferenceRange, ageFromDob, RANGE_UNAVAILABLE_MESSAGE } from '../../lib/resolveReferenceRange.js';
 
 export const panelsRouter = Router();
 
@@ -531,22 +531,45 @@ panelsRouter.get(
     });
     if (!marker) return res.status(404).json({ error: 'Marker not found' });
 
+    // No patient named means no patient to resolve against — say that rather
+    // than letting it fall through and come back as "this patient has no sex
+    // on file", which would be a statement about a patient nobody asked about.
+    if (!patientId) {
+      return res.json({
+        status: 'unavailable',
+        reason: 'NO_PATIENT',
+        message: 'No patient given, so there is nothing to resolve a range against.',
+      });
+    }
+
     let sex: 'MALE' | 'FEMALE' | 'ANY' | null = null;
     let age: number | null = null;
-    if (patientId) {
-      const patient = await prisma.user.findUnique({ where: { id: patientId }, include: { patientProfile: true } });
-      if (patient?.patientProfile) {
-        sex = patient.patientProfile.sex ?? null;
-        age = ageFromDob(decryptField(patient.patientProfile.dobEncrypted));
-      }
+    const patient = await prisma.user.findUnique({ where: { id: patientId }, include: { patientProfile: true } });
+    if (patient?.patientProfile) {
+      sex = patient.patientProfile.sex ?? null;
+      age = ageFromDob(decryptField(patient.patientProfile.dobEncrypted));
     }
 
     const resolved = resolveReferenceRange(marker.referenceRanges, sex, age);
-    res.json(
-      resolved
-        ? { referenceRangeId: resolved.id, low: resolved.low, high: resolved.high, unit: resolved.unit }
-        : null,
-    );
+    if (resolved.status === 'unavailable') {
+      // 200 with a reason, not a bare null. "We can't suggest one" is a real
+      // answer and WHY is the whole point: a null was indistinguishable
+      // between "this marker has no catalogue entry" and "this patient has
+      // no sex on file", and the second of those is something the admin can
+      // actually do something about.
+      return res.json({
+        status: 'unavailable',
+        reason: resolved.reason,
+        message: RANGE_UNAVAILABLE_MESSAGE[resolved.reason],
+      });
+    }
+    res.json({
+      status: 'resolved',
+      referenceRangeId: resolved.range.id,
+      low: resolved.range.low,
+      high: resolved.range.high,
+      unit: resolved.range.unit,
+    });
   }),
 );
 

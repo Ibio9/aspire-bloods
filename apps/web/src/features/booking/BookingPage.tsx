@@ -9,6 +9,8 @@ import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { bookingService } from '../../lib/booking/bookingService';
 import { combineFasting, morningOnlyAddOn, timingNotesFor } from '../../lib/booking/prep';
 import { BookingError, type Slot } from '../../lib/booking/types';
+import { useBiologicalSex } from '../../lib/biologicalSex';
+import { BiologicalSexCard } from '../patient/BiologicalSexCard';
 import { BookingSummary } from './BookingSummary';
 import { FastingNotice } from './FastingNotice';
 import { SlotPicker } from './SlotPicker';
@@ -85,6 +87,15 @@ export function BookingPage() {
 
   const headingRef = useRef<HTMLHeadingElement>(null);
   const ackRef = useRef<HTMLDivElement>(null);
+  const sexPromptRef = useRef<HTMLDivElement>(null);
+
+  // Asked for on the last step, not the first: it's the one thing on this
+  // flow that belongs to the account rather than the appointment, and
+  // fronting it would put an unexplained personal question between a patient
+  // and the panel list. By Confirm it has a reason attached and a visible
+  // consequence — see BiologicalSexCard.
+  const { state: biologicalSex, reload: reloadBiologicalSex } = useBiologicalSex();
+  const needsBiologicalSex = biologicalSex !== null && !biologicalSex.sex && biologicalSex.hasProfile;
 
   const panel = panelFor(catalogue, panelId);
   const addOns = addOnsFor(catalogue, addOnIds);
@@ -145,6 +156,13 @@ export function BookingPage() {
 
   async function confirm() {
     if (!panel || !location || !slot) return;
+    // The laboratory will not accept an order without a BiologicalSexId, so
+    // there is nothing to send until it's on file. The prompt is already on
+    // this step; this only stops the request being made behind it.
+    if (!biologicalSex?.randoxBiologicalSexId) {
+      sexPromptRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -156,6 +174,7 @@ export function BookingPage() {
         date: slot.date,
         time: slot.time,
         fastingAcknowledged: acknowledged,
+        biologicalSexId: biologicalSex.randoxBiologicalSexId,
       });
       navigate(`/appointments/${appointment.id}?booked=1`, { replace: true });
     } catch (e) {
@@ -292,6 +311,16 @@ export function BookingPage() {
               </div>
             )}
 
+            {/* Sits above the summary on the confirm step, so the one thing
+                standing between the patient and a booked appointment is the
+                first thing on the screen — and it explains itself rather than
+                appearing as a validation error after they press Confirm. */}
+            {step === 4 && needsBiologicalSex && (
+              <div ref={sexPromptRef} className="mb-8 max-w-2xl">
+                <BiologicalSexCard variant="blocking" onSaved={() => void reloadBiologicalSex()} />
+              </div>
+            )}
+
             {step === 4 && panel && location && slot && (
               <Card padding="roomy">
                 <BookingSummary
@@ -350,7 +379,13 @@ export function BookingPage() {
             <ChevronRightIcon />
           </Button>
         ) : (
-          <Button onClick={() => void confirm()} loading={submitting} className="shrink-0">
+          <Button
+            onClick={() => void confirm()}
+            loading={submitting}
+            disabled={needsBiologicalSex}
+            disabledReason="Add your biological sex above — the laboratory can't accept an order without it"
+            className="shrink-0"
+          >
             Confirm booking
           </Button>
         )}

@@ -2,18 +2,13 @@ import type { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../lib/AuthContext';
 import { rememberRedirect } from '../../lib/redirectAfterLogin';
+import { AuthLoading } from './AuthLoading';
 
 export function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const location = useLocation();
 
-  if (loading) {
-    return (
-      <main className="min-h-screen flex items-center justify-center bg-cream">
-        <p className="text-espresso">Loading…</p>
-      </main>
-    );
-  }
+  if (loading) return <AuthLoading />;
 
   if (!user) {
     // Remember the deep link before bouncing to sign-in, so following a link

@@ -6,8 +6,9 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   optional?: boolean;
   error?: string;
   hint?: string;
-  /** Runs on blur, not on every keystroke — a caught error re-validates on each change after that
-   * so it clears the moment it's fixed, without nagging before the field has even been left. */
+  /** Runs on blur of a field the user has actually used, not on every keystroke — a caught error
+   * re-validates on each change after that so it clears the moment it's fixed, without nagging
+   * before the field has been left, or before it has been touched at all. */
   validate?: (value: string) => string | undefined;
 }
 
@@ -34,16 +35,35 @@ export function Input({ label, optional, error, hint, id, className = '', valida
   const [dismissedError, setDismissedError] = useState<string | undefined>(undefined);
   const parentError = error && error !== dismissedError ? error : undefined;
 
+  // Whether the user has actually typed in this field yet. See handleBlur.
+  const [touched, setTouched] = useState(false);
+
   const shownError = parentError ?? blurError;
   const hintId = hint ? `${fieldId}-hint` : undefined;
   const errorId = shownError ? `${fieldId}-error` : undefined;
 
   function handleBlur(e: FocusEvent<HTMLInputElement>) {
-    if (validate) setBlurError(validate(e.target.value));
+    // Only a field the user has actually used can have failed. Blurring an
+    // untouched one is someone leaving a field alone, not getting it wrong.
+    //
+    // This matters for more than tone. The sign-in screen autofocuses the
+    // email field, so *any* first click elsewhere on that page used to blur
+    // it and insert a "required" error under it — pushing everything below
+    // down by a line mid-click, which is exactly where the "Create an
+    // account" link sits. A person aiming at registration could press the
+    // link and land on whatever the shift moved into that spot. The way in
+    // to the product was being knocked out from under the cursor by a
+    // validation message about a field nobody had touched.
+    //
+    // Required-ness is unaffected: the input still carries `required`, and
+    // submitting still validates. This only stops the complaint arriving
+    // before there is anything to complain about.
+    if (validate && touched) setBlurError(validate(e.target.value));
     onBlur?.(e);
   }
 
   function handleChange(e: ChangeEvent<HTMLInputElement>) {
+    setTouched(true);
     // Re-validate on change only once an error is already showing — that's
     // what makes a fixed field clear immediately, without validating on
     // every keystroke before the user has finished typing.

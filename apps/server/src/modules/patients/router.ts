@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { updateBiologicalSexSchema, toRandoxBiologicalSexId } from '@aspire-bloods/shared';
 import { authGuard } from '../../middleware/authGuard.js';
 import { roleGuard } from '../../middleware/roleGuard.js';
 import { verifyCsrf } from '../../middleware/csrf.js';
@@ -230,6 +231,75 @@ patientsRouter.get(
     });
 
     res.json({ url: `/api/files/download?token=${generateFileToken(file.id)}` });
+  }),
+);
+
+/**
+ * Biological sex — read and set.
+ *
+ * Optional at registration by design (a patient with no results yet is not
+ * withholding anything clinically relevant, and an extra required field at
+ * signup costs registrations), but genuinely needed by two things later:
+ * Randox's CreatePendingOrder requires a BiologicalSexId, and sex-specific
+ * reference ranges cannot be resolved without it. So it's collected when it
+ * starts to matter rather than up front, and this pair of endpoints is how.
+ *
+ * `required` in the response is the honest answer to "can this account order
+ * a test yet" — the booking flow reads it rather than re-deriving the rule.
+ */
+patientsRouter.get(
+  '/me/biological-sex',
+  asyncHandler(async (req, res) => {
+    const profile = await prisma.patientProfile.findUnique({ where: { userId: req.user!.id } });
+    const sex = profile?.sex === 'MALE' || profile?.sex === 'FEMALE' ? profile.sex : null;
+    res.json({
+      sex,
+      // Same id Randox's order endpoint wants, resolved here so nothing
+      // downstream has to reimplement the mapping. Null when unrecorded —
+      // which is exactly the case that blocks an order.
+      randoxBiologicalSexId: toRandoxBiologicalSexId(sex),
+      canOrderTests: sex !== null,
+      hasProfile: !!profile,
+    });
+  }),
+);
+
+patientsRouter.put(
+  '/me/biological-sex',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const parsed = updateBiologicalSexSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+    const profile = await prisma.patientProfile.findUnique({ where: { userId: req.user!.id } });
+    if (!profile) {
+      // A staff-only account has no patient profile to write to. Creating one
+      // here would invent a patient record out of a settings change.
+      return res.status(404).json({ error: 'This account has no patient profile.' });
+    }
+
+    const previous = profile.sex;
+    await prisma.patientProfile.update({ where: { userId: req.user!.id }, data: { sex: parsed.data.sex } });
+
+    // Which range a result is read against depends on this, so a change to it
+    // is a clinically consequential edit and is recorded as one — including
+    // what it was before, since "was this always female?" is a real question
+    // to ask of a result that looked fine and now doesn't.
+    await recordAuditLog({
+      actorUserId: req.user!.id,
+      action: 'PATIENT_BIOLOGICAL_SEX_SET',
+      targetType: 'PatientProfile',
+      targetId: profile.id,
+      ipAddress: req.ip ?? null,
+      metadata: { from: previous ?? null, to: parsed.data.sex },
+    });
+
+    res.json({
+      sex: parsed.data.sex,
+      randoxBiologicalSexId: toRandoxBiologicalSexId(parsed.data.sex),
+      canOrderTests: true,
+      hasProfile: true,
+    });
   }),
 );
 

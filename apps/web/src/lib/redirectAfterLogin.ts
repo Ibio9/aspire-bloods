@@ -15,8 +15,21 @@
  */
 const KEY = 'aspire_post_login_redirect';
 
-/** Never send anyone back to an auth screen — that's a loop, not a destination. */
-const NEVER_RETURN_TO = ['/login', '/signup', '/activate'];
+/**
+ * Never send anyone back to an auth screen — that's a loop, not a
+ * destination. /verify-email and the two password-reset screens are on the
+ * list for a second reason as well: all three carry a single-use token in the
+ * query string, so replaying one after sign-in lands on "this link has
+ * already been used" for a link that worked perfectly.
+ */
+const NEVER_RETURN_TO = [
+  '/login',
+  '/signup',
+  '/activate',
+  '/verify-email',
+  '/forgot-password',
+  '/reset-password',
+];
 
 function isSafeInternalPath(path: string): boolean {
   // Must be a path on this origin. Rejects "//evil.com" and "https://evil.com"
