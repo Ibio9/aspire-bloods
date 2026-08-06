@@ -124,6 +124,10 @@ export async function generateAspireSummaryPdf(reportId: string): Promise<Buffer
 
     if (doc.y + rowHeight > bottomLimit) {
       doc.addPage();
+      // Landing on page 3 of a 40-marker report should not look like the
+      // start of a fresh table.
+      doc.font('Helvetica-Bold').fontSize(9).fillColor(ESPRESSO).text('(continued)', leftMargin, doc.y);
+      doc.moveDown(0.5);
       drawTableHeader();
       doc.font('Helvetica').fontSize(9);
     }

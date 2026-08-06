@@ -102,10 +102,26 @@ export async function parseReport(reportId: string, actorUserId: string, ip: str
   const panelMarkers = report.panel?.markers.map((pm) => pm.marker) ?? [];
   const allMarkers = await prisma.marker.findMany();
 
+  // findBestMarkerMatch's fuzzy fallback is substring-based, so a shorter
+  // marker name can match rows that actually belong to a longer, more
+  // specific one (e.g. "Total Cholesterol" is a substring of "Total
+  // Cholesterol / HDL Cholesterol Ratio"). Two rows can never legitimately
+  // both be the correct result for the same marker on one report — the
+  // DB's (reportId, markerId) uniqueness enforces that at save time — so
+  // once a marker is claimed here, later rows fall back to unmatched
+  // rather than silently colliding on the same marker.
+  const claimedMarkerIds = new Set<string>();
   const rows = parsed.rows.map((row) => {
-    const match =
+    // Narrow to the panel's own markers first where there is a panel at all;
+    // an ad-hoc report has none, so matching falls straight through to the
+    // full catalogue rather than searching an empty list.
+    let match =
       (panelMarkers.length > 0 ? findBestMarkerMatch(row.rawName, panelMarkers) : null) ??
       findBestMarkerMatch(row.rawName, allMarkers);
+    if (match && claimedMarkerIds.has(match.id)) {
+      match = null;
+    }
+    if (match) claimedMarkerIds.add(match.id);
     return {
       rawLine: row.rawLine,
       rawName: row.rawName,
@@ -115,6 +131,9 @@ export async function parseReport(reportId: string, actorUserId: string, ip: str
       unit: row.unit ?? match?.defaultUnit ?? null,
       referenceLow: row.referenceLow,
       referenceHigh: row.referenceHigh,
+      resultText: row.resultText,
+      needsReview: row.needsReview,
+      reviewReason: row.reviewReason,
     };
   });
 
@@ -155,8 +174,15 @@ export async function verifyReport(
   if (input.results.length === 0) {
     throw new ReportError('At least one result is required', 400);
   }
-
   const markerIds = input.results.map((r) => r.markerId);
+  const duplicateMarkerIds = markerIds.filter((id, i) => markerIds.indexOf(id) !== i);
+  if (duplicateMarkerIds.length > 0) {
+    throw new ReportError(
+      'Two rows are matched to the same marker — a report can only have one result per marker. Unmatch or fix one of them.',
+      400,
+    );
+  }
+
   const markers = await prisma.marker.findMany({ where: { id: { in: markerIds } } });
   const markerById = new Map(markers.map((m) => [m.id, m]));
   const patientSex = report.patient.patientProfile?.sex ?? 'ANY';

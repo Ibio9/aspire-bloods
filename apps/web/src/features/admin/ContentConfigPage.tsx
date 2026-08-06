@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/Button';
 import { Tabs } from '../../components/ui/Tabs';
 import { ExplanationReviewQueue } from './ExplanationReviewQueue';
 import { Skeleton } from '../../components/ui/Skeleton';
+import { EmptyState } from '../../components/ui/EmptyState';
 import { useToast } from '../../components/ui/Toast';
 import { apiFetch, ApiError } from '../../lib/api';
 
@@ -35,6 +36,7 @@ interface PanelRow {
   name: string;
   description: string | null;
   isActive: boolean;
+  compositionConfirmed: boolean;
   markers: PanelMarkerRow[];
 }
 
@@ -114,6 +116,16 @@ function PanelsAndMarkersTab() {
       await load();
     } catch (e) {
       show(e instanceof ApiError ? e.message : 'Could not create marker.', 'error');
+    }
+  }
+
+  async function confirmComposition(panel: PanelRow) {
+    try {
+      await apiFetch(`/panels/${panel.id}`, { method: 'PATCH', body: JSON.stringify({ compositionConfirmed: true }) });
+      show('Marked as confirmed against the real panel spec.', 'success');
+      await load();
+    } catch (e) {
+      show(e instanceof ApiError ? e.message : 'Could not update panel.', 'error');
     }
   }
 
@@ -203,12 +215,41 @@ function PanelsAndMarkersTab() {
         </Card>
       </div>
 
+      {panels.length === 0 && (
+        <EmptyState
+          title="No panels configured yet"
+          description="Create a panel above to get started — patients can't be given a report until at least one panel with markers exists."
+        />
+      )}
+
       {panels.map((panel) => (
         <Card key={panel.id}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="font-medium text-espresso">{panel.name}</p>
               <p className="text-sm text-espresso/80">{panel.key}</p>
+              {!panel.compositionConfirmed && (
+                <p className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-status-high">
+                  <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
+                    <path
+                      d="M8 1.5 L15 14 H1 Z M8 6.5 V9.5 M8 11.5 h.01"
+                      stroke="currentColor"
+                      strokeWidth="1.4"
+                      fill="none"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  Seeded default — not yet confirmed against the real panel spec
+                  <button
+                    type="button"
+                    onClick={() => confirmComposition(panel)}
+                    className="ml-1 underline underline-offset-2 hover:no-underline"
+                  >
+                    Mark confirmed
+                  </button>
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-4">
               <Checkbox
@@ -221,6 +262,9 @@ function PanelsAndMarkersTab() {
           </div>
 
           <div className="mt-4 flex flex-col gap-2">
+            {panel.markers.length === 0 && (
+              <p className="text-sm text-espresso/80">No markers in this panel yet — add one below.</p>
+            )}
             {panel.markers.map((pm) => (
               <div key={pm.id} className="flex flex-wrap items-center gap-3 border-b border-taupe pb-2 last:border-b-0">
                 <span className="flex-1 text-sm text-espresso">
@@ -276,6 +320,9 @@ function PanelsAndMarkersTab() {
 
       <Card>
         <p className="eyebrow mb-4">All markers</p>
+        {markers.length === 0 && (
+          <EmptyState title="No markers configured yet" description="Create a marker above before it can be added to a panel." />
+        )}
         <div className="flex flex-col gap-2">
           {markers.map((m) => (
             <div key={m.id} className="flex flex-wrap items-center gap-3 border-b border-taupe pb-2 last:border-b-0">

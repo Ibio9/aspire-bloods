@@ -8,6 +8,7 @@ import { Select } from '../../components/ui/Select';
 import { FileDropzone } from '../../components/ui/FileDropzone';
 import { DateField } from '../../components/ui/DateField';
 import { Tabs } from '../../components/ui/Tabs';
+import { EmptyState } from '../../components/ui/EmptyState';
 import { apiFetch, ApiError, extractErrorMessage } from '../../lib/api';
 import { API_BASE_URL } from '../../lib/apiBase';
 import { statusLabel, stageIndex, type ReportStatus } from '../../lib/reportStatus';
@@ -361,6 +362,12 @@ function ManualEntryForm({
           )}
         </div>
         <DateField label="Sample date" name="manualSampleDate" value={sampleDate} onChange={setSampleDate} />
+        {markers.length === 0 && (
+          <p className="text-sm text-espresso/80">
+            No markers configured yet —{' '}
+            <Link to="/admin/content" className="underline underline-offset-2">add one</Link> on the content page before entering results.
+          </p>
+        )}
 
         <div className="flex flex-col gap-3">
           <p className="eyebrow">Results</p>
@@ -581,7 +588,18 @@ export function AdminReportsPage() {
               </Card>
             </Link>
           ))}
-          {visibleReports.length === 0 && <p className="text-espresso">No reports match.</p>}
+          {/* Two different nothings: no reports exist at all, versus reports
+              exist but none survive the current filter. They need different
+              wording — telling someone to upload their first report when they
+              have forty and a filter applied is just wrong. */}
+          {reports.length === 0 ? (
+            <EmptyState
+              title="No reports yet"
+              description="Upload a PDF or enter results manually above once a patient exists."
+            />
+          ) : (
+            visibleReports.length === 0 && <p className="text-espresso">No reports match.</p>
+          )}
         </div>
       </div>
     </>

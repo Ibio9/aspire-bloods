@@ -219,6 +219,9 @@ const updatePanelSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   description: z.string().max(2000).nullable().optional(),
   isActive: z.boolean().optional(),
+  // Lets an admin confirm composition is correct as-is (no marker changes
+  // needed) without that being indistinguishable from "never reviewed".
+  compositionConfirmed: z.boolean().optional(),
 });
 
 panelsRouter.patch(
@@ -328,9 +331,10 @@ panelsRouter.post(
     const parsed = addPanelMarkerSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-    const panelMarker = await prisma.panelMarker.create({
-      data: { panelId: req.params.panelId, ...parsed.data },
-    });
+    const [panelMarker] = await prisma.$transaction([
+      prisma.panelMarker.create({ data: { panelId: req.params.panelId, ...parsed.data } }),
+      prisma.panel.update({ where: { id: req.params.panelId }, data: { compositionConfirmed: true } }),
+    ]);
 
     await recordAuditLog({
       actorUserId: req.user!.id,
@@ -358,10 +362,10 @@ panelsRouter.patch(
     const parsed = updatePanelMarkerSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-    const panelMarker = await prisma.panelMarker.update({
-      where: { id: req.params.panelMarkerId },
-      data: parsed.data,
-    });
+    const [panelMarker] = await prisma.$transaction([
+      prisma.panelMarker.update({ where: { id: req.params.panelMarkerId }, data: parsed.data }),
+      prisma.panel.update({ where: { id: req.params.panelId }, data: { compositionConfirmed: true } }),
+    ]);
 
     await recordAuditLog({
       actorUserId: req.user!.id,
@@ -381,7 +385,10 @@ panelsRouter.delete(
   roleGuard('ADMIN'),
   verifyCsrf,
   asyncHandler(async (req, res) => {
-    await prisma.panelMarker.delete({ where: { id: req.params.panelMarkerId } });
+    await prisma.$transaction([
+      prisma.panelMarker.delete({ where: { id: req.params.panelMarkerId } }),
+      prisma.panel.update({ where: { id: req.params.panelId }, data: { compositionConfirmed: true } }),
+    ]);
 
     await recordAuditLog({
       actorUserId: req.user!.id,
