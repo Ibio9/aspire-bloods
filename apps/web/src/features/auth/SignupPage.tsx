@@ -4,6 +4,7 @@ import { apiFetch } from '../../lib/api';
 import { authErrorMessage } from '../../lib/authErrors';
 import { RegistrationForm } from './RegistrationForm';
 import { AuthSplitLayout } from './AuthSplitLayout';
+import { AuthCrossLink } from './AuthCrossLink';
 import { Button } from '../../components/ui/Button';
 
 const EYEBROW = 'Aspire Clinic';
@@ -122,12 +123,10 @@ export function SignupPage() {
         />
       </div>
 
-      <p className="mt-[calc(var(--auth-step)*1.4)] text-sm text-espresso/80">
-        Already have an account?{' '}
-        <Link to="/login" className="rounded-sm font-medium text-bronze underline underline-offset-2 hover:text-bronze-700">
-          Sign in
-        </Link>
-      </p>
+      {/* The exact mirror of the band on the sign-in screen — same component,
+          same weight, reversed direction. Someone who lands on the wrong one
+          of these two screens should find the other in the same place. */}
+      <AuthCrossLink prompt="Already have an account?" to="/login" label="Sign in" />
     </AuthSplitLayout>
   );
 }

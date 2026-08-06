@@ -6,6 +6,8 @@ import { LoginPage } from './features/auth/LoginPage';
 import { ActivatePage } from './features/auth/ActivatePage';
 import { SignupPage } from './features/auth/SignupPage';
 import { VerifyEmailPage } from './features/auth/VerifyEmailPage';
+import { ForgotPasswordPage } from './features/auth/ForgotPasswordPage';
+import { ResetPasswordPage } from './features/auth/ResetPasswordPage';
 import { ProtectedRoute } from './features/auth/ProtectedRoute';
 import { NotFoundPage } from './features/nav/NotFoundPage';
 import { RoleProtectedRoute } from './features/auth/RoleProtectedRoute';
@@ -60,6 +62,11 @@ export default function App() {
               <Route path="/activate" element={<PageTransition><ActivatePage /></PageTransition>} />
               <Route path="/signup" element={<PageTransition><SignupPage /></PageTransition>} />
               <Route path="/verify-email" element={<PageTransition><VerifyEmailPage /></PageTransition>} />
+              {/* Forgotten password. Two screens, both unauthenticated: ask
+                  for a link, then spend it. Neither issues a session — the
+                  patient signs back in through /login and therefore 2FA. */}
+              <Route path="/forgot-password" element={<PageTransition><ForgotPasswordPage /></PageTransition>} />
+              <Route path="/reset-password" element={<PageTransition><ResetPasswordPage /></PageTransition>} />
               <Route
                 path="/"
                 element={

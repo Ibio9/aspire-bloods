@@ -395,6 +395,145 @@ export async function resendVerificationEmail(email: string, ip: string | null):
   return { devVerificationUrl: env.EXPOSE_DEV_OTP_CODE ? verifyUrl : undefined };
 }
 
+/**
+ * "I've forgotten my password."
+ *
+ * Same anti-enumeration posture as signup() and resendVerificationEmail(),
+ * and for the same reason: this endpoint is unauthenticated, and "does this
+ * person use this clinic" is not a question it may answer. The response is
+ * byte-identical whether the address is unknown, belongs to a disabled
+ * account, or is a live patient — only the last of those produces an email.
+ *
+ * PENDING_VERIFICATION is deliberately excluded. Someone who never confirmed
+ * their address has no business proving ownership of it via a *second*
+ * emailed link; the fix for that account is to finish verification, and the
+ * login error already says so.
+ *
+ * INVITED is excluded for a different reason: that account has never had a
+ * password, only the unusable placeholder createInvite() sets. Its route in
+ * is the activation link, and offering a reset instead would let someone who
+ * knows an invited address bypass the invite.
+ */
+export async function requestPasswordReset(email: string, ip: string | null): Promise<{ devResetUrl?: string }> {
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user || user.status !== 'ACTIVE') {
+    // Log the miss so a spray against many addresses is visible in the audit
+    // trail, without an actor and without confirming anything to the caller.
+    await recordAuditLog({
+      action: 'PASSWORD_RESET_REQUESTED_UNKNOWN',
+      targetType: 'User',
+      targetId: user?.id ?? null,
+      ipAddress: ip,
+      metadata: { email },
+    });
+    return {};
+  }
+
+  // Any older outstanding link is spent the moment a new one is issued —
+  // two live reset links for one account widens the window instead of
+  // replacing it, exactly as with OTP reissue.
+  await prisma.passwordResetToken.updateMany({
+    where: { userId: user.id, usedAt: null },
+    data: { usedAt: new Date() },
+  });
+
+  const rawToken = generateToken(32);
+  await prisma.passwordResetToken.create({
+    data: {
+      userId: user.id,
+      tokenHash: hashToken(rawToken),
+      expiresAt: new Date(Date.now() + env.PASSWORD_RESET_TTL_MINUTES * 60 * 1000),
+    },
+  });
+
+  const resetUrl = `${env.APP_BASE_URL}/reset-password?token=${rawToken}`;
+  const expiry = `${env.PASSWORD_RESET_TTL_MINUTES} minutes`;
+  await emailProvider.sendEmail({
+    to: user.email,
+    subject: 'Reset your Aspire Bloods password',
+    text: `Someone asked to reset the password for your Aspire Bloods account. Choose a new one here: ${resetUrl}\n\nThis link expires in ${expiry} and can only be used once. If it wasn't you, you can ignore this email — your password has not changed.`,
+    html: `<p>Someone asked to reset the password for your Aspire Bloods account.</p><p><a href="${resetUrl}">Choose a new password</a></p><p>This link expires in ${expiry} and can only be used once. If it wasn't you, you can ignore this email — your password has not changed.</p>`,
+  });
+
+  await recordAuditLog({
+    actorUserId: user.id,
+    action: 'PASSWORD_RESET_REQUESTED',
+    targetType: 'User',
+    targetId: user.id,
+    ipAddress: ip,
+  });
+
+  return { devResetUrl: env.EXPOSE_DEV_OTP_CODE ? resetUrl : undefined };
+}
+
+/**
+ * Spending the reset link. Three things happen together, and all three matter:
+ *
+ *  1. the password changes;
+ *  2. the token is consumed, along with every other outstanding one;
+ *  3. every existing refresh token is revoked.
+ *
+ * (3) is the one that's easy to leave out. A password reset is what someone
+ * does when they think somebody else is in their account — leaving that
+ * somebody else's session alive would make the reset theatre. They are signed
+ * out everywhere, including here: this function issues no session, so the
+ * patient comes back through /login and therefore through 2FA. Holding the
+ * reset link alone must never be enough to read results.
+ */
+export async function resetPassword(rawToken: string, newPassword: string, ip: string | null): Promise<void> {
+  const tokenHash = hashToken(rawToken);
+  const record = await prisma.passwordResetToken.findUnique({ where: { tokenHash } });
+
+  if (!record || record.usedAt || record.expiresAt < new Date()) {
+    throw new AuthError('This reset link is invalid or has expired. Please request a new one.', 400);
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: record.userId } });
+  if (!user || user.status !== 'ACTIVE') {
+    throw new AuthError('This reset link is invalid or has expired. Please request a new one.', 400);
+  }
+
+  const passwordHash = await hashPassword(newPassword);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({ where: { id: user.id }, data: { passwordHash } });
+    await tx.passwordResetToken.updateMany({
+      where: { userId: user.id, usedAt: null },
+      data: { usedAt: new Date() },
+    });
+    await tx.refreshToken.updateMany({
+      where: { userId: user.id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  });
+
+  await recordAuditLog({
+    actorUserId: user.id,
+    action: 'PASSWORD_RESET_COMPLETED',
+    targetType: 'User',
+    targetId: user.id,
+    ipAddress: ip,
+  });
+
+  // Told, not asked. If this wasn't them, this email is the only warning
+  // they get, and it goes to the address that still owns the account.
+  await emailProvider
+    .sendEmail({
+      to: user.email,
+      subject: 'Your Aspire Bloods password was changed',
+      text: `The password on your Aspire Bloods account was just changed, and you have been signed out on every device. If this wasn't you, call the clinic straight away.`,
+      html: `<p>The password on your Aspire Bloods account was just changed, and you have been signed out on every device.</p><p>If this wasn't you, call the clinic straight away.</p>`,
+    })
+    .catch((e) => {
+      // The reset itself has already succeeded and been audited — a failed
+      // courtesy notice must not turn that into an error the patient sees.
+      console.error('[password-reset] change notice failed', {
+        userId: user.id,
+        error: e instanceof Error ? e.message : e,
+      });
+    });
+}
+
 export async function activateAccount(input: ActivateAccountRequest, ip: string | null) {
   const tokenHash = hashToken(input.inviteToken);
   const invite = await prisma.inviteToken.findUnique({ where: { tokenHash } });

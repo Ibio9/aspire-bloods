@@ -83,6 +83,34 @@ export const resendVerificationRequestSchema = z.object({
 });
 export type ResendVerificationRequest = z.infer<typeof resendVerificationRequestSchema>;
 
+// "I've forgotten my password." Anti-enumeration posture identical to
+// signup() and resendVerificationEmail(): the response never varies with
+// whether the address is known, so this schema is just an email.
+export const passwordResetRequestSchema = z.object({
+  email: z.string().email(),
+});
+export type PasswordResetRequest = z.infer<typeof passwordResetRequestSchema>;
+
+// Same 12-character minimum as signup and activation — one password policy,
+// stated once, enforced at all three entry points.
+export const passwordResetConfirmSchema = z.object({
+  token: z.string().min(20),
+  password: z.string().min(12, 'Password must be at least 12 characters'),
+});
+export type PasswordResetConfirm = z.infer<typeof passwordResetConfirmSchema>;
+
+// Recording biological sex after the fact. Deliberately its own tiny endpoint
+// rather than a general profile PATCH: this is the one registration field a
+// patient is legitimately asked for later (a test can't be ordered without it
+// and sex-specific reference ranges can't be resolved without it), and keeping
+// it separate means the audit entry says what actually changed rather than
+// "profile updated". MALE/FEMALE only — see shared/biologicalSex.ts for why
+// ANY is a property of a range and never of a person.
+export const updateBiologicalSexSchema = z.object({
+  sex: z.enum(['MALE', 'FEMALE']),
+});
+export type UpdateBiologicalSex = z.infer<typeof updateBiologicalSexSchema>;
+
 /**
  * Attaching a result set to a person — the one step in this system where a
  * mistake is genuinely serious, so the request itself is shaped to make an

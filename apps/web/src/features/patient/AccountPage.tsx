@@ -10,6 +10,7 @@ import { useToast } from '../../components/ui/Toast';
 import { apiFetch, ApiError } from '../../lib/api';
 import { API_BASE_URL } from '../../lib/apiBase';
 import { useAuth } from '../../lib/AuthContext';
+import { BiologicalSexCard } from './BiologicalSexCard';
 
 interface ConsentStatus {
   type: ConsentType;
@@ -127,6 +128,12 @@ export function AccountPage() {
         </Card>
 
         <div className="flex flex-col gap-6">
+          {/* Sits above the data/deletion cards because it's the one thing on
+              this page that can be incomplete — and the only one where a gap
+              has a clinical consequence rather than an administrative one.
+              Renders as a plain "here's what we hold" card once it's set. */}
+          <BiologicalSexCard variant="account" />
+
           <Card>
             <p className="eyebrow mb-3">Your data</p>
             <p className="text-sm text-espresso">

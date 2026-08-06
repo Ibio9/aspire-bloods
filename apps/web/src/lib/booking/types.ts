@@ -188,6 +188,18 @@ export interface BookingRequest {
    * browser that made it.
    */
   fastingAcknowledged: boolean;
+  /**
+   * Randox's own BiologicalSexId, from their
+   * `GET /BiologicalSex/GetBiologicalSex` reference list (1 = Male,
+   * 2 = Female), resolved server-side from the patient's profile — never
+   * mapped in a component. See packages/shared/src/biologicalSex.ts.
+   *
+   * Required rather than optional, deliberately. Their CreatePendingOrder
+   * rejects an order without one, so making it optional here would only move
+   * the failure from "we can't book this yet, and here's the one thing we
+   * need" to a rejected order after the patient believed they were finished.
+   */
+  biologicalSexId: number;
 }
 
 export type BookingErrorCode =
@@ -197,6 +209,8 @@ export type BookingErrorCode =
   /** Inside the change cutoff — has to go through the clinic instead. */
   | 'TOO_LATE_TO_CHANGE'
   | 'ALREADY_CANCELLED'
+  /** The order itself is incomplete — e.g. no BiologicalSexId, which Randox requires. */
+  | 'VALIDATION'
   | 'UNAVAILABLE';
 
 export class BookingError extends Error {

@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { BIOLOGICAL_SEX_PURPOSE } from '@aspire-bloods/shared';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
@@ -177,8 +178,21 @@ export function RegistrationForm({ showEmailField, variant = 'full', submitLabel
             onChange={(v) => set('dob', v)}
             max={new Date().toISOString().slice(0, 10)}
           />
-          <Select label="Sex" name="sex" optional value={form.sex} onChange={(e) => set('sex', e.target.value)}>
-            <option value="">Prefer not to say</option>
+          {/* Optional here on purpose — registration stays frictionless, and
+              a brand-new account holds no results for a range to apply to.
+              But it isn't decoration either, so the label says what it's
+              actually for; it's asked for again later at the two points it
+              genuinely matters (before a test is ordered, and on the account
+              page), rather than being made mandatory here. */}
+          <Select
+            label="Biological sex"
+            name="sex"
+            optional
+            hint={BIOLOGICAL_SEX_PURPOSE}
+            value={form.sex}
+            onChange={(e) => set('sex', e.target.value)}
+          >
+            <option value="">Prefer not to say for now</option>
             <option value="FEMALE">Female</option>
             <option value="MALE">Male</option>
           </Select>

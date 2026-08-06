@@ -8,6 +8,8 @@ import {
   signupRequestSchema,
   verifyEmailRequestSchema,
   resendVerificationRequestSchema,
+  passwordResetRequestSchema,
+  passwordResetConfirmSchema,
 } from '@aspire-bloods/shared';
 import { authGuard } from '../../middleware/authGuard.js';
 import { roleGuard } from '../../middleware/roleGuard.js';
@@ -17,6 +19,7 @@ import {
   otpResendRateLimiter,
   signupRateLimiter,
   emailVerificationResendRateLimiter,
+  passwordResetRateLimiter,
   resetLoginAttempts,
 } from '../../middleware/rateLimit.js';
 import { verifyCsrf, generateCsrfToken } from '../../middleware/csrf.js';
@@ -36,6 +39,8 @@ import {
   signup,
   verifyEmail,
   resendVerificationEmail,
+  requestPasswordReset,
+  resetPassword,
   login,
   loginWithTrustedDevice,
   verifyOtp,
@@ -137,6 +142,32 @@ authRouter.post('/verify-email/resend', emailVerificationResendRateLimiter, asyn
 
   const result = await resendVerificationEmail(parsed.data.email, clientIp(req));
   res.status(202).json({ status: 'verification_sent', ...result });
+}));
+
+// Always 202 with the same body, whether or not anything was sent — same
+// reasoning as the verification resend above. See requestPasswordReset().
+authRouter.post('/password-reset/request', passwordResetRateLimiter, asyncHandler(async (req, res) => {
+  const parsed = passwordResetRequestSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const result = await requestPasswordReset(parsed.data.email, clientIp(req));
+  res.status(202).json({ status: 'reset_requested', ...result });
+}));
+
+// Spending the link. Deliberately returns no session and no 2FA challenge:
+// the patient signs in afterwards through /login like anyone else, so a
+// stolen reset link can change a password but can never read a result.
+authRouter.post('/password-reset/confirm', passwordResetRateLimiter, asyncHandler(async (req, res) => {
+  const parsed = passwordResetConfirmSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  try {
+    await resetPassword(parsed.data.token, parsed.data.password, clientIp(req));
+    res.json({ status: 'password_reset' });
+  } catch (e) {
+    if (e instanceof AuthError) return res.status(e.status).json({ error: e.message });
+    throw e;
+  }
 }));
 
 authRouter.post('/login', loginRateLimiter, asyncHandler(async (req, res) => {

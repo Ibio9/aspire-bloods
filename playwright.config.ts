@@ -14,7 +14,11 @@ export default defineConfig({
   retries: 0,
   reporter: 'list',
   use: {
-    baseURL: 'http://localhost:5173',
+    // Overridable for the same reason vite.config.ts takes DEV_WEB_PORT: a
+    // second checkout of this repo (a git worktree on another branch) runs
+    // its own stack on its own ports, and the specs should be runnable
+    // against it without editing this file. Default unchanged.
+    baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:5173',
     trace: 'on-first-retry',
   },
   projects: [

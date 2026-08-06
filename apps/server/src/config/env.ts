@@ -191,6 +191,11 @@ const envSchema = z.object({
   // design — it only has to survive someone switching to their inbox.
   EMAIL_VERIFICATION_TTL_HOURS: z.coerce.number().default(24),
 
+  // Password reset links are shorter-lived still, and expressed in minutes
+  // rather than hours: unlike a verification link, this one can take over an
+  // account, so its window is the time it takes to open an inbox and no more.
+  PASSWORD_RESET_TTL_MINUTES: z.coerce.number().default(60),
+
   // --- Lockout ---
   // Both limits are in SECONDS, not minutes, because the login window is
   // now short enough that minutes can't express it. The lockout exists to

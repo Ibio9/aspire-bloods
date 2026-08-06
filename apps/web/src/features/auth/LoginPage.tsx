@@ -8,6 +8,7 @@ import { authErrorMessage, formatCountdown, lockoutSeconds } from '../../lib/aut
 import { useAuth } from '../../lib/AuthContext';
 import { LOGOUT_REASON_KEY } from '../../lib/AuthContext';
 import { AuthSplitLayout } from './AuthSplitLayout';
+import { AuthCrossLink } from './AuthCrossLink';
 import { consumeRedirect } from '../../lib/redirectAfterLogin';
 
 const LOGOUT_REASON_COPY: Record<string, string> = {
@@ -61,6 +62,16 @@ export function LoginPage() {
 
   async function handleCredentials(e: FormEvent) {
     e.preventDefault();
+    // Fields now only complain once they've been touched (see Input), which
+    // is what stops the autofocused email box shoving the rest of the screen
+    // down the first time someone clicks elsewhere. Submit is therefore the
+    // moment an empty form has to be caught, and catching it here beats a
+    // round-trip that comes back as "Email: Invalid email".
+    const missing = validateEmail(email) ?? validateRequired(password);
+    if (missing) {
+      setError(missing);
+      return;
+    }
     setError(null);
     setSubmitting(true);
     try {
@@ -117,8 +128,12 @@ export function LoginPage() {
         <>
           <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">Patient portal</p>
           <h2 className="auth-heading">Sign in</h2>
+          {/* Someone arriving cold has no way of knowing whose site this is
+              or what's behind the form. One line, before the fields, naming
+              the clinic and what the portal holds — that's the whole job. */}
           <p className="mt-[var(--auth-step)] text-sm leading-relaxed text-espresso/80">
-            Enter your details below to access your results.
+            This is Aspire Clinic's blood test results portal — sign in to see your results, track markers over
+            time, and book a test.
           </p>
 
           {sessionNotice && (
@@ -185,14 +200,31 @@ export function LoginPage() {
               Sign in
             </Button>
           </form>
-          {/* One compact line: the full version ran three lines and was the
-              thing pushing the card past the fold. */}
-          <p className="mt-[var(--auth-step)] text-sm leading-relaxed text-espresso/80">
-            Don't have an account?{' '}
-            <Link to="/signup" className="rounded-sm font-medium text-bronze underline underline-offset-2 hover:text-bronze-700">
-              Create one
+
+          {/* Sits directly under the button, where someone looks the moment
+              their password doesn't work — not below the registration band. */}
+          <p className="mt-[calc(var(--auth-step)*0.85)] text-sm text-espresso/80">
+            <Link
+              to="/forgot-password"
+              className="rounded-sm font-medium text-bronze underline underline-offset-2 hover:text-bronze-700"
+            >
+              Forgotten your password?
             </Link>
-            . If the clinic invited you by email, use the link in that invitation instead.
+          </p>
+
+          <AuthCrossLink
+            prompt="New here? Anyone can register — you don't need an invitation from the clinic."
+            to="/signup"
+            label="Create an account"
+          />
+
+          {/* Invites still exist in parallel for patients the practice sets
+              up directly, and that link goes to /activate, not here. Kept as
+              a footnote rather than deleted: registration being open doesn't
+              make an invitation email wrong, it just makes it optional. */}
+          <p className="mt-[calc(var(--auth-step)*0.9)] text-xs leading-relaxed text-espresso/70">
+            If the clinic emailed you an invitation, use the link in it instead — it sets your account up with the
+            details we already hold.
           </p>
         </>
       ) : (

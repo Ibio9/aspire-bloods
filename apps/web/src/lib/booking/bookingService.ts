@@ -314,6 +314,18 @@ export const bookingService: BookingService = {
     const location = LOCATIONS.find((l) => l.id === request.locationId);
     if (!location) return fail('That clinic is no longer available.', 'NOT_FOUND');
 
+    // The real CreatePendingOrder requires BiologicalSexId and rejects the
+    // order without it. The mock enforces the same precondition so the
+    // failure is exercised here rather than discovered on cutover — the UI
+    // is supposed to have collected this before reaching Confirm, so hitting
+    // this is a bug in the flow, not something a patient should ever see.
+    if (!request.biologicalSexId) {
+      return fail(
+        "We need your biological sex on file before the laboratory can accept this order — you can add it on your account page.",
+        'VALIDATION',
+      );
+    }
+
     const store = readStore().map(withDerivedStatus);
     const duration = durationFor(request.panelId, request.addOnIds);
     const day = buildDay(location, request.date, duration, store);

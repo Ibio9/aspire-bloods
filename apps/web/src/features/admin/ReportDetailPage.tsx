@@ -50,7 +50,26 @@ interface ParsedRow {
   sourceText?: string;
   confidence?: number | null;
   flags?: string[];
+  /**
+   * Why no range could be suggested for this row. Client-side only — never
+   * sent back on verify. Set when the catalogue lookup declines to answer
+   * (most often: the patient has no biological sex on file and this marker's
+   * range depends on it), so the empty range fields have a stated reason
+   * rather than reading as "nothing happened".
+   */
+  rangeNotice?: string | null;
 }
+
+/**
+ * The catalogue's answer to "what range applies to this patient for this
+ * marker". `unavailable` is a real answer, not an error: the server refuses
+ * to fall back to a sex-neutral range for a patient whose sex it doesn't
+ * hold, because a suggested range that quietly belongs to the wrong cohort
+ * is worse than no suggestion at all.
+ */
+type ResolvedRangeResponse =
+  | { status: 'resolved'; referenceRangeId: string; low: number; high: number; unit: string }
+  | { status: 'unavailable'; reason: string; message: string };
 
 interface ResultEdit {
   id: string;
@@ -164,13 +183,26 @@ export function ReportDetailPage() {
   // came back with no range at all for that row, e.g. an OCR miss.
   function fillMissingRange(index: number, markerId: string) {
     if (!markerId || !report) return;
-    void apiFetch<{ low: number; high: number; unit: string } | null>(
+    void apiFetch<ResolvedRangeResponse>(
       `/panels/markers/${markerId}/resolved-range?patientId=${report.patient.id}`,
     ).then((resolved) => {
-      if (!resolved) return;
+      if (resolved.status !== 'resolved') {
+        // Say why nothing was filled in rather than leaving the field
+        // silently blank. SEX_NOT_RECORDED especially: the server refuses to
+        // fall back to the "any" range for a patient whose sex we don't hold,
+        // and the admin needs to know that's what happened — the alternative
+        // is a range that looks resolved and belongs to the wrong person.
+        updateRow(index, { rangeNotice: resolved.message });
+        return;
+      }
       updateRow(index, (row) =>
         row.referenceLow == null && row.referenceHigh == null
-          ? { referenceLow: resolved.low, referenceHigh: resolved.high, unit: row.unit ?? resolved.unit }
+          ? {
+              referenceLow: resolved.low,
+              referenceHigh: resolved.high,
+              unit: row.unit ?? resolved.unit,
+              rangeNotice: null,
+            }
           : {},
       );
     });
@@ -523,6 +555,13 @@ export function ReportDetailPage() {
                       value={row.referenceHigh ?? ''}
                       onChange={(e) => updateRow(i, { referenceHigh: Number(e.target.value) })}
                     />
+                    {/* The catalogue declined to suggest a range and said
+                        why. Blank fields with no explanation read as a
+                        lookup that didn't run; this says it ran and
+                        deliberately refused to guess. */}
+                    {row.rangeNotice && (
+                      <p className="mt-1.5 max-w-xs text-xs leading-relaxed text-espresso/80">{row.rangeNotice}</p>
+                    )}
                   </TableCell>
                 </TableRow>
                 );
