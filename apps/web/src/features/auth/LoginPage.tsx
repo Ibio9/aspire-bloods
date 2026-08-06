@@ -81,19 +81,26 @@ export function LoginPage() {
     <AuthSplitLayout>
       {step.kind === 'credentials' ? (
         <>
-          <p className="eyebrow mb-3">Patient portal</p>
-          <h2 className="font-display text-5xl leading-[1.05] text-espresso">Sign in</h2>
-          <p className="mt-5 text-sm leading-relaxed text-espresso/80">
+          <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">Patient portal</p>
+          <h2 className="auth-heading">Sign in</h2>
+          <p className="mt-[var(--auth-step)] text-sm leading-relaxed text-espresso/80">
             Enter your details below to access your results.
           </p>
 
           {sessionNotice && (
-            <p role="status" className="mt-6 rounded-input border border-taupe bg-cream-50 px-4 py-3 text-sm text-espresso">
+            <p
+              role="status"
+              className="mt-[var(--auth-step)] rounded-input border border-taupe bg-cream-50 px-4 py-2.5 text-sm text-espresso"
+            >
               {sessionNotice}
             </p>
           )}
 
-          <form onSubmit={handleCredentials} className="mt-10 flex flex-col gap-6" noValidate>
+          <form
+            onSubmit={handleCredentials}
+            className="mt-[calc(var(--auth-step)*1.6)] flex flex-col gap-[calc(var(--auth-step)*1.2)]"
+            noValidate
+          >
             <Input
               label="Email address"
               type="email"
@@ -122,9 +129,12 @@ export function LoginPage() {
               Sign in
             </Button>
           </form>
-          <p className="mt-5 text-xs text-espresso/60">
-            Trouble signing in? Check you've activated your account from your invitation email, and that your
-            password is correct — repeated failed attempts will briefly lock the account.
+          {/* One compact line: the full version ran three lines and was the
+              thing pushing the card past the fold. The lockout warning stays
+              because it's the one part a patient can't infer. */}
+          <p className="mt-[var(--auth-step)] text-xs leading-relaxed text-espresso/60">
+            Trouble signing in? Activate your account from your invitation email first — repeated failed
+            attempts briefly lock it.
           </p>
         </>
       ) : (

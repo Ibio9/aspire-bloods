@@ -170,6 +170,39 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* ── Auth screens: viewport-fit scale ──────────────────────────────────
+     The four auth screens (sign in, registration, activation, 2FA) are
+     exactly one screen tall at md+ and the page itself never scrolls. That
+     only works if the composition scales with the viewport instead of being
+     fixed — so every vertical measurement on those screens derives from one
+     rhythm unit, and the display type is clamped against viewport height
+     rather than stepped at width breakpoints.
+
+     --auth-step resolves to ~14px at 720px tall, ~18px at 900, ~22px at
+     1080, capping at 24px. A short laptop viewport therefore gets the same
+     composition as a 1080p desktop, just smaller — nothing is cropped and
+     nothing is clipped to make it fit.
+
+     Unprefixed on purpose: below md the split becomes a single scrolling
+     column, and the same scale still reads correctly there. */
+  .auth-screen {
+    --auth-step: clamp(0.75rem, 2vh, 1.5rem);
+  }
+
+  /* Still a statement, just one that shares the screen — the old fixed
+     text-4xl/5xl/6xl ladder alone ate ~90px of a 720px viewport. */
+  .auth-display {
+    @apply font-display text-cream;
+    font-size: clamp(1.875rem, 3.4vh + 0.6rem, 3.5rem);
+    line-height: 1.08;
+  }
+
+  .auth-heading {
+    @apply font-display text-espresso;
+    font-size: clamp(1.75rem, 2.6vh + 0.9rem, 3rem);
+    line-height: 1.05;
+  }
+
   /* Recessed, the inverse of every raised surface in the system — a slight warm inset shadow
      so a field reads as cut into the card rather than drawn on top of it. Padding is deliberately
      generous: these are read and typed into on a phone. */

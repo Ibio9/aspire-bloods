@@ -18,11 +18,21 @@ interface AuthSplitLayoutProps {
  *
  * Login and signup share this exact left panel; only the copy on it and the
  * width of the right-hand form column differ per caller.
+ *
+ * Viewport-fit at md+: the shell is exactly h-screen and the page never
+ * scrolls. Both panels fill that height and centre their own content, and
+ * the vertical scale (--auth-step, see .auth-screen in globals.css) shrinks
+ * with the viewport so a 720px-tall laptop gets a smaller version of the
+ * same composition rather than a cropped one.
+ *
+ * Below md the split collapses to a single naturally-scrolling column —
+ * pinning a phone to 100vh breaks the moment the on-screen keyboard opens
+ * and steals half the viewport, so overflow is only ever locked at md+.
  */
 export function AuthSplitLayout({ children, eyebrow, headline, supporting, wide }: AuthSplitLayoutProps) {
   return (
-    <main className="min-h-screen md:flex">
-      <div className="relative flex min-h-[300px] flex-col justify-between overflow-hidden bg-gradient-to-br from-espresso to-ink px-7 py-12 text-cream sm:px-10 md:min-h-screen md:w-[44%] md:px-16 md:py-20">
+    <main className="auth-screen min-h-screen md:flex md:h-screen md:min-h-0 md:overflow-hidden">
+      <div className="relative flex min-h-[300px] flex-col overflow-hidden bg-gradient-to-br from-espresso to-ink px-7 py-[calc(var(--auth-step)*2)] text-cream sm:px-10 md:h-full md:min-h-0 md:w-[44%] md:px-14 lg:px-16">
         {/* Barely-there texture, per "the subtle background texture is barely there and better for it" */}
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.04]"
@@ -33,23 +43,28 @@ export function AuthSplitLayout({ children, eyebrow, headline, supporting, wide 
           aria-hidden="true"
         />
 
-        <div className="relative motion-safe:animate-riseIn">
+        {/* flex-1 + justify-center: the panel fills the column and the copy
+            block sits centred in whatever height is left above the address. */}
+        <div className="relative flex flex-1 flex-col justify-center motion-safe:animate-riseIn">
           <p className="font-eyebrow text-xs uppercase tracking-eyebrow text-taupe">
             {eyebrow ?? 'Blood test results, done properly'}
           </p>
           {/* bronze-300 not bronze: the brand accent fails contrast against its own dark family (1.95:1) — this tint clears 3:1 for large text, verified */}
-          <p className="mt-12 font-display text-4xl italic text-bronze-300 md:text-5xl">Aspire</p>
-          {/* Set generously — display type here is a statement, not a slightly larger paragraph. */}
-          <h1 className="mt-6 max-w-md font-display text-4xl leading-[1.08] text-cream md:text-5xl lg:text-6xl">
+          <p className="mt-[calc(var(--auth-step)*2)] font-display text-4xl italic text-bronze-300 lg:text-5xl">
+            Aspire
+          </p>
+          {/* Widens with the type so the headline holds two lines rather than
+              three once the clamp reaches its ceiling on tall displays. */}
+          <h1 className="auth-display mt-[calc(var(--auth-step)*1.25)] max-w-md lg:max-w-lg">
             {headline ?? 'Your results, explained — not just handed to you.'}
           </h1>
-          <p className="mt-6 max-w-xs text-sm leading-relaxed text-cream/70">
+          <p className="mt-[var(--auth-step)] max-w-xs text-sm leading-relaxed text-cream/70">
             {supporting ?? 'Sign in to see your panels, track markers over time, and understand what they mean for you.'}
           </p>
         </div>
 
         {/* cream/70 not /50: at this small size, anything under ~/65 drops below 4.5:1 body-text AA against espresso, verified */}
-        <p className="relative hidden text-xs text-cream/70 md:block">
+        <p className="relative hidden shrink-0 pt-[var(--auth-step)] text-xs leading-relaxed text-cream/70 md:block">
           Aspire Clinic — Aspire Group of Companies
           <br />
           27 Mortimer Street, London
@@ -58,12 +73,17 @@ export function AuthSplitLayout({ children, eyebrow, headline, supporting, wide 
 
       {/* The form sits in a card, not loose on the cream: warm off-white, hairline taupe border,
           soft corners, and the heaviest shadow in the system (shadow-float) so it genuinely
-          floats rather than sitting flush. Padding is deliberately past the point of feeling
-          necessary — this is the most-looked-at surface in the product and it should feel
-          unhurried. Vertically centred with real room above and below. */}
-      <div className="flex flex-1 items-center justify-center bg-cream px-5 py-14 sm:px-8 md:px-16 md:py-24">
+          floats rather than sitting flush. Padding stays generous — this is the most-looked-at
+          surface in the product — but it now scales with the viewport instead of being fixed.
+
+          The column, not the page, is what scrolls if content ever outgrows the screen (the
+          registration form does at laptop heights). my-auto rather than items-center is
+          deliberate: auto margins collapse to zero once free space goes negative, so an
+          overflowing card stays scrollable from its top edge — centring with items-center
+          would push the top of it out of reach. */}
+      <div className="scroll-thin flex flex-1 justify-center bg-cream px-5 py-[calc(var(--auth-step)*2)] sm:px-8 md:h-full md:min-h-0 md:overflow-y-auto md:px-10 lg:px-16">
         <div
-          className={`w-full rounded-card border border-taupe bg-cream-50 p-7 shadow-float motion-safe:animate-riseIn sm:p-10 md:p-14 ${
+          className={`my-auto w-full rounded-card border border-taupe bg-cream-50 p-[calc(var(--auth-step)*2)] shadow-float motion-safe:animate-riseIn ${
             wide ? 'max-w-3xl' : 'max-w-md'
           }`}
         >
