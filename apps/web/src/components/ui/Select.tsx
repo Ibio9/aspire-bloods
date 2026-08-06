@@ -23,7 +23,7 @@ interface SelectProps {
   className?: string;
   /** Shown under the field, and the picker is force-disabled, when there are no real (non-placeholder)
    * options — e.g. "No patients to select — invite one first." Falls back to a generic message. */
-  emptyMessage?: string;
+  emptyMessage?: ReactNode;
   /** <option> elements, exactly as with a native select — parsed into Listbox options so every
    * existing call site (`<Select>...<option value="x">Label</option>...</Select>`) keeps working. */
   children: ReactNode;
@@ -109,7 +109,7 @@ export function Select({
         className={className}
       />
       {!hasRealOptions && !error && (
-        <p className="text-xs text-espresso/60">{emptyMessage ?? 'Nothing to select yet.'}</p>
+        <p className="text-xs text-espresso/80">{emptyMessage ?? 'Nothing to select yet.'}</p>
       )}
       {error && <p className="text-sm text-status-significantHigh">{error}</p>}
     </div>

@@ -56,6 +56,10 @@ const envSchema = z.object({
   LOGIN_RATE_LIMIT_WINDOW_MINUTES: z.coerce.number().default(15),
   OTP_RATE_LIMIT_MAX: z.coerce.number().default(5),
   OTP_RATE_LIMIT_WINDOW_MINUTES: z.coerce.number().default(15),
+  // Separate budget from OTP verification: resend causes an outbound
+  // email/SMS, and a patient legitimately asking for a second code must
+  // not thereby lose the attempts they need to enter it.
+  OTP_RESEND_RATE_LIMIT_MAX: z.coerce.number().default(4),
   // Registration is now admin-only (see modules/auth/service.ts signup()) —
   // deliberately stricter and a longer window than login, since legitimate
   // volume is a handful of practice staff, ever.

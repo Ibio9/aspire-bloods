@@ -1,9 +1,8 @@
 import { useCallback, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Input } from '../../components/ui/Input';
-import { OtpInput } from '../../components/ui/OtpInput';
-import { Checkbox } from '../../components/ui/Checkbox';
 import { Button } from '../../components/ui/Button';
+import { OtpStep, type OtpChallenge } from './OtpStep';
 import { apiFetch } from '../../lib/api';
 import { authErrorMessage } from '../../lib/authErrors';
 import { useAuth } from '../../lib/AuthContext';
@@ -21,7 +20,7 @@ function readAndClearLogoutReason(): string | null {
   return reason ? (LOGOUT_REASON_COPY[reason] ?? null) : null;
 }
 
-type Step = { kind: 'credentials' } | { kind: 'otp'; challengeId: string };
+type Step = { kind: 'credentials' } | { kind: 'otp'; challenge: OtpChallenge };
 
 function validateEmail(value: string): string | undefined {
   if (!value) return 'Email address is required.';
@@ -39,8 +38,6 @@ export function LoginPage() {
   const [step, setStep] = useState<Step>({ kind: 'credentials' });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [code, setCode] = useState('');
-  const [trustDevice, setTrustDevice] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [sessionNotice] = useState(readAndClearLogoutReason);
@@ -50,7 +47,7 @@ export function LoginPage() {
     setError(null);
     setSubmitting(true);
     try {
-      const result = await apiFetch<{ status: string; challengeId?: string }>('/auth/login', {
+      const result = await apiFetch<{ status: string } & Partial<OtpChallenge>>('/auth/login', {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       });
@@ -58,7 +55,15 @@ export function LoginPage() {
         await refresh();
         navigate('/');
       } else if (result.challengeId) {
-        setStep({ kind: 'otp', challengeId: result.challengeId });
+        setStep({
+          kind: 'otp',
+          challenge: {
+            challengeId: result.challengeId,
+            sentTo: result.sentTo,
+            channel: result.channel,
+            expiresInMinutes: result.expiresInMinutes,
+          },
+        });
       }
     } catch (e) {
       setError(authErrorMessage(e));
@@ -67,47 +72,28 @@ export function LoginPage() {
     }
   }
 
-  const submitOtp = useCallback(
-    async (submittedCode: string) => {
-      if (step.kind !== 'otp' || submitting) return;
-      setError(null);
-      setSubmitting(true);
-      try {
-        await apiFetch('/auth/otp/verify', {
-          method: 'POST',
-          body: JSON.stringify({ challengeId: step.challengeId, code: submittedCode, trustDevice }),
-        });
-        await refresh();
-        navigate('/');
-      } catch (e) {
-        setError(authErrorMessage(e));
-      } finally {
-        setSubmitting(false);
-      }
-    },
-    [step, submitting, trustDevice, refresh, navigate],
-  );
-
-  function handleOtp(e: FormEvent) {
-    e.preventDefault();
-    void submitOtp(code);
-  }
+  const handleVerified = useCallback(async () => {
+    await refresh();
+    navigate('/');
+  }, [refresh, navigate]);
 
   return (
     <AuthSplitLayout>
       {step.kind === 'credentials' ? (
         <>
-          <p className="eyebrow mb-2">Patient portal</p>
-          <h2 className="font-display text-4xl leading-tight text-espresso">Sign in</h2>
-          <p className="mt-3 text-sm text-espresso/80">Enter your details below to access your results.</p>
+          <p className="eyebrow mb-3">Patient portal</p>
+          <h2 className="font-display text-5xl leading-[1.05] text-espresso">Sign in</h2>
+          <p className="mt-5 text-sm leading-relaxed text-espresso/80">
+            Enter your details below to access your results.
+          </p>
 
           {sessionNotice && (
-            <p role="status" className="mt-4 rounded-input border border-taupe bg-cream-50 px-3.5 py-2.5 text-sm text-espresso">
+            <p role="status" className="mt-6 rounded-input border border-taupe bg-cream-50 px-4 py-3 text-sm text-espresso">
               {sessionNotice}
             </p>
           )}
 
-          <form onSubmit={handleCredentials} className="mt-8 flex flex-col gap-5" noValidate>
+          <form onSubmit={handleCredentials} className="mt-10 flex flex-col gap-6" noValidate>
             <Input
               label="Email address"
               type="email"
@@ -142,42 +128,7 @@ export function LoginPage() {
           </p>
         </>
       ) : (
-        <>
-          <p className="eyebrow mb-2">One more step</p>
-          <h2 className="font-display text-4xl leading-tight text-espresso">Verify it's you</h2>
-          <p className="mt-3 text-sm text-espresso/80">
-            We've sent a 6-digit verification code to your email. Enter it below to finish signing in.
-          </p>
-
-          <form onSubmit={handleOtp} className="mt-8 flex flex-col gap-5" noValidate>
-            <OtpInput
-              label="Verification code"
-              autoFocus
-              value={code}
-              onChange={(v) => {
-                setError(null);
-                setCode(v);
-              }}
-              onComplete={submitOtp}
-              disabled={submitting}
-              error={!!error}
-            />
-            <Checkbox
-              name="trustDevice"
-              checked={trustDevice}
-              onChange={(e) => setTrustDevice(e.target.checked)}
-              label="Trust this device for 30 days"
-            />
-            {error && (
-              <p role="alert" className="text-sm text-status-significantHigh">
-                {error}
-              </p>
-            )}
-            <Button type="submit" loading={submitting} className="w-full">
-              Verify and sign in
-            </Button>
-          </form>
-        </>
+        <OtpStep challenge={step.challenge} onVerified={handleVerified} />
       )}
     </AuthSplitLayout>
   );

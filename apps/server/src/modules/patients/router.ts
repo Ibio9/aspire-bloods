@@ -100,9 +100,40 @@ patientsRouter.get(
 patientsRouter.get(
   '/reports/:id/summary-pdf-link',
   asyncHandler(async (req, res) => {
-    const report = await prisma.report.findUnique({ where: { id: req.params.id } });
+    const report = await prisma.report.findUnique({
+      where: { id: req.params.id },
+      include: { results: { select: { amendedAt: true } } },
+    });
     if (!report || report.patientId !== req.user!.id || report.status !== 'RELEASED') {
       return res.status(404).json({ error: 'Not found' });
+    }
+
+    // Regenerating on every click wrote a fresh PDF to disk and a fresh
+    // StoredFile row each time — unbounded growth from a button a patient
+    // may press repeatedly, and (now that generated files are included in
+    // the DSAR export) a pile of identical duplicates in their data export.
+    //
+    // So: reuse the last generated summary unless something it renders has
+    // changed since. An amendment is the only thing that can change a
+    // released report's content, so the freshness check is the report's own
+    // updatedAt against the most recent amendment.
+    const lastAmendedAt = report.results.reduce<Date | null>(
+      (latest, r) => (r.amendedAt && (!latest || r.amendedAt > latest) ? r.amendedAt : latest),
+      null,
+    );
+    const contentChangedAt =
+      lastAmendedAt && lastAmendedAt > report.updatedAt ? lastAmendedAt : report.updatedAt;
+
+    const existing = await prisma.storedFile.findFirst({
+      where: {
+        generatedForReportId: report.id,
+        kind: 'ASPIRE_SUMMARY_PDF',
+        createdAt: { gte: contentChangedAt },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (existing) {
+      return res.json({ url: `/api/files/download?token=${generateFileToken(existing.id)}` });
     }
 
     const pdfBuffer = await generateAspireSummaryPdf(report.id);

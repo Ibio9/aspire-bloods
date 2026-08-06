@@ -22,6 +22,11 @@ export async function buildDsarExport(patientId: string): Promise<NodeJS.Readabl
       panel: true,
       results: { include: { marker: true, referenceRange: true } },
       originalPdfFile: true,
+      // The Aspire summary PDF is a document we produced *about* the
+      // patient and sent to them — it is unambiguously their personal data
+      // and has to be in the export alongside the lab's original. Without
+      // this the export silently omitted half the files it claimed to hold.
+      generatedFiles: true,
     },
   });
 
@@ -71,7 +76,7 @@ export async function buildDsarExport(patientId: string): Promise<NodeJS.Readabl
 
   const reportsJson = reports.map((r) => ({
     reportId: r.id,
-    panel: r.panel.name,
+    panel: r.panel?.name ?? null,
     sampleDate: r.sampleDate,
     status: r.status,
     releasedAt: r.releasedAt,
@@ -109,12 +114,19 @@ export async function buildDsarExport(patientId: string): Promise<NodeJS.Readabl
   archive.append(JSON.stringify(auditJson, null, 2), { name: 'audit-log.json' });
 
   for (const r of reports) {
-    if (r.originalPdfFile) {
+    // Panel is optional on a report (schema: Report.panelId) — 'adhoc' keeps
+    // the filename well-formed instead of interpolating "undefined".
+    const slug = `${r.sampleDate.toISOString().slice(0, 10)}-${r.panel?.key ?? 'adhoc'}-${r.id.slice(0, 8)}`;
+    const files: [typeof r.originalPdfFile, string][] = [[r.originalPdfFile, 'original']];
+    for (const generated of r.generatedFiles) {
+      files.push([generated, generated.kind === 'ASPIRE_SUMMARY_PDF' ? 'aspire-summary' : 'generated']);
+    }
+
+    for (const [file, label] of files) {
+      if (!file) continue;
       try {
-        const buf = await storageAdapter.read(r.originalPdfFile.storageKey);
-        archive.append(buf, {
-          name: `files/${r.sampleDate.toISOString().slice(0, 10)}-${r.panel.key}-${r.id.slice(0, 8)}-original.pdf`,
-        });
+        const buf = await storageAdapter.read(file.storageKey);
+        archive.append(buf, { name: `files/${slug}-${label}.pdf` });
       } catch {
         // file missing on disk — skip rather than fail the whole export
       }

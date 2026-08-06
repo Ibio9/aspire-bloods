@@ -27,7 +27,10 @@ export type ReleaseReportRequest = z.infer<typeof releaseReportRequestSchema>;
 // Phase 2 §2.5 — manual entry route.
 export const manualEntryRequestSchema = z.object({
   patientId: z.string().uuid(),
-  panelId: z.string().uuid(),
+  // Optional — manual entry is exactly the path an ad-hoc set of markers
+  // arrives by (a single repeat test, a marker outside any package), and
+  // forcing a panel onto it would mean mislabelling the report.
+  panelId: z.string().uuid().nullable().optional(),
   sampleDate: z.string().min(1),
   results: z.array(verifiedResultRowSchema).min(1),
   confirmed: z.boolean().optional().default(false),

@@ -23,7 +23,18 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 export function Input({ label, optional, error, hint, id, className = '', validate, onBlur, onChange, ...props }: InputProps) {
   const fieldId = id ?? props.name;
   const [blurError, setBlurError] = useState<string | undefined>(undefined);
-  const shownError = error ?? blurError;
+
+  // A parent-supplied error (a server rejection, a cross-field rule) has no
+  // validator here to re-run, so on its own it would sit there unchanged
+  // while the user corrects the very thing it's complaining about. Editing
+  // the field dismisses it: the message described the old value, and the
+  // value is no longer that. Reset whenever a *new* parent error arrives, so
+  // a second failed submit shows again rather than being suppressed by the
+  // dismissal of the first.
+  const [dismissedError, setDismissedError] = useState<string | undefined>(undefined);
+  const parentError = error && error !== dismissedError ? error : undefined;
+
+  const shownError = parentError ?? blurError;
   const hintId = hint ? `${fieldId}-hint` : undefined;
   const errorId = shownError ? `${fieldId}-error` : undefined;
 
@@ -33,7 +44,11 @@ export function Input({ label, optional, error, hint, id, className = '', valida
   }
 
   function handleChange(e: ChangeEvent<HTMLInputElement>) {
+    // Re-validate on change only once an error is already showing — that's
+    // what makes a fixed field clear immediately, without validating on
+    // every keystroke before the user has finished typing.
     if (validate && blurError) setBlurError(validate(e.target.value));
+    if (error) setDismissedError(error);
     onChange?.(e);
   }
 
@@ -55,7 +70,10 @@ export function Input({ label, optional, error, hint, id, className = '', valida
         className={`input-base ${shownError ? 'border-status-significantHigh' : ''} ${className}`}
         required={!optional}
         onBlur={validate ? handleBlur : onBlur}
-        onChange={validate ? handleChange : onChange}
+        // handleChange is wired whenever there's a validator OR a parent
+        // error to dismiss — previously it was skipped entirely without a
+        // validator, which is exactly the case where a parent error stuck.
+        onChange={validate || error ? handleChange : onChange}
         {...props}
       />
       {shownError && (

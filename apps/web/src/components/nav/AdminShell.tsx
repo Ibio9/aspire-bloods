@@ -199,7 +199,7 @@ export function AdminShell({ children }: { children?: ReactNode }) {
 
       <div className="flex min-h-screen flex-1 flex-col">
         <AdminTopBar onOpenSearch={() => setSearchOpen(true)} onOpenDrawer={() => setDrawerOpen(true)} />
-        <main className="flex-1 px-6 py-12 md:px-12 md:py-20">
+        <main className="flex-1 px-5 py-14 sm:px-8 md:px-14 md:py-20">
           <div className="mx-auto max-w-6xl">
             <PageTransition>{children ?? <Outlet />}</PageTransition>
           </div>

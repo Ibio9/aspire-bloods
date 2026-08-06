@@ -13,7 +13,7 @@ interface TwoTierHeadingProps {
 export function TwoTierHeading({ eyebrow, title, align = 'left' }: TwoTierHeadingProps) {
   return (
     <div className={align === 'center' ? 'text-center' : 'text-left'}>
-      <p className="eyebrow mb-2">{eyebrow}</p>
+      <p className="eyebrow mb-3">{eyebrow}</p>
       <h1 className="display-heading">{title}</h1>
     </div>
   );

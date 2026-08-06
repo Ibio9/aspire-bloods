@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { MarkerStatus } from '@aspire-bloods/shared';
+import { formatDate, formatReportTitle, type MarkerStatus } from '@aspire-bloods/shared';
 import { Breadcrumbs } from '../../components/nav/Breadcrumbs';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import type { MarkerNavState } from './markerNavState';
@@ -25,7 +25,8 @@ interface MarkerCard {
 
 interface ReportDetail {
   reportId: string;
-  panelName: string;
+  panelName: string | null;
+  markerCount?: number;
   sampleDate: string;
   sourceLabel?: string;
   markers: MarkerCard[];
@@ -63,13 +64,16 @@ export function ReportView() {
     );
   }
 
+  const title = formatReportTitle(report.panelName, report.markerCount ?? report.markers.length, report.sampleDate);
+  const sampleDate = formatDate(report.sampleDate);
+
   return (
     <>
-      <Breadcrumbs items={[{ label: 'Your results', to: '/my-results' }, { label: `${report.panelName}, ${report.sampleDate}` }]} />
-      <TwoTierHeading eyebrow={`Sample date ${report.sampleDate}`} title={report.panelName} />
-      {report.sourceLabel && <p className="mt-2 text-sm text-espresso/80">{report.sourceLabel}</p>}
+      <Breadcrumbs items={[{ label: 'Your results', to: '/my-results' }, { label: `${title}, ${sampleDate}` }]} />
+      <TwoTierHeading eyebrow={`Sample date ${sampleDate}`} title={title} />
+      {report.sourceLabel && <p className="mt-3 text-sm text-espresso/80">{report.sourceLabel}</p>}
 
-      <div className="mt-6 flex flex-wrap gap-3">
+      <div className="mt-8 flex flex-wrap gap-3">
         <Button variant="secondary" onClick={() => handleDownload('original-pdf-link')}>
           Download original report (PDF)
         </Button>
@@ -78,30 +82,32 @@ export function ReportView() {
         </Button>
       </div>
 
-      <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Hierarchy, loudest first: the value, then the range, then the status,
+          then the gloss. Clear steps between each level rather than a bordered
+          table row where everything competes at the same weight. */}
+      <div className="mt-14 grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3">
         {report.markers.map((m, i) => (
           <Link
             key={m.markerId}
             to={`/markers/${m.markerId}`}
-            state={{ reportId: report.reportId, panelName: report.panelName, markerIds: report.markers.map((mk) => mk.markerId) } satisfies MarkerNavState}
-            className="stagger-item motion-safe:animate-riseIn rounded-card"
+            state={{ reportId: report.reportId, panelName: title, markerIds: report.markers.map((mk) => mk.markerId) } satisfies MarkerNavState}
+            className="stagger-item block rounded-card motion-safe:animate-riseIn focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
             style={{ animationDelay: `${i * 30}ms` }}
           >
             <Card interactive className="flex h-full flex-col">
               <p className="eyebrow">{m.name}</p>
-              <p className="tabular mt-3 flex items-baseline gap-1.5 text-3xl font-semibold text-espresso">
-                {m.value} <span className="text-sm font-normal text-espresso/70">{m.unit}</span>
+              <p className="tabular mt-4 flex items-baseline gap-2 text-[2.75rem] font-semibold leading-none text-espresso">
+                {m.value}
+                <span className="text-base font-normal text-espresso/70">{m.unit}</span>
               </p>
-              <p className="tabular mt-1.5 text-xs text-espresso/60">
-                Reference range: {m.referenceLow}–{m.referenceHigh}
+              <p className="tabular mt-3 text-xs text-espresso/70">
+                Reference range {m.referenceLow}–{m.referenceHigh} {m.unit}
               </p>
-              <div className="mt-4 flex items-center gap-2">
+              <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
                 <StatusBadge status={m.status} />
-                {m.amendedAt && (
-                  <span className="text-xs text-espresso/80">Amended {new Date(m.amendedAt).toLocaleDateString('en-GB')}</span>
-                )}
+                {m.amendedAt && <span className="text-xs text-espresso/80">Amended {formatDate(m.amendedAt)}</span>}
               </div>
-              <p className="mt-4 text-sm leading-relaxed text-espresso/90">{m.gloss}</p>
+              {m.gloss && <p className="mt-5 text-sm leading-relaxed text-espresso/90">{m.gloss}</p>}
             </Card>
           </Link>
         ))}

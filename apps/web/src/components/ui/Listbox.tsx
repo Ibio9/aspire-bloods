@@ -187,7 +187,7 @@ export function Listbox({
 
       {open && (
         <div
-          className="absolute left-0 top-[calc(100%+6px)] z-40 flex max-h-72 w-full min-w-[14rem] flex-col overflow-hidden rounded-card border border-taupe bg-cream-50 shadow-card motion-safe:animate-riseIn"
+          className="absolute left-0 top-[calc(100%+6px)] z-40 flex max-h-72 w-full min-w-[14rem] flex-col overflow-hidden rounded-card border border-taupe bg-cream-50 shadow-popover motion-safe:animate-riseIn"
           onKeyDown={handleListKeyDown}
         >
           {searchable && (

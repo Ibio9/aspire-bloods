@@ -18,7 +18,7 @@ export function PatientShell({ children }: { children?: ReactNode }) {
   return (
     <div className="min-h-screen bg-cream">
       <header className="sticky top-0 z-30 border-b border-taupe bg-cream/90 backdrop-blur">
-        <div className="flex items-center justify-between px-6 py-4 md:px-16">
+        <div className="flex items-center justify-between px-5 py-4 sm:px-8 md:px-20">
           <Link to="/my-results" className="font-display italic text-2xl text-bronze">
             Aspire
           </Link>
@@ -40,7 +40,7 @@ export function PatientShell({ children }: { children?: ReactNode }) {
           <AccountMenu links={NAV_ITEMS} />
         </div>
       </header>
-      <main className="px-6 py-12 md:px-16 md:py-20">
+      <main className="px-5 py-14 sm:px-8 md:px-20 md:py-24">
         <div className="mx-auto max-w-6xl">
           <PageTransition>{children ?? <Outlet />}</PageTransition>
         </div>

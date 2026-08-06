@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { formatDate } from '@aspire-bloods/shared';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Input } from '../../components/ui/Input';
 import { Skeleton } from '../../components/ui/Skeleton';
@@ -120,7 +121,7 @@ export function PatientsListPage() {
                   </TableCell>
                   <TableCell>{p.email}</TableCell>
                   <TableCell>{statusLabel(p)}</TableCell>
-                  <TableCell className="tabular">{new Date(p.createdAt).toLocaleDateString('en-GB')}</TableCell>
+                  <TableCell className="tabular">{formatDate(p.createdAt)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

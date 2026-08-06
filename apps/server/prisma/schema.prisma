@@ -184,6 +184,12 @@ model OtpCode {
   expiresAt   DateTime
   consumedAt  DateTime?
   attempts    Int             @default(0)
+  // How many times the patient has asked us to send the code again within
+  // this one login attempt. Carried forward across reissues so the count is
+  // per-challenge-chain, not per-row — that's what lets us offer a way out
+  // (call the clinic) after two or three failed deliveries instead of
+  // letting someone loop forever on an address that isn't receiving.
+  resendCount Int             @default(0)
   createdAt   DateTime        @default(now())
 
   @@index([userId])
@@ -362,8 +368,14 @@ model Report {
   id           String       @id @default(uuid())
   patientId    String
   patient      User         @relation("PatientReports", fields: [patientId], references: [id])
-  panelId      String
-  panel        Panel        @relation(fields: [panelId], references: [id])
+  // Optional: a report does not have to come from a catalogue panel. A
+  // one-off or ad-hoc set of markers (a single repeat test, a marker added
+  // outside any package) is a legitimate report with no panel behind it.
+  // Every read path must therefore treat the panel as absent-able and fall
+  // back to a self-explanatory title — see shared/format.ts
+  // formatReportTitle().
+  panelId      String?
+  panel        Panel?       @relation(fields: [panelId], references: [id])
   sourceId     String
   source       Source       @relation(fields: [sourceId], references: [id])
   sampleDate   DateTime

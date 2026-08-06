@@ -44,6 +44,35 @@
     transition: background-color 9999s ease-in-out 0s;
   }
 
+  /* Firefox draws its own red glow on :invalid / :-moz-ui-invalid the moment a required field
+     is empty — before the user has typed anything, and in a red that exists nowhere in this
+     palette. Validation state is ours to communicate (see Input's error prop), not the
+     browser's. */
+  input:invalid,
+  textarea:invalid,
+  select:invalid,
+  input:-moz-ui-invalid,
+  textarea:-moz-ui-invalid {
+    box-shadow: none;
+    outline: none;
+  }
+
+  /* Number spinners and the WebKit search/date clear buttons are UA chrome with UA styling —
+     every field that needs an affordance gets one from us instead. */
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type='number'] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  input[type='search']::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
   /* Brand-tinted text selection, replacing the OS-default blue. */
   ::selection {
     background-color: theme('colors.bronze.200');
@@ -111,34 +140,54 @@
   /* Generously sized (brief: "currently too timid, let it be large") with tight leading —
      display type reads as a statement, not a slightly-bigger paragraph. */
   .display-heading {
-    @apply font-display text-5xl md:text-6xl leading-[1.05] text-espresso;
+    @apply font-display text-5xl md:text-6xl lg:text-7xl leading-[1.02] text-espresso;
   }
 
   /* Lighter off-white, not pure white — cards read as a distinct surface floating a shade above
-     the cream page rather than a hard-white cutout (brief §3.7: "depth from tonal layering"). */
+     the cream page rather than a hard-white cutout (brief §3.7: "depth from tonal layering").
+     The layered warm shadow (see tailwind boxShadow.card) is what makes it float rather than
+     sit flush; the hairline taupe border only defines the edge. */
   .card {
     @apply bg-cream-50 border border-taupe rounded-card shadow-card;
+  }
+
+  /* A card that is itself the click target. Lifts almost imperceptibly and the shadow spreads,
+     so the depth cue does the work rather than a colour change. Press collapses it back down,
+     instantly on the way in and eased on release — the same asymmetry as Button. */
+  .card-interactive {
+    @apply cursor-pointer transition duration-150 ease-out hover:border-bronze/60 hover:shadow-card-hover;
+    @apply motion-safe:hover:-translate-y-0.5 active:translate-y-0 active:shadow-card active:duration-0;
+  }
+
+  /* Not yet released: muted and inert. It must not offer a hover lift or a pointer cursor,
+     because there is nothing behind it — a card that looks clickable and does nothing is the
+     worst of both states. */
+  .card-inert {
+    @apply cursor-default opacity-70 shadow-none;
   }
 
   .tabular {
     font-variant-numeric: tabular-nums;
   }
 
+  /* Recessed, the inverse of every raised surface in the system — a slight warm inset shadow
+     so a field reads as cut into the card rather than drawn on top of it. Padding is deliberately
+     generous: these are read and typed into on a phone. */
   .input-base {
-    @apply w-full rounded-input border border-taupe bg-white px-3.5 py-2.5 text-espresso placeholder:text-espresso/40 transition duration-150 ease-out;
+    @apply w-full rounded-input border border-taupe bg-white px-4 py-3 text-espresso placeholder:text-espresso/40 shadow-inset transition duration-150 ease-out;
   }
   .input-base:hover:not(:disabled) {
     @apply border-bronze/60;
   }
   .input-base:disabled {
-    @apply bg-cream-300 text-espresso/40 cursor-not-allowed;
+    @apply bg-cream-300 text-espresso/40 cursor-not-allowed shadow-none;
   }
   /* Bronze focus BORDER, not the global outline ring (brief §3.6) — form fields get their own
      focus treatment since a ring sitting right on top of a hairline-bordered field reads as
      doubled-up chrome. Still :focus-visible only, still a real 2px state (not just a colour
      swap), so it stays a visible, non-colour-only indicator per WCAG 2.4.7. */
   .input-base:focus-visible {
-    @apply outline-none border-bronze border-2 px-[13px] py-[9px];
+    @apply outline-none border-bronze border-2 px-[15px] py-[11px] shadow-inset-focus;
   }
 
   /* Off-screen until keyboard-focused, then drops into view above

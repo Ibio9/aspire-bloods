@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { formatDateTime } from '@aspire-bloods/shared';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
@@ -105,7 +106,7 @@ export function AuditLogPage() {
               <TableBody>
                 {rows.map((r) => (
                   <TableRow key={r.id}>
-                    <TableCell className="tabular whitespace-nowrap">{new Date(r.createdAt).toLocaleString('en-GB')}</TableCell>
+                    <TableCell className="tabular whitespace-nowrap">{formatDateTime(r.createdAt)}</TableCell>
                     <TableCell>{r.action}</TableCell>
                     <TableCell>
                       {r.targetType}

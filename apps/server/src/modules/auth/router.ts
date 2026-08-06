@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import {
   loginRequestSchema,
   otpVerifyRequestSchema,
@@ -8,7 +9,7 @@ import {
 } from '@aspire-bloods/shared';
 import { authGuard } from '../../middleware/authGuard.js';
 import { roleGuard } from '../../middleware/roleGuard.js';
-import { loginRateLimiter, otpRateLimiter, signupRateLimiter } from '../../middleware/rateLimit.js';
+import { loginRateLimiter, otpRateLimiter, otpResendRateLimiter, signupRateLimiter } from '../../middleware/rateLimit.js';
 import { verifyCsrf, generateCsrfToken } from '../../middleware/csrf.js';
 import {
   setAccessTokenCookie,
@@ -27,9 +28,28 @@ import {
   login,
   loginWithTrustedDevice,
   verifyOtp,
+  resendOtp,
   refreshSession,
   logout,
 } from './service.js';
+
+/** Every OTP challenge response has the same shape, whichever flow created it. */
+function otpChallengeResponse(result: {
+  challengeId?: string;
+  sentTo?: string;
+  channel?: 'EMAIL' | 'SMS';
+  expiresInMinutes?: number;
+  devOtpCode?: string;
+}) {
+  return {
+    status: 'otp_required' as const,
+    challengeId: result.challengeId,
+    sentTo: result.sentTo,
+    channel: result.channel,
+    expiresInMinutes: result.expiresInMinutes,
+    devOtpCode: result.devOtpCode,
+  };
+}
 
 export const authRouter = Router();
 
@@ -74,7 +94,7 @@ authRouter.post('/signup', signupRateLimiter, asyncHandler(async (req, res) => {
     // enrolment isn't a separate optional step, it's the only way this
     // call can end in anything other than a rejection.
     const result = await signup(parsed.data, clientIp(req));
-    res.json({ status: 'otp_required', challengeId: result.challengeId, devOtpCode: result.devOtpCode });
+    res.json(otpChallengeResponse(result));
   } catch (e) {
     if (e instanceof AuthError) return res.status(e.status).json({ error: e.message });
     throw e;
@@ -102,7 +122,25 @@ authRouter.post('/login', loginRateLimiter, asyncHandler(async (req, res) => {
       return res.json({ status: 'authenticated' });
     }
 
-    return res.json({ status: 'otp_required', challengeId: result.challengeId, devOtpCode: result.devOtpCode });
+    return res.json(otpChallengeResponse(result));
+  } catch (e) {
+    if (e instanceof AuthError) return res.status(e.status).json({ error: e.message });
+    throw e;
+  }
+}));
+
+// "The code didn't arrive" — without this the patient's only way out of the
+// 2FA step is to abandon signing in. Rate-limited here and cooldown-capped
+// in the service; the client's countdown is presentation, not the control.
+const otpResendRequestSchema = z.object({ challengeId: z.string().uuid() });
+
+authRouter.post('/otp/resend', otpResendRateLimiter, asyncHandler(async (req, res) => {
+  const parsed = otpResendRequestSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'A valid sign-in attempt is required.' });
+
+  try {
+    const result = await resendOtp(parsed.data.challengeId, clientIp(req));
+    res.json({ status: 'otp_resent', ...result });
   } catch (e) {
     if (e instanceof AuthError) return res.status(e.status).json({ error: e.message });
     throw e;

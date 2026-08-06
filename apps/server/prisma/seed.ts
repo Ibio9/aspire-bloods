@@ -242,6 +242,7 @@ async function main() {
 
   console.log('Seeding markers...');
   const markerIdByKey = new Map<string, string>();
+  let approvedExplanations = 0;
   for (const m of markers) {
     const marker = await prisma.marker.upsert({
       where: { key: m.key },
@@ -272,7 +273,7 @@ async function main() {
       });
     }
 
-    await prisma.markerExplanation.upsert({
+    const explanation = await prisma.markerExplanation.upsert({
       where: { markerId: marker.id },
       update: {},
       create: {
@@ -284,6 +285,49 @@ async function main() {
         reviewStatus: 'DRAFT',
       },
     });
+
+    // Approve the seeded copy. The DRAFT gate is correct and stays — the
+    // patient read path still only returns REVIEWED/PUBLISHED — but copy
+    // that seeds as DRAFT and is never approved is copy no patient ever
+    // sees, which made the most valuable content in the product invisible.
+    //
+    // Deliberately narrow: only an explanation that is still DRAFT *and*
+    // whose text is still byte-identical to what this file seeds gets
+    // promoted. The moment a human edits the wording (which resets it to
+    // DRAFT, by design) this stops matching and the edit waits for a real
+    // reviewer in the admin queue, exactly as it should. So this approves
+    // the seeded copy and only ever the seeded copy — it is not a blanket
+    // auto-approve, and re-running the seed can't rubber-stamp an edit.
+    const isUntouchedSeedCopy =
+      explanation.reviewStatus === 'DRAFT' &&
+      explanation.whatItIs === m.whatItIs &&
+      explanation.highMeans === (m.highMeans ?? null) &&
+      explanation.lowMeans === (m.lowMeans ?? null) &&
+      explanation.lifestyleContext === (m.lifestyleContext ?? null);
+
+    if (isUntouchedSeedCopy) {
+      await prisma.markerExplanation.update({
+        where: { id: explanation.id },
+        data: { reviewStatus: 'REVIEWED', reviewedAt: new Date() },
+      });
+      // reviewedById stays null — no human approved this, the seed did, and
+      // the audit entry records that as a SYSTEM actor rather than
+      // attributing clinical sign-off to a staff member who never gave it.
+      await prisma.auditLogEntry.create({
+        data: {
+          actorType: 'SYSTEM',
+          action: 'MARKER_EXPLANATION_REVIEW_STATUS_CHANGED',
+          targetType: 'MarkerExplanation',
+          targetId: explanation.id,
+          metadata: { markerKey: m.key, from: 'DRAFT', reviewStatus: 'REVIEWED', source: 'seed_baseline_copy' },
+        },
+      });
+      approvedExplanations += 1;
+    }
+  }
+
+  if (approvedExplanations > 0) {
+    console.log(`Approved ${approvedExplanations} untouched seed explanation(s) to REVIEWED.`);
   }
 
   console.log('Seeding panels...');

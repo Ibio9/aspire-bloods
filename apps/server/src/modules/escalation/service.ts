@@ -2,6 +2,7 @@ import { prisma } from '../../db/client.js';
 import { env } from '../../config/env.js';
 import { emailProvider, smsProvider, isSmsEnabled } from '../notifications/index.js';
 import { recordAuditLog } from '../../lib/auditLog.js';
+import { formatDate, formatReportTitle } from '@aspire-bloods/shared';
 
 const SIGNIFICANT_STATUSES = new Set(['SIGNIFICANT_HIGH', 'SIGNIFICANT_LOW']);
 const OUT_OF_RANGE_STATUSES = new Set(['HIGH', 'LOW', 'SIGNIFICANT_HIGH', 'SIGNIFICANT_LOW']);
@@ -32,6 +33,9 @@ export async function checkAndEscalate(reportId: string): Promise<void> {
     : report.patient.email;
   const markerNames = flagged.map((r) => r.marker.name).join(', ');
   const portalLink = `${env.APP_BASE_URL}/admin/reports/${reportId}`;
+  // Marker names only, never values — and the report title falls back
+  // cleanly when the report has no panel behind it.
+  const reportTitle = formatReportTitle(report.panel?.name, report.results.length, report.sampleDate);
 
   const channels: string[] = ['EMAIL'];
   const urgencyLabel = severity === 'SIGNIFICANT' ? 'Significant result — review urgently' : 'Result outside range';
@@ -39,8 +43,8 @@ export async function checkAndEscalate(reportId: string): Promise<void> {
   await emailProvider.sendEmail({
     to: env.ESCALATION_EMAIL,
     subject: `[Aspire Bloods] ${urgencyLabel}: ${patientName}`,
-    text: `${urgencyLabel} for ${patientName} (${report.panel.name}).\n\nFlagged markers: ${markerNames}\n\nReview: ${portalLink}`,
-    html: `<p><strong>${urgencyLabel}</strong> for ${patientName} (${report.panel.name}).</p><p>Flagged markers: ${markerNames}</p><p><a href="${portalLink}">Review in the admin portal</a></p>`,
+    text: `${urgencyLabel} for ${patientName} (${reportTitle}, sample taken ${formatDate(report.sampleDate)}).\n\nFlagged markers: ${markerNames}\n\nReview: ${portalLink}`,
+    html: `<p><strong>${urgencyLabel}</strong> for ${patientName} (${reportTitle}, sample taken ${formatDate(report.sampleDate)}).</p><p>Flagged markers: ${markerNames}</p><p><a href="${portalLink}">Review in the admin portal</a></p>`,
   });
 
   if (isSmsEnabled() && env.ESCALATION_SMS_NUMBER) {

@@ -107,7 +107,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         role="dialog"
         aria-modal="true"
         aria-label="Search"
-        className="relative flex max-h-[60vh] w-full max-w-lg flex-col overflow-hidden rounded-card border border-taupe bg-cream-50 shadow-card motion-safe:animate-riseIn"
+        className="relative flex max-h-[60vh] w-full max-w-lg flex-col overflow-hidden rounded-card border border-taupe bg-cream-50 shadow-popover motion-safe:animate-riseIn"
       >
         <div className="border-b border-taupe px-4 py-3">
           <input

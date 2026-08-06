@@ -47,7 +47,7 @@ function findImplausibleRows(
 
 export async function createManualEntryReport(input: {
   patientId: string;
-  panelId: string;
+  panelId?: string | null;
   sampleDate: string;
   results: VerifyReportRequest['results'];
   confirmed: boolean;
@@ -56,8 +56,12 @@ export async function createManualEntryReport(input: {
 }) {
   const patient = await prisma.user.findUnique({ where: { id: input.patientId } });
   if (!patient || patient.role !== 'PATIENT') throw new ReportError('Patient not found', 404);
-  const panel = await prisma.panel.findUnique({ where: { id: input.panelId } });
-  if (!panel) throw new ReportError('Panel not found', 404);
+  // No panel is a valid ad-hoc entry; a panel id that doesn't resolve is
+  // still an error — "absent" and "wrong" must not be conflated.
+  if (input.panelId) {
+    const panel = await prisma.panel.findUnique({ where: { id: input.panelId } });
+    if (!panel) throw new ReportError('Panel not found', 404);
+  }
   if (input.results.length === 0) throw new ReportError('At least one result is required', 400);
 
   const source = await prisma.source.findUnique({ where: { key: 'manual_entry' } });
@@ -79,7 +83,7 @@ export async function createManualEntryReport(input: {
   const report = await prisma.report.create({
     data: {
       patientId: input.patientId,
-      panelId: input.panelId,
+      panelId: input.panelId ?? null,
       sourceId: source.id,
       sampleDate: new Date(input.sampleDate),
       // PARSED, not UPLOADED: there's no document and no parse step here —

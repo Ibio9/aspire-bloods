@@ -7,12 +7,22 @@ import { signAccessToken } from '../../lib/jwt.js';
 import { recordAuditLog } from '../../lib/auditLog.js';
 import { isAdminEmail } from '../../lib/adminAccess.js';
 import { emailProvider, smsProvider, isSmsEnabled } from '../notifications/index.js';
+import { maskEmail } from '@aspire-bloods/shared';
 import type { ActivateAccountRequest, PatientProfileForm, SignupRequest } from '@aspire-bloods/shared';
 import type { Prisma } from '@prisma/client';
 
-const OTP_TTL_MINUTES = 10;
+export const OTP_TTL_MINUTES = 10;
 const OTP_MAX_ATTEMPTS = 5;
 const INVITE_TTL_DAYS = 7;
+
+/**
+ * Resend policy. The cooldown is the anti-abuse floor the UI counts down
+ * against; the cap is the point at which sending another code has clearly
+ * stopped being the answer and the patient needs a human. Both are enforced
+ * here, server-side — the client's countdown is a courtesy, not the control.
+ */
+export const OTP_RESEND_COOLDOWN_SECONDS = 30;
+export const OTP_MAX_RESENDS = 3;
 
 // Dummy hash for a password that will never match, used to keep the timing
 // profile of "user not found" and "wrong password" indistinguishable.
@@ -262,6 +272,9 @@ interface LoginResult {
   email?: string;
   role?: 'PATIENT' | 'ADMIN' | 'CLINICIAN';
   challengeId?: string;
+  sentTo?: string;
+  channel?: 'EMAIL' | 'SMS';
+  expiresInMinutes?: number;
   devOtpCode?: string;
 }
 
@@ -279,7 +292,8 @@ type OtpChallengeUser = { id: string; email: string; twoFactorMethod: 'EMAIL' | 
 async function createOtpChallenge(
   user: OtpChallengeUser,
   ip: string | null,
-): Promise<{ challengeId: string; devOtpCode?: string }> {
+  resendCount = 0,
+): Promise<{ challengeId: string; sentTo: string; channel: 'EMAIL' | 'SMS'; expiresInMinutes: number; devOtpCode?: string }> {
   const channel = user.twoFactorMethod === 'SMS' && !isSmsEnabled() ? 'EMAIL' : user.twoFactorMethod;
   const code = generateOtpCode();
   const otp = await prisma.otpCode.create({
@@ -287,6 +301,7 @@ async function createOtpChallenge(
       userId: user.id,
       codeHash: hashToken(code),
       channel,
+      resendCount,
       expiresAt: new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000),
     },
   });
@@ -322,6 +337,11 @@ async function createOtpChallenge(
 
   return {
     challengeId: otp.id,
+    // Masked, so the OTP screen can tell the patient where to look without
+    // disclosing the full address to anyone reading the response.
+    sentTo: channel === 'SMS' ? 'the number we hold for you' : maskEmail(user.email),
+    channel,
+    expiresInMinutes: OTP_TTL_MINUTES,
     // Explicit opt-in only (EXPOSE_DEV_OTP_CODE=true) — lets e2e tests and
     // local dev read the code straight from the login response instead of
     // scraping the email/SMS provider log. Off by default everywhere, and
@@ -368,6 +388,87 @@ export async function login(
 
   const challenge = await createOtpChallenge(user, ip);
   return { trustedDeviceSkippedOtp: false, ...challenge };
+}
+
+export interface ResendOtpResult {
+  challengeId: string;
+  /** Masked, never the full address — enough to confirm we're sending where they expect. */
+  sentTo: string;
+  channel: 'EMAIL' | 'SMS';
+  expiresInMinutes: number;
+  cooldownSeconds: number;
+  resendsRemaining: number;
+  devOtpCode?: string;
+}
+
+/**
+ * "The code didn't arrive." Without this the patient's only option is to
+ * abandon login entirely, so it's a genuine dead end rather than a missing
+ * nicety.
+ *
+ * Every rule here is enforced server-side; the client's countdown is a
+ * courtesy on top of it, never the control:
+ *  - a fixed cooldown between sends, reported back so the UI can count down
+ *    against the server's clock rather than guessing;
+ *  - a cap on reissues per login attempt, after which the answer is a phone
+ *    call to the practice, not another email;
+ *  - the previous code is consumed the moment a new one is issued, so only
+ *    ever one code works — a reissued challenge must not leave the old code
+ *    live, or resending would widen the guessing window instead of
+ *    resetting it.
+ */
+export async function resendOtp(challengeId: string, ip: string | null): Promise<ResendOtpResult> {
+  const otp = await prisma.otpCode.findUnique({ where: { id: challengeId } });
+  if (!otp || otp.consumedAt) {
+    throw new AuthError('This sign-in attempt has expired. Please sign in again.', 400);
+  }
+
+  const elapsedSeconds = (Date.now() - otp.createdAt.getTime()) / 1000;
+  if (elapsedSeconds < OTP_RESEND_COOLDOWN_SECONDS) {
+    const wait = Math.ceil(OTP_RESEND_COOLDOWN_SECONDS - elapsedSeconds);
+    throw new AuthError(`Please wait ${wait} more second${wait === 1 ? '' : 's'} before requesting another code.`, 429);
+  }
+
+  if (otp.resendCount >= OTP_MAX_RESENDS) {
+    throw new AuthError(
+      'We\'ve sent several codes to this account already. Please call the clinic so we can help you sign in.',
+      429,
+    );
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: otp.userId } });
+  if (!user || user.status !== 'ACTIVE') {
+    throw new AuthError('This sign-in attempt has expired. Please sign in again.', 400);
+  }
+
+  // Invalidate before issuing: if the send below fails we have still
+  // retired the old code, which is the safe direction to fail in.
+  await prisma.otpCode.update({ where: { id: otp.id }, data: { consumedAt: new Date() } });
+
+  const nextResendCount = otp.resendCount + 1;
+  const challenge = await createOtpChallenge(user, ip, nextResendCount);
+
+  const channel = user.twoFactorMethod === 'SMS' && isSmsEnabled() ? 'SMS' : 'EMAIL';
+
+  await recordAuditLog({
+    actorUserId: user.id,
+    action: 'OTP_RESENT',
+    targetType: 'User',
+    targetId: user.id,
+    ipAddress: ip,
+    // IDs and counts only — never the code, the address, or the phone number.
+    metadata: { previousChallengeId: otp.id, newChallengeId: challenge.challengeId, resendCount: nextResendCount, channel },
+  });
+
+  return {
+    challengeId: challenge.challengeId,
+    sentTo: channel === 'SMS' ? 'the number we hold for you' : maskEmail(user.email),
+    channel,
+    expiresInMinutes: OTP_TTL_MINUTES,
+    cooldownSeconds: OTP_RESEND_COOLDOWN_SECONDS,
+    resendsRemaining: Math.max(0, OTP_MAX_RESENDS - nextResendCount),
+    devOtpCode: challenge.devOtpCode,
+  };
 }
 
 interface OtpVerifyResult {

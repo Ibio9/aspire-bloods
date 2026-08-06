@@ -6,6 +6,7 @@ import { Select } from '../../components/ui/Select';
 import { Checkbox } from '../../components/ui/Checkbox';
 import { Button } from '../../components/ui/Button';
 import { Tabs } from '../../components/ui/Tabs';
+import { ExplanationReviewQueue } from './ExplanationReviewQueue';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { useToast } from '../../components/ui/Toast';
 import { apiFetch, ApiError } from '../../lib/api';
@@ -423,7 +424,7 @@ function ExplanationsTab() {
           label="Marker"
           name="explanationMarker"
           searchable
-          emptyMessage="No markers configured yet."
+          emptyMessage={<>No markers configured yet — add one under the Panels &amp; markers tab.</>}
           value={selectedId}
           onChange={(e) => setSelectedId(e.target.value)}
         >
@@ -563,10 +564,13 @@ export function ContentConfigPage() {
     <>
       <TwoTierHeading eyebrow="Aspire Clinic — Admin console" title="Content & configuration" />
 
-      <div className="mt-8">
+      <div className="mt-10">
         <Tabs
           items={[
             { id: 'panels', label: 'Panels & markers', content: <PanelsAndMarkersTab /> },
+            // Review sits before the editor: approving existing copy is the
+            // routine job, writing new copy is the occasional one.
+            { id: 'review', label: 'Review queue', content: <ExplanationReviewQueue /> },
             { id: 'explanations', label: 'Marker explanations', content: <ExplanationsTab /> },
             { id: 'copy', label: 'Patient-facing wording', content: <CopyBlocksTab /> },
           ]}

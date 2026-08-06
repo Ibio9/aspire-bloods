@@ -9,14 +9,42 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   disabledReason?: string;
 }
 
+/**
+ * Depth recipe, applied consistently across the filled variants:
+ *  - a gradient overlay on the fill, lighter at the top, so it reads as lit
+ *    from above rather than as a flat swatch (bg-btn-* background images
+ *    sit over the solid colour);
+ *  - a soft inner highlight along the top edge and a barely-there darker
+ *    line at the bottom, both inset shadows, both derived from the palette;
+ *  - a layered drop shadow — one tight, one wide (shadow-btn).
+ *
+ * Hover lifts 1px, the shadow spreads and the fill lightens. Active presses
+ * down: scale 0.98, the shadow collapses inward (shadow-btn-active), the
+ * top highlight dims. Every shadow value is espresso-derived, never grey.
+ */
 const VARIANTS = {
-  primary:
-    'bg-bronze text-white hover:bg-bronze-600 active:bg-bronze-700 active:shadow-[inset_0_1px_4px_rgba(0,0,0,0.3)]',
-  secondary:
-    'bg-transparent text-espresso border border-taupe hover:border-bronze hover:bg-white active:bg-cream-200 active:shadow-[inset_0_1px_3px_rgba(66,60,54,0.15)]',
-  ghost: 'bg-transparent text-espresso hover:bg-cream-200 active:bg-cream-300 active:shadow-[inset_0_1px_3px_rgba(66,60,54,0.15)]',
-  destructive:
-    'bg-white text-status-significantHigh border border-status-significantHigh hover:bg-status-significantHigh hover:text-white active:shadow-[inset_0_1px_3px_rgba(0,0,0,0.2)]',
+  // The ::before layer carries the top highlight / bottom edge line, so it can be
+  // faded out independently on press without disturbing the drop shadow.
+  primary: [
+    'bg-bronze bg-btn-primary text-white shadow-btn',
+    'before:pointer-events-none before:absolute before:inset-0 before:rounded-full before:content-[""]',
+    'before:shadow-[inset_0_1px_0_0_rgb(255_255_255_/_0.22),inset_0_-1px_0_0_rgb(66_60_54_/_0.18)]',
+    'hover:bg-bronze-400 hover:shadow-btn-hover motion-safe:hover:-translate-y-px',
+    'active:bg-bronze-600 active:shadow-btn-active active:translate-y-0 active:before:opacity-0',
+  ].join(' '),
+  secondary: [
+    'bg-white bg-btn-secondary text-espresso border border-taupe shadow-btn',
+    'before:pointer-events-none before:absolute before:inset-0 before:rounded-full before:content-[""]',
+    'before:shadow-[inset_0_1px_0_0_rgb(255_255_255_/_0.7)]',
+    'hover:border-bronze hover:shadow-btn-hover motion-safe:hover:-translate-y-px',
+    'active:bg-cream-200 active:shadow-btn-active active:translate-y-0 active:before:opacity-0',
+  ].join(' '),
+  ghost: 'bg-transparent text-espresso hover:bg-cream-200 active:bg-cream-300 active:shadow-btn-active',
+  destructive: [
+    'bg-white text-status-significantHigh border border-status-significantHigh shadow-btn',
+    'hover:bg-status-significantHigh hover:text-white hover:shadow-btn-hover motion-safe:hover:-translate-y-px',
+    'active:shadow-btn-active active:translate-y-0',
+  ].join(' '),
 };
 
 function Spinner() {

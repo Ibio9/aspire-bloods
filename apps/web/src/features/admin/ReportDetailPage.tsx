@@ -17,6 +17,7 @@ import { apiFetch, ApiError } from '../../lib/api';
 import { API_BASE_URL } from '../../lib/apiBase';
 import { useAuth } from '../../lib/AuthContext';
 import type { ReportStatus } from '../../lib/reportStatus';
+import { formatDate, formatDateTime, formatReportTitle } from '@aspire-bloods/shared';
 
 interface MarkerOption {
   id: string;
@@ -68,7 +69,8 @@ interface ReportDetail {
   voidedAt: string | null;
   voidReason: string | null;
   voidedBy: { email: string; staffProfile: { firstName: string; lastName: string } | null } | null;
-  panel: { name: string };
+  /** Null for an ad-hoc report with no catalogue panel behind it. */
+  panel: { name: string } | null;
   patient: { id: string; email: string; patientProfile: { firstName: string; lastName: string } | null };
   results: VerifiedResult[];
 }
@@ -227,7 +229,8 @@ export function ReportDetailPage() {
       : report.voidedBy.email
     : null;
 
-  const sampleDateLabel = new Date(report.sampleDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const sampleDateLabel = formatDate(report.sampleDate);
+  const reportTitle = formatReportTitle(report.panel?.name, report.results.length, report.sampleDate);
 
   return (
     <>
@@ -235,7 +238,7 @@ export function ReportDetailPage() {
         items={[
           { label: 'Patients', to: '/admin/patients' },
           { label: patientName, to: `/admin/patients/${report.patient.id}` },
-          { label: `${report.panel.name}, ${sampleDateLabel}` },
+          { label: `${reportTitle}, ${sampleDateLabel}` },
         ]}
       />
 
@@ -243,12 +246,12 @@ export function ReportDetailPage() {
           screen partway down a long verify table is a real clinical risk, not just a UX nicety. */}
       <div className="sticky top-[61px] z-20 -mx-6 mb-4 border-b border-taupe bg-cream/95 px-6 py-2.5 backdrop-blur md:-mx-10 md:px-10">
         <p className="truncate text-sm font-medium text-espresso">
-          {patientName} <span className="text-espresso/50">·</span> {report.panel.name}{' '}
+          {patientName} <span className="text-espresso/50">·</span> {reportTitle}{' '}
           <span className="text-espresso/50">·</span> <span className="tabular">{sampleDateLabel}</span>
         </p>
       </div>
 
-      <TwoTierHeading eyebrow={`${patientName} — ${sampleDateLabel}`} title={report.panel.name} />
+      <TwoTierHeading eyebrow={`${patientName} — ${sampleDateLabel}`} title={reportTitle} />
       <p className="mt-2 flex items-center gap-1 text-sm text-espresso/80">
         {report.patient.email}
         <CopyButton value={report.patient.email} label="Copy patient email" />
@@ -263,7 +266,7 @@ export function ReportDetailPage() {
         <Card className="mt-4 max-w-xl border-status-significantHigh bg-white">
           <p className="font-medium text-status-significantHigh">Voided</p>
           <p className="mt-1 text-sm text-espresso">
-            {new Date(report.voidedAt).toLocaleString('en-GB')} by {voidedByName}
+            {formatDateTime(report.voidedAt)} by {voidedByName}
             {report.voidReason ? ` — “${report.voidReason}”` : ''}
           </p>
           <p className="mt-1 text-sm text-espresso/80">
@@ -357,7 +360,7 @@ export function ReportDetailPage() {
                       label={`Matched marker for "${row.rawName}"`}
                       hideLabel
                       searchable
-                      emptyMessage="No markers configured yet."
+                      emptyMessage={<>No markers configured yet — add one under the Panels &amp; markers tab.</>}
                       name={`matched-marker-${i}`}
                       value={row.matchedMarkerId ?? ''}
                       onChange={(e) => {
@@ -434,7 +437,7 @@ export function ReportDetailPage() {
                 <div className="mt-1 flex items-center gap-2">
                   <StatusBadge status={r.status} />
                   {r.amendedAt && (
-                    <span className="text-xs text-espresso/80">Amended {new Date(r.amendedAt).toLocaleDateString('en-GB')}</span>
+                    <span className="text-xs text-espresso/80">Amended {formatDate(r.amendedAt)}</span>
                   )}
                 </div>
                 {user?.role === 'ADMIN' && report.status === 'RELEASED' && !report.voidedAt && (
@@ -456,7 +459,7 @@ export function ReportDetailPage() {
                     <ul className="mt-1 flex flex-col gap-1">
                       {r.edits.map((e) => (
                         <li key={e.id} className="text-xs text-espresso/80">
-                          {new Date(e.changedAt).toLocaleDateString('en-GB')}: {e.previousValue} {e.previousUnit} →{' '}
+                          {formatDate(e.changedAt)}: {e.previousValue} {e.previousUnit} →{' '}
                           {e.newValue} {e.newUnit} by {e.changedByName} — “{e.reason}”
                         </li>
                       ))}

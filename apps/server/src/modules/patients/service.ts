@@ -29,10 +29,15 @@ export async function listReportsForPatient(patientId: string) {
     const attentionCount = r.results.filter((res) => res.status !== 'IN_RANGE').length;
     return {
       reportId: r.id,
-      panelName: r.panel.name,
+      // Nullable by design (schema: Report.panelId is optional) — the client
+      // composes the card title via formatReportTitle(), which falls back to
+      // "12 markers · 4 August 2026" rather than rendering an empty heading.
+      panelName: r.panel?.name ?? null,
       sampleDate: r.sampleDate.toISOString().slice(0, 10),
       patientStatus: released ? ('RELEASED' as const) : ('PENDING' as const),
-      markerCount: released ? r.results.length : undefined,
+      // Sent regardless of release state: it's the fallback title's raw
+      // material, and a count of markers is not itself a clinical value.
+      markerCount: r.results.length,
       inRangeCount: released ? r.results.length - attentionCount : undefined,
       attentionCount: released ? attentionCount : undefined,
       sourceLabel: released ? sourceLabel(r.source.key, r.source.name) : undefined,
@@ -56,7 +61,8 @@ export async function getReleasedReportForPatient(patientId: string, reportId: s
 
   return {
     reportId: report.id,
-    panelName: report.panel.name,
+    panelName: report.panel?.name ?? null,
+    markerCount: report.results.length,
     sampleDate: report.sampleDate.toISOString().slice(0, 10),
     sourceLabel: sourceLabel(report.source.key, report.source.name),
     markers: report.results.map((r) => ({

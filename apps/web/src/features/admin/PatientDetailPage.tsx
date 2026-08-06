@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { formatDate, formatDateTime } from '@aspire-bloods/shared';
 import { Breadcrumbs } from '../../components/nav/Breadcrumbs';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
@@ -141,7 +142,7 @@ export function PatientDetailPage() {
           </p>
           {profile.deactivatedAt && (
             <p className="mt-1 text-sm text-espresso/80">
-              Deactivated {new Date(profile.deactivatedAt).toLocaleDateString('en-GB')} by {profile.deactivatedByName}
+              Deactivated {formatDate(profile.deactivatedAt)} by {profile.deactivatedByName}
               {profile.deactivationReason ? ` — “${profile.deactivationReason}”` : ''}
             </p>
           )}
@@ -237,7 +238,7 @@ export function PatientDetailPage() {
                   <li key={c.id} className="flex items-center justify-between border-b border-taupe pb-2 last:border-b-0">
                     <span className="text-espresso">{c.type.replace(/_/g, ' ')}</span>
                     <span className="text-espresso/80">
-                      {c.withdrawnAt ? `Withdrawn ${new Date(c.withdrawnAt).toLocaleDateString('en-GB')}` : c.granted ? 'Granted' : 'Not granted'}
+                      {c.withdrawnAt ? `Withdrawn ${formatDate(c.withdrawnAt)}` : c.granted ? 'Granted' : 'Not granted'}
                     </span>
                   </li>
                 ))}
@@ -266,7 +267,7 @@ export function PatientDetailPage() {
               <TableBody>
                 {reports.map((r) => (
                   <TableRow key={r.id}>
-                    <TableCell className="tabular">{new Date(r.sampleDate).toLocaleDateString('en-GB')}</TableCell>
+                    <TableCell className="tabular">{formatDate(r.sampleDate)}</TableCell>
                     <TableCell>
                       <Link to={`/admin/reports/${r.id}`} className="font-medium text-bronze-600 underline underline-offset-2">
                         {r.panel.name}
@@ -301,7 +302,7 @@ export function PatientDetailPage() {
               <TableBody>
                 {auditTrail.map((a) => (
                   <TableRow key={a.id}>
-                    <TableCell className="tabular">{new Date(a.createdAt).toLocaleString('en-GB')}</TableCell>
+                    <TableCell className="tabular">{formatDateTime(a.createdAt)}</TableCell>
                     <TableCell>{a.action.replace(/_/g, ' ')}</TableCell>
                     <TableCell>{a.actorName ?? 'System'}</TableCell>
                     <TableCell className="tabular">{a.ipAddress ?? '—'}</TableCell>

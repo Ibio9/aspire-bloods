@@ -6,6 +6,7 @@ import { sourceLabel } from '../../lib/sourceLabel.js';
 import { storageAdapter } from '../storage/LocalDiskStorageAdapter.js';
 import { resultSourceAdapter } from '../result-sources/index.js';
 import { findBestMarkerMatch } from './matchMarker.js';
+import { canPerform } from '../../lib/reportTransitions.js';
 import type { VerifyReportRequest } from '@aspire-bloods/shared';
 
 export class ReportError extends Error {
@@ -87,18 +88,22 @@ export async function parseReport(reportId: string, actorUserId: string, ip: str
   });
   if (!report || !report.originalPdfFile) throw new ReportError('Report not found', 404);
   if (report.voidedAt) throw new ReportError('This report has been voided and cannot be progressed', 409);
-  if (!['UPLOADED', 'PARSED', 'CHANGES_REQUESTED'].includes(report.status)) {
+  if (!canPerform('parse', report.status)) {
     throw new ReportError(`Cannot parse a report in status ${report.status}`, 409);
   }
 
   const buffer = await storageAdapter.read(report.originalPdfFile.storageKey);
   const parsed = await resultSourceAdapter.normaliseReport(buffer);
 
-  const panelMarkers = report.panel.markers.map((pm) => pm.marker);
+  // No panel is legitimate (ad-hoc report) — matching then falls straight
+  // through to the full marker catalogue rather than narrowing first.
+  const panelMarkers = report.panel?.markers.map((pm) => pm.marker) ?? [];
   const allMarkers = await prisma.marker.findMany();
 
   const rows = parsed.rows.map((row) => {
-    const match = findBestMarkerMatch(row.rawName, panelMarkers) ?? findBestMarkerMatch(row.rawName, allMarkers);
+    const match =
+      (panelMarkers.length > 0 ? findBestMarkerMatch(row.rawName, panelMarkers) : null) ??
+      findBestMarkerMatch(row.rawName, allMarkers);
     return {
       rawLine: row.rawLine,
       rawName: row.rawName,
@@ -142,7 +147,7 @@ export async function verifyReport(
   });
   if (!report) throw new ReportError('Report not found', 404);
   if (report.voidedAt) throw new ReportError('This report has been voided and cannot be progressed', 409);
-  if (!['PARSED', 'ADMIN_VERIFIED', 'CHANGES_REQUESTED'].includes(report.status)) {
+  if (!canPerform('verify', report.status)) {
     throw new ReportError(`Cannot verify a report in status ${report.status}`, 409);
   }
   if (input.results.length === 0) {
@@ -226,7 +231,7 @@ export async function reviewReport(
   const report = await prisma.report.findUnique({ where: { id: reportId } });
   if (!report) throw new ReportError('Report not found', 404);
   if (report.voidedAt) throw new ReportError('This report has been voided and cannot be progressed', 409);
-  if (report.status !== 'ADMIN_VERIFIED') {
+  if (!canPerform('review', report.status)) {
     throw new ReportError(`Cannot review a report in status ${report.status}`, 409);
   }
 
@@ -251,7 +256,7 @@ export async function releaseReport(reportId: string, actorUserId: string, ip: s
   const report = await prisma.report.findUnique({ where: { id: reportId } });
   if (!report) throw new ReportError('Report not found', 404);
   if (report.voidedAt) throw new ReportError('This report has been voided and cannot be progressed', 409);
-  if (report.status !== 'CLINICIAN_REVIEWED') {
+  if (!canPerform('release', report.status)) {
     throw new ReportError(`Cannot release a report in status ${report.status}`, 409);
   }
 

@@ -177,7 +177,7 @@ export function DateField({ label, name, value, onChange, optional, error, hint,
         <div
           role="dialog"
           aria-label="Choose a date"
-          className="absolute left-0 top-[calc(100%+6px)] z-40 w-72 rounded-card border border-taupe bg-cream-50 p-3 shadow-card motion-safe:animate-riseIn"
+          className="absolute left-0 top-[calc(100%+6px)] z-40 w-72 rounded-card border border-taupe bg-cream-50 p-3 shadow-popover motion-safe:animate-riseIn"
         >
           <div className="mb-2 flex items-center justify-between">
             <button

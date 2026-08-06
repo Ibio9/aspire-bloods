@@ -79,7 +79,7 @@ function ToastRow({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: stri
       onMouseLeave={arm}
       onFocus={pause}
       onBlur={arm}
-      className={`pointer-events-auto flex w-80 items-start gap-2.5 rounded-card border bg-white px-4 py-3 text-sm shadow-card motion-safe:animate-riseIn ${VARIANT_STYLES[toast.variant]}`}
+      className={`pointer-events-auto flex w-80 items-start gap-2.5 rounded-card border bg-white px-4 py-3 text-sm shadow-popover motion-safe:animate-riseIn ${VARIANT_STYLES[toast.variant]}`}
     >
       <ToastIcon variant={toast.variant} />
       <p className="flex-1">{toast.message}</p>

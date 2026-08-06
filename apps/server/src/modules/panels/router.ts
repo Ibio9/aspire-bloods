@@ -38,6 +38,117 @@ panelsRouter.get(
   }),
 );
 
+/**
+ * The review queue behind the marker-explanation gate.
+ *
+ * Every explanation seeds as DRAFT and the patient read path only returns
+ * REVIEWED or PUBLISHED (patients/service.ts getMarkerTrendForPatient), so
+ * without a way to approve in bulk the most valuable content in the product
+ * is written, shipped, and never seen. The gate is correct and stays — what
+ * was missing was the queue, not a looser rule.
+ *
+ * Declared above '/markers/:markerId/...' so 'explanations' is never
+ * captured as a marker id.
+ */
+panelsRouter.get(
+  '/markers/explanations',
+  asyncHandler(async (_req, res) => {
+    const markers = await prisma.marker.findMany({
+      where: { isActive: true },
+      include: { explanation: true },
+      orderBy: { name: 'asc' },
+    });
+
+    // MarkerExplanation.reviewedById is a plain id column with no Prisma
+    // relation behind it, so reviewer names are resolved in one extra
+    // lookup rather than an include.
+    const reviewerIds = [
+      ...new Set(markers.map((m) => m.explanation?.reviewedById).filter((id): id is string => !!id)),
+    ];
+    const reviewers = reviewerIds.length
+      ? await prisma.user.findMany({ where: { id: { in: reviewerIds } }, include: { staffProfile: true } })
+      : [];
+    const reviewerById = new Map(
+      reviewers.map((u) => [
+        u.id,
+        u.staffProfile ? `${u.staffProfile.firstName} ${u.staffProfile.lastName}` : u.email,
+      ]),
+    );
+
+    res.json(
+      markers.map((m) => ({
+        markerId: m.id,
+        markerName: m.name,
+        markerKey: m.key,
+        hasExplanation: !!m.explanation,
+        whatItIs: m.explanation?.whatItIs ?? '',
+        highMeans: m.explanation?.highMeans ?? null,
+        lowMeans: m.explanation?.lowMeans ?? null,
+        lifestyleContext: m.explanation?.lifestyleContext ?? null,
+        reviewStatus: m.explanation?.reviewStatus ?? 'DRAFT',
+        version: m.explanation?.version ?? 0,
+        reviewedAt: m.explanation?.reviewedAt ?? null,
+        reviewedByName: m.explanation?.reviewedById ? (reviewerById.get(m.explanation.reviewedById) ?? null) : null,
+      })),
+    );
+  }),
+);
+
+const bulkReviewSchema = z.object({
+  markerIds: z.array(z.string().uuid()).min(1).max(200),
+  reviewStatus: z.enum(['DRAFT', 'REVIEWED', 'PUBLISHED']),
+});
+
+/**
+ * Approve a page of the queue in one action. Bulk in the UI, but never bulk
+ * in the audit log — one entry per explanation, naming the reviewer, so the
+ * record of who signed off which patient-facing wording stays per-marker
+ * exactly as it is for a single approval.
+ */
+panelsRouter.post(
+  '/markers/explanations/review',
+  roleGuard('ADMIN', 'CLINICIAN'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const parsed = bulkReviewSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+    const explanations = await prisma.markerExplanation.findMany({
+      where: { markerId: { in: parsed.data.markerIds } },
+    });
+
+    const now = new Date();
+    let updated = 0;
+    for (const explanation of explanations) {
+      if (explanation.reviewStatus === parsed.data.reviewStatus) continue;
+      await prisma.markerExplanation.update({
+        where: { id: explanation.id },
+        data: { reviewStatus: parsed.data.reviewStatus, reviewedById: req.user!.id, reviewedAt: now },
+      });
+      await recordAuditLog({
+        actorUserId: req.user!.id,
+        action: 'MARKER_EXPLANATION_REVIEW_STATUS_CHANGED',
+        targetType: 'MarkerExplanation',
+        targetId: explanation.id,
+        ipAddress: req.ip ?? null,
+        metadata: {
+          markerId: explanation.markerId,
+          from: explanation.reviewStatus,
+          reviewStatus: parsed.data.reviewStatus,
+          bulk: true,
+        },
+      });
+      updated += 1;
+    }
+
+    // Markers with no explanation row at all can't be approved into
+    // existence — reported back so the UI can say so rather than silently
+    // showing a smaller number than the user selected.
+    const missing = parsed.data.markerIds.length - explanations.length;
+    res.json({ ok: true, updated, unchanged: explanations.length - updated, missing });
+  }),
+);
+
 panelsRouter.get(
   '/markers/:markerId/explanation',
   asyncHandler(async (req, res) => {

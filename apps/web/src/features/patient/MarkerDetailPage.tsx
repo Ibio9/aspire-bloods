@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import type { MarkerReviewStatus, MarkerStatus } from '@aspire-bloods/shared';
+import { formatDate, type MarkerReviewStatus, type MarkerStatus } from '@aspire-bloods/shared';
 import { Breadcrumbs } from '../../components/nav/Breadcrumbs';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
@@ -70,7 +70,7 @@ export function MarkerDetailPage() {
       <div aria-busy="true" aria-label="Loading marker detail">
         <Skeleton className="h-4 w-28" />
         <Skeleton className="mt-3 h-9 w-64" />
-        <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="mt-12 grid grid-cols-1 gap-7 lg:grid-cols-2">
           <Card>
             <Skeleton className="h-4 w-24" />
             <Skeleton className="mt-3 h-10 w-32" />
@@ -139,21 +139,25 @@ export function MarkerDetailPage() {
 
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
-          <p className="eyebrow mb-4">Latest result</p>
-          <p className="flex items-baseline gap-1 tabular text-4xl text-espresso">
-            {detail.latest.value} <span className="text-lg">{detail.latest.unit}</span>
+          <p className="eyebrow mb-5">Latest result</p>
+          {/* The value is the loudest thing on the card by a clear step —
+              large, tabular, unit smaller beside it. */}
+          <p className="tabular flex items-baseline gap-2 text-6xl font-semibold leading-none text-espresso">
+            {detail.latest.value}
+            <span className="text-xl font-normal text-espresso/70">{detail.latest.unit}</span>
             <CopyButton value={`${detail.latest.value} ${detail.latest.unit}`} label="Copy result value" className="ml-1" />
           </p>
-          <div className="mt-2 flex items-center gap-2">
+          <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <StatusBadge status={detail.latest.status} />
             {detail.latest.amendedAt && (
-              <span className="text-xs text-espresso/80">
-                Amended {new Date(detail.latest.amendedAt).toLocaleDateString('en-GB')}
-              </span>
+              <span className="text-xs text-espresso/80">Amended {formatDate(detail.latest.amendedAt)}</span>
             )}
           </div>
-          <p className="mt-1 text-xs text-espresso/80">{detail.latest.sourceLabel}</p>
-          <div className="mt-6">
+          <p className="tabular mt-2 text-xs text-espresso/70">
+            Reference range {detail.latest.referenceLow}–{detail.latest.referenceHigh} {detail.latest.unit}
+          </p>
+          <p className="mt-1 text-xs text-espresso/70">{detail.latest.sourceLabel}</p>
+          <div className="mt-8">
             <RangeBar
               value={detail.latest.value}
               low={detail.latest.referenceLow}
@@ -170,30 +174,30 @@ export function MarkerDetailPage() {
       </div>
 
       {detail.outOfRangeNotice && (
-        <Card className="mt-6 border-status-significantHigh bg-white">
+        <Card className="mt-7 border-status-significantHigh bg-white">
           <p className="whitespace-pre-line text-sm text-espresso">{detail.outOfRangeNotice}</p>
         </Card>
       )}
 
-      <Card className="mt-6 max-w-3xl">
-        <p className="eyebrow mb-3">What this marker means</p>
-        <p className="text-espresso">{detail.explanation.whatItIs}</p>
+      <Card className="mt-7 max-w-3xl" padding="roomy">
+        <p className="eyebrow mb-4">What this marker means</p>
+        <p className="text-lg leading-relaxed text-espresso">{detail.explanation.whatItIs}</p>
         {detail.explanation.highMeans && (
           <>
-            <p className="mt-4 font-medium text-espresso">If it's high</p>
-            <p className="text-espresso">{detail.explanation.highMeans}</p>
+            <p className="mt-7 font-medium text-espresso">If it's high</p>
+            <p className="mt-1.5 leading-relaxed text-espresso/90">{detail.explanation.highMeans}</p>
           </>
         )}
         {detail.explanation.lowMeans && (
           <>
-            <p className="mt-4 font-medium text-espresso">If it's low</p>
-            <p className="text-espresso">{detail.explanation.lowMeans}</p>
+            <p className="mt-7 font-medium text-espresso">If it's low</p>
+            <p className="mt-1.5 leading-relaxed text-espresso/90">{detail.explanation.lowMeans}</p>
           </>
         )}
         {detail.explanation.lifestyleContext && (
           <>
-            <p className="mt-4 font-medium text-espresso">Lifestyle context</p>
-            <p className="text-espresso">{detail.explanation.lifestyleContext}</p>
+            <p className="mt-7 font-medium text-espresso">Lifestyle context</p>
+            <p className="mt-1.5 leading-relaxed text-espresso/90">{detail.explanation.lifestyleContext}</p>
           </>
         )}
       </Card>

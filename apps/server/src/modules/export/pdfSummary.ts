@@ -1,6 +1,7 @@
 import PDFDocument from 'pdfkit';
 import { prisma } from '../../db/client.js';
 import { decryptField } from '../../lib/crypto.js';
+import { formatDate, formatReportTitle } from '@aspire-bloods/shared';
 
 const BRONZE = '#8a5e45';
 const ESPRESSO = '#423c36';
@@ -53,7 +54,7 @@ export async function generateAspireSummaryPdf(reportId: string): Promise<Buffer
   doc.moveDown(1.5);
 
   // Right-aligned date + recipient block
-  const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  const today = formatDate(new Date());
   doc.font('Helvetica').fontSize(10).fillColor(ESPRESSO).text(today, { align: 'right' });
   doc.moveDown(0.5);
   doc.text(patientName, { align: 'right' });
@@ -61,42 +62,97 @@ export async function generateAspireSummaryPdf(reportId: string): Promise<Buffer
   if (profile?.postcode) doc.text(profile.postcode, { align: 'right' });
   doc.moveDown(1.5);
 
-  // Body
-  doc.fontSize(13).font('Helvetica-Bold').fillColor(ESPRESSO).text(`${report.panel.name} — results summary`);
+  // Body. The panel is optional (schema: Report.panelId) — formatReportTitle
+  // falls back to "12 markers · 4 August 2026" rather than leaving a
+  // dangling "— results summary" with nothing in front of it.
+  const reportTitle = formatReportTitle(report.panel?.name, report.results.length, report.sampleDate);
+  doc.fontSize(13).font('Helvetica-Bold').fillColor(ESPRESSO).text(`${reportTitle} — results summary`);
   doc.fontSize(10).font('Helvetica').moveDown(0.5);
   doc.text(`Dear ${profile?.firstName ?? 'Patient'},`);
   doc.moveDown(0.5);
   doc.text(
-    `Please find below a summary of your ${report.panel.name} results, from a sample taken on ${report.sampleDate.toLocaleDateString('en-GB')}.`,
+    report.panel?.name
+      ? `Please find below a summary of your ${report.panel.name} results, from a sample taken on ${formatDate(report.sampleDate)}.`
+      : `Please find below a summary of your results, from a sample taken on ${formatDate(report.sampleDate)}.`,
   );
   doc.moveDown(1);
 
-  // Results table
-  const colX = [56, 250, 320, 400, 470];
-  doc.font('Helvetica-Bold').fontSize(9).fillColor(ESPRESSO);
-  doc.text('Marker', colX[0], doc.y, { continued: false });
-  doc.text('Result', colX[1], doc.y - 11);
-  doc.text('Unit', colX[2], doc.y - 11);
-  doc.text('Range', colX[3], doc.y - 11);
-  doc.text('Status', colX[4], doc.y - 11);
-  doc.moveTo(56, doc.y + 4).lineTo(539, doc.y + 4).strokeColor(TAUPE).stroke();
-  doc.moveDown(0.7);
-
-  doc.font('Helvetica').fontSize(9);
-  for (const r of report.results) {
-    const y = doc.y;
-    doc.fillColor(ESPRESSO).text(r.marker.name, colX[0], y, { width: 190 });
-    doc.text(String(Number(decryptField(r.valueEncrypted))), colX[1], y);
-    doc.text(r.unit, colX[2], y);
-    doc.text(`${r.referenceRange.low}–${r.referenceRange.high}`, colX[3], y);
-    doc.fillColor(r.status === 'IN_RANGE' ? ESPRESSO : BRONZE).text(STATUS_LABEL[r.status] ?? r.status, colX[4], y, { width: 90 });
-    doc.moveDown(0.9);
-  }
-
   const leftMargin = 56;
   const fullWidth = 483;
+
+  // Results table. A 40-marker panel does not fit on one A4 page, and
+  // PDFKit's automatic page break does not know about our manually
+  // positioned columns — left to itself it writes rows off the bottom edge
+  // and drops the header. So pagination is explicit: we measure each row
+  // before drawing it, break when it would cross the bottom margin, and
+  // re-draw the column header on every new page so no page of results is
+  // ever unlabelled.
+  const colX = [56, 250, 320, 400, 470];
+  const colWidth = [190, 66, 76, 66, 90];
+  const ROW_GAP = 6;
+  const bottomLimit = doc.page.height - doc.page.margins.bottom - 24;
+
+  function drawTableHeader() {
+    const y = doc.y;
+    doc.font('Helvetica-Bold').fontSize(9).fillColor(ESPRESSO);
+    doc.text('Marker', colX[0], y, { width: colWidth[0] });
+    doc.text('Result', colX[1], y, { width: colWidth[1] });
+    doc.text('Unit', colX[2], y, { width: colWidth[2] });
+    doc.text('Range', colX[3], y, { width: colWidth[3] });
+    doc.text('Status', colX[4], y, { width: colWidth[4] });
+    const lineY = y + 13;
+    doc.moveTo(leftMargin, lineY).lineTo(leftMargin + fullWidth, lineY).strokeColor(TAUPE).stroke();
+    doc.y = lineY + 6;
+  }
+
+  drawTableHeader();
+  doc.font('Helvetica').fontSize(9);
+
+  for (const r of report.results) {
+    const cells = [
+      r.marker.name,
+      String(Number(decryptField(r.valueEncrypted))),
+      r.unit,
+      `${r.referenceRange.low}–${r.referenceRange.high}`,
+      STATUS_LABEL[r.status] ?? r.status,
+    ];
+    // Tallest cell decides the row height — a long marker name wraps to two
+    // lines and the row has to grow with it, or the next row lands on top.
+    const rowHeight = Math.max(
+      ...cells.map((text, i) => doc.heightOfString(text, { width: colWidth[i] })),
+    );
+
+    if (doc.y + rowHeight > bottomLimit) {
+      doc.addPage();
+      drawTableHeader();
+      doc.font('Helvetica').fontSize(9);
+    }
+
+    const y = doc.y;
+    doc.fillColor(ESPRESSO);
+    doc.text(cells[0], colX[0], y, { width: colWidth[0] });
+    doc.text(cells[1], colX[1], y, { width: colWidth[1] });
+    doc.text(cells[2], colX[2], y, { width: colWidth[2] });
+    doc.text(cells[3], colX[3], y, { width: colWidth[3] });
+    doc.fillColor(r.status === 'IN_RANGE' ? ESPRESSO : BRONZE).text(cells[4], colX[4], y, { width: colWidth[4] });
+    doc.y = y + rowHeight + ROW_GAP;
+  }
+
+  doc.x = leftMargin;
   doc.moveDown(1);
+
+  // Same reasoning as the table: reserve space for a block before writing
+  // it, so the closing sections never split awkwardly across a page break
+  // or run off the bottom of a long report.
+  function ensureSpace(needed: number) {
+    if (doc.y + needed > bottomLimit) {
+      doc.addPage();
+      doc.x = leftMargin;
+    }
+  }
+
   if (hasFlagged && outOfRangePrompt) {
+    ensureSpace(doc.heightOfString(outOfRangePrompt.body, { width: fullWidth }) + 30);
     doc.font('Helvetica-Bold').fontSize(9).fillColor(ESPRESSO).text('Next steps', leftMargin, doc.y, { width: fullWidth });
     doc.font('Helvetica').fontSize(9).moveDown(0.3);
     doc.text(outOfRangePrompt.body, leftMargin, doc.y, { width: fullWidth });
@@ -104,11 +160,15 @@ export async function generateAspireSummaryPdf(reportId: string): Promise<Buffer
   }
 
   if (footerDisclaimer) {
-    doc.font('Helvetica').fontSize(8).fillColor(ESPRESSO).text(footerDisclaimer.body, leftMargin, doc.y, { width: fullWidth });
+    doc.font('Helvetica').fontSize(8);
+    ensureSpace(doc.heightOfString(footerDisclaimer.body, { width: fullWidth }) + 16);
+    doc.fillColor(ESPRESSO).text(footerDisclaimer.body, leftMargin, doc.y, { width: fullWidth });
     doc.moveDown(1.5);
   }
 
-  // Signed-off footer
+  // Signed-off footer — kept whole; a signature split across a page break
+  // reads as an unsigned letter.
+  ensureSpace(64);
   const staff = report.reviewedBy?.staffProfile;
   doc
     .font('Helvetica-Bold')

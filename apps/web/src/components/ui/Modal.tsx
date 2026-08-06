@@ -69,7 +69,7 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className="relative flex max-h-[85vh] w-full max-w-md flex-col rounded-card border border-taupe bg-white p-6 shadow-card outline-none motion-safe:animate-riseIn"
+        className="relative flex max-h-[85vh] w-full max-w-md flex-col rounded-card border border-taupe bg-cream-50 p-7 shadow-popover sm:p-9 outline-none motion-safe:animate-riseIn"
       >
         <h2 id="modal-title" className="font-display text-2xl text-espresso">
           {title}

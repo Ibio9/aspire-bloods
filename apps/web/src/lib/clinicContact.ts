@@ -1,0 +1,31 @@
+/**
+ * The practice's contact details, for the moments where the product has to
+ * hand a patient over to a human — a code that won't arrive, a locked
+ * account, the service being down.
+ *
+ * The phone number is configuration, not a constant, and deliberately has no
+ * hard-coded fallback: inventing a phone number for a real medical practice
+ * risks sending patients to a stranger, which is far worse than showing them
+ * the email address and postal address we can actually verify. Set
+ * VITE_CLINIC_PHONE at build time and every "call us" affordance in the app
+ * lights up automatically.
+ */
+export const CLINIC_PHONE: string | null = import.meta.env.VITE_CLINIC_PHONE?.trim() || null;
+
+export const CLINIC_EMAIL = 'clinical-team@aspireshield.com';
+
+export const CLINIC_ADDRESS = '27 Mortimer Street, London';
+
+/** `tel:` needs the number stripped of spacing to dial reliably on mobile. */
+export const CLINIC_PHONE_HREF = CLINIC_PHONE ? `tel:${CLINIC_PHONE.replace(/[^\d+]/g, '')}` : null;
+
+/**
+ * One phrase for "get in touch with a person", used wherever a flow dead-ends.
+ * Prefers the phone number when one is configured, because the situations
+ * that reach this copy are the ones where waiting on email is the wrong
+ * answer.
+ */
+export function clinicContactSentence(): string {
+  if (CLINIC_PHONE) return `call the clinic on ${CLINIC_PHONE}`;
+  return `email the clinic at ${CLINIC_EMAIL}`;
+}

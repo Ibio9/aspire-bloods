@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { formatDate, formatReportTitle } from '@aspire-bloods/shared';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -42,6 +43,33 @@ function PanelSummary({ panel }: { panel: PanelOption }) {
   );
 }
 
+// A blank dropdown looks identical to a bug. Wherever a picker depends on
+// data that might not exist yet, it says which data is missing and links
+// straight to the page that creates it — a dead end otherwise.
+function ConfigureLink({ what }: { what: 'panels' | 'markers' | 'sources' }) {
+  return (
+    <>
+      No {what} configured yet —{' '}
+      <Link to="/admin/content" className="font-medium text-bronze underline underline-offset-2">
+        add one under Content &amp; configuration
+      </Link>
+      .
+    </>
+  );
+}
+
+function InvitePatientLink() {
+  return (
+    <>
+      No patients yet —{' '}
+      <Link to="/admin/patients" className="font-medium text-bronze underline underline-offset-2">
+        invite one from the Patients page
+      </Link>{' '}
+      first.
+    </>
+  );
+}
+
 interface SourceOption {
   id: string;
   key: string;
@@ -59,7 +87,7 @@ interface ReportRow {
   status: ReportStatus;
   voidedAt: string | null;
   sampleDate: string;
-  panel: { name: string };
+  panel: { name: string } | null;
   source: { name: string };
   patient: { email: string; patientProfile: { firstName: string; lastName: string } | null };
 }
@@ -134,7 +162,7 @@ function PdfUploadForm({
           label="Patient"
           name="patientId"
           searchable
-          emptyMessage="No patients yet — invite one from the Patients page first."
+          emptyMessage={<InvitePatientLink />}
           value={patientId}
           onChange={(e) => setPatientId(e.target.value)}
         >
@@ -150,7 +178,7 @@ function PdfUploadForm({
             label="Which test package?"
             hint="A panel is a bundle of markers run on one sample — e.g. Insight 360, Signature, Advanced GP3."
             name="panelId"
-            emptyMessage="No panels configured — add one under Content & configuration."
+            emptyMessage={<ConfigureLink what="panels" />}
             value={panelId}
             onChange={(e) => setPanelId(e.target.value)}
           >
@@ -167,7 +195,7 @@ function PdfUploadForm({
           label="Where was this analysed?"
           hint="The lab or process that produced this result."
           name="sourceId"
-          emptyMessage="No sources configured — add one under Content & configuration."
+          emptyMessage={<ConfigureLink what="sources" />}
           value={sourceId}
           onChange={(e) => setSourceId(e.target.value)}
         >
@@ -287,7 +315,7 @@ function ManualEntryForm({
           label="Patient"
           name="manualPatientId"
           searchable
-          emptyMessage="No patients yet — invite one from the Patients page first."
+          emptyMessage={<InvitePatientLink />}
           value={patientId}
           onChange={(e) => setPatientId(e.target.value)}
         >
@@ -303,7 +331,7 @@ function ManualEntryForm({
             label="Which test package?"
             hint="A panel is a bundle of markers run on one sample — e.g. Insight 360, Signature, Advanced GP3."
             name="manualPanelId"
-            emptyMessage="No panels configured — add one under Content & configuration."
+            emptyMessage={<ConfigureLink what="panels" />}
             value={panelId}
             onChange={(e) => setPanelId(e.target.value)}
           >
@@ -327,7 +355,7 @@ function ManualEntryForm({
                   label={`Marker for row ${i + 1}`}
                   hideLabel
                   searchable
-                  emptyMessage="No markers configured yet."
+                  emptyMessage={<ConfigureLink what="markers" />}
                   name={`marker-${i}`}
                   value={row.markerId}
                   onChange={(e) => {
@@ -527,10 +555,10 @@ export function AdminReportsPage() {
                     {r.patient.patientProfile
                       ? `${r.patient.patientProfile.firstName} ${r.patient.patientProfile.lastName}`
                       : r.patient.email}{' '}
-                    — {r.panel.name}
+                    — {formatReportTitle(r.panel?.name, null, r.sampleDate)}
                   </p>
                   <p className="text-sm text-espresso">
-                    Sample date: {r.sampleDate.slice(0, 10)} · {r.source.name}
+                    Sample date: {formatDate(r.sampleDate)} · {r.source.name}
                   </p>
                 </div>
                 <span className="eyebrow">{r.voidedAt ? 'Voided' : statusLabel(r.status)}</span>
