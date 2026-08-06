@@ -108,11 +108,3 @@ export function ArrowRightIcon(props: React.SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
-
-export function CloseIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
-      <path d="M5 5l10 10M15 5 5 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
-}

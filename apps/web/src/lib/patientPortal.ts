@@ -209,6 +209,16 @@ export function formatLongDate(iso: string): string {
   return new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+/**
+ * "Jun 25" — for chart axis ticks only. The long form is the portal's date
+ * format everywhere a human reads one date, but three of them across a
+ * 375px-wide axis need to be short, and month+year still separates every
+ * sample in a screening history without printing an ISO string at someone.
+ */
+export function formatAxisDate(iso: string): string {
+  return new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' });
+}
+
 /** "3 months ago" — relative time for "when was my last test", which is what people actually want to know. */
 export function formatRelativeDate(iso: string): string {
   const then = new Date(`${iso}T00:00:00`);

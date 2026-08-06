@@ -2,7 +2,10 @@ import { prisma } from '../../db/client.js';
 import { decryptField } from '../../lib/crypto.js';
 import { sourceLabel } from '../../lib/sourceLabel.js';
 import { convertToDisplayUnit, hasKnownConversion } from '../../lib/unitConversion.js';
+import { classifyMovement, isMeaningfulChange, movementMagnitude } from './markerMovement.js';
 import type { MarkerStatus } from '@aspire-bloods/shared';
+
+export type { MarkerMovement } from './markerMovement.js';
 
 /**
  * Read models for the patient portal's cross-report screens (Overview, All
@@ -96,33 +99,9 @@ function round(v: number): number {
   return Math.round(v * 1000) / 1000;
 }
 
-/** How far outside its reference range a value sits — 0 when in range. Used for direction of travel, never for severity. */
-function distanceOutsideRange(value: number, low: number, high: number): number {
-  if (value < low) return low - value;
-  if (value > high) return value - high;
-  return 0;
-}
-
 // ---------------------------------------------------------------------------
 // Overview
 // ---------------------------------------------------------------------------
-
-export type MarkerMovement =
-  | 'MOVED_INTO_RANGE'
-  | 'MOVED_OUT_OF_RANGE'
-  | 'CLOSER_TO_RANGE'
-  | 'FURTHER_FROM_RANGE'
-  | 'CHANGED_WITHIN_RANGE';
-
-/**
- * A result moves "meaningfully" if its status changed, or if it shifted by at
- * least 15% of its own reference band width. Scaling the threshold to the
- * marker's own band is what makes one rule work across ferritin (band ~270)
- * and HbA1c (band ~22) without a per-marker table. Deliberately a display
- * threshold for "worth mentioning", not a clinical one — nothing here says
- * whether a change matters medically, and the copy never implies it does.
- */
-const MEANINGFUL_CHANGE_FRACTION = 0.15;
 
 /** How long after a sample we start suggesting a retest. Annual is the private-screening norm. */
 const RETEST_INTERVAL_MONTHS = 12;
@@ -178,43 +157,38 @@ export async function getPatientOverview(patientId: string) {
       const previous = history[history.length - 1];
       if (!previous) return null;
       if (!current.convertible || !previous.convertible) return null; // never compare across units we can't relate
+      if (!isMeaningfulChange(current, previous)) return null;
 
-      const band = current.referenceHigh - current.referenceLow || Math.abs(current.value) || 1;
       const delta = current.value - previous.value;
-      const statusChanged = current.status !== previous.status;
-      if (!statusChanged && Math.abs(delta) < band * MEANINGFUL_CHANGE_FRACTION) return null;
 
-      const wasOut = previous.status !== 'IN_RANGE';
-      const isOut = current.status !== 'IN_RANGE';
-      const previousDistance = distanceOutsideRange(previous.value, previous.referenceLow, previous.referenceHigh);
-      const currentDistance = distanceOutsideRange(current.value, current.referenceLow, current.referenceHigh);
-
-      let movement: MarkerMovement;
-      if (wasOut && !isOut) movement = 'MOVED_INTO_RANGE';
-      else if (!wasOut && isOut) movement = 'MOVED_OUT_OF_RANGE';
-      else if (isOut && currentDistance < previousDistance) movement = 'CLOSER_TO_RANGE';
-      else if (isOut) movement = 'FURTHER_FROM_RANGE';
-      else movement = 'CHANGED_WITHIN_RANGE';
-
+      // Magnitude rides alongside rather than inside the payload — it exists
+      // only to order the list and means nothing to the client.
       return {
-        markerId: current.markerId,
-        name: current.markerName,
-        unit: current.unit,
-        currentValue: current.value,
-        currentStatus: current.status,
-        currentDate: current.sampleDate,
-        previousValue: previous.value,
-        previousStatus: previous.status,
-        previousDate: previous.sampleDate,
-        delta: round(delta),
-        direction: delta > 0 ? ('UP' as const) : ('DOWN' as const),
-        movement,
+        magnitude: movementMagnitude(current, previous),
+        change: {
+          markerId: current.markerId,
+          name: current.markerName,
+          unit: current.unit,
+          currentValue: current.value,
+          currentStatus: current.status,
+          currentDate: current.sampleDate,
+          previousValue: previous.value,
+          previousStatus: previous.status,
+          previousDate: previous.sampleDate,
+          delta: round(delta),
+          direction: delta > 0 ? ('UP' as const) : ('DOWN' as const),
+          movement: classifyMovement(current, previous),
+        },
       };
     })
     .filter((c): c is NonNullable<typeof c> => c !== null)
-    // Biggest mover first, measured in reference-band widths so markers on
-    // wildly different scales sort against each other sensibly.
-    .sort((a, b) => Math.abs(b.delta) / (b.currentValue || 1) - Math.abs(a.delta) / (a.currentValue || 1));
+    // Biggest mover first, in reference-band widths so markers on wildly
+    // different scales sort against each other honestly. This used to divide
+    // by the current value instead of the band, which ranked any marker with
+    // a small absolute value above everything else regardless of whether it
+    // had actually moved much for that marker.
+    .sort((a, b) => b.magnitude - a.magnitude)
+    .map((c) => c.change);
 
   const lastSampleDate = latestReport?.sampleDate ?? null;
   const retestDueDate = lastSampleDate

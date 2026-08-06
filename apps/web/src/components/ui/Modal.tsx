@@ -1,5 +1,6 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useDialogFocus } from '../../lib/useDialogFocus';
 
 interface ModalProps {
   open: boolean;
@@ -10,49 +11,10 @@ interface ModalProps {
 }
 
 export function Modal({ open, onClose, title, children, footer }: ModalProps) {
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const previouslyFocused = useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-
-    previouslyFocused.current = document.activeElement as HTMLElement;
-    dialogRef.current?.focus();
-
-    // Lock background scroll while open — otherwise the page behind scrolls (and, on mobile,
-    // scroll-chains past the dialog) while a modal sits on top of it.
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        onClose();
-        return;
-      }
-      // Basic focus trap — Tab/Shift+Tab cycle within the dialog rather than escaping to the page behind it.
-      if (e.key === 'Tab' && dialogRef.current) {
-        const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-        );
-        if (focusable.length === 0) return;
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    }
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      document.body.style.overflow = previousOverflow;
-      previouslyFocused.current?.focus();
-    };
-  }, [open, onClose]);
+  // Focus trap, Escape, background scroll lock and focus restore all live in
+  // the hook now — it was lifted out of this file so the two nav drawers and
+  // the command palette stop each reimplementing a different subset of it.
+  const dialogRef = useDialogFocus<HTMLDivElement>(open, onClose);
 
   if (!open) return null;
 

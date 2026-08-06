@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../lib/api';
 import { recordPatientView } from '../../lib/recentPatients';
+import { useDialogFocus } from '../../lib/useDialogFocus';
 
 interface PatientOption {
   id: string;
@@ -37,15 +38,9 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    if (!open) return;
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open, onClose]);
+  // Escape, the Tab trap, background scroll lock and focus restore. The input
+  // grabs focus itself just below, so the container never holds it for long.
+  const dialogRef = useDialogFocus<HTMLDivElement>(open, onClose);
 
   useEffect(() => {
     if (open) {
@@ -104,10 +99,12 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     <div className="fixed inset-0 z-[60] flex items-start justify-center px-4 pt-[12vh]">
       <div className="absolute inset-0 bg-espresso/50 motion-safe:animate-fadeIn" onClick={onClose} aria-hidden="true" />
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label="Search"
-        className="relative flex max-h-[60vh] w-full max-w-lg flex-col overflow-hidden rounded-card border border-taupe bg-cream-50 shadow-card motion-safe:animate-riseIn"
+        className="relative flex max-h-[60vh] w-full max-w-lg flex-col overflow-hidden rounded-card border border-taupe bg-cream-50 shadow-card outline-none motion-safe:animate-riseIn"
       >
         <div className="border-b border-taupe px-4 py-3">
           <input

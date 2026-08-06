@@ -1,7 +1,7 @@
 import { CartesianGrid, ComposedChart, Line, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { brand, scales, type MarkerStatus } from '@aspire-bloods/shared';
 import { statusLabel } from '../../lib/markerCopy';
-import type { TrendSeries } from '../../lib/patientPortal';
+import { formatAxisDate, formatLongDate, type TrendSeries } from '../../lib/patientPortal';
 
 /**
  * Two or three markers on one timeline. The problem this solves is that
@@ -61,7 +61,7 @@ function ChartTooltip({ active, label, payload, series }: { active?: boolean; la
 
   return (
     <div className="rounded-card border border-taupe bg-white px-3.5 py-2.5 text-xs shadow-card">
-      <p className="font-medium text-espresso">{label}</p>
+      <p className="font-medium text-espresso">{label ? formatLongDate(label) : ''}</p>
       <ul className="mt-1.5 flex flex-col gap-1">
         {series.map((s, i) => {
           const raw = row[`${s.markerId}__label`];
@@ -103,7 +103,7 @@ export function MultiTrendChart({ series }: { series: TrendSeries[] }) {
     .map((s) => {
       const first = s.points[0];
       const last = s.points[s.points.length - 1];
-      return `${s.name}: ${first.value} ${s.unit} on ${first.sampleDate} to ${last.value} ${s.unit} on ${last.sampleDate}, currently ${statusLabel(last.status)}`;
+      return `${s.name}: ${first.value} ${s.unit} on ${formatLongDate(first.sampleDate)} to ${last.value} ${s.unit} on ${formatLongDate(last.sampleDate)}, currently ${statusLabel(last.status)}`;
     })
     .join('. ');
 
@@ -117,7 +117,13 @@ export function MultiTrendChart({ series }: { series: TrendSeries[] }) {
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={rows} margin={{ top: 12, right: 16, left: 4, bottom: 0 }}>
             <CartesianGrid stroke={brand.taupe} strokeOpacity={0} />
-            <XAxis dataKey="sampleDate" tick={{ fontSize: 12, fill: brand.espresso }} axisLine={{ stroke: brand.taupe }} tickLine={false} />
+            <XAxis
+              dataKey="sampleDate"
+              tickFormatter={formatAxisDate}
+              tick={{ fontSize: 12, fill: brand.espresso }}
+              axisLine={{ stroke: brand.taupe }}
+              tickLine={false}
+            />
             <YAxis
               domain={[min - pad, max + pad]}
               ticks={[0, 1]}

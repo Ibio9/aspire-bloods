@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { PageTransition } from '../PageTransition';
 import { Avatar } from '../ui/Avatar';
 import { useAuth } from '../../lib/AuthContext';
+import { useDialogFocus } from '../../lib/useDialogFocus';
 import { ClinicContactPanel } from '../patient/ClinicContact';
 import { MarkerSearch } from './MarkerSearch';
-import { CollapseIcon, MenuIcon, SearchIcon } from './icons';
+import { CloseIcon, CollapseIcon, MenuIcon, SearchIcon } from './icons';
 import {
   AccountIcon,
-  CloseIcon,
   DocumentsIcon,
   LibraryIcon,
   MarkersIcon,
@@ -205,8 +205,12 @@ export function PatientShell({ children }: { children?: ReactNode }) {
     }
   });
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const drawerCloseRef = useRef<HTMLButtonElement>(null);
   const location = useLocation();
+  // Focus moves into the drawer, Tab stays inside it, Escape closes it, and
+  // focus returns to the menu button. Tab used to walk straight out of the
+  // open drawer onto the page behind, which is invisible to a sighted
+  // keyboard user.
+  const drawerRef = useDialogFocus<HTMLDivElement>(drawerOpen, () => setDrawerOpen(false));
 
   useEffect(() => {
     try {
@@ -215,16 +219,6 @@ export function PatientShell({ children }: { children?: ReactNode }) {
       /* a locked-down browser losing the preference is not worth a broken render */
     }
   }, [collapsed]);
-
-  useEffect(() => {
-    if (!drawerOpen) return;
-    drawerCloseRef.current?.focus();
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') setDrawerOpen(false);
-    }
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [drawerOpen]);
 
   // A route change from inside the drawer (marker search, nav link) closes it;
   // so does one from anywhere else, e.g. a browser back gesture.
@@ -254,13 +248,14 @@ export function PatientShell({ children }: { children?: ReactNode }) {
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 bg-espresso/50 motion-safe:animate-fadeIn" onClick={() => setDrawerOpen(false)} aria-hidden="true" />
           <div
+            ref={drawerRef}
+            tabIndex={-1}
             role="dialog"
             aria-modal="true"
             aria-label="Patient portal navigation"
-            className="absolute left-0 top-0 flex h-full w-[86vw] max-w-[320px] flex-col bg-cream-50 shadow-card motion-safe:animate-riseIn"
+            className="absolute left-0 top-0 flex h-full w-[86vw] max-w-[320px] flex-col bg-cream-50 shadow-card outline-none motion-safe:animate-riseIn"
           >
             <button
-              ref={drawerCloseRef}
               type="button"
               onClick={() => setDrawerOpen(false)}
               aria-label="Close navigation menu"

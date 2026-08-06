@@ -5,6 +5,7 @@ import { Card } from '../../components/ui/Card';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { apiFetch } from '../../lib/api';
+import { formatLongDate } from '../../lib/patientPortal';
 
 interface ReportSummary {
   reportId: string;
@@ -19,10 +20,27 @@ interface ReportSummary {
 
 export function PatientHome() {
   const [reports, setReports] = useState<ReportSummary[] | null>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    void apiFetch<ReportSummary[]>('/patient/reports').then(setReports);
+    apiFetch<ReportSummary[]>('/patient/reports')
+      .then(setReports)
+      .catch(() => setFailed(true));
   }, []);
+
+  if (failed) {
+    return (
+      <>
+        <TwoTierHeading eyebrow="Aspire Clinic — Patient portal" title="My results" />
+        <Card className="mt-8 max-w-xl">
+          <p className="font-display text-2xl text-espresso">We couldn't load your results</p>
+          <p className="mt-2 text-sm text-espresso/80">
+            Please refresh the page. If it keeps happening, get in touch and we'll sort it out.
+          </p>
+        </Card>
+      </>
+    );
+  }
 
   return (
     <>
@@ -71,7 +89,7 @@ export function PatientHome() {
                 style={{ animationDelay: `${i * 30}ms` }}
               >
                 <Card interactive className="h-full">
-                  <p className="eyebrow mb-1.5">{r.sampleDate}</p>
+                  <p className="eyebrow mb-1.5">{formatLongDate(r.sampleDate)}</p>
                   <p className="font-display text-2xl leading-tight text-espresso">{r.panelName}</p>
                   <p className="mt-4 text-sm text-espresso">
                     {r.inRangeCount} in range
@@ -86,7 +104,7 @@ export function PatientHome() {
                 className="stagger-item h-full motion-safe:animate-riseIn opacity-75"
                 style={{ animationDelay: `${i * 30}ms` }}
               >
-                <p className="eyebrow mb-1.5">{r.sampleDate}</p>
+                <p className="eyebrow mb-1.5">{formatLongDate(r.sampleDate)}</p>
                 <p className="font-display text-2xl leading-tight text-espresso">{r.panelName}</p>
                 <p className="mt-4 text-sm text-espresso">
                   Your results are with the clinical team and will be available shortly.

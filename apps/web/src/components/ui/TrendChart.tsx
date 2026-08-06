@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { CartesianGrid, ComposedChart, Line, ReferenceArea, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { status as statusTokens, brand, type MarkerStatus } from '@aspire-bloods/shared';
+import { formatAxisDate, formatLongDate } from '../../lib/patientPortal';
 
 function useReducedMotion(): boolean {
   const [reduced, setReduced] = useState(
@@ -63,6 +64,8 @@ function ChartTooltip({ active, payload }: any) {
   const point: TrendPoint = payload[0].payload;
   return (
     <div className="rounded-card border border-taupe bg-white px-3 py-2 text-xs shadow-card">
+      {/* The axis is abbreviated to fit; the exact sample date lives here. */}
+      <p className="text-espresso/80">{formatLongDate(point.sampleDate)}</p>
       <p className="tabular font-medium text-espresso">{point.value}</p>
       {point.sourceLabel && <p className="mt-0.5 text-espresso/80">{point.sourceLabel}</p>}
       {point.converted && (
@@ -106,7 +109,7 @@ export function TrendChart({ data, crossSourceComparable = true }: { data: Trend
     high: point.referenceHigh,
   }));
 
-  const summary = data.map((d) => `${d.sampleDate}: ${d.value}, ${STATUS_LABEL[d.status]}`).join('; ');
+  const summary = data.map((d) => `${formatLongDate(d.sampleDate)}: ${d.value}, ${STATUS_LABEL[d.status]}`).join('; ');
 
   return (
     <div>
@@ -126,6 +129,7 @@ export function TrendChart({ data, crossSourceComparable = true }: { data: Trend
             <CartesianGrid stroke={brand.taupe} strokeOpacity={0} />
             <XAxis
               dataKey="sampleDate"
+              tickFormatter={formatAxisDate}
               tick={{ fontSize: 12, fill: brand.espresso }}
               axisLine={{ stroke: brand.taupe }}
               tickLine={false}
