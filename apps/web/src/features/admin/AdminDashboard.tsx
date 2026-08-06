@@ -19,7 +19,7 @@ const CARDS: NavCard[] = [
   { to: '/admin', title: 'Reports', description: 'Upload PDFs, enter results manually, verify, review and release.' },
   { to: '/admin/patients', title: 'Patients', description: 'Search patients, open full profiles, manage invites, 2FA, access and erasure.' },
   { to: '/admin/content', title: 'Content & configuration', description: 'Panels, markers, reference ranges, marker explanations, patient-facing wording.' },
-  { to: '/admin/audit-log', title: 'Audit log', description: 'Full system-wide activity — every action and every view, by every admin.', adminOnly: true },
+  { to: '/admin/audit-log', title: 'Audit log', description: 'Full system-wide activity: every action and every view, by every admin.', adminOnly: true },
 ];
 
 function timeAgo(iso: string): string {
@@ -52,7 +52,7 @@ export function AdminDashboard() {
 
   return (
     <>
-      <p className="eyebrow">Aspire Clinic — Admin console</p>
+      <p className="eyebrow">Aspire Clinic · Admin console</p>
       <h1 className="display-heading mt-2 leading-[1.05]">Welcome, {user?.displayName ?? ''}</h1>
 
       {/* This is the admin's actual job, so it leads the page (brief §1) —

@@ -219,7 +219,7 @@ export function RegistrationForm({ showEmailField, variant = 'full', submitLabel
       <Card padding="tight" className="flex flex-col gap-[calc(var(--auth-step)*0.9)]">
         <p className="eyebrow">GP &amp; medical details</p>
         <p className="text-sm text-espresso -mt-2">
-          If any of your results come back outside the expected range, we'll ask you to contact your GP — having
+          If any of your results come back outside the expected range, we'll ask you to contact your GP. Having
           these details on file helps us point you in the right direction.
         </p>
         <Input label="GP name" name="gpName" optional value={form.gpName} onChange={(e) => set('gpName', e.target.value)} />

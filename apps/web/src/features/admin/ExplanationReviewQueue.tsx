@@ -125,7 +125,7 @@ export function ExplanationReviewQueue() {
             <p className="eyebrow">Review queue</p>
             <p className="mt-2 text-sm text-espresso">
               {draftCount === 0 ? (
-                'Every marker explanation has been reviewed — patients can see all of them.'
+                'Every marker explanation has been reviewed. Patients can see all of them.'
               ) : (
                 <>
                   <span className="tabular font-medium">{draftCount}</span> explanation
@@ -136,7 +136,7 @@ export function ExplanationReviewQueue() {
             {missingCount > 0 && (
               <p className="mt-1.5 text-sm text-espresso/80">
                 <span className="tabular">{missingCount}</span> marker{missingCount === 1 ? ' has' : 's have'} no
-                explanation written yet — add copy in the Explanations tab before it can be reviewed.
+                explanation written yet. Add copy in the Explanations tab before it can be reviewed.
               </p>
             )}
           </div>
@@ -222,7 +222,7 @@ export function ExplanationReviewQueue() {
                           <p className="font-display text-2xl leading-tight text-espresso">{row.markerName}</p>
                           {/* Text label carries the state; no colour-only status. */}
                           <span className="eyebrow">
-                            {STATUS_COPY[row.reviewStatus].label} — {STATUS_COPY[row.reviewStatus].hint}
+                            {STATUS_COPY[row.reviewStatus].label}: {STATUS_COPY[row.reviewStatus].hint}
                           </span>
                         </div>
                         {row.reviewedAt && (
@@ -235,19 +235,19 @@ export function ExplanationReviewQueue() {
                         <p className="mt-5 leading-relaxed text-espresso">{row.whatItIs}</p>
                         {row.highMeans && (
                           <p className="mt-4 text-sm leading-relaxed text-espresso/90">
-                            <span className="font-medium text-espresso">If it's high — </span>
+                            <span className="font-medium text-espresso">If it's high: </span>
                             {row.highMeans}
                           </p>
                         )}
                         {row.lowMeans && (
                           <p className="mt-2 text-sm leading-relaxed text-espresso/90">
-                            <span className="font-medium text-espresso">If it's low — </span>
+                            <span className="font-medium text-espresso">If it's low: </span>
                             {row.lowMeans}
                           </p>
                         )}
                         {row.lifestyleContext && (
                           <p className="mt-2 text-sm leading-relaxed text-espresso/90">
-                            <span className="font-medium text-espresso">Lifestyle — </span>
+                            <span className="font-medium text-espresso">Lifestyle: </span>
                             {row.lifestyleContext}
                           </p>
                         )}

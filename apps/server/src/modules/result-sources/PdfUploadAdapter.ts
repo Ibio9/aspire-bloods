@@ -144,7 +144,7 @@ function buildQualitativeRow(match: RegExpMatchArray): ParsedMarkerRow | null {
     referenceHigh: null,
     resultText,
     needsReview: true,
-    reviewReason: 'Qualitative result — no numeric value or reference range to verify against.',
+    reviewReason: 'Qualitative result, with no numeric value or reference range to verify against.',
     rawLine: match[0],
   };
 }
@@ -177,7 +177,7 @@ function extractRows(text: string): ParsedMarkerRow[] {
       referenceHigh: null,
       resultText: null,
       needsReview: true,
-      reviewReason: 'No reference range found on or after this line — enter the range manually.',
+      reviewReason: 'No reference range found on or after this line. Enter the range manually.',
       rawLine: pendingBareRow.rawLine,
     });
     pendingBareRow = null;
@@ -294,7 +294,7 @@ function extractRows(text: string): ParsedMarkerRow[] {
         referenceHigh: null,
         resultText: null,
         needsReview: true,
-        reviewReason: `Single-sided threshold in source (${comparator}${limit}) — which side is the healthy range can't be inferred from text alone. Enter the full range manually.`,
+        reviewReason: `Single-sided threshold in source (${comparator}${limit}). Which side is the healthy range can't be inferred from text alone, so enter the full range manually.`,
         rawLine: line,
       });
       pendingNamePrefix = '';
@@ -321,7 +321,7 @@ function extractRows(text: string): ParsedMarkerRow[] {
       referenceHigh: null,
       resultText: null,
       needsReview: true,
-      reviewReason: 'Unrecognised row shape — could not extract a value/unit/range. Enter this result manually.',
+      reviewReason: 'Unrecognised row shape. No value, unit or range could be extracted, so enter this result manually.',
       rawLine: line,
     });
     pendingNamePrefix = '';
@@ -366,7 +366,7 @@ export class PdfUploadAdapter implements ResultSourceAdapter {
         panelName: null,
         rows: extractRows(text),
         extractionMethod: 'regex',
-        fallbackReason: 'AI extraction is not configured (ANTHROPIC_API_KEY unset) — using pattern-based extraction.',
+        fallbackReason: 'AI extraction is not configured (ANTHROPIC_API_KEY unset), so pattern-based extraction was used.',
       };
     }
 
@@ -397,7 +397,7 @@ export class PdfUploadAdapter implements ResultSourceAdapter {
         panelName: null,
         rows: extractRows(text),
         extractionMethod: 'regex',
-        fallbackReason: `AI extraction failed (${e instanceof Error ? e.message : 'unknown error'}) — using pattern-based extraction.`,
+        fallbackReason: `AI extraction failed (${e instanceof Error ? e.message : 'unknown error'}), so pattern-based extraction was used.`,
       };
     }
   }

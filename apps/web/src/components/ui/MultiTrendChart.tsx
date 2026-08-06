@@ -89,7 +89,7 @@ export function MultiTrendChart({ series }: { series: TrendSeries[] }) {
       const point = s.points.find((p) => p.sampleDate === sampleDate);
       if (!point) continue;
       row[s.markerId] = normalise(point.value, point.referenceLow, point.referenceHigh);
-      row[`${s.markerId}__label`] = `${point.value} ${s.unit} — ${statusLabel(point.status)}`;
+      row[`${s.markerId}__label`] = `${point.value} ${s.unit}, ${statusLabel(point.status)}`;
     }
     return row;
   });
@@ -176,7 +176,7 @@ export function MultiTrendChart({ series }: { series: TrendSeries[] }) {
               <span className="text-espresso">
                 <span className="font-medium">{s.name}</span>{' '}
                 <span className="tabular text-espresso/80">
-                  — latest {last.value} {s.unit}, {statusLabel(last.status as MarkerStatus)}
+                  latest {last.value} {s.unit}, {statusLabel(last.status as MarkerStatus)}
                 </span>
                 <span className="sr-only"> ({style.dashLabel})</span>
               </span>

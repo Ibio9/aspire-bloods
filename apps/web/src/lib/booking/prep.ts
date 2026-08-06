@@ -96,7 +96,7 @@ export function combineFasting(panel: Panel | null, addOns: AddOn[]): FastingRul
       required: false,
       minHours: 0,
       maxHours: 0,
-      summary: 'No fasting needed — eat and drink normally beforehand.',
+      summary: 'No fasting needed. Eat and drink normally beforehand.',
     };
   }
   const minHours = Math.max(...rules.map((r) => r.minHours));
@@ -107,7 +107,7 @@ export function combineFasting(panel: Panel | null, addOns: AddOn[]): FastingRul
     required: true,
     minHours,
     maxHours,
-    summary: `Fast for ${minHours} to ${maxHours} hours — water only.`,
+    summary: `Fast for ${minHours} to ${maxHours} hours. Water only.`,
   };
 }
 
@@ -183,9 +183,9 @@ export function fastingInstruction(window: FastingWindow): string {
 export const FASTING_ALLOWANCES: { allowed: boolean; label: string; detail: string }[] = [
   { allowed: true, label: 'Water', detail: 'Plain water, as much as you like. Being well hydrated makes the draw easier.' },
   { allowed: true, label: 'Your usual medication', detail: 'Keep taking anything prescribed unless a clinician has told you otherwise. Never stop a prescribed medicine to prepare for a test.' },
-  { allowed: false, label: 'Tea and coffee', detail: 'Including black, and including decaf — both move glucose and lipid results.' },
+  { allowed: false, label: 'Tea and coffee', detail: 'Including black, and including decaf. Both move glucose and lipid results.' },
   { allowed: false, label: 'Juice, milk, and fizzy drinks', detail: 'Anything with calories in it ends the fast.' },
-  { allowed: false, label: 'Chewing gum and mints', detail: 'Sugar-free included — they still trigger a digestive response.' },
+  { allowed: false, label: 'Chewing gum and mints', detail: 'Sugar-free included. They still trigger a digestive response.' },
   { allowed: false, label: 'Alcohol, for 24 hours', detail: 'Alcohol affects liver markers and triglycerides for longer than an overnight fast.' },
 ];
 

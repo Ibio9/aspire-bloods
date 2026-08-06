@@ -141,14 +141,14 @@ export function TrendChart({ data, crossSourceComparable = true }: { data: Trend
     <div>
       {singlePoint && (
         <p className="mb-3 text-xs text-espresso/80">
-          This is your first result for this marker — the shaded band is the reference range it's measured
+          This is your first result for this marker. The shaded band is the reference range it's measured
           against. A trend line appears once you've had a second test.
         </p>
       )}
       {!crossSourceComparable && (
         <p className="mb-3 text-xs text-espresso/80">
-          These results come from sources that aren't directly comparable for this marker — shown as separate points
-          rather than one trend line.
+          These results come from sources that aren't directly comparable for this marker, so they are shown as
+          separate points rather than one trend line.
         </p>
       )}
       {/* Taller than the old 256px and with room at the right for the last

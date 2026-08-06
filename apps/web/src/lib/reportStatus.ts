@@ -30,11 +30,11 @@ export function stageIndex(status: ReportStatus): number {
 export function whatsNext(status: ReportStatus): string {
   switch (status) {
     case 'UPLOADED':
-      return 'Needs parsing — extract the results from the PDF.';
+      return 'Needs parsing: extract the results from the PDF.';
     case 'PARSED':
-      return 'Needs verification — check the extracted values before they go further.';
+      return 'Needs verification: check the extracted values before they go further.';
     case 'CHANGES_REQUESTED':
-      return 'Changes requested — needs correcting and re-verifying.';
+      return 'Changes requested: needs correcting and re-verifying.';
     case 'ADMIN_VERIFIED':
       return 'Needs clinician review.';
     case 'CLINICIAN_REVIEWED':

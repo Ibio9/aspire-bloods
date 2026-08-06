@@ -69,7 +69,7 @@ export async function materialiseParsedReport(input: {
       continue;
     }
     if (row.value == null) {
-      mappingFailures.push({ markerName: row.rawName, reason: 'Non-numeric result — needs manual entry' });
+      mappingFailures.push({ markerName: row.rawName, reason: 'Non-numeric result, needs manual entry' });
       continue;
     }
     if (row.referenceLow == null || row.referenceHigh == null) {
@@ -210,7 +210,7 @@ async function ingestOne(externalId: string): Promise<void> {
       externalId,
       outcome: 'DUPLICATE',
       reportId: existing.id,
-      message: `Redelivery of ${externalId} ignored — report is already ${existing.status.toLowerCase().replace('_', ' ')}.`,
+      message: `Redelivery of ${externalId} ignored. The report is already ${existing.status.toLowerCase().replace('_', ' ')}.`,
     });
     return;
   }
@@ -250,8 +250,8 @@ async function ingestOne(externalId: string): Promise<void> {
       externalId,
       outcome: 'UNMATCHED_PATIENT',
       message: parsed.externalPatientRef
-        ? `No patient account found for reference "${parsed.externalPatientRef}". Held for an admin to link — see Result linking.`
-        : 'Randox did not supply a patient reference on this result. Held for an admin to link — see Result linking.',
+        ? `No patient account found for reference "${parsed.externalPatientRef}". Held for an admin to link; see Result linking.`
+        : 'Randox did not supply a patient reference on this result. Held for an admin to link; see Result linking.',
     });
     return;
   }
@@ -284,9 +284,9 @@ async function ingestOne(externalId: string): Promise<void> {
     reportId: outcome.reportId,
     markerCount: outcome.markerCount,
     message: parsed.isPartial
-      ? `Partial delivery — ${outcome.markerCount} marker(s) ingested, more expected from Randox.`
+      ? `Partial delivery: ${outcome.markerCount} marker(s) ingested, more expected from Randox.`
       : outcome.mappingFailures.length > 0
-        ? `${outcome.markerCount} marker(s) ingested, ${outcome.mappingFailures.length} skipped — see mapping failures.`
+        ? `${outcome.markerCount} marker(s) ingested, ${outcome.mappingFailures.length} skipped; see mapping failures.`
         : `${outcome.markerCount} marker(s) ingested.`,
     mappingFailures: outcome.mappingFailures,
   });

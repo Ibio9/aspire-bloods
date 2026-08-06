@@ -57,7 +57,7 @@ export function AccountPage() {
       show(`${CONSENT_LABEL[type]} consent withdrawn.`, 'success');
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Something went wrong');
-      show('Could not withdraw consent — please try again.', 'error');
+      show('Could not withdraw consent. Please try again.', 'error');
     } finally {
       setWithdrawing(null);
     }
@@ -77,7 +77,7 @@ export function AccountPage() {
       setConfirmErasure(false);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Something went wrong');
-      show('Could not submit the deletion request — please try again.', 'error');
+      show('Could not submit the deletion request. Please try again.', 'error');
     } finally {
       setErasing(false);
     }
@@ -85,7 +85,7 @@ export function AccountPage() {
 
   return (
     <>
-      <TwoTierHeading eyebrow="Aspire Clinic — Patient Portal" title="Your account & privacy" />
+      <TwoTierHeading eyebrow="Aspire Clinic · Patient Portal" title="Your account & privacy" />
 
       {user && (
         <p className="mt-4 flex items-center gap-1 text-sm text-espresso/80">
@@ -130,7 +130,7 @@ export function AccountPage() {
           <Card>
             <p className="eyebrow mb-3">Your data</p>
             <p className="text-sm text-espresso">
-              Download a full copy of everything we hold about you — your profile, results, consent history, and
+              Download a full copy of everything we hold about you: your profile, results, consent history, and
               account activity.
             </p>
             <Button variant="secondary" className="mt-4" onClick={handleExport}>
@@ -179,7 +179,7 @@ export function AccountPage() {
         {confirmWithdraw && (
           <p>
             You're about to withdraw consent for <strong>{CONSENT_LABEL[confirmWithdraw]}</strong>. Depending on
-            which consent this is, we may no longer be able to provide parts of the portal — you can review the
+            which consent this is, we may no longer be able to provide parts of the portal. You can review the
             detail above before continuing.
           </p>
         )}

@@ -38,7 +38,7 @@ function PanelSummary({ panel }: { panel: PanelOption }) {
   const more = count - examples.length;
   return (
     <p className="text-xs text-espresso/80">
-      {count} marker{count === 1 ? '' : 's'} — {examples.join(', ')}
+      {count} marker{count === 1 ? '' : 's'}: {examples.join(', ')}
       {more > 0 ? `, +${more} more` : ''}
     </p>
   );
@@ -50,7 +50,7 @@ function PanelSummary({ panel }: { panel: PanelOption }) {
 function ConfigureLink({ what }: { what: 'panels' | 'markers' | 'sources' }) {
   return (
     <>
-      No {what} configured yet —{' '}
+      No {what} configured yet.{' '}
       <Link to="/admin/content" className="font-medium text-bronze underline underline-offset-2">
         add one under Content &amp; configuration
       </Link>
@@ -62,7 +62,7 @@ function ConfigureLink({ what }: { what: 'panels' | 'markers' | 'sources' }) {
 function InvitePatientLink() {
   return (
     <>
-      No patients yet —{' '}
+      No patients yet.{' '}
       <Link to="/admin/patients" className="font-medium text-bronze underline underline-offset-2">
         invite one from the Patients page
       </Link>{' '}
@@ -182,13 +182,13 @@ function PdfUploadForm({
         <div className="flex flex-col gap-1.5">
           <Select
             label="Which test package?"
-            hint="A panel is a bundle of markers run on one sample — e.g. Insight 360, Signature, Advanced GP3. Leave it on individual markers for a one-off or repeat test that isn't part of a package."
+            hint="A panel is a bundle of markers run on one sample, such as Insight 360, Signature or Advanced GP3. Leave it on individual markers for a one-off or repeat test that isn't part of a package."
             name="panelId"
             emptyMessage={<ConfigureLink what="panels" />}
             value={panelId}
             onChange={(e) => setPanelId(e.target.value)}
           >
-            <option value="none">No panel — individual markers</option>
+            <option value="none">No panel, individual markers</option>
             {panels.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -325,7 +325,7 @@ function ManualEntryForm({
         noValidate
       >
         <p className="text-sm text-espresso/80">
-          For Aspire's own in-house testing — enter values directly instead of uploading a PDF. Goes through the
+          For Aspire's own in-house testing. Enter values directly instead of uploading a PDF. It goes through the
           same verify-and-release process as everything else.
         </p>
         <Select
@@ -346,13 +346,13 @@ function ManualEntryForm({
         <div className="flex flex-col gap-1.5">
           <Select
             label="Which test package?"
-            hint="A panel is a bundle of markers run on one sample — e.g. Insight 360, Signature, Advanced GP3. Leave it on individual markers for a one-off or repeat test that isn't part of a package."
+            hint="A panel is a bundle of markers run on one sample, such as Insight 360, Signature or Advanced GP3. Leave it on individual markers for a one-off or repeat test that isn't part of a package."
             name="manualPanelId"
             emptyMessage={<ConfigureLink what="panels" />}
             value={panelId}
             onChange={(e) => setPanelId(e.target.value)}
           >
-            <option value="none">No panel — individual markers</option>
+            <option value="none">No panel, individual markers</option>
             {panels.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -366,7 +366,7 @@ function ManualEntryForm({
         <DateField label="Sample date" name="manualSampleDate" value={sampleDate} onChange={setSampleDate} />
         {markers.length === 0 && (
           <p className="text-sm text-espresso/80">
-            No markers configured yet —{' '}
+            No markers configured yet.{' '}
             <Link to="/admin/content" className="underline underline-offset-2">add one</Link> on the content page before entering results.
           </p>
         )}
@@ -455,7 +455,7 @@ function ManualEntryForm({
 
         {implausible && implausible.length > 0 && (
           <Card className="border-status-high bg-white">
-            <p className="font-medium text-espresso">These values look unusual — please double-check:</p>
+            <p className="font-medium text-espresso">These values look unusual. Please double-check:</p>
             <ul className="mt-2 list-disc pl-5 text-sm text-espresso">
               {implausible.map((f, i) => (
                 <li key={i}>
@@ -534,7 +534,7 @@ export function AdminReportsPage() {
 
   return (
     <>
-      <TwoTierHeading eyebrow="Aspire Clinic — Admin" title="Reports" />
+      <TwoTierHeading eyebrow="Aspire Clinic · Admin" title="Reports" />
 
       <div className="mt-8">
         <Tabs
@@ -555,7 +555,7 @@ export function AdminReportsPage() {
 
       <div className="mt-10">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="eyebrow">{statusFilter ? `Reports — ${statusLabel(statusFilter as ReportStatus)}` : 'All reports'}</p>
+          <p className="eyebrow">{statusFilter ? `Reports · ${statusLabel(statusFilter as ReportStatus)}` : 'All reports'}</p>
           {statusFilter && (
             <Button variant="ghost" onClick={() => setSearchParams({})}>
               Clear filter
@@ -563,7 +563,7 @@ export function AdminReportsPage() {
           )}
         </div>
         <p className="mt-1 mb-4 text-xs text-espresso/60">
-          Reports still moving through the pipeline are listed first, closest-to-release first — released reports
+          Reports still moving through the pipeline are listed first, closest to release first. Released reports
           trail behind, most recent first.
         </p>
         <div className="flex flex-col gap-3">
@@ -580,7 +580,7 @@ export function AdminReportsPage() {
                     {r.patient.patientProfile
                       ? `${r.patient.patientProfile.firstName} ${r.patient.patientProfile.lastName}`
                       : r.patient.email}{' '}
-                    — {r.title}
+                    · {r.title}
                   </p>
                   <p className="text-sm text-espresso">
                     Sample date: {formatDate(r.sampleDate)} · {r.source.name}

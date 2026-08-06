@@ -39,7 +39,7 @@ const envSchema = z.object({
   // Shown to patients in the portal's persistent "contact the clinic" panel.
   // CLINIC_PHONE has no default on purpose — see modules/content/clinicContact.ts.
   CLINIC_PHONE: z.string().optional().default(''),
-  CLINIC_HOURS: z.string().default('Monday to Friday, 9am – 5pm'),
+  CLINIC_HOURS: z.string().default('Monday to Friday, 9am–5pm'),
 
   LAB_ADAPTER: z.enum(['RANDOX_PORTAL', 'RANDOX_API']).default('RANDOX_PORTAL'),
   RANDOX_API_BASE_URL: z.string().optional().default(''),

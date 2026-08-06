@@ -64,7 +64,7 @@ export function PatientsListPage() {
 
   return (
     <>
-      <TwoTierHeading eyebrow="Aspire Clinic — Admin console" title="Patients" />
+      <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Patients" />
 
       <div className="mt-8 max-w-md">
         <Input

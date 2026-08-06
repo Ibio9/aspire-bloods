@@ -243,7 +243,7 @@ export function OtpStep({
 
         {showWayOut && (
           <p className="mt-[var(--auth-step)] rounded-input border border-taupe bg-cream-50 px-4 py-2.5 text-sm leading-relaxed text-espresso">
-            Still nothing? Codes can be held up by spam filters — check your junk folder. If it still hasn't
+            Still nothing? Codes can be held up by spam filters, so check your junk folder. If it still hasn't
             arrived,{' '}
             {CLINIC_PHONE && CLINIC_PHONE_HREF ? (
               <>

@@ -35,7 +35,7 @@ function ResendLinkForm() {
     return (
       <p role="status" className="rounded-input border border-taupe bg-cream-50 px-4 py-2.5 text-sm leading-relaxed text-espresso">
         If that address has an account waiting to be confirmed, a new link is on its way. It can take a minute
-        to arrive — check your junk folder too.
+        to arrive, so check your junk folder too.
       </p>
     );
   }

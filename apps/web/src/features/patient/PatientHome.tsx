@@ -110,7 +110,7 @@ export function PatientHome() {
   if (failed) {
     return (
       <>
-        <TwoTierHeading eyebrow="Aspire Clinic — Patient portal" title="My results" />
+        <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="My results" />
         <Card className="mt-8 max-w-xl">
           <p className="font-display text-2xl text-espresso">We couldn't load your results</p>
           <p className="mt-2 text-sm text-espresso/80">
@@ -123,7 +123,7 @@ export function PatientHome() {
 
   return (
     <>
-      <TwoTierHeading eyebrow="Aspire Clinic — Patient portal" title="My results" />
+      <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="My results" />
       <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
         Each panel you've had, newest first. To look at a single marker across every panel it appeared in, use{' '}
         <Link to="/markers" className="rounded-sm font-medium text-bronze-700 underline-offset-4 hover:underline">
@@ -155,8 +155,8 @@ export function PatientHome() {
               rather than leaving a new patient to wonder whether they did
               the sign-up right. */}
           <EmptyState
-            title="Nothing here yet — and that's exactly right"
-            description="Your account is set up and waiting. Once you've had a sample taken, the clinic matches the result to you and a clinician reviews it — then your first panel appears here."
+            title="Nothing here yet, and that's exactly right"
+            description="Your account is set up and waiting. Once you've had a sample taken, the clinic matches the result to you and a clinician reviews it. Then your first panel appears here."
             action={
               <Link
                 to="/overview"

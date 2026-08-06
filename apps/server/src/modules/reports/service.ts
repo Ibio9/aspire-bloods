@@ -185,7 +185,7 @@ export async function verifyReport(
   const duplicateMarkerIds = markerIds.filter((id, i) => markerIds.indexOf(id) !== i);
   if (duplicateMarkerIds.length > 0) {
     throw new ReportError(
-      'Two rows are matched to the same marker — a report can only have one result per marker. Unmatch or fix one of them.',
+      'Two rows are matched to the same marker. A report can only have one result per marker, so unmatch or fix one of them.',
       400,
     );
   }
@@ -368,7 +368,7 @@ export async function editReleasedReportResult(
   });
   if (!result) throw new ReportError('Result not found', 404);
   if (result.report.status !== 'RELEASED') {
-    throw new ReportError('Can only amend a value on a released report — use verify for anything not yet released', 409);
+    throw new ReportError('Can only amend a value on a released report. Use verify for anything not yet released.', 409);
   }
   if (result.report.voidedAt) {
     throw new ReportError('Cannot amend a value on a voided report', 409);

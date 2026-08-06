@@ -38,7 +38,7 @@ export async function checkAndEscalate(reportId: string): Promise<void> {
   const reportTitle = formatReportTitle(report.panel?.name, report.results.length, report.sampleDate);
 
   const channels: string[] = ['EMAIL'];
-  const urgencyLabel = severity === 'SIGNIFICANT' ? 'Significant result — review urgently' : 'Result outside range';
+  const urgencyLabel = severity === 'SIGNIFICANT' ? 'Significant result, review urgently' : 'Result outside range';
 
   await emailProvider.sendEmail({
     to: env.ESCALATION_EMAIL,

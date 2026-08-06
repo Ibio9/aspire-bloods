@@ -218,7 +218,7 @@ function PanelsAndMarkersTab() {
       {panels.length === 0 && (
         <EmptyState
           title="No panels configured yet"
-          description="Create a panel above to get started — patients can't be given a report until at least one panel with markers exists."
+          description="Create a panel above to get started. Patients can't be given a report until at least one panel with markers exists."
         />
       )}
 
@@ -240,7 +240,7 @@ function PanelsAndMarkersTab() {
                       strokeLinejoin="round"
                     />
                   </svg>
-                  Seeded default — not yet confirmed against the real panel spec
+                  Seeded default, not yet confirmed against the real panel spec
                   <button
                     type="button"
                     onClick={() => confirmComposition(panel)}
@@ -263,7 +263,7 @@ function PanelsAndMarkersTab() {
 
           <div className="mt-4 flex flex-col gap-2">
             {panel.markers.length === 0 && (
-              <p className="text-sm text-espresso/80">No markers in this panel yet — add one below.</p>
+              <p className="text-sm text-espresso/80">No markers in this panel yet. Add one below.</p>
             )}
             {panel.markers.map((pm) => (
               <div key={pm.id} className="flex flex-wrap items-center gap-3 border-b border-taupe pb-2 last:border-b-0">
@@ -409,7 +409,7 @@ function ExplanationsTab() {
           label="Marker"
           name="explanationMarker"
           searchable
-          emptyMessage={<>No markers configured yet — add one under the Panels &amp; markers tab.</>}
+          emptyMessage={<>No markers configured yet. Add one under the Panels &amp; markers tab.</>}
           value={selectedId}
           onChange={(e) => setSelectedId(e.target.value)}
         >
@@ -425,7 +425,7 @@ function ExplanationsTab() {
       {selectedId && (
         <Card className="flex flex-col gap-4">
           <p className="text-sm text-espresso/80">
-            Status: {detail?.reviewStatus ?? 'DRAFT'} — editing resets it to draft until reviewed again.
+            Status: {detail?.reviewStatus ?? 'DRAFT'}. Editing resets it to draft until reviewed again.
           </p>
           <div className="flex flex-col gap-1.5">
             <label htmlFor="whatItIs" className="text-sm font-medium text-espresso">
@@ -547,7 +547,7 @@ function CopyBlocksTab() {
 export function ContentConfigPage() {
   return (
     <>
-      <TwoTierHeading eyebrow="Aspire Clinic — Admin console" title="Content & configuration" />
+      <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Content & configuration" />
 
       <div className="mt-10">
         <Tabs

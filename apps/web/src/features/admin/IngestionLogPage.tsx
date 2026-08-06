@@ -56,9 +56,9 @@ export function IngestionLogPage() {
 
   return (
     <>
-      <TwoTierHeading eyebrow="Aspire Clinic — Admin console" title="Ingestion log" />
+      <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Ingestion log" />
       <p className="mt-3 max-w-prose text-sm text-espresso/80">
-        Every attempt to pull a result in automatically from Randox's API — successful or not. Ingestion only ever
+        Every attempt to pull a result in automatically from Randox's API, successful or not. Ingestion only ever
         reaches admin-verified; a clinician still has to review and release before a patient sees anything.
       </p>
 

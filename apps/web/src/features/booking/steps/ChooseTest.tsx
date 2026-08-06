@@ -138,7 +138,7 @@ function FastingBadge({ panel, className = '' }: { panel: Panel; className?: str
   return (
     <span className={`inline-flex w-fit items-center gap-2 rounded-full bg-espresso px-3 py-1.5 text-xs font-medium text-cream ${className}`}>
       <NoFoodIcon className="h-3.5 w-3.5 shrink-0" />
-      Fasting required — {panel.fasting.minHours}–{panel.fasting.maxHours} hours
+      Fasting required: {panel.fasting.minHours}–{panel.fasting.maxHours} hours
     </span>
   );
 }

@@ -48,7 +48,7 @@ export function authErrorMessage(e: unknown): string {
         : `${e.message} This is a temporary lock to protect your account.`;
     }
     if (e.status === 502 || e.status === 503) {
-      return `We couldn't send that just now — our email/SMS service is temporarily unavailable. Please try again in a few minutes, or contact ${CLINIC_CONTACT} if this continues.`;
+      return `We couldn't send that just now. Our email and SMS service is temporarily unavailable. Please try again in a few minutes, or contact ${CLINIC_CONTACT} if this continues.`;
     }
     return e.message;
   }

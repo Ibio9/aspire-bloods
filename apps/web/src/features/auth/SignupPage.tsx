@@ -9,7 +9,7 @@ import { Button } from '../../components/ui/Button';
 const EYEBROW = 'Aspire Clinic';
 const HEADLINE = 'Create your account.';
 const SUPPORTING =
-  'Set up your portal in a minute. Your results appear here once the clinic has matched them to you — nothing is published until a clinician has reviewed it.';
+  'Set up your portal in a minute. Your results appear here once the clinic has matched them to you. Nothing is published until a clinician has reviewed it.';
 
 interface SignupResponse {
   status: string;
@@ -58,7 +58,7 @@ export function SignupPage() {
         <h2 className="auth-heading">Confirm your email</h2>
         <p className="mt-[var(--auth-step)] text-sm leading-relaxed text-espresso/80">
           We've sent a link to <span className="font-medium text-espresso">{sent.sentTo ?? 'your email address'}</span>.
-          Open it to activate your account — we'll then send a one-time code to finish setting up two-factor
+          Open it to activate your account. We'll then send a one-time code to finish setting up two-factor
           sign-in.
         </p>
         {sent.expiresInHours && (
@@ -68,7 +68,7 @@ export function SignupPage() {
         )}
 
         <div className="mt-[calc(var(--auth-step)*1.6)] border-t border-taupe pt-[calc(var(--auth-step)*1.2)]">
-          <p className="text-sm text-espresso/80">Didn't get it? Check your junk folder first — then:</p>
+          <p className="text-sm text-espresso/80">Didn't get it? Check your junk folder first, then:</p>
           <div className="mt-[calc(var(--auth-step)*0.75)] flex flex-wrap items-center gap-x-4 gap-y-2">
             <Button variant="secondary" onClick={handleResend} loading={resendState === 'sending'}>
               Send the link again
@@ -101,7 +101,7 @@ export function SignupPage() {
       <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">Patient portal</p>
       <h2 className="auth-heading">Create an account</h2>
       <p className="mt-[var(--auth-step)] max-w-prose text-sm leading-relaxed text-espresso/80">
-        Anyone can register — you don't need an invitation. We'll confirm your email address, then set up
+        Anyone can register. You don't need an invitation. We'll confirm your email address, then set up
         two-factor sign-in. Your date of birth and contact number are how the clinic makes sure a result is
         yours before it's added to your account.
       </p>

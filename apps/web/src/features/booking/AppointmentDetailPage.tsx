@@ -76,7 +76,7 @@ export function AppointmentDetailPage() {
     return (
       <>
         <Breadcrumbs items={[{ label: 'Overview', to: '/overview' }, { label: 'Appointments', to: '/appointments' }, { label: 'Not found' }]} />
-        <TwoTierHeading eyebrow="Aspire Clinic — Patient portal" title="We couldn't find that appointment" />
+        <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="We couldn't find that appointment" />
         <Card className="mt-8 max-w-xl">
           <p className="text-sm leading-relaxed text-espresso/90">
             The link may be out of date. Everything currently in your diary is listed under your appointments.
@@ -131,8 +131,8 @@ export function AppointmentDetailPage() {
           </p>
           <p className="mt-4 text-[15px] leading-relaxed text-espresso">
             We've emailed you a confirmation. Your reference is{' '}
-            <span className="tabular font-semibold">{appointment.reference}</span> — quote it if you call us. Read
-            the preparation below before the day; it's the part that matters.
+            <span className="tabular font-semibold">{appointment.reference}</span>. Quote it if you call us. Read the
+            preparation below before the day; it's the part that matters.
           </p>
         </div>
       )}
@@ -157,7 +157,7 @@ export function AppointmentDetailPage() {
             This appointment was cancelled
           </p>
           <p className="mt-3 text-[15px] leading-relaxed text-espresso/90">
-            Nothing was taken and nothing is owed. The record stays here so your history is complete — book again
+            Nothing was taken and nothing is owed. The record stays here so your history is complete. Book again
             whenever you're ready.
           </p>
           <Button className="mt-6" onClick={() => navigate('/book')}>
@@ -202,7 +202,7 @@ export function AppointmentDetailPage() {
             <Card className="mt-6">
               <p className="text-[15px] leading-relaxed text-espresso/90">
                 Your sample is with the laboratory. Results for {panel?.name ?? 'this panel'} usually take{' '}
-                {combinedTurnaround(panel, addOns).label} — {expectedResultsLabel(panel, addOns, appointment.date)}.
+                {combinedTurnaround(panel, addOns).label}, {expectedResultsLabel(panel, addOns, appointment.date)}.
                 They come back to the Aspire clinical team first, and nothing is published to you until a clinician
                 has reviewed it.
               </p>
@@ -242,8 +242,8 @@ export function AppointmentDetailPage() {
                 </p>
                 <p className="mt-3 text-[15px] leading-relaxed text-espresso/90">
                   Appointments can be moved or cancelled here up to {bookingService.changeCutoffHours} hours
-                  beforehand, and yours is inside that window. Call the clinic — we would much rather rearrange it
-                  than have you not turn up.
+                  beforehand, and yours is inside that window. Please call the clinic. We would much rather rearrange
+                  it than have you not turn up.
                 </p>
               </Card>
               <ClinicContactCard />
@@ -269,7 +269,7 @@ export function AppointmentDetailPage() {
           change your mind.
         </p>
         <p className="mt-3 leading-relaxed">
-          If you only need a different time, move it instead — that keeps your reference and your place.
+          If you only need a different time, move it instead. That keeps your reference and your place.
         </p>
       </ConfirmModal>
     </>

@@ -103,7 +103,7 @@ export function AppointmentCard({ appointment, catalogue, compact = false }: App
         {!compact && homeKitAddOns(addOns).length > 0 && (
           <p className="mt-3 flex items-start gap-2 text-sm text-espresso/85">
             <HomeKitIcon className="mt-0.5 shrink-0 text-bronze-700" />
-            <span>{homeKitAddOns(addOns).map((a) => a.name).join(', ')} arrives by post — not taken at this appointment.</span>
+            <span>{homeKitAddOns(addOns).map((a) => a.name).join(', ')} arrives by post. It isn't taken at this appointment.</span>
           </p>
         )}
 
@@ -126,7 +126,7 @@ export function AppointmentCard({ appointment, catalogue, compact = false }: App
               <>Your results from this appointment are in your portal.</>
             ) : (
               <>
-                Results usually arrive {combinedTurnaround(panel, addOns).label.toLowerCase()} after the draw —{' '}
+                Results usually arrive {combinedTurnaround(panel, addOns).label.toLowerCase()} after the draw,{' '}
                 {expectedResultsLabel(panel, addOns, appointment.date)}. Nothing is published until a clinician has
                 reviewed it.
               </>

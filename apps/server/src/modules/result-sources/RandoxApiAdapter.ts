@@ -93,7 +93,7 @@ function mapRow(m: RandoxMarkerPayload): ParsedMarkerRow {
     resultText: m.textValue ?? null,
     needsReview: m.value == null,
     reviewReason:
-      m.value == null ? 'Non-numeric result — no value or reference range to verify against.' : null,
+      m.value == null ? 'Non-numeric result, with no value or reference range to verify against.' : null,
     flags: m.value == null && m.textValue != null ? ['non_numeric_result'] : [],
   };
 }

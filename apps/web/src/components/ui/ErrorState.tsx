@@ -53,7 +53,7 @@ function explain(error: unknown, subject: string): Explanation {
   if (status === 401) {
     return {
       title: 'Your session has ended',
-      description: 'You’ll need to sign in again to see this. Nothing has been lost — you’ll come straight back here.',
+      description: 'You’ll need to sign in again to see this. Nothing has been lost, and you’ll come straight back here.',
       retryable: false,
     };
   }
@@ -67,7 +67,7 @@ function explain(error: unknown, subject: string): Explanation {
   if (status >= 500) {
     return {
       title: 'Something went wrong at our end',
-      description: `We couldn't load ${subject}. This is a fault on our side, not anything you did — trying again often works.`,
+      description: `We couldn't load ${subject}. This is a fault on our side, not anything you did. Trying again often works.`,
       retryable: true,
     };
   }

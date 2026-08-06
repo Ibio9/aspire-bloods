@@ -121,7 +121,7 @@ function FastingRequired({
               </span>
             </h2>
             <p className="mt-5 max-w-2xl text-[15px] leading-relaxed text-cream/90">
-              {panelName} measures things that food moves within minutes — blood sugar and triglycerides most of all.
+              {panelName} measures things that food moves within minutes: blood sugar and triglycerides most of all.
               Once you've picked a time we'll tell you the exact hour to stop eating, so there is nothing for you to
               work out.
             </p>
@@ -163,7 +163,7 @@ function FastingRequired({
         <p className="text-[15px] leading-relaxed text-cream">
           <span className="font-medium">If you eat, we can't use the sample.</span> The draw would go ahead and the
           results would be misleading, so we'd have to ask you back for a second appointment. If you slip up, tell the
-          phlebotomist when you arrive — rebooking on the day costs you nothing.
+          phlebotomist when you arrive. Rebooking on the day costs you nothing.
         </p>
       </div>
     </section>
@@ -187,7 +187,7 @@ function NoFastingNeeded({ headingId, panelName, className }: { headingId: strin
       </h2>
       <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-espresso/90">
         Eat and drink as you normally would before your appointment. Nothing in {panelName} is moved by a meal, so
-        there is no window to plan around — come as you are. Being well hydrated makes the draw itself quicker and
+        there is no window to plan around. Come as you are. Being well hydrated makes the draw itself quicker and
         more comfortable, so a glass of water beforehand is worth it.
       </p>
     </section>
@@ -210,7 +210,7 @@ function FastingSummary({
     return (
       <p className={`flex items-start gap-2.5 text-sm text-espresso/85 ${className}`}>
         <FoodOkIcon className="mt-px h-4 w-4 shrink-0 text-bronze-700" />
-        <span>No fasting needed — eat and drink normally.</span>
+        <span>No fasting needed. Eat and drink normally.</span>
       </p>
     );
   }
@@ -228,7 +228,7 @@ function FastingSummary({
           </>
         ) : (
           <span className="font-medium">
-            Fasting required — {rule.minHours} to {rule.maxHours} hours, water only.
+            Fasting required: {rule.minHours} to {rule.maxHours} hours, water only.
           </span>
         )}
       </span>

@@ -161,8 +161,8 @@ export function SlotPicker({
             We couldn't load the diary
           </p>
           <p className="mt-2 text-sm leading-relaxed text-espresso/90">
-            Nothing you've chosen has been lost. Try again — and if it keeps happening, call the clinic and we'll book
-            you in over the phone.
+            Nothing you've chosen has been lost. Try again. If it keeps happening, call the clinic and we'll book you
+            in over the phone.
           </p>
           <Button variant="secondary" className="mt-5" onClick={() => setRetry((n) => n + 1)}>
             Try again
@@ -206,7 +206,7 @@ export function SlotPicker({
                     <span>
                       {morningRequiredBy
                         ? `${morningRequiredBy} needs a slot before ${MORNING_CUTOFF_HOUR}am. Later times are shown, but can't be booked alongside it.`
-                        : 'An overnight fast is far easier to finish than a daytime one — the earliest slots are marked.'}
+                        : 'An overnight fast is far easier to finish than a daytime one, so the earliest slots are marked.'}
                     </span>
                   </p>
                 )}

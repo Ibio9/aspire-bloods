@@ -32,7 +32,7 @@ export function CopyButton({ value, label, className = '' }: CopyButtonProps) {
       <button
         type="button"
         onClick={handleCopy}
-        aria-label={copied ? `${label} — copied` : label}
+        aria-label={copied ? `${label}, copied` : label}
         className="inline-flex h-8 w-8 items-center justify-center rounded-full text-espresso/50 transition duration-150 ease-out hover:bg-cream-200 hover:text-espresso active:scale-90 active:duration-0"
       >
         {copied ? (
@@ -47,7 +47,7 @@ export function CopyButton({ value, label, className = '' }: CopyButtonProps) {
         )}
       </button>
       <span role="status" aria-live="polite" className="sr-only">
-        {copied ? `${label} — copied to clipboard` : ''}
+        {copied ? `${label} copied to clipboard` : ''}
       </span>
     </span>
   );

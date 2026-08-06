@@ -59,7 +59,7 @@ const STEPS = [
     key: 'prepare',
     short: 'Prepare',
     title: 'Before you come',
-    lede: 'What to do — and not do — between now and your appointment.',
+    lede: 'What to do, and what not to do, between now and your appointment.',
   },
   {
     key: 'confirm',
@@ -177,11 +177,11 @@ export function BookingPage() {
     return (
       <>
         <Breadcrumbs items={[{ label: 'Overview', to: '/overview' }, { label: 'Book a test' }]} />
-        <TwoTierHeading eyebrow="Aspire Clinic — Patient portal" title="We couldn't load the booking page" />
+        <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="We couldn't load the booking page" />
         <Card className="mt-8 max-w-xl">
           <p className="text-sm leading-relaxed text-espresso/90">
-            Please refresh and try again. If it keeps happening, call the clinic and we'll book you in over the phone
-            — nothing you do here is ever the only way to get an appointment.
+            Please refresh and try again. If it keeps happening, call the clinic and we'll book you in over the phone.
+            Nothing you do here is ever the only way to get an appointment.
           </p>
         </Card>
       </>
@@ -421,7 +421,7 @@ function StepProgress({ step, furthest, onJump }: { step: number; furthest: numb
                   className="flex min-h-[44px] items-center gap-2 rounded-full px-1 text-sm transition duration-150 ease-out hover:text-bronze-700"
                 >
                   {content}
-                  <span className="sr-only">— go back to {s.title}</span>
+                  <span className="sr-only">, go back to {s.title}</span>
                 </button>
               ) : (
                 <span

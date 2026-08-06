@@ -42,7 +42,7 @@ export function DocumentsPage() {
       const { url } = await apiFetch<{ url: string }>(`/patient/reports/${reportId}/${kind}`);
       window.open(`${API_BASE_URL}${url}`, '_blank');
     } catch {
-      show('That download could not be prepared — please try again.', 'error');
+      show('That download could not be prepared. Please try again.', 'error');
     } finally {
       setDownloading(null);
     }
@@ -50,9 +50,9 @@ export function DocumentsPage() {
 
   return (
     <>
-      <TwoTierHeading eyebrow="Aspire Clinic — Patient portal" title="Documents" />
+      <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="Documents" />
       <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
-        Every report you can download — the original laboratory PDF and the Aspire summary — in one place.
+        Every report you can download in one place: the original laboratory PDF and the Aspire summary.
       </p>
 
       {documents === null ? (
@@ -69,7 +69,7 @@ export function DocumentsPage() {
         <div className="mt-12 max-w-2xl">
           <EmptyState
             title="No documents yet"
-            description="When a report has been reviewed and released to you, its PDFs appear here — the laboratory's own report, and an Aspire summary written in plain English."
+            description="When a report has been reviewed and released to you, its PDFs appear here: the laboratory's own report, and an Aspire summary written in plain English."
             action={
               <Link
                 to="/overview"

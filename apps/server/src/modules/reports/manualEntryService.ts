@@ -38,7 +38,7 @@ function findImplausibleRows(
         value: r.value,
         referenceLow: r.referenceLow,
         referenceHigh: r.referenceHigh,
-        reason: 'Value is far outside the entered range — check for a decimal-place or unit slip.',
+        reason: 'Value is far outside the entered range. Check for a decimal-place or unit slip.',
       });
     }
   }

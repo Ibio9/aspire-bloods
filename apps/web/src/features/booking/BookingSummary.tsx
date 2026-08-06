@@ -41,7 +41,7 @@ export function BookingSummary({ panel, addOns, location, date, time, durationMi
   return (
     <div className="flex flex-col gap-8">
       {/* ── what ────────────────────────────────────────────────────────── */}
-      <Section title="What you're having" onEdit={onEdit?.test} editLabel="Change your test">
+      <Section title="What you're having" onEdit={onEdit?.test} editLabel="your test">
         <p className="font-display text-2xl leading-tight text-espresso sm:text-3xl">{panel.name}</p>
         <p className="tabular mt-2 text-sm text-espresso/85">
           {panel.markerCount} markers · results in {turnaround.label}
@@ -55,7 +55,7 @@ export function BookingSummary({ panel, addOns, location, date, time, durationMi
           <p className="mt-3 flex items-start gap-2.5 text-[15px] leading-relaxed text-espresso">
             <HomeKitIcon className="mt-1 shrink-0 text-bronze-700" />
             <span>
-              <span className="font-medium">{kits.map((a) => a.name).join(', ')}</span> — a kit posted to you within
+              <span className="font-medium">{kits.map((a) => a.name).join(', ')}</span>: a kit posted to you within
               two working days, collected at home rather than at this appointment.
             </span>
           </p>
@@ -63,7 +63,7 @@ export function BookingSummary({ panel, addOns, location, date, time, durationMi
       </Section>
 
       {/* ── where ───────────────────────────────────────────────────────── */}
-      <Section title="Where" onEdit={onEdit?.location} editLabel="Change the clinic">
+      <Section title="Where" onEdit={onEdit?.location} editLabel="the clinic">
         <p className="font-display text-2xl leading-tight text-espresso">{location.name}</p>
         <p className="mt-3 flex items-start gap-2.5 text-[15px] text-espresso">
           <PinIcon className="mt-1 shrink-0 text-bronze-700" />
@@ -79,7 +79,7 @@ export function BookingSummary({ panel, addOns, location, date, time, durationMi
       </Section>
 
       {/* ── when ────────────────────────────────────────────────────────── */}
-      <Section title="When" onEdit={onEdit?.slot} editLabel="Change the time">
+      <Section title="When" onEdit={onEdit?.slot} editLabel="the time">
         <p className="flex items-start gap-2.5">
           <CalendarIcon className="mt-1.5 shrink-0 text-bronze-700" />
           <span className="font-display text-2xl leading-tight text-espresso sm:text-3xl">
@@ -88,7 +88,7 @@ export function BookingSummary({ panel, addOns, location, date, time, durationMi
         </p>
         <p className="tabular mt-3 flex items-center gap-2.5 text-[15px] text-espresso">
           <ClockIcon className="shrink-0 text-bronze-700" />
-          {formatClockTime(time)} — allow about {durationMinutes} minutes
+          {formatClockTime(time)}. Allow about {durationMinutes} minutes.
         </p>
       </Section>
 
@@ -110,8 +110,8 @@ export function BookingSummary({ panel, addOns, location, date, time, durationMi
       <Section title="Afterwards">
         <p className="text-[15px] leading-relaxed text-espresso">
           Expect your results {expectedResultsLabel(panel, addOns, date)}. They come back to the Aspire clinical team
-          first — a clinician reviews every result before it appears in your portal, and we'll email you the moment
-          it does.
+          first. A clinician reviews every result before it appears in your portal, and we'll email you the moment it
+          does.
         </p>
       </Section>
     </div>
@@ -142,7 +142,7 @@ function Section({
             onClick={onEdit}
             className="-my-2 -mr-2 min-h-[44px] rounded-full px-3 text-sm font-medium text-bronze-700 underline-offset-4 transition duration-150 ease-out hover:underline"
           >
-            Change<span className="sr-only"> — {editLabel}</span>
+            Change<span className="sr-only"> {editLabel}</span>
           </button>
         )}
       </div>

@@ -12,7 +12,7 @@ import { consumeRedirect } from '../../lib/redirectAfterLogin';
 
 const LOGOUT_REASON_COPY: Record<string, string> = {
   idle: "You were signed out after a period of inactivity, to keep your results secure.",
-  expired: 'Your session has expired — please sign in again.',
+  expired: 'Your session has expired. Please sign in again.',
 };
 
 function readAndClearLogoutReason(): string | null {

@@ -224,8 +224,8 @@ export async function signup(input: SignupRequest, ip: string | null): Promise<S
       .sendEmail({
         to: existing.email,
         subject: 'Someone tried to register with your email',
-        text: `Someone just tried to create an Aspire Bloods account with this email address, but you already have one. If that was you, sign in at ${env.APP_BASE_URL}/login instead — you can reset your password there if you've forgotten it. If it wasn't you, no action is needed: no new account was created and nothing about yours has changed.`,
-        html: `<p>Someone just tried to create an Aspire Bloods account with this email address, but you already have one.</p><p>If that was you, <a href="${env.APP_BASE_URL}/login">sign in</a> instead. If it wasn't, no action is needed — no new account was created and nothing about yours has changed.</p>`,
+        text: `Someone just tried to create an Aspire Bloods account with this email address, but you already have one. If that was you, sign in at ${env.APP_BASE_URL}/login instead. You can reset your password there if you've forgotten it. If it wasn't you, no action is needed: no new account was created and nothing about yours has changed.`,
+        html: `<p>Someone just tried to create an Aspire Bloods account with this email address, but you already have one.</p><p>If that was you, <a href="${env.APP_BASE_URL}/login">sign in</a> instead. If it wasn't, no action is needed: no new account was created and nothing about yours has changed.</p>`,
       })
       .catch((e) => {
         // The notice failing must not change the response shape and give
@@ -306,7 +306,7 @@ export async function signup(input: SignupRequest, ip: string | null): Promise<S
       error: e instanceof Error ? e.message : e,
     });
     throw new AuthError(
-      "We couldn't send your confirmation email just now. Your details are saved — please try again in a few minutes.",
+      "We couldn't send your confirmation email just now. Your details are saved, so please try again in a few minutes.",
       502,
     );
   }
@@ -541,7 +541,7 @@ export async function login(
       ipAddress: ip,
     });
     throw new AuthError(
-      'Please confirm your email address first — open the link we sent you when you registered. You can ask for a new one from the sign-up page.',
+      'Please confirm your email address first by opening the link we sent you when you registered. You can ask for a new one from the sign-up page.',
       403,
     );
   }

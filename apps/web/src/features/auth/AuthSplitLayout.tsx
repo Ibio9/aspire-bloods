@@ -61,7 +61,7 @@ export function AuthSplitLayout({ children, eyebrow, headline, supporting, wide 
           {/* Widens with the type so the headline holds two lines rather than
               three once the clamp reaches its ceiling on tall displays. */}
           <h1 className="auth-display mt-[calc(var(--auth-step)*1.25)] max-w-md lg:max-w-lg">
-            {headline ?? 'Your results, explained — not just handed to you.'}
+            {headline ?? 'Your results, explained.'}
           </h1>
           <p className="mt-[var(--auth-step)] max-w-xs text-sm leading-relaxed text-cream/70">
             {supporting ?? 'Sign in to see your panels, track markers over time, and understand what they mean for you.'}
@@ -70,7 +70,7 @@ export function AuthSplitLayout({ children, eyebrow, headline, supporting, wide 
 
         {/* cream/70 not /50: at this small size, anything under ~/65 drops below 4.5:1 body-text AA against espresso, verified */}
         <p className="relative hidden shrink-0 pt-[var(--auth-step)] text-xs leading-relaxed text-cream/70 md:block">
-          Aspire Clinic — Aspire Group of Companies
+          Aspire Clinic, part of the Aspire Group of Companies
           <br />
           27 Mortimer Street, London
         </p>

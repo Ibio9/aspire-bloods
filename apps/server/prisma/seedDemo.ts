@@ -404,7 +404,7 @@ async function resolveDemoStaff() {
       role: 'ADMIN',
       status: 'DISABLED',
       twoFactorMethod: 'EMAIL',
-      staffProfile: { create: { firstName: 'Demo', lastName: 'Administrator', roleTitle: 'DEMO DATA — placeholder, cannot sign in' } },
+      staffProfile: { create: { firstName: 'Demo', lastName: 'Administrator', roleTitle: 'DEMO DATA: placeholder, cannot sign in' } },
     },
   });
 
@@ -417,7 +417,7 @@ async function resolveDemoStaff() {
       role: 'CLINICIAN',
       status: 'DISABLED',
       twoFactorMethod: 'EMAIL',
-      staffProfile: { create: { firstName: 'Demo', lastName: 'Clinician', roleTitle: 'DEMO DATA — placeholder, cannot sign in' } },
+      staffProfile: { create: { firstName: 'Demo', lastName: 'Clinician', roleTitle: 'DEMO DATA: placeholder, cannot sign in' } },
     },
   });
 
@@ -563,7 +563,7 @@ async function main() {
             unit,
             low: res.low,
             high: res.high,
-            source: `${DEMO_RANGE_TAG} — synthetic ${source.name} range, report ${index + 1} of ${demoReports.length}`,
+            source: `${DEMO_RANGE_TAG}: synthetic ${source.name} range, report ${index + 1} of ${demoReports.length}`,
           },
         });
 
