@@ -128,7 +128,7 @@ export function PatientDetailPage() {
   return (
     <>
       <Breadcrumbs items={[{ label: 'Patients', to: '/admin/patients' }, { label: name }]} />
-      <TwoTierHeading eyebrow="Aspire Clinic — Admin console" title={name} />
+      <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title={name} />
 
       {error && (
         <p role="alert" className="mt-4 text-sm text-status-significantHigh">
@@ -158,7 +158,7 @@ export function PatientDetailPage() {
           {profile.deactivatedAt && (
             <p className="mt-1 text-sm text-espresso/80">
               Deactivated {formatDate(profile.deactivatedAt)} by {profile.deactivatedByName}
-              {profile.deactivationReason ? ` — “${profile.deactivationReason}”` : ''}
+              {profile.deactivationReason ? `: “${profile.deactivationReason}”` : ''}
             </p>
           )}
           {p && (
@@ -356,7 +356,7 @@ export function PatientDetailPage() {
         onConfirm={() =>
           runAction(async () => {
             await apiFetch(`/admin/patients/${id}/reset-2fa`, { method: 'POST' });
-          }, '2FA reset — trusted devices revoked.')
+          }, '2FA reset. Trusted devices revoked.')
         }
       >
         <p>
@@ -382,7 +382,7 @@ export function PatientDetailPage() {
       >
         <p>
           <strong>{name}</strong> will no longer be able to sign in, and any session already in progress ends
-          immediately. All their data — results, consents, history — is retained untouched. This is reversible: you
+          immediately. All their data (results, consents, history) is retained untouched. This is reversible: you
           can reactivate the account at any time.
         </p>
       </ConfirmModal>
@@ -413,7 +413,7 @@ export function PatientDetailPage() {
         onConfirm={() =>
           runAction(async () => {
             await apiFetch(`/admin/patients/${id}/erasure`, { method: 'POST' });
-          }, 'Erasure request created — schedule it from the erasure requests queue when ready.')
+          }, 'Erasure request created. Schedule it from the erasure requests queue when ready.')
         }
       >
         <p>
@@ -421,8 +421,8 @@ export function PatientDetailPage() {
           request that still needs to be scheduled before anything is purged.
         </p>
         <p className="mt-3">
-          <strong>Clinical results are never deleted by this</strong> — they're retained for the period required by
-          law regardless. Only the patient's personal/contact details are de-identified once the purge runs.
+          <strong>Clinical results are never deleted by this.</strong> They're retained for the period required by
+          law regardless. Only the patient's personal and contact details are de-identified once the purge runs.
         </p>
       </ConfirmModal>
     </>

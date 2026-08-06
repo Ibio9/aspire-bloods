@@ -95,7 +95,7 @@ export function ResetPasswordPage() {
       <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">Password reset</p>
       <h2 className="auth-heading">Set a new password</h2>
       <p className="mt-[var(--auth-step)] text-sm leading-relaxed text-espresso/80">
-        Choose something you haven't used elsewhere. Saving it signs you out on every device — including any you
+        Choose something you haven't used elsewhere. Saving it signs you out on every device, including any you
         don't recognise.
       </p>
 

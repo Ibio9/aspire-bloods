@@ -117,10 +117,10 @@ export function RandoxCataloguePage() {
 
   return (
     <>
-      <TwoTierHeading eyebrow="Aspire Clinic — Admin console" title="Randox catalogue" />
+      <TwoTierHeading eyebrow="Aspire Clinic: Admin console" title="Randox catalogue" />
       <p className="mt-3 max-w-prose text-sm text-espresso/80">
         What Randox actually offer, against what our own catalogue lists. Ours was built from a pricing email rather
-        than a spec sheet, so expect them to differ. A panel or test with no mapping cannot be ordered — the order is
+        than a spec sheet, so expect them to differ. A panel or test with no mapping cannot be ordered. The order is
         refused rather than sent with a guessed identifier.
       </p>
 
@@ -133,7 +133,7 @@ export function RandoxCataloguePage() {
             {summary.lastRefreshedAt
               ? `Last refreshed ${new Date(summary.lastRefreshedAt).toLocaleString('en-GB')}`
               : 'Never refreshed'}
-            {summary.stale && ' — out of date'}
+            {summary.stale && ', out of date'}
           </span>
         )}
       </div>
@@ -189,7 +189,7 @@ export function RandoxCataloguePage() {
       {side && side.retired.length > 0 && (
         <div className="mt-4 rounded-lg border border-bronze/40 bg-bronze/5 p-4">
           <p className="text-sm font-medium text-espresso">
-            Withdrawn by Randox — {side.retired.length} mapped {side.retired.length === 1 ? 'entry' : 'entries'}
+            Withdrawn by Randox: {side.retired.length} mapped {side.retired.length === 1 ? 'entry' : 'entries'}
           </p>
           <p className="mt-1 text-sm text-espresso/75">
             Existing reports are unaffected. New orders using these will be rejected.
@@ -241,7 +241,7 @@ export function RandoxCataloguePage() {
                       ? 'Withdrawn by Randox'
                       : entry.mappedKey
                         ? 'Mapped'
-                        : 'Not mapped — cannot be ordered'}
+                        : 'Not mapped, cannot be ordered'}
                   </TableCell>
                   <TableCell>
                     <Select

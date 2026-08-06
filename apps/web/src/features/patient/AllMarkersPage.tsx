@@ -119,9 +119,9 @@ export function AllMarkersPage() {
 
   return (
     <>
-      <TwoTierHeading eyebrow="Aspire Clinic — Patient portal" title="All markers" />
+      <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="All markers" />
       <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
-        Everything you've ever had tested, whichever report it came from — with its latest value and how it has moved.
+        Everything you've ever had tested, whichever report it came from, with its latest value and how it has moved.
       </p>
 
       {markers === null ? (
@@ -137,7 +137,7 @@ export function AllMarkersPage() {
         <div className="mt-12 max-w-2xl">
           <EmptyState
             title="Nothing tested yet"
-            description="Once your first results have been reviewed and released, every marker in them will be listed here — and from your second test onwards, each one will show which way it's heading."
+            description="Once your first results have been reviewed and released, every marker in them will be listed here. From your second test onwards, each one will show which way it's heading."
             action={
               <Link
                 to="/overview"

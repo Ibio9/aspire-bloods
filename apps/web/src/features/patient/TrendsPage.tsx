@@ -102,7 +102,7 @@ export function TrendsPage() {
 
   return (
     <>
-      <TwoTierHeading eyebrow="Aspire Clinic — Patient portal" title="Trends" />
+      <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="Trends" />
       <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
         Put up to {MAX_SELECTED} markers on one timeline to see how they've moved in relation to each other.
       </p>
@@ -191,7 +191,7 @@ export function TrendsPage() {
 
               {selected.length >= MAX_SELECTED && (
                 <p className="mt-3 text-xs text-espresso/70">
-                  That's the maximum — deselect one to swap it out. More than three lines stops being a comparison.
+                  That's the maximum. Deselect one to swap it out. More than three lines stops being a comparison.
                 </p>
               )}
             </Card>
@@ -220,7 +220,7 @@ export function TrendsPage() {
                 <Card>
                   <p className="eyebrow mb-1">Compared over time</p>
                   <p className="mb-6 text-sm leading-relaxed text-espresso/80">
-                    The shaded band is the usual reference range — shared by every line, because each marker is
+                    The shaded band is the usual reference range, shared by every line, because each marker is
                     plotted against its own. A line inside the band is within range for that marker.
                   </p>
                   <MultiTrendChart series={series} />

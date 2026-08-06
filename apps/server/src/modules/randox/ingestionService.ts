@@ -170,7 +170,7 @@ export async function normaliseResultDetail(
 
     const reviewReason =
       value.kind === 'comparator'
-        ? `Result is a limit, not a measurement ("${value.text}") — it has no position on a range bar and is not plotted on a trend.`
+        ? `Result is a limit, not a measurement ("${value.text}"). It has no position on a range bar and is not plotted on a trend.`
         : value.kind === 'qualitative'
           ? `Non-numeric result ("${value.text}").`
           : range.oneSided
@@ -292,7 +292,7 @@ export async function ingestOrderResults(ref: OrderRef): Promise<IngestResult> {
   const existing = await prisma.report.findUnique({ where: { externalId: orderNumber } });
 
   if (existing && !MERGEABLE_STATUSES.has(existing.status)) {
-    const message = `Redelivery of order ${orderNumber} ignored — the report is already ${existing.status.toLowerCase().replace(/_/g, ' ')}.`;
+    const message = `Redelivery of order ${orderNumber} ignored: the report is already ${existing.status.toLowerCase().replace(/_/g, ' ')}.`;
     await logAttempt({ orderNumber, outcome: 'DUPLICATE', reportId: existing.id, message });
     return { outcome: 'DUPLICATE', reportId: existing.id, markersIngested: 0, markersExcluded: 0, message };
   }
@@ -329,7 +329,7 @@ export async function ingestOrderResults(ref: OrderRef): Promise<IngestResult> {
     // have and let an admin link it explicitly. Nothing is matched on a name
     // here — see modules/admin/linkingService.ts.
     await parkAsUnmatched(SOURCE_KEY, orderNumber, parsed);
-    const message = `No local record of Randox order ${orderNumber}, so it cannot be attributed to an account automatically. Held for an admin to link — see Result linking.`;
+    const message = `No local record of Randox order ${orderNumber}, so it cannot be attributed to an account automatically. Held for an admin to link: see Result linking.`;
     await logAttempt({ orderNumber, outcome: 'UNMATCHED_PATIENT', message });
     return { outcome: 'UNMATCHED_PATIENT', reportId: null, markersIngested: 0, markersExcluded: 0, message };
   }
@@ -339,7 +339,7 @@ export async function ingestOrderResults(ref: OrderRef): Promise<IngestResult> {
   // the patient's list with nothing in it.
   if (parsed.rows.length === 0 && pendingCount === 0 && (parsed.exclusions?.length ?? 0) > 0) {
     const excluded = parsed.exclusions!.length;
-    const message = `Every result on order ${orderNumber} was withheld by the laboratory — no report was created. ${excluded} test(s) could not be reported.`;
+    const message = `Every result on order ${orderNumber} was withheld by the laboratory, so no report was created. ${excluded} test(s) could not be reported.`;
     await logAttempt({
       orderNumber,
       outcome: 'FAILED',

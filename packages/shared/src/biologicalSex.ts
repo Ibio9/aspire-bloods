@@ -68,4 +68,4 @@ export function biologicalSexLabel(sex: string | null | undefined): string {
  * different reasons.
  */
 export const BIOLOGICAL_SEX_PURPOSE =
-  'Some reference ranges differ for men and women — ferritin and haemoglobin among them — so this is what decides which range your results are read against.';
+  'Some reference ranges differ for men and women, ferritin and haemoglobin among them, so this is what decides which range your results are read against.';

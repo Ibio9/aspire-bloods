@@ -101,6 +101,6 @@ test('self-signup -> email verification -> 2FA -> empty portal', async ({ page, 
   await expect(page.getByText('a new account simply starts empty')).toBeVisible();
 
   await page.goto('/my-results');
-  await expect(page.getByText("Nothing here yet — and that's exactly right")).toBeVisible();
+  await expect(page.getByText("Nothing here yet, and that's exactly right")).toBeVisible();
   await expect(page.getByText('the clinic matches the result to you')).toBeVisible();
 });

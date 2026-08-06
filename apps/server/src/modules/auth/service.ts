@@ -252,8 +252,8 @@ export async function signup(input: SignupRequest, ip: string | null): Promise<S
       .sendEmail({
         to: existing.email,
         subject: 'Someone tried to register with your email',
-        text: `Someone just tried to create an Aspire Bloods account with this email address, but you already have one. If that was you, sign in at ${env.APP_BASE_URL}/login instead — you can reset your password there if you've forgotten it. If it wasn't you, no action is needed: no new account was created and nothing about yours has changed.`,
-        html: `<p>Someone just tried to create an Aspire Bloods account with this email address, but you already have one.</p><p>If that was you, <a href="${env.APP_BASE_URL}/login">sign in</a> instead. If it wasn't, no action is needed — no new account was created and nothing about yours has changed.</p>`,
+        text: `Someone just tried to create an Aspire Bloods account with this email address, but you already have one. If that was you, sign in at ${env.APP_BASE_URL}/login instead. You can reset your password there if you've forgotten it. If it wasn't you, no action is needed: no new account was created and nothing about yours has changed.`,
+        html: `<p>Someone just tried to create an Aspire Bloods account with this email address, but you already have one.</p><p>If that was you, <a href="${env.APP_BASE_URL}/login">sign in</a> instead. If it wasn't, no action is needed: no new account was created and nothing about yours has changed.</p>`,
       })
       .catch((e) => {
         // The notice failing must not change the response shape and give
@@ -340,7 +340,7 @@ export async function signup(input: SignupRequest, ip: string | null): Promise<S
       error: e instanceof Error ? e.message : e,
     });
     throw new AuthError(
-      "We couldn't send your confirmation email just now. Your details are saved — please try again in a few minutes.",
+      "We couldn't send your confirmation email just now. Your details are saved, so please try again in a few minutes.",
       502,
     );
   }
@@ -555,8 +555,8 @@ export async function requestPasswordReset(email: string, ip: string | null): Pr
   await emailProvider.sendEmail({
     to: user.email,
     subject: 'Reset your Aspire Bloods password',
-    text: `Someone asked to reset the password for your Aspire Bloods account. Choose a new one here: ${resetUrl}\n\nThis link expires in ${expiry} and can only be used once. If it wasn't you, you can ignore this email — your password has not changed.`,
-    html: `<p>Someone asked to reset the password for your Aspire Bloods account.</p><p><a href="${resetUrl}">Choose a new password</a></p><p>This link expires in ${expiry} and can only be used once. If it wasn't you, you can ignore this email — your password has not changed.</p>`,
+    text: `Someone asked to reset the password for your Aspire Bloods account. Choose a new one here: ${resetUrl}\n\nThis link expires in ${expiry} and can only be used once. If it wasn't you, you can ignore this email. Your password has not changed.`,
+    html: `<p>Someone asked to reset the password for your Aspire Bloods account.</p><p><a href="${resetUrl}">Choose a new password</a></p><p>This link expires in ${expiry} and can only be used once. If it wasn't you, you can ignore this email. Your password has not changed.</p>`,
   });
 
   await recordAuditLog({
@@ -784,7 +784,7 @@ export async function login(
       ipAddress: ip,
     });
     throw new AuthError(
-      'Please confirm your email address first — enter the code we emailed you when you registered. You can ask for a new one at /verify-email.',
+      'Please confirm your email address first by entering the code we emailed you when you registered. You can ask for a new one from the confirm-your-email page.',
       403,
     );
   }

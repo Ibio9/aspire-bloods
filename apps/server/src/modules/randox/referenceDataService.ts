@@ -260,7 +260,7 @@ export async function setCatalogueMapping(
           ? await prisma.marker.findUnique({ where: { key: mappedKey } })
           : null;
     if (entry.kind !== 'PANEL' && entry.kind !== 'TEST') {
-      throw new Error(`${entry.kind} entries are reference values, not orderable items — there is nothing to map them to.`);
+      throw new Error(`${entry.kind} entries are reference values, not orderable items, so there is nothing to map them to.`);
     }
     if (!exists) {
       throw new Error(`No ${entry.kind === 'PANEL' ? 'panel' : 'marker'} in our catalogue with key "${mappedKey}".`);

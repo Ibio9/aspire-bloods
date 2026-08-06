@@ -249,7 +249,7 @@ function LinkConfirmModal({
           autoComplete="off"
           value={typedDob}
           onChange={(e) => setTypedDob(e.target.value)}
-          hint="Type it out rather than copying it across — this is the check that catches the wrong patient being selected."
+          hint="Type it out rather than copying it across. This is the check that catches the wrong patient being selected."
         />
       </div>
 
@@ -308,8 +308,8 @@ function UnmatchedResultCard({ result, onChanged }: { result: UnmatchedResult; o
 
         {result.candidates.length === 0 && (
           <p className="text-sm leading-relaxed text-espresso/80">
-            Nothing on file resembles this patient. If they haven't registered yet, this will keep waiting here —
-            the queue is checked against new accounts every time you open it.
+            Nothing on file resembles this patient. If they haven't registered yet, this will keep waiting here.
+            The queue is checked against new accounts every time you open it.
           </p>
         )}
 
@@ -405,7 +405,7 @@ function UnmatchedResultCard({ result, onChanged }: { result: UnmatchedResult; o
         }}
       >
         <p className="text-sm leading-relaxed text-espresso">
-          The result stays on record with your reason attached — nothing is deleted — but it stops appearing in
+          The result stays on record with your reason attached (nothing is deleted), but it stops appearing in
           this queue. Use this for duplicates and results that were never ours, not for ones you simply can't
           place yet.
         </p>
@@ -457,9 +457,9 @@ function RecentLinkRow({ link, onChanged }: { link: RecentLink; onChanged: () =>
         }}
       >
         <p className="text-sm leading-relaxed text-espresso">
-          The report is voided — it disappears from {link.patientName ?? 'the patient'}'s portal immediately,
-          including if it was already released — and the result goes back into the unmatched queue so it can be
-          linked to the right person. Nothing is deleted, and your reason is recorded against both.
+          The report is voided. It disappears from {link.patientName ?? 'the patient'}'s portal immediately, even
+          if it was already released, and the result goes back into the unmatched queue so it can be linked to the
+          right person. Nothing is deleted, and your reason is recorded against both.
         </p>
       </ConfirmModal>
     </li>
@@ -497,7 +497,7 @@ export function LinkingPage() {
   if (failed) {
     return (
       <>
-        <TwoTierHeading eyebrow="Aspire Clinic — Admin console" title="Result linking" />
+        <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Result linking" />
         <Card className="mt-8 max-w-xl">
           <p className="font-display text-2xl text-espresso">We couldn't load the linking queue</p>
           <p className="mt-2 text-sm text-espresso/80">Please refresh the page.</p>
@@ -508,10 +508,10 @@ export function LinkingPage() {
 
   return (
     <>
-      <TwoTierHeading eyebrow="Aspire Clinic — Admin console" title="Result linking" />
+      <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Result linking" />
       <p className="mt-5 max-w-3xl text-lg leading-relaxed text-espresso">
         Results that arrived without an account, beside accounts with nothing attached. Nothing is ever matched
-        automatically — a name on its own is never enough, and the date of birth has to agree before a link can
+        automatically. A name on its own is never enough, and the date of birth has to agree before a link can
         be made at all.
       </p>
 
@@ -561,7 +561,7 @@ export function LinkingPage() {
                 )}
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-espresso/80">
-                People who have registered and are waiting. An account here is not a problem to solve — most are
+                People who have registered and are waiting. An account here is not a problem to solve. Most are
                 simply patients who haven't been tested yet.
               </p>
 

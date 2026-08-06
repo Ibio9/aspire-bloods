@@ -52,7 +52,7 @@ export async function generateAspireSummaryPdf(reportId: string): Promise<Buffer
   // Letterhead
   doc.font('Helvetica-Bold').fontSize(20).fillColor(BRONZE).text('ASPIRE', { continued: true });
   doc.font('Helvetica').fillColor(ESPRESSO).text(' CLINIC');
-  doc.font('Helvetica').fontSize(9).fillColor(ESPRESSO).text('Aspire Group of Companies — 27 Mortimer Street, London');
+  doc.font('Helvetica').fontSize(9).fillColor(ESPRESSO).text('Aspire Group of Companies, 27 Mortimer Street, London');
   doc.moveDown(1.5);
 
   // Right-aligned date + recipient block
@@ -68,7 +68,7 @@ export async function generateAspireSummaryPdf(reportId: string): Promise<Buffer
   // falls back to "12 markers · 4 August 2026" rather than leaving a
   // dangling "— results summary" with nothing in front of it.
   const reportTitle = formatReportTitle(report.panel?.name, report.results.length, report.sampleDate);
-  doc.fontSize(13).font('Helvetica-Bold').fillColor(ESPRESSO).text(`${reportTitle} — results summary`);
+  doc.fontSize(13).font('Helvetica-Bold').fillColor(ESPRESSO).text(`${reportTitle}: results summary`);
   doc.fontSize(10).font('Helvetica').moveDown(0.5);
   doc.text(`Dear ${profile?.firstName ?? 'Patient'},`);
   doc.moveDown(0.5);

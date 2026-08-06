@@ -123,7 +123,7 @@ export function PatientOverview() {
   return (
     <div className="flex flex-col gap-14 md:gap-20">
       <header>
-        <p className="eyebrow mb-3">Aspire Clinic — Patient portal</p>
+        <p className="eyebrow mb-3">Aspire Clinic · Patient portal</p>
         <h1 className="display-heading">
           {greeting()}
           {data.firstName ? `, ${data.firstName}` : ''}
@@ -131,7 +131,7 @@ export function PatientOverview() {
         {data.lastTestedDate ? (
           <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
             Your most recent sample was taken on{' '}
-            <span className="font-medium">{formatDate(data.lastTestedDate)}</span> — {formatRelativeDate(data.lastTestedDate)}.
+            <span className="font-medium">{formatDate(data.lastTestedDate)}</span>, {formatRelativeDate(data.lastTestedDate)}.
             {data.trackedMarkerCount > 0 && (
               <>
                 {' '}
@@ -171,7 +171,7 @@ export function PatientOverview() {
             <Card>
               <p className="eyebrow mb-3">Your account is ready</p>
               <p className="text-[15px] leading-relaxed text-espresso">
-                There's nothing here yet, and nothing has gone wrong — a new account simply starts empty.
+                There's nothing here yet, and nothing has gone wrong. A new account simply starts empty.
                 Results appear once you've had a sample taken and the clinic has matched it to you.
               </p>
             </Card>
@@ -180,7 +180,7 @@ export function PatientOverview() {
               <p className="text-[15px] leading-relaxed text-espresso">
                 Your sample goes to the laboratory, and the results come back to the Aspire clinical team first.
                 They check the result is yours before it reaches your account, and a clinician reviews it before
-                it's published — nothing appears here automatically.
+                it's published. Nothing appears here automatically.
               </p>
             </Card>
             <Card>
@@ -195,7 +195,7 @@ export function PatientOverview() {
               <p className="eyebrow mb-3">Over time</p>
               <p className="text-[15px] leading-relaxed text-espresso">
                 From your second test onwards, <span className="font-medium">All markers</span> and{' '}
-                <span className="font-medium">Trends</span> start showing direction of travel — how each marker has
+                <span className="font-medium">Trends</span> start showing direction of travel: how each marker has
                 moved, and how markers move in relation to one another.
               </p>
             </Card>
@@ -215,7 +215,7 @@ export function PatientOverview() {
           </h2>
           <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-espresso/90">
             {data.attention.length === 1 ? 'One of your results sits' : `${data.attention.length} of your results sit`} outside
-            the usual reference range. That on its own is not a diagnosis — reference ranges describe most people, not
+            the usual reference range. That on its own is not a diagnosis. Reference ranges describe most people, not
             every person, and a single result can't be read without the rest of your history.
           </p>
 
@@ -274,7 +274,7 @@ export function PatientOverview() {
             What's changed
           </h2>
           <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-espresso/90">
-            Markers that moved meaningfully since your previous result — in either direction.
+            Markers that moved meaningfully since your previous result, in either direction.
           </p>
           <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {data.changes.map((change) => (

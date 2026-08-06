@@ -30,9 +30,9 @@ const FLAG_LABEL: Record<string, string> = {
   unknown_marker: "Marker isn't in the catalogue",
   implausible_unit: 'Unit looks wrong for this marker',
   value_order_of_magnitude: 'Value is far outside the reference range',
-  two_pass_disagreement: 'A second AI read disagreed — check closely',
+  two_pass_disagreement: 'A second AI read disagreed, so check closely',
   non_numeric_result: 'Non-numeric result (e.g. "Not detected")',
-  duplicate_printing_disagreement: 'Printed twice in the report with different values — check closely',
+  duplicate_printing_disagreement: 'Printed twice with different values, so check closely',
 };
 
 interface ParsedRow {
@@ -218,7 +218,7 @@ export function ReportDetailPage() {
     );
     if (incomplete.length > 0) {
       setError(
-        `${incomplete.length} matched row${incomplete.length === 1 ? '' : 's'} ${incomplete.length === 1 ? 'is' : 'are'} missing a value, unit, or reference range — the parser flagged ${incomplete.length === 1 ? 'it' : 'them'} for manual entry (see "Needs review" below). Fill every field in before saving, or unmatch the row to skip it.`,
+        `${incomplete.length} matched row${incomplete.length === 1 ? '' : 's'} ${incomplete.length === 1 ? 'is' : 'are'} missing a value, unit, or reference range. The parser flagged ${incomplete.length === 1 ? 'it' : 'them'} for manual entry (see "Needs review" below). Fill every field in before saving, or unmatch the row to skip it.`,
       );
       return;
     }
@@ -322,7 +322,7 @@ export function ReportDetailPage() {
         </p>
       </div>
 
-      <TwoTierHeading eyebrow={`${patientName} — ${sampleDateLabel}`} title={report.title} />
+      <TwoTierHeading eyebrow={`${patientName} · ${sampleDateLabel}`} title={report.title} />
       <p className="mt-2 flex items-center gap-1 text-sm text-espresso/80">
         {report.patient.email}
         <CopyButton value={report.patient.email} label="Copy patient email" />
@@ -338,7 +338,7 @@ export function ReportDetailPage() {
           <p className="font-medium text-status-significantHigh">Voided</p>
           <p className="mt-1 text-sm text-espresso">
             {formatDateTime(report.voidedAt)} by {voidedByName}
-            {report.voidReason ? ` — “${report.voidReason}”` : ''}
+            {report.voidReason ? `: “${report.voidReason}”` : ''}
           </p>
           <p className="mt-1 text-sm text-espresso/80">
             This report no longer appears in the patient's own view. It remains here, and in the audit log, for
@@ -405,7 +405,7 @@ export function ReportDetailPage() {
 
       {rows.length > 0 && (
         <div className="mt-8">
-          <p className="eyebrow mb-1">Verify extracted results — correct anything before saving</p>
+          <p className="eyebrow mb-1">Verify extracted results: correct anything before saving</p>
           {parsedPanelName && <p className="mb-3 text-sm text-espresso/80">Panel printed on the report: {parsedPanelName}</p>}
           {extractionMethod === 'regex' && (
             <Card className="mb-4 max-w-2xl border-status-high bg-white">
@@ -415,7 +415,7 @@ export function ReportDetailPage() {
           )}
           {extractionMethod === 'llm' && (
             <p className="mb-4 text-xs text-espresso/60">
-              Extracted with AI assistance — every row still needs your confirmation. Rows flagged below had a low-confidence
+              Extracted with AI assistance. Every row still needs your confirmation. Rows flagged below had a low-confidence
               read or failed a sanity check; check them against the source text before saving.
             </p>
           )}
@@ -505,7 +505,7 @@ export function ReportDetailPage() {
                       label={`Matched marker for "${row.rawName}"`}
                       hideLabel
                       searchable
-                      emptyMessage={<>No markers configured yet — add one under the Panels &amp; markers tab.</>}
+                      emptyMessage={<>No markers configured yet. Add one under the Panels &amp; markers tab.</>}
                       name={`matched-marker-${i}`}
                       value={row.matchedMarkerId ?? ''}
                       onChange={(e) => {
@@ -514,7 +514,7 @@ export function ReportDetailPage() {
                         if (markerId) fillMissingRange(i, markerId);
                       }}
                     >
-                      <option value="">— unmatched, skip —</option>
+                      <option value="">Unmatched, skip this row</option>
                       {markers.map((m) => (
                         <option key={m.id} value={m.id}>
                           {m.name}
@@ -613,7 +613,7 @@ export function ReportDetailPage() {
                       {r.edits.map((e) => (
                         <li key={e.id} className="text-xs text-espresso/80">
                           {formatDate(e.changedAt)}: {e.previousValue} {e.previousUnit} →{' '}
-                          {e.newValue} {e.newUnit} by {e.changedByName} — “{e.reason}”
+                          {e.newValue} {e.newUnit} by {e.changedByName}: “{e.reason}”
                         </li>
                       ))}
                     </ul>
@@ -643,7 +643,7 @@ export function ReportDetailPage() {
         <p>
           <strong>{patientName}</strong> will no longer see this report anywhere in their portal. It stays in the
           database and the audit log, and remains visible here, marked voided. This is a state change, not a
-          deletion — the record is never destroyed.
+          deletion. The record is never destroyed.
         </p>
       </ConfirmModal>
 
@@ -670,13 +670,13 @@ export function ReportDetailPage() {
           <>
             <p>
               This report has already been released to <strong>{patientName}</strong>. The change is versioned, not
-              overwritten — the previous value, who changed it, when, and the reason are all kept and shown to
+              overwritten. The previous value, who changed it, when, and the reason are all kept and shown to
               admins. The patient sees the new value with an "amended" note and date.
             </p>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
                 <label htmlFor="edit-value" className="text-sm font-medium text-espresso">
-                  Currently {editingResult.value} {editingResult.unit} — new value
+                  New value (currently {editingResult.value} {editingResult.unit})
                 </label>
                 <input
                   id="edit-value"

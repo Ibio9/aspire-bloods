@@ -135,10 +135,10 @@ export function MarkerLibraryPage() {
 
   return (
     <>
-      <TwoTierHeading eyebrow="Aspire Clinic — Patient portal" title="Understanding your results" />
+      <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="Understanding your results" />
       <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
         Plain-English explanations of what each marker measures, written and reviewed by the Aspire clinical team.
-        Nothing here is a diagnosis — it's background, so the numbers mean something when you read them.
+        Nothing here is a diagnosis. It's background, so the numbers mean something when you read them.
       </p>
 
       {entries === null ? (

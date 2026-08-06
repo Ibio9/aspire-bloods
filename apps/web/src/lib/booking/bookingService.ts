@@ -93,7 +93,7 @@ function openingFor(location: BookingLocation, date: string): { window: OpeningW
 
   if (location.kind === 'ASPIRE_CLINIC') {
     if (day === 0) {
-      return { window: null, closedReason: 'Closed on Sundays — Mortimer Street is weekdays and Saturday mornings.' };
+      return { window: null, closedReason: 'Closed on Sundays. Mortimer Street is weekdays and Saturday mornings.' };
     }
     if (day === 6) {
       return { window: { first: 8 * 60, last: 11 * 60 + 30, stepMinutes: 30 }, closedReason: null };
@@ -226,7 +226,7 @@ function buildDay(location: BookingLocation, date: string, durationMinutes: numb
     return {
       date,
       slots: [],
-      closedReason: `Too soon — we need ${MIN_LEAD_DAYS} days’ notice so your paperwork and any kits are ready.`,
+      closedReason: `Too soon. We need ${MIN_LEAD_DAYS} days’ notice so your paperwork and any kits are ready.`,
     };
   }
 
@@ -236,7 +236,7 @@ function buildDay(location: BookingLocation, date: string, durationMinutes: numb
   // A whole-day closure roughly one day in eleven, standing in for the
   // holidays and staff-training days a real diary has in it.
   if (hash(location.id, date, 'closure') % 11 === 0) {
-    return { date, slots: [], closedReason: 'Fully booked — every slot on this day has gone.' };
+    return { date, slots: [], closedReason: 'Fully booked. Every slot on this day has gone.' };
   }
 
   const slots: Slot[] = [];
@@ -252,7 +252,7 @@ function buildDay(location: BookingLocation, date: string, durationMinutes: numb
   return {
     date,
     slots,
-    closedReason: slots.length === 0 ? 'Fully booked — every slot on this day has gone.' : null,
+    closedReason: slots.length === 0 ? 'Fully booked. Every slot on this day has gone.' : null,
   };
 }
 
@@ -321,7 +321,7 @@ export const bookingService: BookingService = {
     // this is a bug in the flow, not something a patient should ever see.
     if (!request.biologicalSexId) {
       return fail(
-        "We need your biological sex on file before the laboratory can accept this order — you can add it on your account page.",
+        "We need your biological sex on file before the laboratory can accept this order. You can add it on your account page.",
         'VALIDATION',
       );
     }

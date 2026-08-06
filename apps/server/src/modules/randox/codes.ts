@@ -47,7 +47,7 @@ export function classifyCode(rawCode: string): CodeVerdict {
       kind: 'VOID',
       code,
       recognised: false,
-      description: `Unrecognised lab code "${code}" — treated as void because its meaning is unknown.`,
+      description: `Unrecognised lab code "${code}": treated as void because its meaning is unknown.`,
     };
   }
 

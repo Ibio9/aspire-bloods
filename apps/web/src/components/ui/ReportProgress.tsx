@@ -55,7 +55,7 @@ export function ReportProgress({ status, voided }: { status: ReportStatus; voide
         })}
       </ol>
       <p className="mt-3 text-sm text-espresso/80">
-        {voided ? 'This report has been voided — it no longer moves through the pipeline.' : whatsNext(status)}
+        {voided ? 'This report has been voided. It no longer moves through the pipeline.' : whatsNext(status)}
       </p>
     </div>
   );

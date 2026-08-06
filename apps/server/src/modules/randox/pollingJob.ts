@@ -88,7 +88,7 @@ export async function onOrderStatusChanged(orderNumber: string): Promise<OrderUp
   if (order.randoxOrderId === null) {
     await prisma.randoxOrder.update({
       where: { id: order.id },
-      data: { nextPollAt: null, lastPollError: 'No Randox numeric order id recorded — cannot call GetOrderStatus.' },
+      data: { nextPollAt: null, lastPollError: 'No Randox numeric order id recorded, so GetOrderStatus cannot be called.' },
     });
     return {
       orderNumber,
@@ -151,7 +151,7 @@ export async function onOrderStatusChanged(orderNumber: string): Promise<OrderUp
         nextPollAt: null,
       },
     });
-    return { orderNumber, statusCode: status.statusId, ingested: false, message: 'Order cancelled — polling stopped.' };
+    return { orderNumber, statusCode: status.statusId, ingested: false, message: 'Order cancelled. Polling stopped.' };
   }
 
   if (statusName !== 'COMPLETE') {
@@ -257,7 +257,7 @@ export async function runRandoxPollingSweep(): Promise<{ polled: number; ingeste
             externalId: order.orderNumber,
             outcome: 'FAILED',
             message: givingUp
-              ? `Polling gave up on order ${order.orderNumber} after ${consecutiveFailures} consecutive failures. Last error: ${message}. This order needs an admin to look at it — it will not be retried automatically.`
+              ? `Polling gave up on order ${order.orderNumber} after ${consecutiveFailures} consecutive failures. Last error: ${message}. This order needs an admin to look at it. It will not be retried automatically.`
               : `Poll of order ${order.orderNumber} failed (${consecutiveFailures} in a row): ${message}`,
           },
         })

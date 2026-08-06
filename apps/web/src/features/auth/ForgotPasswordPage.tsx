@@ -58,7 +58,7 @@ export function ForgotPasswordPage() {
         <h2 className="auth-heading">On its way</h2>
         <p role="status" className="mt-[var(--auth-step)] text-sm leading-relaxed text-espresso/80">
           If <span className="font-medium text-espresso">{email}</span> has an Aspire Bloods account, a link to set
-          a new password is on its way. It can take a minute to arrive — check your junk folder too.
+          a new password is on its way. It can take a minute to arrive, so check your junk folder too.
         </p>
         <p className="mt-[calc(var(--auth-step)*0.75)] text-sm leading-relaxed text-espresso/70">
           The link can only be used once, and it expires. Nothing about your account has changed until you use it.
@@ -96,7 +96,7 @@ export function ForgotPasswordPage() {
       <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">Patient portal</p>
       <h2 className="auth-heading">Reset your password</h2>
       <p className="mt-[var(--auth-step)] text-sm leading-relaxed text-espresso/80">
-        Enter the email address you registered with. We'll send you a link to choose a new password — you'll still
+        Enter the email address you registered with. We'll send you a link to choose a new password. You'll still
         need your two-factor code to sign in afterwards.
       </p>
 

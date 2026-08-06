@@ -241,7 +241,7 @@ export async function extractWithLlm(pdfText: string): Promise<LlmExtractionOutc
       resultText: r.valueText ?? null,
       needsReview: r.value == null,
       reviewReason:
-        r.value == null ? 'Non-numeric result — no value or reference range to verify against.' : null,
+        r.value == null ? 'Non-numeric result, with no value or reference range to verify against.' : null,
       flags: r.valueText && r.value == null ? ['non_numeric_result'] : [],
     })),
   );

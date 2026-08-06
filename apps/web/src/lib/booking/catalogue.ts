@@ -20,14 +20,14 @@ const NO_FASTING = {
   required: false,
   minHours: 0,
   maxHours: 0,
-  summary: 'No fasting needed — eat and drink normally beforehand.',
+  summary: 'No fasting needed. Eat and drink normally beforehand.',
 } as const;
 
 export const PANELS: Panel[] = [
   {
     id: 'insight-360',
     name: 'Insight 360',
-    strapline: 'The most complete picture we offer — a full sweep across every major system in one draw.',
+    strapline: 'The most complete picture we offer: a full sweep across every major system in one draw.',
     covers: [
       'Full blood count',
       'Liver function',
@@ -45,7 +45,7 @@ export const PANELS: Panel[] = [
       required: true,
       minHours: 10,
       maxHours: 12,
-      summary: 'Fast for 10 to 12 hours — water only.',
+      summary: 'Fast for 10 to 12 hours. Water only.',
     },
     timingNotes: [
       {
@@ -60,7 +60,7 @@ export const PANELS: Panel[] = [
   {
     id: 'signature',
     name: 'Signature',
-    strapline: 'A focused general health check — blood count, the key organ functions, and cardiovascular markers.',
+    strapline: 'A focused general health check: blood count, the key organ functions, and cardiovascular markers.',
     covers: [
       'Full blood count',
       'Liver function',
@@ -76,7 +76,7 @@ export const PANELS: Panel[] = [
       required: true,
       minHours: 8,
       maxHours: 12,
-      summary: 'Fast for 8 to 12 hours — water only.',
+      summary: 'Fast for 8 to 12 hours. Water only.',
     },
     timingNotes: [],
     appointmentMinutes: 15,
@@ -95,14 +95,14 @@ export const PANELS: Panel[] = [
       'Vitamins',
     ],
     markerCount: 22,
-    markerCountNote: '23 for women — the hormone markers in this panel are matched to your sex.',
+    markerCountNote: '23 for women. The hormone markers in this panel are matched to your sex.',
     turnaround: '3–5 working days',
     turnaroundDays: [3, 5],
     fasting: {
       required: true,
       minHours: 8,
       maxHours: 12,
-      summary: 'Fast for 8 to 12 hours — water only.',
+      summary: 'Fast for 8 to 12 hours. Water only.',
     },
     timingNotes: [
       {
@@ -123,7 +123,7 @@ export const PANELS: Panel[] = [
   {
     id: 'nutritional-health-hsc15',
     name: 'Nutritional Health HSC15',
-    strapline: 'Vitamin, mineral and nutritional status — what your diet and absorption are actually delivering.',
+    strapline: 'Vitamin, mineral and nutritional status: what your diet and absorption are actually delivering.',
     covers: [
       'Vitamin D',
       'B12 and folate',
@@ -141,7 +141,7 @@ export const PANELS: Panel[] = [
       {
         label: 'Pause supplements for 48 hours',
         detail:
-          'Biotin, high-dose B12 and iron supplements can all read back as your supplement rather than your body. Stop them two days before, unless a clinician has told you otherwise — never stop a prescribed medicine on our say-so.',
+          'Biotin, high-dose B12 and iron supplements can all read back as your supplement rather than your body. Stop them two days before, unless a clinician has told you otherwise. Never stop a prescribed medicine on our say-so.',
         critical: true,
       },
     ],
@@ -155,7 +155,7 @@ export const ADD_ONS: AddOn[] = [
     name: 'Omega-3 Index',
     strapline: 'The proportion of omega-3 in your red blood cell membranes.',
     detail:
-      'A longer-range measure than a one-off fatty acid reading — it reflects roughly the last three months, so it responds to what you actually eat rather than what you ate this week.',
+      'A longer-range measure than a one-off fatty acid reading. It reflects roughly the last three months, so it responds to what you actually eat rather than what you ate this week.',
     sampleType: 'SAME_DRAW',
     fasting: { ...NO_FASTING },
     timingNotes: [],
@@ -172,7 +172,7 @@ export const ADD_ONS: AddOn[] = [
     timingNotes: [
       {
         label: 'Any day of your cycle',
-        detail: 'Unlike oestradiol and FSH, AMH is stable across the cycle — no timing to plan around.',
+        detail: 'Unlike oestradiol and FSH, AMH is stable across the cycle, so there is no timing to plan around.',
         critical: false,
       },
     ],
@@ -201,7 +201,7 @@ export const ADD_ONS: AddOn[] = [
     name: 'Calprotectin',
     strapline: 'Inflammation specifically within the gut.',
     detail:
-      'This one is not taken from your blood. We post you a collection kit for a stool sample, which you complete at home and return in the prepaid envelope — separately from your appointment.',
+      'This one is not taken from your blood. We post you a collection kit for a stool sample, which you complete at home and return in the prepaid envelope, separately from your appointment.',
     sampleType: 'HOME_KIT',
     fasting: { ...NO_FASTING },
     timingNotes: [
@@ -241,10 +241,10 @@ export const LOCATIONS: BookingLocation[] = [
     travelNote: 'Three minutes from Bank, six from Liverpool Street.',
     openingSummary: 'Seven days a week, 7:00am–7:00pm (Sundays 9:00am–3:00pm)',
     facts: [
-      { label: 'Who takes your sample', value: 'A Randox phlebotomist — they will not have your Aspire history' },
+      { label: 'Who takes your sample', value: 'A Randox phlebotomist, who will not have your Aspire history' },
       { label: 'How long to allow', value: 'About 15 minutes' },
       { label: 'When you can come', value: 'Seven days a week, early mornings and evenings' },
-      { label: 'Getting to the lab', value: 'Processed on site — usually a day quicker' },
+      { label: 'Getting to the lab', value: 'Processed on site, usually a day quicker' },
       { label: 'All four add-ons', value: 'Calprotectin is posted to you instead' },
     ],
     unavailableAddOnIds: ['calprotectin'],
@@ -257,10 +257,10 @@ export const LOCATIONS: BookingLocation[] = [
     travelNote: 'Directly above Fulham Broadway station.',
     openingSummary: 'Seven days a week, 7:00am–7:00pm (Sundays 9:00am–3:00pm)',
     facts: [
-      { label: 'Who takes your sample', value: 'A Randox phlebotomist — they will not have your Aspire history' },
+      { label: 'Who takes your sample', value: 'A Randox phlebotomist, who will not have your Aspire history' },
       { label: 'How long to allow', value: 'About 15 minutes' },
       { label: 'When you can come', value: 'Seven days a week, early mornings and evenings' },
-      { label: 'Getting to the lab', value: 'Processed on site — usually a day quicker' },
+      { label: 'Getting to the lab', value: 'Processed on site, usually a day quicker' },
       { label: 'All four add-ons', value: 'Calprotectin is posted to you instead' },
     ],
     unavailableAddOnIds: ['calprotectin'],
@@ -273,10 +273,10 @@ export const LOCATIONS: BookingLocation[] = [
     travelNote: 'Ten minutes from Piccadilly, five from St Peter’s Square.',
     openingSummary: 'Seven days a week, 7:00am–7:00pm (Sundays 9:00am–3:00pm)',
     facts: [
-      { label: 'Who takes your sample', value: 'A Randox phlebotomist — they will not have your Aspire history' },
+      { label: 'Who takes your sample', value: 'A Randox phlebotomist, who will not have your Aspire history' },
       { label: 'How long to allow', value: 'About 15 minutes' },
       { label: 'When you can come', value: 'Seven days a week, early mornings and evenings' },
-      { label: 'Getting to the lab', value: 'Processed on site — usually a day quicker' },
+      { label: 'Getting to the lab', value: 'Processed on site, usually a day quicker' },
       { label: 'All four add-ons', value: 'Calprotectin is posted to you instead' },
     ],
     unavailableAddOnIds: ['calprotectin'],

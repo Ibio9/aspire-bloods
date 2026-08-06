@@ -96,7 +96,7 @@ export function BiologicalSexCard({ variant, onSaved }: Props) {
       setEditing(false);
       onSaved?.(next);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'We could not save that — please try again.');
+      setError(e instanceof ApiError ? e.message : 'We could not save that. Please try again.');
     } finally {
       setSaving(false);
     }

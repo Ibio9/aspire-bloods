@@ -13,7 +13,7 @@ import { consumeRedirect } from '../../lib/redirectAfterLogin';
 
 const LOGOUT_REASON_COPY: Record<string, string> = {
   idle: "You were signed out after a period of inactivity, to keep your results secure.",
-  expired: 'Your session has expired — please sign in again.',
+  expired: 'Your session has expired. Please sign in again.',
 };
 
 function readAndClearLogoutReason(): string | null {
@@ -132,7 +132,7 @@ export function LoginPage() {
               or what's behind the form. One line, before the fields, naming
               the clinic and what the portal holds — that's the whole job. */}
           <p className="mt-[var(--auth-step)] text-sm leading-relaxed text-espresso/80">
-            This is Aspire Clinic's blood test results portal — sign in to see your results, track markers over
+            This is Aspire Clinic's blood test results portal. Sign in to see your results, track markers over
             time, and book a test.
           </p>
 
@@ -213,7 +213,7 @@ export function LoginPage() {
           </p>
 
           <AuthCrossLink
-            prompt="New here? Anyone can register — you don't need an invitation from the clinic."
+            prompt="New here? Anyone can register. You don't need an invitation from the clinic."
             to="/signup"
             label="Create an account"
           />
@@ -223,7 +223,7 @@ export function LoginPage() {
               a footnote rather than deleted: registration being open doesn't
               make an invitation email wrong, it just makes it optional. */}
           <p className="mt-[calc(var(--auth-step)*0.9)] text-xs leading-relaxed text-espresso/70">
-            If the clinic emailed you an invitation, use the link in it instead — it sets your account up with the
+            If the clinic emailed you an invitation, use the link in it instead. It sets your account up with the
             details we already hold.
           </p>
         </>

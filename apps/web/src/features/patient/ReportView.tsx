@@ -58,7 +58,7 @@ export function ReportView() {
     } catch {
       // Manual-entry reports have no original lab PDF, so this button can
       // legitimately fail — silently doing nothing looked like a broken page.
-      show('That download could not be prepared — please try again.', 'error');
+      show('That download could not be prepared. Please try again.', 'error');
     } finally {
       setDownloading(null);
     }
@@ -70,7 +70,7 @@ export function ReportView() {
     return (
       <>
         <Breadcrumbs items={[{ label: 'Overview', to: '/overview' }, { label: 'My results', to: '/my-results' }, { label: 'Not available' }]} />
-        <TwoTierHeading eyebrow="Aspire Clinic — Patient portal" title="We couldn't open that panel" />
+        <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="We couldn't open that panel" />
         <Card className="mt-8 max-w-xl">
           <p className="text-sm leading-relaxed text-espresso/90">
             This report may no longer be available, or the link may be out of date. Everything currently released to

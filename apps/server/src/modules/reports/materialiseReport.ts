@@ -102,8 +102,8 @@ export async function materialiseParsedReport(input: {
       mappingFailures.push({
         markerName: row.rawName,
         reason: row.resultText
-          ? `Non-numeric result ("${row.resultText}") — needs manual entry.`
-          : 'Non-numeric result — needs manual entry.',
+          ? `Non-numeric result ("${row.resultText}"): needs manual entry.`
+          : 'Non-numeric result: needs manual entry.',
       });
       continue;
     }
@@ -112,7 +112,7 @@ export async function materialiseParsedReport(input: {
         markerName: row.rawName,
         reason:
           row.referenceLowRaw || row.referenceHighRaw
-            ? `Reference range "${row.referenceLowRaw ?? ''} – ${row.referenceHighRaw ?? ''}" is one-sided or non-numeric — needs an admin to set the range.`
+            ? `Reference range "${row.referenceLowRaw ?? ''} – ${row.referenceHighRaw ?? ''}" is one-sided or non-numeric: needs an admin to set the range.`
             : 'Missing reference range on the incoming result',
       });
       continue;
@@ -139,7 +139,7 @@ export async function materialiseParsedReport(input: {
   }
   if (matchedRows.length === 0) {
     throw new MaterialiseError(
-      `Every result in this delivery was withheld by the laboratory (${exclusions.length} test(s)) — no report was created.`,
+      `Every result in this delivery was withheld by the laboratory (${exclusions.length} test(s)), so no report was created.`,
       mappingFailures,
     );
   }

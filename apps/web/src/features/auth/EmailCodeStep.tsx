@@ -199,7 +199,7 @@ export function EmailCodeStep({ email, sentTo, expiresInMinutes, cooldownSeconds
       </form>
 
       <div className="mt-[calc(var(--auth-step)*1.4)] border-t border-taupe pt-[calc(var(--auth-step)*1.2)]">
-        <p className="text-sm text-espresso/80">Didn't get it? Check your junk folder first — then:</p>
+        <p className="text-sm text-espresso/80">Didn't get it? Check your junk folder first, then:</p>
         <div className="mt-[calc(var(--auth-step)*0.75)] flex flex-wrap items-center gap-x-4 gap-y-2">
           <Button
             variant="secondary"

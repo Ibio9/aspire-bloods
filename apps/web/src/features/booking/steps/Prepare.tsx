@@ -85,7 +85,7 @@ export function Prepare({
             </p>
             <p className="mt-3 text-[15px] leading-relaxed text-espresso/90">
               This one is not taken at your appointment. We'll post the kit within two working days, with a prepaid
-              return envelope. Complete it whenever suits you — there is no window to hit, and your blood draw on{' '}
+              return envelope. Complete it whenever suits you. There is no window to hit, and your blood draw on{' '}
               {formatWeekdayDate(slot.date)} is unaffected either way.
             </p>
           </Card>
@@ -112,7 +112,7 @@ export function Prepare({
             },
             {
               title: 'Bring your medication list',
-              body: 'Anything you take regularly, including supplements — several of them move results, and the clinician reading yours needs to know.',
+              body: 'Anything you take regularly, including supplements. Several of them move results, and the clinician reading yours needs to know.',
             },
           ].map((item) => (
             <li key={item.title}>

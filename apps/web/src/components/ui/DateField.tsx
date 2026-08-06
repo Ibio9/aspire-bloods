@@ -425,10 +425,10 @@ export function DateField({
               onClick={() => setView((v) => (v === 'day' ? 'month' : v === 'month' ? 'year' : 'day'))}
               aria-label={
                 view === 'day'
-                  ? `${headerLabel} — choose a month`
+                  ? `${headerLabel}: choose a month`
                   : view === 'month'
-                    ? `${headerLabel} — choose a year`
-                    : `${headerLabel} — back to days`
+                    ? `${headerLabel}: choose a year`
+                    : `${headerLabel}: back to days`
               }
               className="rounded-input px-2 py-1 text-sm font-medium tabular text-espresso transition duration-150 ease-out hover:bg-cream-200"
             >

@@ -42,7 +42,7 @@ export function AppointmentsPage() {
   return (
     <>
       <Breadcrumbs items={[{ label: 'Overview', to: '/overview' }, { label: 'Appointments' }]} />
-      <TwoTierHeading eyebrow="Aspire Clinic — Patient portal" title="Your appointments" />
+      <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="Your appointments" />
       <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
         Everything in your diary, and everything already behind you. Open any appointment to see what to do
         beforehand, or to move or cancel it.
@@ -56,7 +56,7 @@ export function AppointmentsPage() {
         <Card className="mt-12 max-w-xl">
           <p className="font-display text-2xl text-espresso">We couldn't load your appointments</p>
           <p className="mt-2 text-sm leading-relaxed text-espresso/80">
-            Please refresh the page. If it keeps happening, call the clinic — we can always tell you what's in the
+            Please refresh the page. If it keeps happening, call the clinic. We can always tell you what's in the
             diary.
           </p>
         </Card>
