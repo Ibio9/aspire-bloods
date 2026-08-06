@@ -59,7 +59,8 @@ interface ReportRow {
   status: ReportStatus;
   voidedAt: string | null;
   sampleDate: string;
-  panel: { name: string };
+  panel: { name: string } | null;
+  title: string;
   source: { name: string };
   patient: { email: string; patientProfile: { firstName: string; lastName: string } | null };
 }
@@ -148,13 +149,13 @@ function PdfUploadForm({
         <div className="flex flex-col gap-1.5">
           <Select
             label="Which test package?"
-            hint="A panel is a bundle of markers run on one sample — e.g. Insight 360, Signature, Advanced GP3."
+            hint="A panel is a bundle of markers run on one sample — e.g. Insight 360, Signature, Advanced GP3. The report itself tells us what was tested, so this is optional."
             name="panelId"
             emptyMessage="No panels configured — add one under Content & configuration."
             value={panelId}
             onChange={(e) => setPanelId(e.target.value)}
           >
-            <option value="">Select a panel…</option>
+            <option value="">No panel — title from date and marker count</option>
             {panels.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -301,13 +302,13 @@ function ManualEntryForm({
         <div className="flex flex-col gap-1.5">
           <Select
             label="Which test package?"
-            hint="A panel is a bundle of markers run on one sample — e.g. Insight 360, Signature, Advanced GP3."
+            hint="A panel is a bundle of markers run on one sample — e.g. Insight 360, Signature, Advanced GP3. The report itself tells us what was tested, so this is optional."
             name="manualPanelId"
             emptyMessage="No panels configured — add one under Content & configuration."
             value={panelId}
             onChange={(e) => setPanelId(e.target.value)}
           >
-            <option value="">Select a panel…</option>
+            <option value="">No panel — title from date and marker count</option>
             {panels.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -527,7 +528,7 @@ export function AdminReportsPage() {
                     {r.patient.patientProfile
                       ? `${r.patient.patientProfile.firstName} ${r.patient.patientProfile.lastName}`
                       : r.patient.email}{' '}
-                    — {r.panel.name}
+                    — {r.title}
                   </p>
                   <p className="text-sm text-espresso">
                     Sample date: {r.sampleDate.slice(0, 10)} · {r.source.name}

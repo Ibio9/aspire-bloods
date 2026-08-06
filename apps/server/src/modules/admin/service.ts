@@ -4,6 +4,7 @@ import { recordAuditLog } from '../../lib/auditLog.js';
 import { hashToken, generateToken } from '../../lib/crypto.js';
 import { emailProvider } from '../notifications/index.js';
 import { env } from '../../config/env.js';
+import { reportTitle } from '@aspire-bloods/shared';
 
 export class AdminError extends Error {
   constructor(
@@ -88,11 +89,15 @@ export async function getPatientConsents(patientId: string) {
 }
 
 export async function getPatientReportHistory(patientId: string) {
-  return prisma.report.findMany({
+  const reports = await prisma.report.findMany({
     where: { patientId },
-    include: { panel: true, source: true },
+    include: { panel: true, source: true, results: { select: { id: true } } },
     orderBy: { createdAt: 'desc' },
   });
+  return reports.map((r) => ({
+    ...r,
+    title: reportTitle(r.panel?.name, r.sampleDate.toISOString(), r.results.length),
+  }));
 }
 
 export async function getPatientAuditTrail(patientId: string, limit: number, offset: number) {
@@ -318,6 +323,38 @@ export async function getSystemAuditLog(filters: {
       actorEmail: e.actorUser?.email ?? null,
       ipAddress: e.ipAddress,
       metadata: e.metadata,
+      createdAt: e.createdAt,
+    })),
+  };
+}
+
+// Phase 3 §3: every automated-ingestion attempt, success or not, so a
+// silently failed import doesn't go unnoticed.
+export async function listIngestionLog(limit: number, offset: number) {
+  const [entries, total] = await Promise.all([
+    prisma.ingestionLogEntry.findMany({
+      include: { report: { include: { patient: { include: { patientProfile: true } } } } },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      skip: offset,
+    }),
+    prisma.ingestionLogEntry.count(),
+  ]);
+
+  return {
+    total,
+    entries: entries.map((e) => ({
+      id: e.id,
+      sourceKey: e.sourceKey,
+      externalId: e.externalId,
+      outcome: e.outcome,
+      reportId: e.reportId,
+      patientName: e.report?.patient.patientProfile
+        ? `${e.report.patient.patientProfile.firstName} ${e.report.patient.patientProfile.lastName}`
+        : (e.report?.patient.email ?? null),
+      markerCount: e.markerCount,
+      message: e.message,
+      mappingFailures: e.mappingFailures,
       createdAt: e.createdAt,
     })),
   };

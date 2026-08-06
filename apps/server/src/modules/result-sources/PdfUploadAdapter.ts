@@ -2,13 +2,17 @@ import { extractText, getDocumentProxy } from 'unpdf';
 import { prisma } from '../../db/client.js';
 import type { ResultSourceAdapter, ParsedMarkerRow, ParsedReport } from './ResultSourceAdapter.js';
 import { NotImplementedError } from './ResultSourceAdapter.js';
+import { llmExtractionAvailable, extractWithLlm, applySanityChecks, reconcileFlaggedRows } from './llmExtraction.js';
 
-// Matches lines shaped like: "Total Cholesterol  4.8  mmol/L  (0.0 - 5.0)"
-// or "Ferritin 85 µg/L 30-400". Deliberately loose — this is assistive
-// extraction only, never published without admin verification. Format-
-// agnostic: this pattern doesn't assume Randox's layout specifically, so
-// the same adapter serves any PDF-based source (Randox or Aspire's own
-// in-house reports) — the admin picks the actual Source at upload time.
+// Fallback path only now — normaliseReport() prefers LLM extraction
+// (llmExtraction.ts) whenever ANTHROPIC_API_KEY is configured, since a
+// single line-match regex silently fails on wrapped names, multi-page
+// layouts, "< 5.0"-style ranges, and non-numeric results like "Not
+// detected". This still runs whenever the LLM path is unavailable or
+// errors, so it must keep working standalone. Matches lines shaped like:
+// "Total Cholesterol  4.8  mmol/L  (0.0 - 5.0)" or "Ferritin 85 µg/L
+// 30-400". Deliberately loose — this is assistive extraction only, never
+// published without admin verification.
 const ROW_PATTERN =
   /^([A-Za-zµ][A-Za-z0-9µ%()/\-.,'\s]*?)\s+([\d]+\.?\d*)\s*([A-Za-zµ%/^0-9]{0,15})\s*[[(]?\s*([\d]+\.?\d*)\s*(?:-|–|to)\s*([\d]+\.?\d*)\s*[\])]?\s*$/;
 
@@ -54,6 +58,12 @@ function extractRows(text: string): ParsedMarkerRow[] {
       referenceLow: Number(low),
       referenceHigh: Number(high),
       rawLine: trimmed,
+      sourceText: trimmed,
+      // The regex path has no notion of confidence — a line either matches
+      // the pattern or it doesn't. Sanity checks (unknown marker, implausible
+      // unit/magnitude) still run on regex output the same as LLM output.
+      confidence: null,
+      flags: [],
     });
   }
   return rows;
@@ -76,10 +86,47 @@ export class PdfUploadAdapter implements ResultSourceAdapter {
   async normaliseReport(pdfBuffer: Buffer): Promise<ParsedReport> {
     const pdf = await getDocumentProxy(new Uint8Array(pdfBuffer));
     const { text } = await extractText(pdf, { mergePages: true });
-    return {
-      sampleDate: extractSampleDate(text),
-      rows: extractRows(text),
-    };
+
+    if (!llmExtractionAvailable()) {
+      return {
+        sampleDate: extractSampleDate(text),
+        panelName: null,
+        rows: extractRows(text),
+        extractionMethod: 'regex',
+        fallbackReason: 'AI extraction is not configured (ANTHROPIC_API_KEY unset) — using pattern-based extraction.',
+      };
+    }
+
+    try {
+      const llmResult = await extractWithLlm(text);
+      const catalogueMarkers = await prisma.marker.findMany({
+        where: { isActive: true },
+        select: { id: true, key: true, name: true, defaultUnit: true },
+      });
+      let rows = applySanityChecks(llmResult.rows, catalogueMarkers);
+      // Two-pass only for rows a sanity check actually flagged — every
+      // extraction re-reading the whole report twice regardless of quality
+      // would double cost and latency for no benefit on clean rows.
+      rows = await reconcileFlaggedRows(text, rows);
+
+      return {
+        sampleDate: llmResult.sampleDate ?? extractSampleDate(text),
+        panelName: llmResult.panelName,
+        rows,
+        extractionMethod: 'llm',
+      };
+    } catch (e) {
+      // An LLM failure (API down, malformed response, rate limit) must
+      // never block extraction entirely — fall back to the regex path and
+      // say so in the UI, rather than silently returning nothing.
+      return {
+        sampleDate: extractSampleDate(text),
+        panelName: null,
+        rows: extractRows(text),
+        extractionMethod: 'regex',
+        fallbackReason: `AI extraction failed (${e instanceof Error ? e.message : 'unknown error'}) — using pattern-based extraction.`,
+      };
+    }
   }
 
   async listPanels(): Promise<{ key: string; name: string }[]> {

@@ -3,6 +3,7 @@ import { prisma } from '../../db/client.js';
 import { decryptField } from '../../lib/crypto.js';
 import { storageAdapter } from '../storage/LocalDiskStorageAdapter.js';
 import { recordAuditLog } from '../../lib/auditLog.js';
+import { reportTitle } from '@aspire-bloods/shared';
 
 /**
  * One-click full data export (brief §6, DSAR support): every held record
@@ -71,7 +72,8 @@ export async function buildDsarExport(patientId: string): Promise<NodeJS.Readabl
 
   const reportsJson = reports.map((r) => ({
     reportId: r.id,
-    panel: r.panel.name,
+    panel: r.panel?.name ?? null,
+    title: reportTitle(r.panel?.name, r.sampleDate.toISOString(), r.results.length),
     sampleDate: r.sampleDate,
     status: r.status,
     releasedAt: r.releasedAt,
@@ -113,7 +115,7 @@ export async function buildDsarExport(patientId: string): Promise<NodeJS.Readabl
       try {
         const buf = await storageAdapter.read(r.originalPdfFile.storageKey);
         archive.append(buf, {
-          name: `files/${r.sampleDate.toISOString().slice(0, 10)}-${r.panel.key}-${r.id.slice(0, 8)}-original.pdf`,
+          name: `files/${r.sampleDate.toISOString().slice(0, 10)}-${r.panel?.key ?? 'no-panel'}-${r.id.slice(0, 8)}-original.pdf`,
         });
       } catch {
         // file missing on disk — skip rather than fail the whole export

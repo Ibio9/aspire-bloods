@@ -3,6 +3,6 @@
  * a second API round-trip. Absent on a direct/deep link — the page falls back to no arrows. */
 export interface MarkerNavState {
   reportId: string;
-  panelName: string;
+  title: string;
   markerIds: string[];
 }

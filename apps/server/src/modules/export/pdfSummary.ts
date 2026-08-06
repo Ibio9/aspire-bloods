@@ -1,6 +1,7 @@
 import PDFDocument from 'pdfkit';
 import { prisma } from '../../db/client.js';
 import { decryptField } from '../../lib/crypto.js';
+import { reportTitle } from '@aspire-bloods/shared';
 
 const BRONZE = '#8a5e45';
 const ESPRESSO = '#423c36';
@@ -36,6 +37,7 @@ export async function generateAspireSummaryPdf(reportId: string): Promise<Buffer
   const footerDisclaimer = await prisma.copyBlock.findUnique({ where: { slug: 'footer_disclaimer' } });
   const outOfRangePrompt = await prisma.copyBlock.findUnique({ where: { slug: 'out_of_range_prompt' } });
   const hasFlagged = report.results.some((r) => r.status !== 'IN_RANGE');
+  const title = reportTitle(report.panel?.name, report.sampleDate.toISOString(), report.results.length);
 
   const profile = report.patient.patientProfile;
   const patientName = profile ? `${profile.title ? profile.title + ' ' : ''}${profile.firstName} ${profile.lastName}` : report.patient.email;
@@ -62,12 +64,12 @@ export async function generateAspireSummaryPdf(reportId: string): Promise<Buffer
   doc.moveDown(1.5);
 
   // Body
-  doc.fontSize(13).font('Helvetica-Bold').fillColor(ESPRESSO).text(`${report.panel.name} — results summary`);
+  doc.fontSize(13).font('Helvetica-Bold').fillColor(ESPRESSO).text(`${title} — results summary`);
   doc.fontSize(10).font('Helvetica').moveDown(0.5);
   doc.text(`Dear ${profile?.firstName ?? 'Patient'},`);
   doc.moveDown(0.5);
   doc.text(
-    `Please find below a summary of your ${report.panel.name} results, from a sample taken on ${report.sampleDate.toLocaleDateString('en-GB')}.`,
+    `Please find below a summary of your ${title} results, from a sample taken on ${report.sampleDate.toLocaleDateString('en-GB')}.`,
   );
   doc.moveDown(1);
 

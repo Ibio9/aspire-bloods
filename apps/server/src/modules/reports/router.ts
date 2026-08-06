@@ -37,9 +37,13 @@ const upload = multer({
   },
 });
 
+// A panel is an equal choice, not a required fallback — the multipart form
+// sends '' for "no panel selected", which reads as absent, not an invalid uuid.
+const optionalUuid = z.preprocess((v) => (v === '' || v == null ? undefined : v), z.string().uuid().optional());
+
 const uploadRequestSchema = z.object({
   patientId: z.string().uuid(),
-  panelId: z.string().uuid(),
+  panelId: optionalUuid,
   sourceId: z.string().uuid(),
   sampleDate: z.string().min(1),
 });

@@ -4,6 +4,7 @@ import { recordAuditLog } from '../../lib/auditLog.js';
 import { sourceLabel } from '../../lib/sourceLabel.js';
 import { convertToDisplayUnit, hasKnownConversion } from '../../lib/unitConversion.js';
 import type { ConsentType } from '@aspire-bloods/shared';
+import { reportTitle } from '@aspire-bloods/shared';
 
 export class PatientAccessError extends Error {
   constructor(
@@ -29,7 +30,8 @@ export async function listReportsForPatient(patientId: string) {
     const attentionCount = r.results.filter((res) => res.status !== 'IN_RANGE').length;
     return {
       reportId: r.id,
-      panelName: r.panel.name,
+      panelName: r.panel?.name ?? null,
+      title: reportTitle(r.panel?.name, r.sampleDate.toISOString(), r.results.length),
       sampleDate: r.sampleDate.toISOString().slice(0, 10),
       patientStatus: released ? ('RELEASED' as const) : ('PENDING' as const),
       markerCount: released ? r.results.length : undefined,
@@ -56,7 +58,8 @@ export async function getReleasedReportForPatient(patientId: string, reportId: s
 
   return {
     reportId: report.id,
-    panelName: report.panel.name,
+    panelName: report.panel?.name ?? null,
+    title: reportTitle(report.panel?.name, report.sampleDate.toISOString(), report.results.length),
     sampleDate: report.sampleDate.toISOString().slice(0, 10),
     sourceLabel: sourceLabel(report.source.key, report.source.name),
     markers: report.results.map((r) => ({

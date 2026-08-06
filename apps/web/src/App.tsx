@@ -13,6 +13,7 @@ import { ReportDetailPage } from './features/admin/ReportDetailPage';
 import { PatientsListPage } from './features/admin/PatientsListPage';
 import { PatientDetailPage } from './features/admin/PatientDetailPage';
 import { AuditLogPage } from './features/admin/AuditLogPage';
+import { IngestionLogPage } from './features/admin/IngestionLogPage';
 import { ContentConfigPage } from './features/admin/ContentConfigPage';
 import { PatientHome } from './features/patient/PatientHome';
 import { ReportView } from './features/patient/ReportView';
@@ -94,6 +95,7 @@ export default function App() {
                 }
               >
                 <Route path="/admin/audit-log" element={<AuditLogPage />} />
+                <Route path="/admin/ingestion-log" element={<IngestionLogPage />} />
               </Route>
 
               {/* Dev-only design system review — tree-shaken out of production builds entirely, not just hidden. */}

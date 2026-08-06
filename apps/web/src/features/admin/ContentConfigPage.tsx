@@ -35,7 +35,6 @@ interface PanelRow {
   name: string;
   description: string | null;
   isActive: boolean;
-  b2bPriceGBP: number | null;
   markers: PanelMarkerRow[];
 }
 
@@ -66,7 +65,6 @@ function PanelsAndMarkersTab() {
   const [markers, setMarkers] = useState<MarkerRow[] | null>(null);
   const [newPanelKey, setNewPanelKey] = useState('');
   const [newPanelName, setNewPanelName] = useState('');
-  const [newPanelPrice, setNewPanelPrice] = useState('');
   const [newMarkerKey, setNewMarkerKey] = useState('');
   const [newMarkerName, setNewMarkerName] = useState('');
   const [newMarkerUnit, setNewMarkerUnit] = useState('');
@@ -90,15 +88,10 @@ function PanelsAndMarkersTab() {
     try {
       await apiFetch('/panels', {
         method: 'POST',
-        body: JSON.stringify({
-          key: newPanelKey,
-          name: newPanelName,
-          b2bPriceGBP: newPanelPrice ? Number(newPanelPrice) : undefined,
-        }),
+        body: JSON.stringify({ key: newPanelKey, name: newPanelName }),
       });
       setNewPanelKey('');
       setNewPanelName('');
-      setNewPanelPrice('');
       show('Panel created.', 'success');
       await load();
     } catch (e) {
@@ -134,17 +127,6 @@ function PanelsAndMarkersTab() {
       await load();
     } catch (e) {
       show(e instanceof ApiError ? e.message : 'Could not update panel.', 'error');
-    }
-  }
-
-  async function updatePanelPrice(panel: PanelRow, value: string) {
-    const b2bPriceGBP = value.trim() === '' ? null : Number(value);
-    if (b2bPriceGBP !== null && Number.isNaN(b2bPriceGBP)) return;
-    try {
-      await apiFetch(`/panels/${panel.id}`, { method: 'PATCH', body: JSON.stringify({ b2bPriceGBP }) });
-      await load();
-    } catch (e) {
-      show(e instanceof ApiError ? e.message : 'Could not update price.', 'error');
     }
   }
 
@@ -210,17 +192,6 @@ function PanelsAndMarkersTab() {
           <p className="eyebrow">New panel</p>
           <Input label="Key" name="panelKey" value={newPanelKey} onChange={(e) => setNewPanelKey(e.target.value)} hint="lowercase-with-hyphens" />
           <Input label="Name" name="panelName" value={newPanelName} onChange={(e) => setNewPanelName(e.target.value)} />
-          <Input
-            label="B2B price (GBP)"
-            name="panelPrice"
-            optional
-            type="number"
-            step="0.01"
-            min="0"
-            value={newPanelPrice}
-            onChange={(e) => setNewPanelPrice(e.target.value)}
-            hint="Leave blank if no price has been agreed yet"
-          />
           <Button onClick={createPanel} disabled={!newPanelKey || !newPanelName} className="self-start">
             Create panel
           </Button>
@@ -255,19 +226,6 @@ function PanelsAndMarkersTab() {
               <p className="text-sm text-espresso/80">{panel.key}</p>
             </div>
             <div className="flex items-center gap-4">
-              <label className="flex flex-col gap-1 text-xs">
-                <span className="text-espresso/80">B2B price</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  aria-label={`B2B price for ${panel.name}`}
-                  className="input-base w-28 py-1.5 tabular"
-                  defaultValue={panel.b2bPriceGBP ?? ''}
-                  placeholder="—"
-                  onBlur={(e) => updatePanelPrice(panel, e.target.value)}
-                />
-              </label>
               <Checkbox
                 name={`active-${panel.id}`}
                 checked={panel.isActive}

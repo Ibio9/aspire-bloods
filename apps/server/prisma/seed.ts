@@ -129,42 +129,36 @@ const panelDefinitions: {
   key: string;
   name: string;
   description: string;
-  b2bPriceGBP?: number;
   markerKeys: { key: string; isAddOn?: boolean }[];
 }[] = [
   {
     key: 'ran-chip-insight-360',
     name: 'Ran Chip Insight 360',
     description: 'Randox’s most comprehensive panel — a full 360-degree view across blood count, organ function, cardiovascular, metabolic, and inflammatory markers.',
-    b2bPriceGBP: 380,
     markerKeys: ['haemoglobin','haemoglobin-f','wbc','platelets','rbc','haematocrit','mcv','rdw','neutrophils','lymphocytes','alt','ast','ggt','bilirubin','albumin','alp','total-protein','creatinine','egfr','urea','sodium','potassium','total-cholesterol','hdl','ldl','triglycerides','chol-hdl-ratio','glucose','hba1c','tsh','free-t4','free-t3','vitamin-d','vitamin-b12','folate','ferritin','iron','calcium','hs-crp','esr','uric-acid'].map((key) => ({ key })),
   },
   {
     key: 'signature',
     name: 'Signature',
     description: 'A focused general health check covering blood count, key organ function, and cardiovascular markers.',
-    b2bPriceGBP: 575,
     markerKeys: ['haemoglobin','haemoglobin-f','wbc','platelets','alt','creatinine','egfr','total-cholesterol','hdl','ldl','triglycerides','glucose','tsh'].map((key) => ({ key })),
   },
   {
     key: 'advanced-gp3-male',
     name: 'Advanced GP3 (Male)',
     description: 'Comprehensive men’s health panel spanning organ function, cardiovascular, metabolic, and male hormone markers.',
-    b2bPriceGBP: 210,
     markerKeys: ['haemoglobin','wbc','platelets','alt','ast','ggt','creatinine','egfr','total-cholesterol','hdl','ldl','triglycerides','glucose','hba1c','tsh','free-t4','free-t3','vitamin-d','vitamin-b12','ferritin','testosterone','shbg'].map((key) => ({ key })),
   },
   {
     key: 'advanced-gp3-female',
     name: 'Advanced GP3 (Female)',
     description: 'Comprehensive women’s health panel spanning organ function, cardiovascular, metabolic, and female hormone markers.',
-    b2bPriceGBP: 210,
     markerKeys: ['haemoglobin-f','wbc','platelets','alt','ast','ggt','creatinine','egfr','total-cholesterol','hdl','ldl','triglycerides','glucose','hba1c','tsh','free-t4','free-t3','vitamin-d','vitamin-b12','ferritin','testosterone-f','oestradiol','shbg'].map((key) => ({ key })),
   },
   {
     key: 'nutritional-health-hsc15',
     name: 'Nutritional Health HSC15',
     description: 'A 15-marker panel focused on vitamin, mineral, and nutritional status.',
-    // No B2B price supplied in the agreement for this panel.
     markerKeys: ['vitamin-d','vitamin-b12','folate','ferritin','iron','tibc','calcium','rbc-magnesium','zinc','haemoglobin','albumin','total-protein','uric-acid','hba1c'].map((key) => ({ key })),
   },
   {
@@ -204,6 +198,7 @@ const EXCLUDED_MARKER_KEYS = ['oxidised-ldl', 'mpo'];
 
 const sourceDefinitions = [
   { key: 'randox_portal', name: 'Randox Portal' },
+  { key: 'randox_api', name: 'Randox API' },
   { key: 'aspire_inhouse', name: 'Aspire In-House' },
   { key: 'manual_entry', name: 'Manual Entry' },
 ];
@@ -291,8 +286,8 @@ async function main() {
   for (const p of panelDefinitions) {
     const panel = await prisma.panel.upsert({
       where: { key: p.key },
-      update: { name: p.name, description: p.description, b2bPriceGBP: p.b2bPriceGBP ?? null },
-      create: { key: p.key, name: p.name, description: p.description, b2bPriceGBP: p.b2bPriceGBP },
+      update: { name: p.name, description: p.description },
+      create: { key: p.key, name: p.name, description: p.description },
     });
     panelIdByKey.set(p.key, panel.id);
 

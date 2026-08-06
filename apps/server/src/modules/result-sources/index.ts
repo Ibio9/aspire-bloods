@@ -1,10 +1,14 @@
-import { env } from '../../config/env.js';
 import { PdfUploadAdapter } from './PdfUploadAdapter.js';
-import { RandoxApiAdapter } from './RandoxApiAdapter.js';
-import type { ResultSourceAdapter } from './ResultSourceAdapter.js';
 
-export const resultSourceAdapter: ResultSourceAdapter =
-  env.LAB_ADAPTER === 'RANDOX_API' ? new RandoxApiAdapter() : new PdfUploadAdapter();
+// Admin PDF upload is a distinct route from Randox's API feed (§3) — an
+// admin can still upload a PDF (Randox white-label or Aspire in-house)
+// regardless of whether the API integration is also switched on, so this
+// is always the PDF adapter, never LAB_ADAPTER-conditional. RandoxApiAdapter
+// is instantiated directly by randoxIngestionService.ts, which is the only
+// caller that ever runs it.
+export const resultSourceAdapter = new PdfUploadAdapter();
 
 export * from './ResultSourceAdapter.js';
+export { PdfUploadAdapter } from './PdfUploadAdapter.js';
+export { RandoxApiAdapter } from './RandoxApiAdapter.js';
 export { ManualEntryAdapter } from './ManualEntryAdapter.js';

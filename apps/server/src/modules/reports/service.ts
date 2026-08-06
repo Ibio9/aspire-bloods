@@ -7,6 +7,7 @@ import { storageAdapter } from '../storage/LocalDiskStorageAdapter.js';
 import { resultSourceAdapter } from '../result-sources/index.js';
 import { findBestMarkerMatch } from './matchMarker.js';
 import type { VerifyReportRequest } from '@aspire-bloods/shared';
+import { reportTitle } from '@aspire-bloods/shared';
 
 export class ReportError extends Error {
   constructor(
@@ -19,7 +20,7 @@ export class ReportError extends Error {
 
 export async function uploadReport(input: {
   patientId: string;
-  panelId: string;
+  panelId?: string;
   sourceId: string;
   sampleDate: string;
   fileBuffer: Buffer;
@@ -32,9 +33,9 @@ export async function uploadReport(input: {
   if (!patient || patient.role !== 'PATIENT') {
     throw new ReportError('Patient not found', 404);
   }
-  const panel = await prisma.panel.findUnique({ where: { id: input.panelId } });
-  if (!panel) {
-    throw new ReportError('Panel not found', 404);
+  if (input.panelId) {
+    const panel = await prisma.panel.findUnique({ where: { id: input.panelId } });
+    if (!panel) throw new ReportError('Panel not found', 404);
   }
   const source = await prisma.source.findUnique({ where: { id: input.sourceId } });
   if (!source || !source.isActive) {
@@ -59,7 +60,7 @@ export async function uploadReport(input: {
   const report = await prisma.report.create({
     data: {
       patientId: input.patientId,
-      panelId: input.panelId,
+      panelId: input.panelId ?? null,
       sourceId: input.sourceId,
       sampleDate: new Date(input.sampleDate),
       status: 'UPLOADED',
@@ -94,7 +95,7 @@ export async function parseReport(reportId: string, actorUserId: string, ip: str
   const buffer = await storageAdapter.read(report.originalPdfFile.storageKey);
   const parsed = await resultSourceAdapter.normaliseReport(buffer);
 
-  const panelMarkers = report.panel.markers.map((pm) => pm.marker);
+  const panelMarkers = report.panel?.markers.map((pm) => pm.marker) ?? [];
   const allMarkers = await prisma.marker.findMany();
 
   const rows = parsed.rows.map((row) => {
@@ -108,6 +109,9 @@ export async function parseReport(reportId: string, actorUserId: string, ip: str
       unit: row.unit ?? match?.defaultUnit ?? null,
       referenceLow: row.referenceLow,
       referenceHigh: row.referenceHigh,
+      sourceText: row.sourceText ?? row.rawLine,
+      confidence: row.confidence ?? null,
+      flags: row.flags ?? [],
     };
   });
 
@@ -121,11 +125,14 @@ export async function parseReport(reportId: string, actorUserId: string, ip: str
     targetType: 'Report',
     targetId: reportId,
     ipAddress: ip,
-    metadata: { rowCount: rows.length },
+    metadata: { rowCount: rows.length, extractionMethod: parsed.extractionMethod },
   });
 
   return {
     sampleDate: parsed.sampleDate ?? report.sampleDate.toISOString().slice(0, 10),
+    panelName: parsed.panelName ?? null,
+    extractionMethod: parsed.extractionMethod,
+    fallbackReason: parsed.fallbackReason ?? null,
     rows,
   };
 }
@@ -411,6 +418,7 @@ export async function getReportDetail(reportId: string) {
   return {
     ...report,
     sourceLabel: sourceLabel(report.source.key, report.source.name),
+    title: reportTitle(report.panel?.name, report.sampleDate.toISOString(), report.results.length),
     results: report.results.map((r) => ({
       ...r,
       value: Number(decryptField(r.valueEncrypted)),
@@ -433,8 +441,17 @@ export async function getReportDetail(reportId: string) {
 }
 
 export async function listReportsForAdmin() {
-  return prisma.report.findMany({
-    include: { panel: true, source: true, patient: { include: { patientProfile: true } } },
+  const reports = await prisma.report.findMany({
+    include: {
+      panel: true,
+      source: true,
+      patient: { include: { patientProfile: true } },
+      results: { select: { id: true } },
+    },
     orderBy: { createdAt: 'desc' },
   });
+  return reports.map((r) => ({
+    ...r,
+    title: reportTitle(r.panel?.name, r.sampleDate.toISOString(), r.results.length),
+  }));
 }

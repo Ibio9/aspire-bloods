@@ -25,7 +25,8 @@ interface MarkerCard {
 
 interface ReportDetail {
   reportId: string;
-  panelName: string;
+  panelName: string | null;
+  title: string;
   sampleDate: string;
   sourceLabel?: string;
   markers: MarkerCard[];
@@ -65,8 +66,8 @@ export function ReportView() {
 
   return (
     <>
-      <Breadcrumbs items={[{ label: 'Your results', to: '/my-results' }, { label: `${report.panelName}, ${report.sampleDate}` }]} />
-      <TwoTierHeading eyebrow={`Sample date ${report.sampleDate}`} title={report.panelName} />
+      <Breadcrumbs items={[{ label: 'Your results', to: '/my-results' }, { label: `${report.title}, ${report.sampleDate}` }]} />
+      <TwoTierHeading eyebrow={`Sample date ${report.sampleDate}`} title={report.title} />
       {report.sourceLabel && <p className="mt-2 text-sm text-espresso/80">{report.sourceLabel}</p>}
 
       <div className="mt-6 flex flex-wrap gap-3">
@@ -83,7 +84,7 @@ export function ReportView() {
           <Link
             key={m.markerId}
             to={`/markers/${m.markerId}`}
-            state={{ reportId: report.reportId, panelName: report.panelName, markerIds: report.markers.map((mk) => mk.markerId) } satisfies MarkerNavState}
+            state={{ reportId: report.reportId, title: report.title, markerIds: report.markers.map((mk) => mk.markerId) } satisfies MarkerNavState}
             className="stagger-item motion-safe:animate-riseIn rounded-card"
             style={{ animationDelay: `${i * 30}ms` }}
           >

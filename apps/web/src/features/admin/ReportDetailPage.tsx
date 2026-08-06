@@ -12,6 +12,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { ReportProgress } from '../../components/ui/ReportProgress';
 import { CopyButton } from '../../components/ui/CopyButton';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
+import { Tooltip } from '../../components/ui/Tooltip';
 import { useToast } from '../../components/ui/Toast';
 import { apiFetch, ApiError } from '../../lib/api';
 import { API_BASE_URL } from '../../lib/apiBase';
@@ -24,6 +25,14 @@ interface MarkerOption {
   defaultUnit: string;
 }
 
+const FLAG_LABEL: Record<string, string> = {
+  unknown_marker: "Marker isn't in the catalogue",
+  implausible_unit: 'Unit looks wrong for this marker',
+  value_order_of_magnitude: 'Value is far outside the reference range',
+  two_pass_disagreement: 'A second AI read disagreed — check closely',
+  non_numeric_result: 'Non-numeric result (e.g. "Not detected")',
+};
+
 interface ParsedRow {
   rawLine: string;
   rawName: string;
@@ -33,6 +42,9 @@ interface ParsedRow {
   unit: string | null;
   referenceLow: number | null;
   referenceHigh: number | null;
+  sourceText?: string;
+  confidence?: number | null;
+  flags?: string[];
 }
 
 interface ResultEdit {
@@ -68,7 +80,8 @@ interface ReportDetail {
   voidedAt: string | null;
   voidReason: string | null;
   voidedBy: { email: string; staffProfile: { firstName: string; lastName: string } | null } | null;
-  panel: { name: string };
+  panel: { name: string } | null;
+  title: string;
   patient: { id: string; email: string; patientProfile: { firstName: string; lastName: string } | null };
   results: VerifiedResult[];
 }
@@ -80,6 +93,9 @@ export function ReportDetailPage() {
   const [report, setReport] = useState<ReportDetail | null>(null);
   const [markers, setMarkers] = useState<MarkerOption[]>([]);
   const [rows, setRows] = useState<ParsedRow[]>([]);
+  const [extractionMethod, setExtractionMethod] = useState<'llm' | 'regex' | null>(null);
+  const [fallbackReason, setFallbackReason] = useState<string | null>(null);
+  const [parsedPanelName, setParsedPanelName] = useState<string | null>(null);
   const [sampleDate, setSampleDate] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -112,11 +128,18 @@ export function ReportDetailPage() {
     setError(null);
     setBusy(true);
     try {
-      const result = await apiFetch<{ sampleDate: string; rows: ParsedRow[] }>(`/reports/${id}/parse`, {
-        method: 'POST',
-      });
+      const result = await apiFetch<{
+        sampleDate: string;
+        panelName: string | null;
+        extractionMethod: 'llm' | 'regex';
+        fallbackReason: string | null;
+        rows: ParsedRow[];
+      }>(`/reports/${id}/parse`, { method: 'POST' });
       setRows(result.rows);
       setSampleDate(result.sampleDate);
+      setExtractionMethod(result.extractionMethod);
+      setFallbackReason(result.fallbackReason);
+      setParsedPanelName(result.panelName);
       await load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Parse failed');
@@ -235,7 +258,7 @@ export function ReportDetailPage() {
         items={[
           { label: 'Patients', to: '/admin/patients' },
           { label: patientName, to: `/admin/patients/${report.patient.id}` },
-          { label: `${report.panel.name}, ${sampleDateLabel}` },
+          { label: `${report.title}, ${sampleDateLabel}` },
         ]}
       />
 
@@ -243,12 +266,12 @@ export function ReportDetailPage() {
           screen partway down a long verify table is a real clinical risk, not just a UX nicety. */}
       <div className="sticky top-[61px] z-20 -mx-6 mb-4 border-b border-taupe bg-cream/95 px-6 py-2.5 backdrop-blur md:-mx-10 md:px-10">
         <p className="truncate text-sm font-medium text-espresso">
-          {patientName} <span className="text-espresso/50">·</span> {report.panel.name}{' '}
+          {patientName} <span className="text-espresso/50">·</span> {report.title}{' '}
           <span className="text-espresso/50">·</span> <span className="tabular">{sampleDateLabel}</span>
         </p>
       </div>
 
-      <TwoTierHeading eyebrow={`${patientName} — ${sampleDateLabel}`} title={report.panel.name} />
+      <TwoTierHeading eyebrow={`${patientName} — ${sampleDateLabel}`} title={report.title} />
       <p className="mt-2 flex items-center gap-1 text-sm text-espresso/80">
         {report.patient.email}
         <CopyButton value={report.patient.email} label="Copy patient email" />
@@ -331,14 +354,28 @@ export function ReportDetailPage() {
 
       {rows.length > 0 && (
         <div className="mt-8">
-          <p className="eyebrow mb-4">Verify extracted results — correct anything before saving</p>
+          <p className="eyebrow mb-1">Verify extracted results — correct anything before saving</p>
+          {parsedPanelName && <p className="mb-3 text-sm text-espresso/80">Panel printed on the report: {parsedPanelName}</p>}
+          {extractionMethod === 'regex' && (
+            <Card className="mb-4 max-w-2xl border-status-high bg-white">
+              <p className="text-sm font-medium text-espresso">Pattern-based extraction (AI extraction unavailable)</p>
+              <p className="mt-1 text-sm text-espresso/80">{fallbackReason}</p>
+            </Card>
+          )}
+          {extractionMethod === 'llm' && (
+            <p className="mb-4 text-xs text-espresso/60">
+              Extracted with AI assistance — every row still needs your confirmation. Rows flagged below had a low-confidence
+              read or failed a sanity check; check them against the source text before saving.
+            </p>
+          )}
           <div className="mb-4 max-w-xs">
             <DateField label="Sample date" name="sampleDate" value={sampleDate} onChange={setSampleDate} />
           </div>
           <Table>
             <TableHead>
               <TableRow>
-                <TableHeaderCell>Raw line</TableHeaderCell>
+                <TableHeaderCell>Flag</TableHeaderCell>
+                <TableHeaderCell>Source text</TableHeaderCell>
                 <TableHeaderCell>Marker</TableHeaderCell>
                 <TableHeaderCell>Value</TableHeaderCell>
                 <TableHeaderCell>Unit</TableHeaderCell>
@@ -347,10 +384,36 @@ export function ReportDetailPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {rows.map((row, i) => (
-                <TableRow key={i}>
-                  <TableCell className="max-w-[240px] truncate" title={row.rawLine}>
-                    {row.rawLine}
+              {rows.map((row, i) => {
+                const flags = row.flags ?? [];
+                const flagged = flags.length > 0;
+                return (
+                <TableRow key={i} className={flagged ? 'bg-status-high/5' : undefined}>
+                  <TableCell>
+                    {flagged && (
+                      <Tooltip label={flags.map((f) => FLAG_LABEL[f] ?? f).join(' · ')}>
+                        <span className="inline-flex items-center gap-1 text-status-high" tabIndex={0}>
+                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                            <path
+                              d="M7 1 13 12H1L7 1Z"
+                              stroke="currentColor"
+                              strokeWidth="1.3"
+                              strokeLinejoin="round"
+                              fill="none"
+                            />
+                            <path d="M7 5.5v3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                            <circle cx="7" cy="10.3" r="0.7" fill="currentColor" />
+                          </svg>
+                          <span className="text-xs font-medium">Check</span>
+                        </span>
+                      </Tooltip>
+                    )}
+                  </TableCell>
+                  <TableCell className="max-w-[240px] truncate" title={row.sourceText ?? row.rawLine}>
+                    {row.sourceText ?? row.rawLine}
+                    {row.confidence != null && (
+                      <span className="ml-1.5 text-xs text-espresso/50">({Math.round(row.confidence * 100)}%)</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Select
@@ -409,7 +472,8 @@ export function ReportDetailPage() {
                     />
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
           <Button onClick={handleVerify} loading={busy} className="mt-6">

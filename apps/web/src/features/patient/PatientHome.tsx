@@ -8,7 +8,7 @@ import { apiFetch } from '../../lib/api';
 
 interface ReportSummary {
   reportId: string;
-  panelName: string;
+  title: string;
   sampleDate: string;
   patientStatus: 'PENDING' | 'RELEASED';
   markerCount?: number;
@@ -57,7 +57,7 @@ export function PatientHome() {
               >
                 <Card interactive className="h-full">
                   <p className="eyebrow mb-1.5">{r.sampleDate}</p>
-                  <p className="font-display text-2xl leading-tight text-espresso">{r.panelName}</p>
+                  <p className="font-display text-2xl leading-tight text-espresso">{r.title}</p>
                   <p className="mt-4 text-sm text-espresso">
                     {r.inRangeCount} in range
                     {r.attentionCount ? `, ${r.attentionCount} need${r.attentionCount === 1 ? 's' : ''} attention` : ''}
@@ -72,7 +72,7 @@ export function PatientHome() {
                 style={{ animationDelay: `${i * 30}ms` }}
               >
                 <p className="eyebrow mb-1.5">{r.sampleDate}</p>
-                <p className="font-display text-2xl leading-tight text-espresso">{r.panelName}</p>
+                <p className="font-display text-2xl leading-tight text-espresso">{r.title}</p>
                 <p className="mt-4 text-sm text-espresso">
                   Your results are with the clinical team and will be available shortly.
                 </p>

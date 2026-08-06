@@ -25,9 +25,13 @@ export const releaseReportRequestSchema = z.object({
 export type ReleaseReportRequest = z.infer<typeof releaseReportRequestSchema>;
 
 // Phase 2 §2.5 — manual entry route.
+// A panel is an equal choice, not a required fallback — '' (no panel
+// selected in the dropdown) and null both mean "no panel", not an invalid uuid.
+const optionalUuid = z.preprocess((v) => (v === '' || v == null ? undefined : v), z.string().uuid().optional());
+
 export const manualEntryRequestSchema = z.object({
   patientId: z.string().uuid(),
-  panelId: z.string().uuid(),
+  panelId: optionalUuid,
   sampleDate: z.string().min(1),
   results: z.array(verifiedResultRowSchema).min(1),
   confirmed: z.boolean().optional().default(false),
