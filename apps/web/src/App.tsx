@@ -27,6 +27,10 @@ import { DocumentsPage } from './features/patient/DocumentsPage';
 import { ReportView } from './features/patient/ReportView';
 import { MarkerDetailPage } from './features/patient/MarkerDetailPage';
 import { AccountPage } from './features/patient/AccountPage';
+import { BookingPage } from './features/booking/BookingPage';
+import { AppointmentsPage } from './features/booking/AppointmentsPage';
+import { AppointmentDetailPage } from './features/booking/AppointmentDetailPage';
+import { ReschedulePage } from './features/booking/ReschedulePage';
 import { AdminShell } from './components/nav/AdminShell';
 import { PatientShell } from './components/nav/PatientShell';
 import { Footer } from './components/Footer';
@@ -75,6 +79,14 @@ export default function App() {
                 }
               >
                 <Route path="/overview" element={<PatientOverview />} />
+                {/* Booking — the flow itself, the diary, and one appointment.
+                    `/appointments/:id` doubles as the confirmation screen
+                    (with ?booked=1) so the summary a patient checks before
+                    confirming is the same one they come back to. */}
+                <Route path="/book" element={<BookingPage />} />
+                <Route path="/appointments" element={<AppointmentsPage />} />
+                <Route path="/appointments/:id" element={<AppointmentDetailPage />} />
+                <Route path="/appointments/:id/reschedule" element={<ReschedulePage />} />
                 <Route path="/my-results" element={<PatientHome />} />
                 <Route path="/markers" element={<AllMarkersPage />} />
                 <Route path="/trends" element={<TrendsPage />} />
