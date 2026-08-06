@@ -160,14 +160,18 @@ export function OtpStep({
 
   return (
     <>
-      <p className="eyebrow mb-3">{eyebrow ?? 'One more step'}</p>
-      <h2 className="font-display text-5xl leading-[1.05] text-espresso">{heading ?? "Verify it's you"}</h2>
-      <p className="mt-5 text-sm leading-relaxed text-espresso/80">
+      <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">{eyebrow ?? 'One more step'}</p>
+      <h2 className="auth-heading">{heading ?? "Verify it's you"}</h2>
+      <p className="mt-[var(--auth-step)] text-sm leading-relaxed text-espresso/80">
         We've sent a 6-digit verification code to {sentTo ?? 'your email'}. It's valid for {expiresInMinutes}{' '}
         minutes.
       </p>
 
-      <form onSubmit={handleSubmit} className="mt-10 flex flex-col gap-6" noValidate>
+      <form
+        onSubmit={handleSubmit}
+        className="mt-[calc(var(--auth-step)*1.6)] flex flex-col gap-[calc(var(--auth-step)*1.2)]"
+        noValidate
+      >
         <OtpInput
           label="Verification code"
           autoFocus
@@ -194,7 +198,7 @@ export function OtpStep({
           <p
             ref={noticeRef}
             role="status"
-            className="rounded-input border border-taupe bg-cream-50 px-4 py-3 text-sm text-espresso"
+            className="rounded-input border border-taupe bg-cream-50 px-4 py-2.5 text-sm text-espresso"
           >
             {notice}
           </p>
@@ -211,9 +215,9 @@ export function OtpStep({
         </Button>
       </form>
 
-      <div className="mt-8 border-t border-taupe pt-6">
+      <div className="mt-[calc(var(--auth-step)*1.4)] border-t border-taupe pt-[calc(var(--auth-step)*1.2)]">
         <p className="text-sm text-espresso/80">Didn't get the code?</p>
-        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="mt-[calc(var(--auth-step)*0.75)] flex flex-wrap items-center gap-x-4 gap-y-2">
           <Button
             variant="secondary"
             onClick={handleResend}
@@ -238,7 +242,7 @@ export function OtpStep({
         </div>
 
         {showWayOut && (
-          <p className="mt-5 rounded-input border border-taupe bg-cream-50 px-4 py-3 text-sm leading-relaxed text-espresso">
+          <p className="mt-[var(--auth-step)] rounded-input border border-taupe bg-cream-50 px-4 py-2.5 text-sm leading-relaxed text-espresso">
             Still nothing? Codes can be held up by spam filters — check your junk folder. If it still hasn't
             arrived,{' '}
             {CLINIC_PHONE && CLINIC_PHONE_HREF ? (

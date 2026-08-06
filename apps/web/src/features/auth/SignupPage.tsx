@@ -53,14 +53,14 @@ export function SignupPage() {
 
   return (
     <AuthSplitLayout eyebrow={STAFF_EYEBROW} headline={STAFF_HEADLINE} supporting={STAFF_SUPPORTING} wide>
-      <p className="eyebrow mb-3">Practice staff</p>
-      <h2 className="font-display text-5xl leading-[1.05] text-espresso">Create an account</h2>
-      <p className="mt-5 max-w-prose text-sm leading-relaxed text-espresso/80">
+      <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">Practice staff</p>
+      <h2 className="auth-heading">Create an account</h2>
+      <p className="mt-[var(--auth-step)] max-w-prose text-sm leading-relaxed text-espresso/80">
         A few details for our records, then set a password. You'll verify your email with a one-time code before
         your account is ready to use.
       </p>
 
-      <div className="mt-10">
+      <div className="mt-[calc(var(--auth-step)*1.6)]">
         <RegistrationForm
           showEmailField
           submitLabel="Create account"

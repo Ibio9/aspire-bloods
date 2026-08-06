@@ -1,36 +1,19 @@
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Card } from '../../components/ui/Card';
-import { Wordmark } from '../../components/Wordmark';
 import { apiFetch } from '../../lib/api';
 import { AuthSplitLayout } from './AuthSplitLayout';
 import { RegistrationForm } from './RegistrationForm';
 
-const EYEBROW = 'New patient';
-const HEADLINE = "Let's get your account set up.";
-const SUPPORTING = 'A few details for our records, then set a password to finish setting up your portal account.';
+const ACTIVATE_EYEBROW = 'Aspire Clinic';
+const ACTIVATE_HEADLINE = 'Activate your account.';
+const ACTIVATE_SUPPORTING =
+  'You were invited by the clinic. Set up your details once and your results are waiting the moment they land.';
 
-/** Full-bleed dark screen for the token-missing / done states — no form column to split
- * against, so the wordmark and message float centred on the same deep interior treatment. */
-function DarkMessageScreen({ children }: { children: ReactNode }) {
-  return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-espresso via-espresso to-ink-deep px-6 py-16">
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.04]"
-        style={{
-          backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)',
-          backgroundSize: '28px 28px',
-        }}
-        aria-hidden="true"
-      />
-      <div className="relative flex w-full max-w-md flex-col items-center gap-8 motion-safe:animate-riseIn">
-        <Wordmark variant="dark" size="lg" />
-        <Card className="w-full text-center">{children}</Card>
-      </div>
-    </main>
-  );
-}
-
+/**
+ * Activation is an auth screen like the other three, so it uses the same
+ * split shell rather than its own centred-page layout — same left panel,
+ * same viewport-fit behaviour, same card.
+ */
 export function ActivatePage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
@@ -39,27 +22,38 @@ export function ActivatePage() {
 
   if (!inviteToken) {
     return (
-      <DarkMessageScreen>
-        <p className="text-espresso">This activation link is missing its invite token.</p>
-      </DarkMessageScreen>
+      <AuthSplitLayout eyebrow={ACTIVATE_EYEBROW} headline={ACTIVATE_HEADLINE} supporting={ACTIVATE_SUPPORTING}>
+        <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">Activation</p>
+        <h2 className="auth-heading">This link is incomplete</h2>
+        <p className="mt-[var(--auth-step)] text-sm leading-relaxed text-espresso/80">
+          The activation link is missing its invite token. Open the link in your invitation email again, or ask
+          the clinic to resend it.
+        </p>
+      </AuthSplitLayout>
     );
   }
 
   if (done) {
     return (
-      <DarkMessageScreen>
-        <p className="text-espresso">Your account is active. Redirecting you to sign in…</p>
-      </DarkMessageScreen>
+      <AuthSplitLayout eyebrow={ACTIVATE_EYEBROW} headline={ACTIVATE_HEADLINE} supporting={ACTIVATE_SUPPORTING}>
+        <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">All set</p>
+        <h2 className="auth-heading">Your account is active</h2>
+        <p className="mt-[var(--auth-step)] text-sm leading-relaxed text-espresso/80" role="status">
+          Taking you to sign in…
+        </p>
+      </AuthSplitLayout>
     );
   }
 
   return (
-    <AuthSplitLayout eyebrow={EYEBROW} headline={HEADLINE} supporting={SUPPORTING} wide>
-      <p className="eyebrow mb-2">Account activation</p>
-      <h2 className="font-display text-4xl leading-tight text-espresso">Activate your account</h2>
-      <p className="mt-3 max-w-prose text-sm text-espresso/80">{SUPPORTING}</p>
+    <AuthSplitLayout eyebrow={ACTIVATE_EYEBROW} headline={ACTIVATE_HEADLINE} supporting={ACTIVATE_SUPPORTING} wide>
+      <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">Aspire Clinic</p>
+      <h2 className="auth-heading">Activate your account</h2>
+      <p className="mt-[var(--auth-step)] max-w-prose text-sm leading-relaxed text-espresso/80">
+        A few details for our records, then set a password to finish setting up your portal account.
+      </p>
 
-      <div className="mt-8">
+      <div className="mt-[calc(var(--auth-step)*1.6)]">
         <RegistrationForm
           submitLabel="Activate account"
           onSubmit={async ({ password, profile, consents }) => {

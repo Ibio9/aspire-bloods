@@ -114,9 +114,13 @@ export function RegistrationForm({ showEmailField, submitLabel, onSubmit }: Regi
     }
   }
 
+  // Spacing here is driven by the auth vertical rhythm (--auth-step) and the
+  // section cards drop to tight padding: this form is nested inside the auth
+  // card, so its own generous padding was compounding with the card's and
+  // making the tallest screen in the product taller still.
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-10" noValidate>
-      <Card className="flex flex-col gap-5">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-[calc(var(--auth-step)*1.4)]" noValidate>
+      <Card padding="tight" className="flex flex-col gap-[calc(var(--auth-step)*0.9)]">
         <p className="eyebrow">Your details</p>
         {showEmailField && (
           <Input
@@ -129,7 +133,7 @@ export function RegistrationForm({ showEmailField, submitLabel, onSubmit }: Regi
             validate={(v) => (!v ? 'Email address is required.' : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? undefined : 'Enter a valid email address.')}
           />
         )}
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-[calc(var(--auth-step)*0.9)] sm:grid-cols-3">
           <Input label="Title" name="title" optional value={form.title} onChange={(e) => set('title', e.target.value)} />
           <Input
             label="First name"
@@ -147,7 +151,7 @@ export function RegistrationForm({ showEmailField, submitLabel, onSubmit }: Regi
             validate={required('Last name')}
           />
         </div>
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-[calc(var(--auth-step)*0.9)] sm:grid-cols-2">
           <DateField
             label="Date of birth"
             name="dob"
@@ -184,7 +188,7 @@ export function RegistrationForm({ showEmailField, submitLabel, onSubmit }: Regi
         />
       </Card>
 
-      <Card className="flex flex-col gap-5">
+      <Card padding="tight" className="flex flex-col gap-[calc(var(--auth-step)*0.9)]">
         <p className="eyebrow">GP &amp; medical details</p>
         <p className="text-sm text-espresso -mt-2">
           If any of your results come back outside the expected range, we'll ask you to contact your GP — having
@@ -214,7 +218,7 @@ export function RegistrationForm({ showEmailField, submitLabel, onSubmit }: Regi
         />
       </Card>
 
-      <Card className="flex flex-col gap-5">
+      <Card padding="tight" className="flex flex-col gap-[calc(var(--auth-step)*0.9)]">
         <p className="eyebrow">Emergency contact</p>
         <Input
           label="Name"
@@ -232,7 +236,7 @@ export function RegistrationForm({ showEmailField, submitLabel, onSubmit }: Regi
         />
       </Card>
 
-      <Card className="flex flex-col gap-5">
+      <Card padding="tight" className="flex flex-col gap-[calc(var(--auth-step)*0.9)]">
         <p className="eyebrow">Set your password</p>
         <Input
           label="Password"
@@ -247,7 +251,7 @@ export function RegistrationForm({ showEmailField, submitLabel, onSubmit }: Regi
         />
       </Card>
 
-      <Card className="flex flex-col gap-1">
+      <Card padding="tight" className="flex flex-col gap-1">
         <p className="eyebrow mb-2">Consent</p>
         <Checkbox
           name="consentDataProcessing"
