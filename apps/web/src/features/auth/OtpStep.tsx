@@ -23,6 +23,16 @@ interface OtpStepProps {
   eyebrow?: string;
   /** Offered on sign-in, not on first-time registration. */
   allowTrustDevice?: boolean;
+  /**
+   * Back out of the 2FA step entirely — "wrong email, let me start again".
+   * Without this the step is a one-way door: the only escape is reloading the
+   * page, which leaves the challenge live server-side until it ages out. The
+   * outstanding code is retired before this fires, so a code sitting in a
+   * mistyped address's inbox can never be used afterwards.
+   */
+  onCancel?: () => void;
+  /** What backing out returns to, named rather than a bare "Back". */
+  cancelLabel?: string;
 }
 
 const RESEND_COOLDOWN_SECONDS = 30;
@@ -37,7 +47,15 @@ const RESEND_COOLDOWN_SECONDS = 30;
  * (including the cap on reissues), and it hands back the authoritative
  * cooldown so the countdown can never drift ahead of what the API will allow.
  */
-export function OtpStep({ challenge, onVerified, heading, eyebrow, allowTrustDevice = true }: OtpStepProps) {
+export function OtpStep({
+  challenge,
+  onVerified,
+  heading,
+  eyebrow,
+  allowTrustDevice = true,
+  onCancel,
+  cancelLabel = 'Use a different email address',
+}: OtpStepProps) {
   const [challengeId, setChallengeId] = useState(challenge.challengeId);
   const [sentTo, setSentTo] = useState(challenge.sentTo);
   const [expiresInMinutes, setExpiresInMinutes] = useState(challenge.expiresInMinutes ?? 10);
@@ -50,6 +68,7 @@ export function OtpStep({ challenge, onVerified, heading, eyebrow, allowTrustDev
   const [cooldown, setCooldown] = useState(RESEND_COOLDOWN_SECONDS);
   const [resendAttempts, setResendAttempts] = useState(0);
   const [exhausted, setExhausted] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const noticeRef = useRef<HTMLParagraphElement | null>(null);
 
   // One interval for the whole step, ticking the countdown down to zero and
@@ -113,6 +132,22 @@ export function OtpStep({ challenge, onVerified, heading, eyebrow, allowTrustDev
       setError(authErrorMessage(e));
     } finally {
       setResending(false);
+    }
+  }
+
+  async function handleCancel() {
+    if (!onCancel || cancelling) return;
+    setCancelling(true);
+    // Retiring the code is best-effort: if the call fails the user is still
+    // leaving, and the challenge expires on its own. Blocking the way out on
+    // a failed request would defeat the point of having a way out.
+    try {
+      await apiFetch('/auth/otp/cancel', { method: 'POST', body: JSON.stringify({ challengeId }) });
+    } catch {
+      /* leaving regardless */
+    } finally {
+      setCancelling(false);
+      onCancel();
     }
   }
 
@@ -222,6 +257,20 @@ export function OtpStep({ challenge, onVerified, heading, eyebrow, allowTrustDev
               </>
             )}{' '}
             and we'll get you signed in.
+          </p>
+        )}
+
+        {onCancel && (
+          <p className="mt-5 text-sm text-espresso/80">
+            Wrong address?{' '}
+            <button
+              type="button"
+              onClick={() => void handleCancel()}
+              disabled={cancelling}
+              className="rounded-sm font-medium text-bronze underline underline-offset-2 transition-colors duration-150 hover:text-bronze-700 disabled:opacity-60"
+            >
+              {cancelLabel}
+            </button>
           </p>
         )}
       </div>

@@ -8,6 +8,7 @@ import { authErrorMessage } from '../../lib/authErrors';
 import { useAuth } from '../../lib/AuthContext';
 import { LOGOUT_REASON_KEY } from '../../lib/AuthContext';
 import { AuthSplitLayout } from './AuthSplitLayout';
+import { consumeRedirect } from '../../lib/redirectAfterLogin';
 
 const LOGOUT_REASON_COPY: Record<string, string> = {
   idle: "You were signed out after a period of inactivity, to keep your results secure.",
@@ -53,7 +54,7 @@ export function LoginPage() {
       });
       if (result.status === 'authenticated') {
         await refresh();
-        navigate('/');
+        navigate(consumeRedirect() ?? '/');
       } else if (result.challengeId) {
         setStep({
           kind: 'otp',
@@ -74,8 +75,18 @@ export function LoginPage() {
 
   const handleVerified = useCallback(async () => {
     await refresh();
-    navigate('/');
+    // A deep link followed while signed out is remembered by ProtectedRoute;
+    // land on the thing that was clicked, not the home page.
+    navigate(consumeRedirect() ?? '/');
   }, [refresh, navigate]);
+
+  // Backing out of 2FA returns to the credentials form with the password
+  // cleared — the email stays so a typo can be corrected rather than retyped.
+  const handleCancelOtp = useCallback(() => {
+    setStep({ kind: 'credentials' });
+    setPassword('');
+    setError(null);
+  }, []);
 
   return (
     <AuthSplitLayout>
@@ -128,7 +139,7 @@ export function LoginPage() {
           </p>
         </>
       ) : (
-        <OtpStep challenge={step.challenge} onVerified={handleVerified} />
+        <OtpStep challenge={step.challenge} onVerified={handleVerified} onCancel={handleCancelOtp} />
       )}
     </AuthSplitLayout>
   );

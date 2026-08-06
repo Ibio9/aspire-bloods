@@ -29,6 +29,7 @@ import {
   loginWithTrustedDevice,
   verifyOtp,
   resendOtp,
+  cancelOtpChallenge,
   refreshSession,
   logout,
 } from './service.js';
@@ -145,6 +146,23 @@ authRouter.post('/otp/resend', otpResendRateLimiter, asyncHandler(async (req, re
     if (e instanceof AuthError) return res.status(e.status).json({ error: e.message });
     throw e;
   }
+}));
+
+// Backing out of the 2FA step ("wrong email — let me start again"). Without
+// this, leaving the OTP screen only ever abandoned it client-side: the code
+// stayed live until it expired. Deliberately unauthenticated and un-rate-limited
+// beyond the schema check — it only ever retires a code, so the worst a caller
+// can do with a guessed id is invalidate a challenge, which is what the owner
+// of that challenge is asking for anyway.
+const otpCancelRequestSchema = z.object({ challengeId: z.string().uuid() });
+
+authRouter.post('/otp/cancel', asyncHandler(async (req, res) => {
+  const parsed = otpCancelRequestSchema.safeParse(req.body);
+  // Nothing to cancel and nothing to report — the caller is leaving regardless.
+  if (!parsed.success) return res.json({ status: 'otp_cancelled' });
+
+  await cancelOtpChallenge(parsed.data.challengeId, clientIp(req));
+  res.json({ status: 'otp_cancelled' });
 }));
 
 authRouter.post('/otp/verify', otpRateLimiter, asyncHandler(async (req, res) => {

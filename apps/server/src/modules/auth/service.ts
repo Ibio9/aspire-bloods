@@ -471,6 +471,34 @@ export async function resendOtp(challengeId: string, ip: string | null): Promise
   };
 }
 
+/**
+ * "Wrong email — let me start again." The 2FA step used to be a one-way door:
+ * once a code was sent the only escape was reloading the page, which left the
+ * challenge live server-side until it aged out.
+ *
+ * Abandoning is deliberately treated as a real state change, not just a UI
+ * back-button: the outstanding code is consumed immediately, so a code sitting
+ * in an inbox belonging to a mistyped address can never be used afterwards.
+ * Unknown/already-consumed challenge ids succeed silently — the caller is
+ * walking away either way, and distinguishing the two would turn this into an
+ * oracle for whether a given challenge id is live.
+ */
+export async function cancelOtpChallenge(challengeId: string, ip: string | null): Promise<void> {
+  const otp = await prisma.otpCode.findUnique({ where: { id: challengeId } });
+  if (!otp || otp.consumedAt) return;
+
+  await prisma.otpCode.update({ where: { id: otp.id }, data: { consumedAt: new Date() } });
+
+  await recordAuditLog({
+    actorUserId: otp.userId,
+    action: 'OTP_CHALLENGE_ABANDONED',
+    targetType: 'User',
+    targetId: otp.userId,
+    ipAddress: ip,
+    metadata: { challengeId: otp.id },
+  });
+}
+
 interface OtpVerifyResult {
   accessToken: string;
   refreshTokenRaw: string;

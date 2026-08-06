@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './lib/AuthContext';
 import { ToastProvider } from './components/ui/Toast';
 import { PageTransition } from './components/PageTransition';
@@ -6,6 +6,7 @@ import { LoginPage } from './features/auth/LoginPage';
 import { ActivatePage } from './features/auth/ActivatePage';
 import { SignupPage } from './features/auth/SignupPage';
 import { ProtectedRoute } from './features/auth/ProtectedRoute';
+import { NotFoundPage } from './features/nav/NotFoundPage';
 import { RoleProtectedRoute } from './features/auth/RoleProtectedRoute';
 import { HomeRouter } from './features/auth/HomeRouter';
 import { AdminReportsPage } from './features/admin/AdminReportsPage';
@@ -111,7 +112,9 @@ export default function App() {
               {/* Dev-only design system review — tree-shaken out of production builds entirely, not just hidden. */}
               {import.meta.env.DEV && <Route path="/dev/components" element={<PageTransition><ComponentsShowcase /></PageTransition>} />}
               {import.meta.env.DEV && <Route path="/dev/interactions" element={<PageTransition><ComponentsShowcase /></PageTransition>} />}
-              <Route path="*" element={<Navigate to="/" replace />} />
+              {/* A bad URL gets an explanation and a named way on, inside the
+                  viewer's own navigation — never a silent bounce to the home page. */}
+              <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </div>
           <Footer />
