@@ -65,9 +65,12 @@ const envSchema = z.object({
   // ADMIN role (see lib/adminAccess.ts). Required in production.
   ADMIN_EMAILS: z.string().optional().default(''),
 
-  // How long a self-signup verification link stays good for. Short by
-  // design — it only has to survive someone switching to their inbox.
-  EMAIL_VERIFICATION_TTL_HOURS: z.coerce.number().default(24),
+  // How long a self-signup verification CODE stays good for. Minutes, not
+  // hours: this is a six-digit code with a million-wide search space, and a
+  // day-long window on that entropy is a standing invitation. It only has to
+  // survive someone switching to their inbox and back. Bounded so a
+  // well-meaning config change can't quietly turn it back into a day.
+  EMAIL_VERIFICATION_TTL_MINUTES: z.coerce.number().min(5).max(60).default(20),
 
   // --- Lockout ---
   // Both limits are in SECONDS, not minutes, because the login window is

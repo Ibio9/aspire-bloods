@@ -2,17 +2,15 @@ import { test, expect } from '@playwright/test';
 
 /**
  * Open registration, end to end: anyone can create an account, the account
- * is inert until the emailed link is opened, and opening it leads straight
+ * is inert until the emailed code is entered, and entering it leads straight
  * into mandatory 2FA rather than into a session.
  *
  * The registration form itself is posted through the API rather than the UI —
- * the date-of-birth field is an on-brand calendar popover, and clicking back
- * to 1985 a month at a time would make this test about the picker rather than
- * about the flow. Everything from the emailed link onwards is driven through
- * the real screens, because that's the part this change introduces.
+ * this test is about the flow, not about the fields. Everything from the
+ * confirmation code onwards is driven through the real screens.
  *
  * Requires EXPOSE_DEV_OTP_CODE=true in the server's env (see README) so the
- * test can read the confirmation link and OTP straight from API responses
+ * test can read the confirmation code and OTP straight from API responses
  * instead of an email inbox.
  */
 test('self-signup -> email verification -> 2FA -> empty portal', async ({ page, request }) => {
@@ -38,7 +36,9 @@ test('self-signup -> email verification -> 2FA -> empty portal', async ({ page, 
   expect(signupBody.status).toBe('verification_sent');
   // Masked, never the address back in full.
   expect(signupBody.sentTo).not.toBe(uniqueEmail);
-  expect(signupBody.devVerificationUrl).toBeTruthy();
+  expect(signupBody.devVerificationCode).toMatch(/^\d{6}$/);
+  // Minutes, not hours — a six-digit code must not stand for a day.
+  expect(signupBody.expiresInMinutes).toBeLessThanOrEqual(30);
 
   // --- The account exists but is inert until the address is confirmed ---
   const prematureLogin = await request.post('/api/auth/login', { data: { email: uniqueEmail, password } });
@@ -62,13 +62,30 @@ test('self-signup -> email verification -> 2FA -> empty portal', async ({ page, 
   expect(duplicate.ok()).toBeTruthy();
   expect((await duplicate.json()).status).toBe('verification_sent');
 
-  // --- Opening the emailed link confirms the address AND starts 2FA ---
-  const verifyToken = new URL(signupBody.devVerificationUrl).searchParams.get('token');
-  expect(verifyToken).toBeTruthy();
+  // --- Entering the emailed code confirms the address AND starts 2FA ---
+  // Driven from /verify-email, which is the way back in for anyone who closed
+  // the tab after registering. Asking for a code seconds after signing up hits
+  // the server's resend cooldown, so nothing is reissued and the code from
+  // registration is still the live one — which is exactly the behaviour worth
+  // pinning: the screen advances identically either way, because this endpoint
+  // must not reveal whether anything was actually sent.
+  await page.goto('/verify-email');
+  const [resendResponse] = await Promise.all([
+    page.waitForResponse((res) => res.url().includes('/api/auth/verify-email/resend')),
+    page
+      .getByLabel('Email address')
+      .fill(uniqueEmail)
+      .then(() => page.getByRole('button', { name: 'Send me a code' }).click()),
+  ]);
+  expect(resendResponse.status()).toBe(202);
 
+  await expect(page.getByRole('heading', { name: 'Confirm your email' })).toBeVisible();
   const [verifyResponse] = await Promise.all([
-    page.waitForResponse((res) => res.url().includes('/api/auth/verify-email') && res.request().method() === 'POST'),
-    page.goto(`/verify-email?token=${verifyToken}`),
+    page.waitForResponse(
+      (res) => res.url().includes('/api/auth/verify-email') && !res.url().includes('resend') && res.request().method() === 'POST',
+    ),
+    // Auto-submits on the sixth digit, exactly like the 2FA step.
+    page.locator('#otp-0').click().then(() => page.keyboard.type(signupBody.devVerificationCode)),
   ]);
   const verifyBody = await verifyResponse.json();
   expect(verifyBody.status).toBe('otp_required');

@@ -35,7 +35,7 @@ import {
   activateAccount,
   signup,
   verifyEmail,
-  resendVerificationEmail,
+  resendVerificationCode,
   login,
   loginWithTrustedDevice,
   verifyOtp,
@@ -96,8 +96,8 @@ authRouter.post('/activate', asyncHandler(async (req, res) => {
 }));
 
 // Open registration. This endpoint never returns a session and never
-// returns a 2FA challenge — it can only ever say "we've emailed you". The
-// ordering the practice asked for (verify the address, THEN enrol 2FA) is
+// returns a 2FA challenge — it can only ever say "we've emailed you a code".
+// The ordering the practice asked for (verify the address, THEN enrol 2FA) is
 // enforced by there being no other exit: /auth/verify-email is what issues
 // the OTP challenge, and /auth/otp/verify is what issues the session.
 authRouter.post('/signup', signupRateLimiter, asyncHandler(async (req, res) => {
@@ -113,15 +113,19 @@ authRouter.post('/signup', signupRateLimiter, asyncHandler(async (req, res) => {
   }
 }));
 
-// Step two of registration: the emailed link lands here, and the response is
-// the same otp_required shape /login returns, so the client reuses the exact
-// same 2FA step component either way.
-authRouter.post('/verify-email', asyncHandler(async (req, res) => {
+// Step two of registration: the emailed six-digit code is submitted here, and
+// the response is the same otp_required shape /login returns, so the client
+// reuses the exact same 2FA step component either way.
+//
+// Shares otpRateLimiter's budget deliberately — it is the same thing being
+// guessed (a six-digit code) at the same stakes, and giving it its own bucket
+// would just hand an attacker a second million-guess allowance.
+authRouter.post('/verify-email', otpRateLimiter, asyncHandler(async (req, res) => {
   const parsed = verifyEmailRequestSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'This confirmation link is incomplete.' });
+  if (!parsed.success) return res.status(400).json({ error: 'Enter the 6-digit code we emailed you.' });
 
   try {
-    const result = await verifyEmail(parsed.data.token, clientIp(req));
+    const result = await verifyEmail(parsed.data.email, parsed.data.code, clientIp(req));
     res.json(otpChallengeResponse(result));
   } catch (e) {
     if (e instanceof AuthError) return res.status(e.status).json({ error: e.message });
@@ -130,12 +134,14 @@ authRouter.post('/verify-email', asyncHandler(async (req, res) => {
 }));
 
 // Always 202 with the same body, whether or not anything was sent — see
-// resendVerificationEmail()'s anti-enumeration note.
+// resendVerificationCode()'s anti-enumeration note. The cooldown and the
+// reissue cap are enforced inside that function rather than reported here,
+// for the same reason.
 authRouter.post('/verify-email/resend', emailVerificationResendRateLimiter, asyncHandler(async (req, res) => {
   const parsed = resendVerificationRequestSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const result = await resendVerificationEmail(parsed.data.email, clientIp(req));
+  const result = await resendVerificationCode(parsed.data.email, clientIp(req));
   res.status(202).json({ status: 'verification_sent', ...result });
 }));
 

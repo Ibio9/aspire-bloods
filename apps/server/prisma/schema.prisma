@@ -133,7 +133,7 @@ model User {
   patientProfile    PatientProfile?
   staffProfile      StaffProfile?
   inviteTokens      InviteToken[]
-  emailVerificationTokens EmailVerificationToken[]
+  emailVerificationCodes EmailVerificationCode[]
   otpCodes          OtpCode[]
   refreshTokens     RefreshToken[]
   trustedDevices    TrustedDevice[]
@@ -205,14 +205,28 @@ model InviteToken {
 // only ever "prove you can read this mailbox" and is short-lived. Conflating
 // them would mean one TTL, one audit action, and one revocation story for
 // two genuinely different events.
-model EmailVerificationToken {
-  id        String    @id @default(uuid())
-  userId    String
-  user      User      @relation(fields: [userId], references: [id])
-  tokenHash String    @unique
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime  @default(now())
+// A six-digit code emailed to confirm a new account's address — the same
+// shape as OtpCode on purpose, because it is the same interaction: one code
+// to verify, one code to sign in, one mental model.
+//
+// codeHash is deliberately NOT unique. Six digits across a whole user base
+// will collide, and a unique index would turn that collision into a failed
+// registration for whoever came second. Codes are only ever looked up
+// alongside the account they were issued to.
+model EmailVerificationCode {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  codeHash    String
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  // Capped, like OtpCode's — six digits is a million-wide search space, so
+  // an uncapped code is a guessable one.
+  attempts    Int       @default(0)
+  // Carried forward across reissues so the cap is per registration attempt
+  // rather than per row.
+  resendCount Int       @default(0)
+  createdAt   DateTime  @default(now())
 
   @@index([userId])
 }

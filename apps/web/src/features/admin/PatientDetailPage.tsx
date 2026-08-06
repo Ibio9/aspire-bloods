@@ -146,7 +146,7 @@ export function PatientDetailPage() {
               ? 'Deactivated'
               : profile.status === 'INVITED'
                 ? 'Invited (not yet activated)'
-                : // Self-registered and hasn't opened their confirmation link.
+                : // Self-registered and hasn't entered their confirmation code.
                   // Nothing for the practice to chase — the account simply
                   // can't sign in until they do.
                   profile.status === 'PENDING_VERIFICATION'

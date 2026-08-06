@@ -24,6 +24,16 @@ const INVITE_TTL_DAYS = 7;
 export const OTP_RESEND_COOLDOWN_SECONDS = 30;
 export const OTP_MAX_RESENDS = 3;
 
+/**
+ * Email verification is a six-digit code now, not a link, so it inherits the
+ * OTP rules wholesale — same cooldown, same cap, same attempt ceiling. One
+ * code to verify, one code to sign in; there is no reason for the two to
+ * behave differently, and every reason for them not to.
+ */
+export const EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS = OTP_RESEND_COOLDOWN_SECONDS;
+export const EMAIL_VERIFICATION_MAX_RESENDS = OTP_MAX_RESENDS;
+const EMAIL_VERIFICATION_MAX_ATTEMPTS = OTP_MAX_ATTEMPTS;
+
 // Dummy hash for a password that will never match, used to keep the timing
 // profile of "user not found" and "wrong password" indistinguishable.
 const DUMMY_HASH =
@@ -156,30 +166,48 @@ export interface SignupResult {
   status: 'verification_sent';
   /** Masked — enough to confirm which inbox to open, never the full address back. */
   sentTo: string;
-  expiresInHours: number;
+  expiresInMinutes: number;
+  /** How long before another code can be requested — the UI counts down against this. */
+  cooldownSeconds: number;
   /** EXPOSE_DEV_OTP_CODE only, same opt-in as devOtpCode — lets e2e drive the flow. */
-  devVerificationUrl?: string;
+  devVerificationCode?: string;
 }
 
-async function sendVerificationEmail(userId: string, email: string): Promise<string> {
-  const rawToken = generateToken(32);
-  await prisma.emailVerificationToken.create({
+/**
+ * Issues the six-digit confirmation code and emails it. Deliberately not a
+ * link: a link is a second, differently-shaped thing to explain, and it drags
+ * a day-long token along with it. A code is the interaction the patient is
+ * about to meet again at 2FA thirty seconds later.
+ *
+ * Any code already outstanding for this account is retired first, so exactly
+ * one code is ever live — reissuing must reset the guessing window, not widen
+ * it. Retiring before sending is the safe direction to fail in.
+ */
+async function sendVerificationCode(userId: string, email: string, resendCount = 0): Promise<string> {
+  await prisma.emailVerificationCode.updateMany({
+    where: { userId, consumedAt: null },
+    data: { consumedAt: new Date() },
+  });
+
+  const code = generateOtpCode();
+  const ttlMinutes = env.EMAIL_VERIFICATION_TTL_MINUTES;
+  await prisma.emailVerificationCode.create({
     data: {
       userId,
-      tokenHash: hashToken(rawToken),
-      expiresAt: new Date(Date.now() + env.EMAIL_VERIFICATION_TTL_HOURS * 60 * 60 * 1000),
+      codeHash: hashToken(code),
+      resendCount,
+      expiresAt: new Date(Date.now() + ttlMinutes * 60 * 1000),
     },
   });
 
-  const verifyUrl = `${env.APP_BASE_URL}/verify-email?token=${rawToken}`;
   await emailProvider.sendEmail({
     to: email,
-    subject: 'Confirm your email for Aspire Bloods',
-    text: `Welcome to the Aspire Bloods patient portal. Confirm this is your email address to finish setting up your account: ${verifyUrl}\n\nThis link expires in ${env.EMAIL_VERIFICATION_TTL_HOURS} hours. If you didn't create an account, you can ignore this email.`,
-    html: `<p>Welcome to the Aspire Bloods patient portal.</p><p><a href="${verifyUrl}">Confirm your email address</a> to finish setting up your account.</p><p>This link expires in ${env.EMAIL_VERIFICATION_TTL_HOURS} hours. If you didn't create an account, you can ignore this email.</p>`,
+    subject: 'Your Aspire Bloods confirmation code',
+    text: `Welcome to the Aspire Bloods patient portal. Your confirmation code is ${code}.\n\nEnter it on the confirm-your-email screen to finish setting up your account. It expires in ${ttlMinutes} minutes. If you didn't create an account, you can ignore this email.`,
+    html: `<p>Welcome to the Aspire Bloods patient portal.</p><p>Your confirmation code is <strong>${code}</strong>.</p><p>Enter it on the confirm-your-email screen to finish setting up your account. It expires in ${ttlMinutes} minutes. If you didn't create an account, you can ignore this email.</p>`,
   });
 
-  return verifyUrl;
+  return code;
 }
 
 /**
@@ -210,9 +238,9 @@ async function sendVerificationEmail(userId: string, email: string): Promise<str
  *     the honest signal goes to the person entitled to it.
  *  2. Verification is not optional and not skippable. The account is created
  *     PENDING_VERIFICATION and login() refuses it in that state, so the only
- *     route out is the emailed link — which then leads straight into 2FA
- *     enrolment (see verifyEmail()). There is no code path from here to a
- *     session that doesn't pass through both.
+ *     route out is the emailed six-digit code — which then leads straight
+ *     into 2FA enrolment (see verifyEmail()). There is no code path from here
+ *     to a session that doesn't pass through both.
  */
 export async function signup(input: SignupRequest, ip: string | null): Promise<SignupResult> {
   const existing = await prisma.user.findUnique({ where: { email: input.email } });
@@ -244,10 +272,16 @@ export async function signup(input: SignupRequest, ip: string | null): Promise<S
       ipAddress: ip,
     });
 
+    // Byte-for-byte the same shape as the success path below — and carrying
+    // nothing the caller needs in order to submit a code, which is what lets
+    // it stay that way. Verification is keyed on the email address the caller
+    // already typed, not on an id only a real registration could have been
+    // given.
     return {
       status: 'verification_sent',
       sentTo: maskEmail(input.email),
-      expiresInHours: env.EMAIL_VERIFICATION_TTL_HOURS,
+      expiresInMinutes: env.EMAIL_VERIFICATION_TTL_MINUTES,
+      cooldownSeconds: EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS,
     };
   }
 
@@ -294,9 +328,9 @@ export async function signup(input: SignupRequest, ip: string | null): Promise<S
     });
   }
 
-  let verifyUrl: string;
+  let verificationCode: string;
   try {
-    verifyUrl = await sendVerificationEmail(user.id, user.email);
+    verificationCode = await sendVerificationCode(user.id, user.email);
   } catch (e) {
     // The account exists but is unreachable — PENDING_VERIFICATION can't
     // sign in, so it's inert rather than dangerous, and "resend" fixes it.
@@ -314,13 +348,20 @@ export async function signup(input: SignupRequest, ip: string | null): Promise<S
   return {
     status: 'verification_sent',
     sentTo: maskEmail(user.email),
-    expiresInHours: env.EMAIL_VERIFICATION_TTL_HOURS,
-    devVerificationUrl: env.EXPOSE_DEV_OTP_CODE ? verifyUrl : undefined,
+    expiresInMinutes: env.EMAIL_VERIFICATION_TTL_MINUTES,
+    cooldownSeconds: EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS,
+    devVerificationCode: env.EXPOSE_DEV_OTP_CODE ? verificationCode : undefined,
   };
 }
 
+/** Every rejection here says the same thing, whichever of the several ways it
+ *  failed — an unknown address, a wrong code and an expired code must not be
+ *  distinguishable, or this endpoint becomes the membership oracle that
+ *  signup() goes to some trouble not to be. */
+const VERIFICATION_REJECTED = 'That code is incorrect or has expired. Please request a new one.';
+
 /**
- * Opening the emailed link. This is the moment the account becomes real:
+ * Entering the emailed code. This is the moment the account becomes real:
  * PENDING_VERIFICATION → ACTIVE, and immediately an OTP challenge in the
  * same { challengeId, devOtpCode } shape login() returns, verified through
  * the same POST /auth/otp/verify endpoint.
@@ -330,31 +371,48 @@ export async function signup(input: SignupRequest, ip: string | null): Promise<S
  * only thing that can. Enrolment isn't an optional follow-up step the
  * patient could wander away from; it's structurally the only way the flow
  * ends in anything other than being signed out.
+ *
+ * Keyed on (email, code) rather than a challenge id, which is what lets
+ * signup() answer identically for a fresh address and one already registered:
+ * its response carries nothing this step needs.
  */
-export async function verifyEmail(rawToken: string, ip: string | null): Promise<LoginResult> {
-  const tokenHash = hashToken(rawToken);
-  const record = await prisma.emailVerificationToken.findUnique({ where: { tokenHash } });
-
-  if (!record || record.usedAt || record.expiresAt < new Date()) {
-    throw new AuthError('This confirmation link is invalid or has expired. Please request a new one.', 400);
+export async function verifyEmail(email: string, code: string, ip: string | null): Promise<LoginResult> {
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user || (user.status !== 'PENDING_VERIFICATION' && user.status !== 'ACTIVE')) {
+    throw new AuthError(VERIFICATION_REJECTED, 400);
   }
 
-  const user = await prisma.user.findUnique({ where: { id: record.userId } });
-  if (!user || (user.status !== 'PENDING_VERIFICATION' && user.status !== 'ACTIVE')) {
-    throw new AuthError('This confirmation link is invalid or has expired. Please request a new one.', 400);
+  const record = await prisma.emailVerificationCode.findFirst({
+    where: { userId: user.id, consumedAt: null, expiresAt: { gt: new Date() } },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (!record) {
+    throw new AuthError(VERIFICATION_REJECTED, 400);
+  }
+
+  // Six digits is a million-wide space, so the attempt ceiling is the real
+  // control here, not the expiry.
+  if (record.attempts >= EMAIL_VERIFICATION_MAX_ATTEMPTS) {
+    console.warn('[email-verification] rejected: max_attempts', { userId: user.id, attempts: record.attempts });
+    throw new AuthError('Too many incorrect attempts. Please request a new code.', 429);
+  }
+
+  if (record.codeHash !== hashToken(code)) {
+    await prisma.emailVerificationCode.update({ where: { id: record.id }, data: { attempts: { increment: 1 } } });
+    console.warn('[email-verification] rejected: incorrect_code', { userId: user.id, attempts: record.attempts + 1 });
+    throw new AuthError(VERIFICATION_REJECTED, 400);
   }
 
   await prisma.$transaction(async (tx) => {
     if (user.status === 'PENDING_VERIFICATION') {
       await tx.user.update({ where: { id: user.id }, data: { status: 'ACTIVE' } });
     }
-    await tx.emailVerificationToken.update({ where: { id: record.id }, data: { usedAt: new Date() } });
-    // Any other outstanding link for this account is spent too — a second
-    // link sitting in the same inbox must not stay usable once one has done
-    // its job.
-    await tx.emailVerificationToken.updateMany({
-      where: { userId: user.id, usedAt: null },
-      data: { usedAt: new Date() },
+    // Every outstanding code for this account is spent, not just the one that
+    // was used — a second code sitting in the same inbox must not stay usable
+    // once one has done its job.
+    await tx.emailVerificationCode.updateMany({
+      where: { userId: user.id, consumedAt: null },
+      data: { consumedAt: new Date() },
     });
   });
 
@@ -370,19 +428,63 @@ export async function verifyEmail(rawToken: string, ip: string | null): Promise<
   return { trustedDeviceSkippedOtp: false, ...challenge };
 }
 
+export interface ResendVerificationResult {
+  /** Masked back from what the caller submitted — never a lookup result. */
+  sentTo: string;
+  expiresInMinutes: number;
+  cooldownSeconds: number;
+  devVerificationCode?: string;
+}
+
 /**
  * "The confirmation email never arrived." Same anti-enumeration posture as
- * signup(): the response is identical whether the address is unknown,
- * already verified, or genuinely waiting — only an account actually sitting
- * in PENDING_VERIFICATION causes an email to go out.
+ * signup(): the response is identical whether the address is unknown, already
+ * verified, in cooldown, or over its reissue cap — only an account actually
+ * sitting in PENDING_VERIFICATION and past its cooldown causes an email to go
+ * out.
+ *
+ * That constant response is why the cooldown and the cap are enforced here
+ * *silently* rather than reported as 429s the way resendOtp() can afford to:
+ * by this point in the OTP flow the caller has already proved they hold the
+ * password, and there is nothing left to leak. Here they have proved nothing.
+ * The client counts down and caps in the UI against the same numbers; the
+ * server is what actually holds the line.
  */
-export async function resendVerificationEmail(email: string, ip: string | null): Promise<{ devVerificationUrl?: string }> {
+export async function resendVerificationCode(email: string, ip: string | null): Promise<ResendVerificationResult> {
+  const constantResponse: ResendVerificationResult = {
+    sentTo: maskEmail(email),
+    expiresInMinutes: env.EMAIL_VERIFICATION_TTL_MINUTES,
+    cooldownSeconds: EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS,
+  };
+
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user || user.status !== 'PENDING_VERIFICATION') {
-    return {};
+    return constantResponse;
   }
 
-  const verifyUrl = await sendVerificationEmail(user.id, user.email);
+  const outstanding = await prisma.emailVerificationCode.findFirst({
+    where: { userId: user.id },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  if (outstanding) {
+    const elapsedSeconds = (Date.now() - outstanding.createdAt.getTime()) / 1000;
+    if (elapsedSeconds < EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS) return constantResponse;
+    if (outstanding.resendCount >= EMAIL_VERIFICATION_MAX_RESENDS) {
+      await recordAuditLog({
+        actorUserId: user.id,
+        action: 'ACCOUNT_VERIFICATION_RESEND_CAPPED',
+        targetType: 'User',
+        targetId: user.id,
+        ipAddress: ip,
+        metadata: { resendCount: outstanding.resendCount },
+      });
+      return constantResponse;
+    }
+  }
+
+  const nextResendCount = (outstanding?.resendCount ?? 0) + 1;
+  const code = await sendVerificationCode(user.id, user.email, nextResendCount);
 
   await recordAuditLog({
     actorUserId: user.id,
@@ -390,9 +492,11 @@ export async function resendVerificationEmail(email: string, ip: string | null):
     targetType: 'User',
     targetId: user.id,
     ipAddress: ip,
+    // Counts only — never the code or the address.
+    metadata: { resendCount: nextResendCount },
   });
 
-  return { devVerificationUrl: env.EXPOSE_DEV_OTP_CODE ? verifyUrl : undefined };
+  return { ...constantResponse, devVerificationCode: env.EXPOSE_DEV_OTP_CODE ? code : undefined };
 }
 
 export async function activateAccount(input: ActivateAccountRequest, ip: string | null) {
@@ -541,7 +645,7 @@ export async function login(
       ipAddress: ip,
     });
     throw new AuthError(
-      'Please confirm your email address first — open the link we sent you when you registered. You can ask for a new one from the sign-up page.',
+      'Please confirm your email address first — enter the code we emailed you when you registered. You can ask for a new one at /verify-email.',
       403,
     );
   }

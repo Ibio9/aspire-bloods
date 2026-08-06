@@ -7,5 +7,6 @@ export async function runSessionCleanupJob(): Promise<void> {
   await prisma.otpCode.deleteMany({ where: { expiresAt: { lt: now } } });
   await prisma.refreshToken.deleteMany({ where: { OR: [{ expiresAt: { lt: now } }, { revokedAt: { not: null } }] } });
   await prisma.inviteToken.deleteMany({ where: { expiresAt: { lt: now } } });
+  await prisma.emailVerificationCode.deleteMany({ where: { expiresAt: { lt: now } } });
   await prisma.trustedDevice.deleteMany({ where: { trustedUntil: { lt: now } } });
 }

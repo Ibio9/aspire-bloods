@@ -73,8 +73,16 @@ export const signupRequestSchema = z.object({
 });
 export type SignupRequest = z.infer<typeof signupRequestSchema>;
 
+/**
+ * Confirming a new account's address. Keyed on the email rather than an
+ * opaque challenge id, which is what keeps signup's anti-enumeration posture
+ * intact: signup can answer identically for a fresh address and an existing
+ * one because its response carries nothing the client needs in order to
+ * submit a code.
+ */
 export const verifyEmailRequestSchema = z.object({
-  token: z.string().min(20),
+  email: z.string().email(),
+  code: z.string().length(6),
 });
 export type VerifyEmailRequest = z.infer<typeof verifyEmailRequestSchema>;
 
