@@ -1,5 +1,5 @@
 import type { Config } from 'tailwindcss';
-import { brand, scales, status, typography, ink } from '@aspire-bloods/shared';
+import { brand, scales, status, typography, ink, inkScale } from '@aspire-bloods/shared';
 
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
@@ -11,7 +11,7 @@ export default {
         cream: { ...scales.cream, DEFAULT: brand.cream },
         taupe: { ...scales.taupe, DEFAULT: brand.taupe },
         white: brand.white,
-        ink,
+        ink: { ...inkScale, DEFAULT: ink },
         status: {
           inRange: status.inRange.hex,
           high: status.high.hex,

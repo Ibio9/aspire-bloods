@@ -6,7 +6,7 @@ interface TwoTierHeadingProps {
 
 /**
  * Mirrors the brand's two-tier headline pattern: a spaced-uppercase Inter
- * eyebrow paired with a Cormorant Garamond display line. Reserved for
+ * eyebrow paired with a Jost display line. Reserved for
  * high-weight moments (dashboard header, report header, marker hero) — not
  * every card, per brief.
  */

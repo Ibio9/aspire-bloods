@@ -74,6 +74,23 @@ export const scales = {
  */
 export const ink = mix(brand.espresso, '#000000', 0.32);
 
+/**
+ * A handful of ink shades for dark-surface chrome (headers, hero panels,
+ * dark nav) that needs more than one dark tone to read as layered rather
+ * than flat — a border or hover state on a dark panel can't borrow the
+ * light-surface `taupe`/`cream-200` tokens, they'd disappear or clash.
+ * `border` sits between `ink` and `cream` for hairline dividers on dark
+ * surfaces; `hover` and `deep` mix further toward black for interactive
+ * states and the darkest gradient stop, same "never pure black" rule as
+ * `ink` itself.
+ */
+export const inkScale = {
+  DEFAULT: ink,
+  border: mix(ink, brand.cream, 0.22),
+  hover: mix(ink, '#000000', 0.18),
+  deep: mix(ink, '#000000', 0.4),
+} as const;
+
 // ---------------------------------------------------------------------------
 // Status triad — cannot be mathematically derived from a palette with no
 // green/amber/red hues, so these are hand-picked to sit at the same tonal
@@ -147,14 +164,15 @@ export const WCAG_AA_LARGE_TEXT = 3;
  */
 
 // ---------------------------------------------------------------------------
-// Typography — brand faces are not web fonts; these are the documented
-// substitutes (see brief §1).
+// Typography — a geometric humanist sans for display (matching the Aspire
+// Clinic site's heading register — Poppins/Jost-like, not a serif) paired
+// with Inter for body and numerics (see visual-polish brief).
 // ---------------------------------------------------------------------------
 
 export const typography = {
   display: {
-    fontFamily: '"Cormorant Garamond", serif', // stands in for Opus Normal
-    role: 'H1-H2, hero numerals, two-tier headline (paired with eyebrow)',
+    fontFamily: '"Jost", sans-serif',
+    role: 'H1-H2, wordmark, hero numerals, two-tier headline (paired with eyebrow)',
   },
   eyebrow: {
     fontFamily: '"Inter", sans-serif', // stands in for Coolvetica Book

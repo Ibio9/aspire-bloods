@@ -72,7 +72,7 @@ export function SignupPage() {
           this step can't be skipped.
         </p>
 
-        <form onSubmit={handleOtp} className="mt-8 flex flex-col gap-5" noValidate>
+        <form onSubmit={handleOtp} className="mt-10 flex flex-col gap-6" noValidate>
           <OtpInput
             label="Verification code"
             autoFocus

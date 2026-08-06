@@ -22,6 +22,7 @@ import { OtpInput } from '../../components/ui/OtpInput';
 import { CopyButton } from '../../components/ui/CopyButton';
 import { useToast } from '../../components/ui/Toast';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
+import { Wordmark } from '../../components/Wordmark';
 
 const STATUS_LIST: { key: MarkerStatus; hex: string; label: string }[] = [
   { key: 'IN_RANGE', hex: status.inRange.hex, label: status.inRange.label },
@@ -213,7 +214,9 @@ export function ComponentsShowcase() {
       <Section title="Dark surface — bronze fails here, verified (used on the login split panel)">
         <div className="rounded-card p-8" style={{ background: `linear-gradient(to bottom right, ${brand.espresso}, ${ink})` }}>
           <p className="font-eyebrow text-xs uppercase tracking-eyebrow text-taupe">Eyebrow in taupe</p>
-          <p className="mt-3 font-display italic text-3xl text-bronze-300">Aspire</p>
+          <div className="mt-3">
+            <Wordmark variant="dark" />
+          </div>
           <p className="mt-3 max-w-xs text-sm text-cream/70">Body copy in cream/70.</p>
         </div>
         <p className="text-sm text-espresso/80">

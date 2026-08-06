@@ -72,7 +72,7 @@ export function AccountMenu({ links = [] }: { links?: AccountMenuLink[] }) {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2.5 rounded-full py-1 pl-1 pr-3 transition duration-150 ease-out hover:bg-cream-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
+        className="flex items-center gap-2.5 rounded-full border border-transparent py-1.5 pl-1.5 pr-4 transition duration-150 ease-out hover:border-taupe hover:bg-cream-200 motion-safe:hover:-translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
       >
         <Avatar name={user.displayName} size="sm" />
         <span className="hidden text-sm font-medium text-espresso sm:inline">{user.displayName}</span>

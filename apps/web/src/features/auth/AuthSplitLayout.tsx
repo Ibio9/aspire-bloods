@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Wordmark } from '../../components/Wordmark';
 
 interface AuthSplitLayoutProps {
   children: ReactNode;
@@ -22,7 +23,7 @@ interface AuthSplitLayoutProps {
 export function AuthSplitLayout({ children, eyebrow, headline, supporting, wide }: AuthSplitLayoutProps) {
   return (
     <main className="min-h-screen md:flex">
-      <div className="relative flex min-h-[280px] flex-col justify-between overflow-hidden bg-gradient-to-br from-espresso to-ink px-8 py-10 text-cream md:min-h-screen md:w-[42%] md:px-14 md:py-16">
+      <div className="relative flex min-h-[320px] flex-col justify-between overflow-hidden bg-gradient-to-br from-espresso via-espresso to-ink-deep px-8 py-12 text-cream md:min-h-screen md:w-[44%] md:px-16 md:py-20">
         {/* Barely-there texture, per "the subtle background texture is barely there and better for it" */}
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.04]"
@@ -32,13 +33,19 @@ export function AuthSplitLayout({ children, eyebrow, headline, supporting, wide 
           }}
           aria-hidden="true"
         />
+        {/* Deep vignette pooling toward the bottom corner — the "atmospheric, low-key, expensive"
+            interior feel from the reference, not just a flat dark fill. */}
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{ backgroundImage: 'radial-gradient(ellipse at 85% 110%, rgba(0,0,0,0.35), transparent 60%)' }}
+          aria-hidden="true"
+        />
 
         <div className="relative motion-safe:animate-riseIn">
-          <p className="font-eyebrow text-xs uppercase tracking-eyebrow text-taupe">
+          <Wordmark variant="dark" size="lg" />
+          <p className="mt-8 font-eyebrow text-xs uppercase tracking-eyebrow text-taupe">
             {eyebrow ?? 'Blood test results, done properly'}
           </p>
-          {/* bronze-300 not bronze: the brand accent fails contrast against its own dark family (1.95:1) — this tint clears 3:1 for large text, verified */}
-          <p className="mt-8 font-display italic text-3xl text-bronze-300 md:text-4xl">Aspire</p>
           <h1 className="mt-4 max-w-sm font-display text-3xl leading-tight text-cream md:text-4xl">
             {headline ?? 'Your results, explained — not just handed to you.'}
           </h1>
@@ -55,7 +62,7 @@ export function AuthSplitLayout({ children, eyebrow, headline, supporting, wide 
         </p>
       </div>
 
-      <div className="flex flex-1 items-center justify-center bg-cream px-6 py-16 md:px-16">
+      <div className="flex flex-1 items-center justify-center bg-cream px-6 py-20 md:px-16">
         <div className={`w-full motion-safe:animate-riseIn ${wide ? 'max-w-3xl' : 'max-w-md'}`}>{children}</div>
       </div>
     </main>

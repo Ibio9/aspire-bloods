@@ -107,7 +107,7 @@ export function LoginPage() {
             </p>
           )}
 
-          <form onSubmit={handleCredentials} className="mt-8 flex flex-col gap-5" noValidate>
+          <form onSubmit={handleCredentials} className="mt-10 flex flex-col gap-6" noValidate>
             <Input
               label="Email address"
               type="email"
@@ -149,7 +149,7 @@ export function LoginPage() {
             We've sent a 6-digit verification code to your email. Enter it below to finish signing in.
           </p>
 
-          <form onSubmit={handleOtp} className="mt-8 flex flex-col gap-5" noValidate>
+          <form onSubmit={handleOtp} className="mt-10 flex flex-col gap-6" noValidate>
             <OtpInput
               label="Verification code"
               autoFocus

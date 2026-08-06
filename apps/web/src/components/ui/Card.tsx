@@ -8,7 +8,7 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
 export function Card({ interactive, className = '', ...props }: CardProps) {
   return (
     <div
-      className={`card p-6 sm:p-8 ${interactive ? 'transition duration-150 ease-out hover:border-bronze/60 hover:shadow-md motion-safe:hover:-translate-y-0.5' : ''} ${className}`}
+      className={`card p-7 sm:p-9 ${interactive ? 'transition duration-150 ease-out hover:border-bronze/60 hover:shadow-md motion-safe:hover:-translate-y-0.5' : ''} ${className}`}
       {...props}
     />
   );
