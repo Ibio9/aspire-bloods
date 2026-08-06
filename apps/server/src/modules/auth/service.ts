@@ -108,8 +108,8 @@ async function createProfileAndConsents(
     sex: profile.sex,
     dobEncrypted: encryptField(profile.dob),
     contactNumberEncrypted: encryptField(profile.contactNumber),
-    addressEncrypted: encryptField(profile.address),
-    postcode: profile.postcode,
+    addressEncrypted: profile.address ? encryptField(profile.address) : null,
+    postcode: profile.postcode ?? null,
     gpName: profile.gpName,
     gpAddressEncrypted: profile.gpAddress ? encryptField(profile.gpAddress) : null,
     medicationEncrypted: profile.medication ? encryptField(profile.medication) : null,
@@ -152,37 +152,103 @@ async function createProfileAndConsents(
   }
 }
 
+export interface SignupResult {
+  status: 'verification_sent';
+  /** Masked — enough to confirm which inbox to open, never the full address back. */
+  sentTo: string;
+  expiresInHours: number;
+  /** EXPOSE_DEV_OTP_CODE only, same opt-in as devOtpCode — lets e2e drive the flow. */
+  devVerificationUrl?: string;
+}
+
+async function sendVerificationEmail(userId: string, email: string): Promise<string> {
+  const rawToken = generateToken(32);
+  await prisma.emailVerificationToken.create({
+    data: {
+      userId,
+      tokenHash: hashToken(rawToken),
+      expiresAt: new Date(Date.now() + env.EMAIL_VERIFICATION_TTL_HOURS * 60 * 60 * 1000),
+    },
+  });
+
+  const verifyUrl = `${env.APP_BASE_URL}/verify-email?token=${rawToken}`;
+  await emailProvider.sendEmail({
+    to: email,
+    subject: 'Confirm your email for Aspire Bloods',
+    text: `Welcome to the Aspire Bloods patient portal. Confirm this is your email address to finish setting up your account: ${verifyUrl}\n\nThis link expires in ${env.EMAIL_VERIFICATION_TTL_HOURS} hours. If you didn't create an account, you can ignore this email.`,
+    html: `<p>Welcome to the Aspire Bloods patient portal.</p><p><a href="${verifyUrl}">Confirm your email address</a> to finish setting up your account.</p><p>This link expires in ${env.EMAIL_VERIFICATION_TTL_HOURS} hours. If you didn't create an account, you can ignore this email.</p>`,
+  });
+
+  return verifyUrl;
+}
+
 /**
- * Self-registration — admin-only. ADMIN_EMAILS is the sole source of the
- * ADMIN role (see lib/adminAccess.ts); this is not a second way to grant
- * it, it's the ONLY way an ADMIN_EMAILS address ever gets a working
- * account, since there is deliberately no "make user an admin" button
- * anywhere. Patients still arrive by invite only — self-service signup for
- * patients was removed.
+ * Open patient registration. Invitation-only was the wrong shape for this
+ * practice: an account with nothing attached to it carries no clinical data
+ * and protects nothing, so there is no approval step, no waiting state, and
+ * nothing here that should feel guarded. A new account is an empty account.
  *
- * Every rejection reason (email not on the admin list, account already
- * exists, ...) returns the exact same generic error — this must never leak
- * whether a given address is on ADMIN_EMAILS.
+ * The care lives in linking (modules/admin/linkingService.ts), not here.
  *
- * The account is created ACTIVE, but — unlike the old patient signup flow —
- * this does NOT return a plain success. It immediately issues an OTP
- * challenge and returns the same { challengeId, devOtpCode } shape as
- * login()'s otp_required response, verified through the same
- * POST /auth/otp/verify endpoint. There is no code path that returns a
- * session, or any other terminal "you're registered" state, without that
- * verification succeeding — 2FA enrolment is mandatory and unskippable
- * because it is structurally the only way this flow can end.
+ * Invites still work exactly as before — createInvite/activateAccount are
+ * untouched, and the two paths coexist: the practice can still set an
+ * account up for someone directly.
+ *
+ * Admin registration is likewise unchanged, because there is nothing to
+ * change: ADMIN_EMAILS remains the sole source of the ADMIN role, re-derived
+ * per request in authGuard, and this function grants nobody anything. The
+ * stored role is PATIENT for every account it creates — including an
+ * admin's, which is what lets one account show both the console and its
+ * owner's own results.
+ *
+ * Two rules survive from the old admin-only version, for different reasons:
+ *
+ *  1. An already-registered address gets the SAME response as a fresh one.
+ *     Registration being open doesn't make "does this person bank here" a
+ *     fair question to answer, and this endpoint is unauthenticated. The
+ *     existing account holder gets an email telling them someone tried, so
+ *     the honest signal goes to the person entitled to it.
+ *  2. Verification is not optional and not skippable. The account is created
+ *     PENDING_VERIFICATION and login() refuses it in that state, so the only
+ *     route out is the emailed link — which then leads straight into 2FA
+ *     enrolment (see verifyEmail()). There is no code path from here to a
+ *     session that doesn't pass through both.
  */
-const REGISTRATION_REJECTED = 'Unable to complete registration with these details.';
-
-export async function signup(input: SignupRequest, ip: string | null): Promise<LoginResult> {
-  if (!isAdminEmail(input.email)) {
-    throw new AuthError(REGISTRATION_REJECTED, 400);
-  }
-
+export async function signup(input: SignupRequest, ip: string | null): Promise<SignupResult> {
   const existing = await prisma.user.findUnique({ where: { email: input.email } });
+
   if (existing) {
-    throw new AuthError(REGISTRATION_REJECTED, 400);
+    // Deliberately not an error. Telling the caller "that's taken" turns
+    // this endpoint into a membership oracle for a medical practice.
+    await emailProvider
+      .sendEmail({
+        to: existing.email,
+        subject: 'Someone tried to register with your email',
+        text: `Someone just tried to create an Aspire Bloods account with this email address, but you already have one. If that was you, sign in at ${env.APP_BASE_URL}/login instead — you can reset your password there if you've forgotten it. If it wasn't you, no action is needed: no new account was created and nothing about yours has changed.`,
+        html: `<p>Someone just tried to create an Aspire Bloods account with this email address, but you already have one.</p><p>If that was you, <a href="${env.APP_BASE_URL}/login">sign in</a> instead. If it wasn't, no action is needed — no new account was created and nothing about yours has changed.</p>`,
+      })
+      .catch((e) => {
+        // The notice failing must not change the response shape and give
+        // the game away. Log it and carry on.
+        console.error('[signup] duplicate-registration notice failed', {
+          userId: existing.id,
+          error: e instanceof Error ? e.message : e,
+        });
+      });
+
+    await recordAuditLog({
+      actorUserId: existing.id,
+      action: 'SIGNUP_ATTEMPTED_EXISTING_EMAIL',
+      targetType: 'User',
+      targetId: existing.id,
+      ipAddress: ip,
+    });
+
+    return {
+      status: 'verification_sent',
+      sentTo: maskEmail(input.email),
+      expiresInHours: env.EMAIL_VERIFICATION_TTL_HOURS,
+    };
   }
 
   const user = await prisma.$transaction(async (tx) => {
@@ -192,11 +258,11 @@ export async function signup(input: SignupRequest, ip: string | null): Promise<L
         passwordHash: await hashPassword(input.password),
         // Stored role stays PATIENT — ADMIN is derived from ADMIN_EMAILS on
         // every request (authGuard's effectiveRole()), never read from this
-        // column for that email. This is also what makes the "same account
-        // shows both the admin area and their own results" requirement work
-        // for free: it's a real patient-shaped account underneath.
+        // column. This is also what makes the "same account shows both the
+        // admin area and their own results" requirement work for free: it's
+        // a real patient-shaped account underneath.
         role: 'PATIENT',
-        status: 'ACTIVE',
+        status: 'PENDING_VERIFICATION',
         twoFactorMethod: 'EMAIL',
       },
     });
@@ -213,20 +279,120 @@ export async function signup(input: SignupRequest, ip: string | null): Promise<L
     targetId: user.id,
     ipAddress: ip,
   });
-  // Distinct from ACCOUNT_SIGNED_UP and from ADMIN_ACCESS_GRANTED (logged
-  // later, at session-issuance) — this is specifically "an admin-capable
-  // account was created," logged once, at creation time.
+  if (isAdminEmail(user.email)) {
+    // Distinct from ACCOUNT_SIGNED_UP and from ADMIN_ACCESS_GRANTED (logged
+    // later, at session-issuance) — this is specifically "an account that
+    // ADMIN_EMAILS will grant the console to was created," logged once, at
+    // creation time. It records a fact; it doesn't confer anything.
+    await recordAuditLog({
+      actorUserId: user.id,
+      action: 'ADMIN_ACCOUNT_CREATED',
+      targetType: 'User',
+      targetId: user.id,
+      ipAddress: ip,
+      metadata: { email: user.email },
+    });
+  }
+
+  let verifyUrl: string;
+  try {
+    verifyUrl = await sendVerificationEmail(user.id, user.email);
+  } catch (e) {
+    // The account exists but is unreachable — PENDING_VERIFICATION can't
+    // sign in, so it's inert rather than dangerous, and "resend" fixes it.
+    // Say so plainly instead of returning a success the patient can't act on.
+    console.error('[signup] verification email send failed', {
+      userId: user.id,
+      error: e instanceof Error ? e.message : e,
+    });
+    throw new AuthError(
+      "We couldn't send your confirmation email just now. Your details are saved — please try again in a few minutes.",
+      502,
+    );
+  }
+
+  return {
+    status: 'verification_sent',
+    sentTo: maskEmail(user.email),
+    expiresInHours: env.EMAIL_VERIFICATION_TTL_HOURS,
+    devVerificationUrl: env.EXPOSE_DEV_OTP_CODE ? verifyUrl : undefined,
+  };
+}
+
+/**
+ * Opening the emailed link. This is the moment the account becomes real:
+ * PENDING_VERIFICATION → ACTIVE, and immediately an OTP challenge in the
+ * same { challengeId, devOtpCode } shape login() returns, verified through
+ * the same POST /auth/otp/verify endpoint.
+ *
+ * Email verification first, 2FA enrolment second, and no terminal state in
+ * between — this function cannot return a session, and verifyOtp() is the
+ * only thing that can. Enrolment isn't an optional follow-up step the
+ * patient could wander away from; it's structurally the only way the flow
+ * ends in anything other than being signed out.
+ */
+export async function verifyEmail(rawToken: string, ip: string | null): Promise<LoginResult> {
+  const tokenHash = hashToken(rawToken);
+  const record = await prisma.emailVerificationToken.findUnique({ where: { tokenHash } });
+
+  if (!record || record.usedAt || record.expiresAt < new Date()) {
+    throw new AuthError('This confirmation link is invalid or has expired. Please request a new one.', 400);
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: record.userId } });
+  if (!user || (user.status !== 'PENDING_VERIFICATION' && user.status !== 'ACTIVE')) {
+    throw new AuthError('This confirmation link is invalid or has expired. Please request a new one.', 400);
+  }
+
+  await prisma.$transaction(async (tx) => {
+    if (user.status === 'PENDING_VERIFICATION') {
+      await tx.user.update({ where: { id: user.id }, data: { status: 'ACTIVE' } });
+    }
+    await tx.emailVerificationToken.update({ where: { id: record.id }, data: { usedAt: new Date() } });
+    // Any other outstanding link for this account is spent too — a second
+    // link sitting in the same inbox must not stay usable once one has done
+    // its job.
+    await tx.emailVerificationToken.updateMany({
+      where: { userId: user.id, usedAt: null },
+      data: { usedAt: new Date() },
+    });
+  });
+
   await recordAuditLog({
     actorUserId: user.id,
-    action: 'ADMIN_ACCOUNT_CREATED',
+    action: 'ACCOUNT_EMAIL_VERIFIED',
     targetType: 'User',
     targetId: user.id,
     ipAddress: ip,
-    metadata: { email: user.email },
   });
 
   const challenge = await createOtpChallenge(user, ip);
   return { trustedDeviceSkippedOtp: false, ...challenge };
+}
+
+/**
+ * "The confirmation email never arrived." Same anti-enumeration posture as
+ * signup(): the response is identical whether the address is unknown,
+ * already verified, or genuinely waiting — only an account actually sitting
+ * in PENDING_VERIFICATION causes an email to go out.
+ */
+export async function resendVerificationEmail(email: string, ip: string | null): Promise<{ devVerificationUrl?: string }> {
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user || user.status !== 'PENDING_VERIFICATION') {
+    return {};
+  }
+
+  const verifyUrl = await sendVerificationEmail(user.id, user.email);
+
+  await recordAuditLog({
+    actorUserId: user.id,
+    action: 'ACCOUNT_VERIFICATION_RESENT',
+    targetType: 'User',
+    targetId: user.id,
+    ipAddress: ip,
+  });
+
+  return { devVerificationUrl: env.EXPOSE_DEV_OTP_CODE ? verifyUrl : undefined };
 }
 
 export async function activateAccount(input: ActivateAccountRequest, ip: string | null) {
@@ -359,6 +525,27 @@ export async function login(
   const user = await prisma.user.findUnique({ where: { email } });
 
   const passwordOk = await verifyPassword(user?.passwordHash ?? DUMMY_HASH, password);
+
+  // Correct password on an unverified account is the one case where saying
+  // more leaks nothing: whoever typed that password owns the account, so
+  // "check your email" tells them something they're entitled to know rather
+  // than answering "is this address registered" for a stranger. Every other
+  // failure — unknown address, wrong password, disabled account — still
+  // returns the same message and the same timing profile.
+  if (user && passwordOk && user.status === 'PENDING_VERIFICATION') {
+    await recordAuditLog({
+      actorUserId: user.id,
+      action: 'LOGIN_BLOCKED_UNVERIFIED',
+      targetType: 'User',
+      targetId: user.id,
+      ipAddress: ip,
+    });
+    throw new AuthError(
+      'Please confirm your email address first — open the link we sent you when you registered. You can ask for a new one from the sign-up page.',
+      403,
+    );
+  }
+
   if (!user || user.status !== 'ACTIVE' || !passwordOk) {
     await recordAuditLog({
       action: 'LOGIN_FAILED',

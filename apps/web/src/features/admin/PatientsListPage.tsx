@@ -11,7 +11,7 @@ import { apiFetch } from '../../lib/api';
 interface PatientRow {
   id: string;
   email: string;
-  status: 'INVITED' | 'ACTIVE' | 'DISABLED';
+  status: 'INVITED' | 'PENDING_VERIFICATION' | 'ACTIVE' | 'DISABLED';
   deactivatedAt: string | null;
   createdAt: string;
   displayName: string;
@@ -22,6 +22,9 @@ type SortKey = 'displayName' | 'email' | 'status' | 'createdAt';
 function statusLabel(p: PatientRow): string {
   if (p.deactivatedAt) return 'Deactivated';
   if (p.status === 'INVITED') return 'Invited';
+  // Self-registered, hasn't opened the confirmation link yet. Distinct from
+  // "Invited" — nobody is waiting on the practice for this one.
+  if (p.status === 'PENDING_VERIFICATION') return 'Email not confirmed';
   if (p.status === 'DISABLED') return 'Erased';
   return 'Active';
 }

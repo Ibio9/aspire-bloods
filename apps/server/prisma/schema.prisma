@@ -19,6 +19,12 @@ enum UserRole {
 
 enum UserStatus {
   INVITED
+  // Self-registered but the email address hasn't been proved yet. The
+  // account exists and holds nothing — no results are ever attached to an
+  // account in this state, and login() rejects it exactly as it rejects
+  // INVITED. Becomes ACTIVE the moment the emailed link is opened, which
+  // is the point 2FA enrolment begins.
+  PENDING_VERIFICATION
   ACTIVE
   DISABLED
 }
@@ -127,6 +133,7 @@ model User {
   patientProfile    PatientProfile?
   staffProfile      StaffProfile?
   inviteTokens      InviteToken[]
+  emailVerificationTokens EmailVerificationToken[]
   otpCodes          OtpCode[]
   refreshTokens     RefreshToken[]
   trustedDevices    TrustedDevice[]
@@ -150,10 +157,15 @@ model PatientProfile {
   firstName                       String
   lastName                        String
   sex                             Sex?
+  // DOB and contact number are the two fields an admin matches an incoming
+  // result against (see modules/admin/linkingService.ts), so both are
+  // captured at self-signup and stay required. Address and postcode are
+  // not part of that decision and are optional — they're asked for at
+  // invite-activation, and can be filled in later otherwise.
   dobEncrypted                    String
   contactNumberEncrypted          String
-  addressEncrypted                String
-  postcode                        String
+  addressEncrypted                String?
+  postcode                        String?
   gpName                          String?
   gpAddressEncrypted              String?
   medicationEncrypted              String?
@@ -176,6 +188,24 @@ model StaffProfile {
 }
 
 model InviteToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+// Self-registration only. Deliberately a separate model from InviteToken
+// even though the shape is nearly identical: an invite is the practice
+// vouching for someone and carries a 7-day expectation, whereas this is
+// only ever "prove you can read this mailbox" and is short-lived. Conflating
+// them would mean one TTL, one audit action, and one revocation story for
+// two genuinely different events.
+model EmailVerificationToken {
   id        String    @id @default(uuid())
   userId    String
   user      User      @relation(fields: [userId], references: [id])
@@ -540,6 +570,67 @@ model IngestionLogEntry {
   @@index([sourceKey])
   @@index([externalId])
   @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Unmatched results — a result set that arrived without a patient account we
+// could attach it to. Now that anyone can register, most inbound results will
+// land here first: the account and the lab order are created independently and
+// nothing ties them together automatically.
+//
+// This is deliberately NOT a Report with a null patientId. A Report is a thing
+// that belongs to someone — every read path in the app assumes that, and the
+// release state machine is built on it. An unmatched result belongs to nobody
+// yet, so it lives outside that machine entirely until an admin says whose it
+// is. Linking then creates the Report; it never mutates one into existence
+// behind the state machine's back.
+// ---------------------------------------------------------------------------
+
+enum UnmatchedResultStatus {
+  PENDING
+  LINKED
+  DISMISSED
+}
+
+model UnmatchedResult {
+  id         String  @id @default(uuid())
+  sourceKey  String
+  // The lab's own id for this result set. Unique so a redelivery updates the
+  // same pending row rather than stacking up duplicates in the admin queue.
+  externalId String? @unique
+
+  // Identity exactly as the LAB stated it — never as we guessed it. This is
+  // the entirety of what an admin has to match against, so it's stored
+  // verbatim and encrypted like every other identifier we hold.
+  claimedFirstName              String?
+  claimedLastName               String?
+  claimedDobEncrypted           String?
+  claimedContactNumberEncrypted String?
+
+  sampleDate  DateTime?
+  markerCount Int       @default(0)
+  // The normalised ParsedReport, kept whole so linking can replay it through
+  // the ordinary ingestion path. Nothing is thrown away while we wait.
+  payload     Json
+
+  status UnmatchedResultStatus @default(PENDING)
+
+  // Set on link; cleared again on unlink, which returns the row to PENDING so
+  // it goes straight back into the queue rather than disappearing. No hard
+  // deletes — a dismissed row keeps its reason and its dismisser forever.
+  linkedReportId  String?
+  linkedPatientId String?
+  linkedById      String?
+  linkedAt        DateTime?
+  dismissedAt     DateTime?
+  dismissedById   String?
+  dismissReason   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([sourceKey])
 }
 
 // ---------------------------------------------------------------------------

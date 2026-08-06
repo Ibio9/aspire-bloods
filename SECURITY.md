@@ -12,8 +12,25 @@ If you believe you've found a security issue in this codebase, please contact th
 - **Mandatory 2FA**: every patient login requires a 6-digit OTP (email by default; SMS behind `SMS_ENABLED`, off by default). OTP codes are hashed at rest, single-use, expire after 10 minutes, and are invalidated after 5 incorrect attempts.
 - **"Trust this device"** is capped at 30 days and is a distinct, hashed, per-device token — not a blanket bypass of 2FA.
 - **Sessions**: short-lived access token (JWT, 15 min default) + rotating opaque refresh token (hashed at rest, 30-day default), both httpOnly, `SameSite=Lax`, `Secure` in production. Refresh tokens are single-use — each refresh revokes the old token and issues a new one (rotation), so a stolen refresh token has a narrow window of use before rotation invalidates it.
-- **Rate limiting**: login, signup, and OTP-verify endpoints are hard-limited per IP (`express-rate-limit`, configurable via env), independent of the OTP attempt counter above. Backed by a Postgres-based store (`lib/postgresRateLimitStore.ts`), not the default in-memory one — the in-memory store loses all limiter state on every process restart, which on Railway means every deploy.
-- **No user enumeration**: login failure responses are identical whether the email doesn't exist or the password is wrong; a dummy Argon2 hash is verified against in the not-found case to keep timing consistent.
+- **Rate limiting / login lockout**: login, signup, verification-resend, and OTP endpoints are hard-limited per IP (`express-rate-limit`, every limit and window configurable via env), independent of the OTP attempt counter above. Backed by a Postgres-based store (`lib/postgresRateLimitStore.ts`), not the default in-memory one — the in-memory store loses all limiter state on every process restart, which on Railway means every deploy.
+  - The login lockout is **10 failed attempts in 2 minutes** (`LOGIN_RATE_LIMIT_MAX` / `LOGIN_RATE_LIMIT_WINDOW_SECONDS`). It was previously 5-in-15-minutes, which fired on ordinary mistyping and shut real patients out of their own results for a quarter of an hour. Ten in two minutes is far below any useful guessing rate while being effectively unreachable by hand.
+  - The counter is **cleared on any successful sign-in**, so a person who fumbles their password and then gets it right does not begin their next sign-in already part-way to a lock.
+  - OTP verification keeps the **tighter** limit (`OTP_RATE_LIMIT_MAX` / `OTP_RATE_LIMIT_WINDOW_SECONDS`, 5 in 15 minutes). Its search space is six digits, and a caller who has reached that step already holds a valid password — a generous allowance there is a materially different risk from a generous allowance on a password field.
+  - 429 responses carry `retryAfterSeconds` so the UI counts the lock down rather than saying "try again shortly".
+- **Open registration, gated verification**: anyone can register at `/signup`. A new account holds no clinical data at all — results reach it only when an admin explicitly links them (see *Result linking* below) — so registration itself is not an access-control boundary and is not gated. The account is created `PENDING_VERIFICATION`, which cannot log in; confirming the emailed link activates it and immediately begins mandatory 2FA enrolment. There is no code path from registration to a session that skips either step.
+- **Admin role**: unchanged and unaffected by open registration. `ADMIN_EMAILS` remains the only source of the ADMIN role, re-derived from the environment on every request (`lib/adminAccess.ts`); every account `/signup` creates is stored as a patient, and no route, seed, or setting anywhere grants the role another way.
+- **No user enumeration**: login failure responses are identical whether the email doesn't exist or the password is wrong; a dummy Argon2 hash is verified against in the not-found case to keep timing consistent. `/signup` and the verification-resend endpoint likewise respond identically for a fresh address and an already-registered one — the existing account holder is told by email instead. The one deliberate exception is a **correct** password against an unverified account, which returns "confirm your email first": whoever supplied that password owns the account, so it discloses nothing to a stranger.
+
+## Result linking
+
+Registration being open moves all the risk to one decision: whose results are these? Wrong-patient results is the worst failure this system has, so `modules/admin/linkingService.ts` enforces, server-side:
+
+- Nothing is matched automatically. A result that arrives without a resolvable patient reference is parked in an `UnmatchedResult` queue — never written as a `Report` with a guessed owner.
+- **A name is never sufficient.** Date of birth must agree as well; if the lab supplied no date of birth, the link is refused outright rather than falling back to the weaker signal.
+- The admin must restate the date of birth they matched on, and the server checks it against its own copy of the account before accepting the link.
+- Linking and unlinking are both audited, with **what agreed** recorded on the entry (`RESULT_LINKED_TO_PATIENT` / `RESULT_UNLINKED_FROM_PATIENT`), so a later review can ask on what basis, not just when.
+- Unlinking voids the report — removing it from the patient's portal immediately, including after release — and returns the result to the queue. Nothing is deleted.
+- Linking lands a report at `ADMIN_VERIFIED`, never past it: the clinician review and release gate is untouched.
 
 ## Authorization
 

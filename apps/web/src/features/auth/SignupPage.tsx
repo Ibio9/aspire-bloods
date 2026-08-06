@@ -1,88 +1,133 @@
-import { useCallback, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { apiFetch } from '../../lib/api';
-import { useAuth } from '../../lib/AuthContext';
+import { authErrorMessage } from '../../lib/authErrors';
 import { RegistrationForm } from './RegistrationForm';
 import { AuthSplitLayout } from './AuthSplitLayout';
-import { OtpStep, type OtpChallenge } from './OtpStep';
+import { Button } from '../../components/ui/Button';
 
-type Step = { kind: 'registration' } | { kind: 'otp'; challenge: OtpChallenge };
+const EYEBROW = 'Aspire Clinic';
+const HEADLINE = 'Create your account.';
+const SUPPORTING =
+  'Set up your portal in a minute. Your results appear here once the clinic has matched them to you — nothing is published until a clinician has reviewed it.';
 
-const STAFF_EYEBROW = 'Practice staff';
-const STAFF_HEADLINE = 'Set up your practice account.';
-const STAFF_SUPPORTING =
-  "This is for Aspire Clinic staff only. Patients don't register here — they're sent an email invitation to activate their own account.";
+interface SignupResponse {
+  status: string;
+  sentTo?: string;
+  expiresInHours?: number;
+}
 
 /**
- * Registration is admin-only (ADMIN_EMAILS-gated server-side — see
- * auth/service.ts signup()). The rejection for a non-admin email is
- * generic on purpose (this must never leak who's on the admin list), so
- * this page doesn't otherwise hint at that gate — but it is upfront that
- * the flow itself is a staff one, and that patients arrive by invite.
+ * Open registration. Invitation-only was the wrong shape for this practice,
+ * so anyone can create an account here — and it deliberately does not feel
+ * guarded, because there is nothing to guard: a new account is an empty
+ * account, holding no clinical data at all until the clinic links results to
+ * it. No approval, no queue, no "we'll be in touch".
  *
- * 2FA enrolment is not a separate optional step — this flow structurally
- * cannot end in a session without it: signup() itself returns the same
- * otp_required shape as login(), verified through the same endpoint.
+ * Invites still work in parallel for patients the practice adds directly —
+ * those land on /activate with the fuller registration form.
+ *
+ * The flow is registration → confirm your email → 2FA → signed in, and this
+ * page owns only the first two screens. Verification is what moves the
+ * account out of PENDING_VERIFICATION, and the emailed link is what starts
+ * 2FA enrolment (see VerifyEmailPage) — so there is no way to end up with a
+ * working account that skipped either step.
  */
 export function SignupPage() {
-  const navigate = useNavigate();
-  const { refresh } = useAuth();
-  const [step, setStep] = useState<Step>({ kind: 'registration' });
+  const [sent, setSent] = useState<SignupResponse | null>(null);
+  const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle');
+  const [resendError, setResendError] = useState<string | null>(null);
+  const [email, setEmail] = useState('');
 
-  const handleVerified = useCallback(async () => {
-    await refresh();
-    navigate('/');
-  }, [refresh, navigate]);
+  async function handleResend() {
+    setResendState('sending');
+    setResendError(null);
+    try {
+      await apiFetch('/auth/verify-email/resend', { method: 'POST', body: JSON.stringify({ email }) });
+      setResendState('sent');
+    } catch (e) {
+      setResendError(authErrorMessage(e));
+      setResendState('failed');
+    }
+  }
 
-  if (step.kind === 'otp') {
+  if (sent) {
     return (
-      <AuthSplitLayout eyebrow={STAFF_EYEBROW} headline={STAFF_HEADLINE} supporting={STAFF_SUPPORTING}>
-        <OtpStep
-          challenge={step.challenge}
-          onVerified={handleVerified}
-          eyebrow="One more step"
-          heading="Verify it's you"
-          // First sign-in on a brand new account — "trust this device for 30
-          // days" is a decision for someone who already knows the account is
-          // theirs and working, not a checkbox to tick during enrolment.
-          allowTrustDevice={false}
-        />
+      <AuthSplitLayout eyebrow={EYEBROW} headline={HEADLINE} supporting={SUPPORTING}>
+        <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">Almost there</p>
+        <h2 className="auth-heading">Confirm your email</h2>
+        <p className="mt-[var(--auth-step)] text-sm leading-relaxed text-espresso/80">
+          We've sent a link to <span className="font-medium text-espresso">{sent.sentTo ?? 'your email address'}</span>.
+          Open it to activate your account — we'll then send a one-time code to finish setting up two-factor
+          sign-in.
+        </p>
+        {sent.expiresInHours && (
+          <p className="mt-[calc(var(--auth-step)*0.75)] text-sm text-espresso/70">
+            The link is good for {sent.expiresInHours} hours.
+          </p>
+        )}
+
+        <div className="mt-[calc(var(--auth-step)*1.6)] border-t border-taupe pt-[calc(var(--auth-step)*1.2)]">
+          <p className="text-sm text-espresso/80">Didn't get it? Check your junk folder first — then:</p>
+          <div className="mt-[calc(var(--auth-step)*0.75)] flex flex-wrap items-center gap-x-4 gap-y-2">
+            <Button variant="secondary" onClick={handleResend} loading={resendState === 'sending'}>
+              Send the link again
+            </Button>
+            {resendState === 'sent' && (
+              <span role="status" className="text-sm text-espresso/70">
+                Sent. It can take a minute to arrive.
+              </span>
+            )}
+          </div>
+          {resendError && (
+            <p role="alert" className="mt-3 text-sm text-status-significantHigh">
+              {resendError}
+            </p>
+          )}
+        </div>
+
+        <p className="mt-[calc(var(--auth-step)*1.4)] text-sm text-espresso/80">
+          Already confirmed?{' '}
+          <Link to="/login" className="rounded-sm font-medium text-bronze underline underline-offset-2 hover:text-bronze-700">
+            Sign in
+          </Link>
+        </p>
       </AuthSplitLayout>
     );
   }
 
   return (
-    <AuthSplitLayout eyebrow={STAFF_EYEBROW} headline={STAFF_HEADLINE} supporting={STAFF_SUPPORTING} wide>
-      <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">Practice staff</p>
+    <AuthSplitLayout eyebrow={EYEBROW} headline={HEADLINE} supporting={SUPPORTING} wide>
+      <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">Patient portal</p>
       <h2 className="auth-heading">Create an account</h2>
       <p className="mt-[var(--auth-step)] max-w-prose text-sm leading-relaxed text-espresso/80">
-        A few details for our records, then set a password. You'll verify your email with a one-time code before
-        your account is ready to use.
+        Anyone can register — you don't need an invitation. We'll confirm your email address, then set up
+        two-factor sign-in. Your date of birth and contact number are how the clinic makes sure a result is
+        yours before it's added to your account.
       </p>
 
       <div className="mt-[calc(var(--auth-step)*1.6)]">
         <RegistrationForm
           showEmailField
+          variant="signup"
           submitLabel="Create account"
-          onSubmit={async ({ email, password, profile, consents }) => {
-            const result = await apiFetch<{ status: string } & Partial<OtpChallenge>>('/auth/signup', {
+          onSubmit={async ({ email: submittedEmail, password, profile, consents }) => {
+            const result = await apiFetch<SignupResponse>('/auth/signup', {
               method: 'POST',
-              body: JSON.stringify({ email, password, profile, consents }),
+              body: JSON.stringify({ email: submittedEmail, password, profile, consents }),
             });
-            if (result.status === 'otp_required' && result.challengeId) {
-              setStep({
-                kind: 'otp',
-                challenge: {
-                  challengeId: result.challengeId,
-                  sentTo: result.sentTo,
-                  channel: result.channel,
-                  expiresInMinutes: result.expiresInMinutes,
-                },
-              });
-            }
+            setEmail(submittedEmail ?? '');
+            setSent(result);
           }}
         />
       </div>
+
+      <p className="mt-[calc(var(--auth-step)*1.4)] text-sm text-espresso/80">
+        Already have an account?{' '}
+        <Link to="/login" className="rounded-sm font-medium text-bronze underline underline-offset-2 hover:text-bronze-700">
+          Sign in
+        </Link>
+      </p>
     </AuthSplitLayout>
   );
 }

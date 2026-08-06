@@ -148,9 +148,15 @@ export function PatientHome() {
         </div>
       ) : reports.length === 0 ? (
         <div className="mt-14 max-w-2xl">
+          {/* A brand-new self-registered account is empty by design, and this
+              is where that becomes visible. Said warmly and completely:
+              nothing is missing, nothing has gone wrong, and the sentence
+              names the actual step — the clinic matching a result to you —
+              rather than leaving a new patient to wonder whether they did
+              the sign-up right. */}
           <EmptyState
-            title="No results yet"
-            description="You haven't had any tests yet. Once you've had a sample taken and a clinician has reviewed it, your panel will appear here."
+            title="Nothing here yet — and that's exactly right"
+            description="Your account is set up and waiting. Once you've had a sample taken, the clinic matches the result to you and a clinician reviews it — then your first panel appears here."
             action={
               <Link
                 to="/overview"

@@ -123,6 +123,19 @@ If you need a working deploy before DNS/certs are sorted: in `vercel.json`, add 
 
 Nothing above should ever be committed to the repo — `.env`, `.env.local`, and friends are gitignored, and `.env.example` only ever holds placeholder values (the app refuses to boot in production if it detects the literal placeholder strings).
 
+### Tunable at runtime (no deploy needed)
+
+These have working defaults and only need setting in Railway if the practice wants to change them. All four are read at boot, so changing one needs a service restart but not a code change or a release:
+
+| Variable | Default | What it controls |
+|---|---|---|
+| `LOGIN_RATE_LIMIT_MAX` | `10` | Failed sign-ins allowed before the lockout |
+| `LOGIN_RATE_LIMIT_WINDOW_SECONDS` | `120` | The window those attempts are counted over |
+| `OTP_RATE_LIMIT_MAX` | `5` | 2FA code attempts allowed — deliberately tighter, six digits is a small search space |
+| `OTP_RATE_LIMIT_WINDOW_SECONDS` | `900` | The window for the above |
+
+**Note the rename**: `LOGIN_RATE_LIMIT_WINDOW_MINUTES` and `OTP_RATE_LIMIT_WINDOW_MINUTES` are gone, replaced by the `_SECONDS` variables above — the login window is now shorter than a minute's granularity can express. Any value still set for the old names is ignored, so remove them from Railway when deploying this change or the numbers will silently be the defaults rather than what the dashboard appears to say.
+
 ## Deploy process
 
 Both Railway and Vercel auto-deploy on push to `main` once connected to the GitHub repo. Branch protection means that only happens via a merged, CI-passed PR. The CI workflow (`typecheck` → `lint` → `test` → `build`, all four required) runs on every PR and push to `main`; GitHub branch protection is what actually makes it block merges — see the branch protection step above.

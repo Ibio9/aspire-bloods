@@ -15,7 +15,7 @@ import { recordPatientView } from '../../lib/recentPatients';
 interface PatientProfileDetail {
   id: string;
   email: string;
-  status: 'INVITED' | 'ACTIVE' | 'DISABLED';
+  status: 'INVITED' | 'PENDING_VERIFICATION' | 'ACTIVE' | 'DISABLED';
   createdAt: string;
   deactivatedAt: string | null;
   deactivatedByName: string | null;
@@ -27,8 +27,10 @@ interface PatientProfileDetail {
     sex: string | null;
     dob: string;
     contactNumber: string;
-    address: string;
-    postcode: string;
+    // Optional since self-registration — a patient who signed up themselves
+    // has never been asked for these.
+    address: string | null;
+    postcode: string | null;
     gpName: string | null;
     gpAddress: string | null;
     medication: string | null;
@@ -139,7 +141,19 @@ export function PatientDetailPage() {
           <p className="eyebrow mb-4">Profile</p>
           <p className="text-sm text-espresso">{profile.email}</p>
           <p className="mt-1 text-sm text-espresso/80">
-            Status: {profile.deactivatedAt ? 'Deactivated' : profile.status === 'INVITED' ? 'Invited (not yet activated)' : profile.status === 'DISABLED' ? 'Erased' : 'Active'}
+            Status:{' '}
+            {profile.deactivatedAt
+              ? 'Deactivated'
+              : profile.status === 'INVITED'
+                ? 'Invited (not yet activated)'
+                : // Self-registered and hasn't opened their confirmation link.
+                  // Nothing for the practice to chase — the account simply
+                  // can't sign in until they do.
+                  profile.status === 'PENDING_VERIFICATION'
+                  ? 'Registered (email not yet confirmed)'
+                  : profile.status === 'DISABLED'
+                    ? 'Erased'
+                    : 'Active'}
           </p>
           {profile.deactivatedAt && (
             <p className="mt-1 text-sm text-espresso/80">
@@ -163,11 +177,11 @@ export function PatientDetailPage() {
               </div>
               <div>
                 <dt className="text-espresso/80">Postcode</dt>
-                <dd className="text-espresso">{p.postcode}</dd>
+                <dd className="text-espresso">{p.postcode ?? 'Not given'}</dd>
               </div>
               <div className="sm:col-span-2">
                 <dt className="text-espresso/80">Address</dt>
-                <dd className="text-espresso">{p.address}</dd>
+                <dd className="text-espresso">{p.address ?? 'Not given'}</dd>
               </div>
               <div>
                 <dt className="text-espresso/80">GP</dt>

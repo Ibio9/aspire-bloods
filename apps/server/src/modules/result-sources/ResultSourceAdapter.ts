@@ -52,6 +52,21 @@ export interface ParsedReport {
   // inbound API result is matched to one of our accounts. Null/absent for
   // PDF and manual sources.
   externalPatientRef?: string | null;
+  // Who the LAB says this result belongs to, verbatim. Never used to match
+  // automatically — matching on a name is exactly the mistake that puts one
+  // person's results in front of another. It exists so that when
+  // externalPatientRef doesn't resolve (which, now that patients register
+  // themselves, is the common case rather than the exception) an admin has
+  // something concrete to compare against instead of an opaque reference.
+  // See modules/admin/linkingService.ts for what is and isn't allowed to
+  // count as agreement.
+  claimedPatient?: {
+    firstName?: string | null;
+    lastName?: string | null;
+    /** ISO date. The field that has to agree before any link is permitted. */
+    dob?: string | null;
+    contactNumber?: string | null;
+  } | null;
   // RandoxApiAdapter only: Randox's key for the test profile/panel this
   // result belongs to, matched against Panel.key. Left null when Randox
   // doesn't report one we recognise — the report is still valid with no
