@@ -118,10 +118,17 @@ test('nothing patient-visible until a report is RELEASED', async ({ page, browse
   // completed code auto-submits (see OtpInput's onComplete), so no separate submit click here.
   await patientPage.locator('#otp-0').click();
   await patientPage.keyboard.type(loginBody.devOtpCode);
-  await expect(patientPage.getByText('Your results')).toBeVisible({ timeout: 10000 });
+  // Signing in lands on the portal Overview, not the panel list.
+  await expect(patientPage.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })).toBeVisible({ timeout: 10000 });
 
-  // ADMIN_VERIFIED, not yet reviewed or released — patient sees it only as pending
-  await expect(patientPage.getByText('Results pending')).toBeVisible();
+  // ADMIN_VERIFIED, not yet reviewed or released — Overview says a result is coming
+  // and nothing about its contents.
+  await expect(patientPage.getByText('A result is on its way')).toBeVisible();
+  await expect(patientPage.getByText('in range')).not.toBeVisible();
+
+  // Same on the panel list itself
+  await patientPage.getByRole('link', { name: 'My results' }).first().click();
+  await expect(patientPage.getByText('Your results are with the clinical team')).toBeVisible();
   await expect(patientPage.getByText('in range')).not.toBeVisible();
 
   // Direct API check too — not just a hidden-in-the-UI check

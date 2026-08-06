@@ -65,7 +65,13 @@ export function ReportView() {
 
   return (
     <>
-      <Breadcrumbs items={[{ label: 'Your results', to: '/my-results' }, { label: `${report.panelName}, ${report.sampleDate}` }]} />
+      <Breadcrumbs
+        items={[
+          { label: 'Overview', to: '/overview' },
+          { label: 'My results', to: '/my-results' },
+          { label: `${report.panelName}, ${report.sampleDate}` },
+        ]}
+      />
       <TwoTierHeading eyebrow={`Sample date ${report.sampleDate}`} title={report.panelName} />
       {report.sourceLabel && <p className="mt-2 text-sm text-espresso/80">{report.sourceLabel}</p>}
 

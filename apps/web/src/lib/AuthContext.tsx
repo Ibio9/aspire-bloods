@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { UserRole } from '@aspire-bloods/shared';
 import { apiFetch, ApiError } from './api';
+import { resetPatientPortalCaches } from './patientPortal';
 
 interface CurrentUser {
   id: string;
@@ -52,6 +53,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // showing an authenticated view nobody can actually use.
     }
     if (reason) sessionStorage.setItem(LOGOUT_REASON_KEY, reason);
+    // Module-scoped patient data (sidebar marker index) must not survive into
+    // the next person's session on a shared machine — signing out doesn't
+    // reload the page, so nothing else clears it.
+    resetPatientPortalCaches();
     setUser(null);
   }, []);
 

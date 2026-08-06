@@ -72,7 +72,9 @@ test('invite -> activate -> login -> 2FA -> session', async ({ page, request }) 
   await page.locator('#otp-0').click();
   await page.keyboard.type(loginBody.devOtpCode);
 
-  // --- Lands on the patient dashboard, freshly activated with no results yet ---
-  await expect(page.getByText('Your results')).toBeVisible({ timeout: 10000 });
-  await expect(page.getByText("haven't had any tests yet")).toBeVisible();
+  // --- Lands on the portal Overview, freshly activated with no results yet ---
+  await expect(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })).toBeVisible({ timeout: 10000 });
+  // A brand-new patient gets an explanation of what will appear and when, not empty sections.
+  await expect(page.getByRole('heading', { name: "What you'll see here" })).toBeVisible();
+  await expect(page.getByText('Once you have had a sample taken')).toBeVisible();
 });

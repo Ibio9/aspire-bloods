@@ -19,6 +19,14 @@ import {
   withdrawConsent,
   requestErasure,
 } from './service.js';
+import {
+  MAX_TREND_MARKERS,
+  getPatientOverview,
+  listAllMarkersForPatient,
+  getMultiMarkerTrends,
+  getMarkerLibraryForPatient,
+  listDocumentsForPatient,
+} from './portalService.js';
 
 export const patientsRouter = Router();
 
@@ -83,6 +91,75 @@ patientsRouter.get(
     } catch (e) {
       if (!handleAccessError(e, res)) throw e;
     }
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Portal read models — cross-report views (see ./portalService.ts)
+// ---------------------------------------------------------------------------
+
+patientsRouter.get(
+  '/overview',
+  asyncHandler(async (req, res) => {
+    const overview = await getPatientOverview(req.user!.id);
+    await auditIfAdminViewer(req, 'own_overview', 'User');
+    res.json(overview);
+  }),
+);
+
+patientsRouter.get(
+  '/markers',
+  asyncHandler(async (req, res) => {
+    const markers = await listAllMarkersForPatient(req.user!.id);
+    await auditIfAdminViewer(req, 'own_all_markers', 'User');
+    res.json(markers);
+  }),
+);
+
+const trendsQuery = z.object({
+  // Repeated ?markerIds=a&markerIds=b or one comma-separated value — the
+  // chart's own URL is shareable/bookmarkable, so both shapes get accepted.
+  markerIds: z.union([z.string(), z.array(z.string())]).optional(),
+});
+
+patientsRouter.get(
+  '/trends',
+  asyncHandler(async (req, res) => {
+    const parsed = trendsQuery.safeParse(req.query);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+    const raw = parsed.data.markerIds;
+    const markerIds = (Array.isArray(raw) ? raw : raw ? [raw] : [])
+      .flatMap((v) => v.split(','))
+      .map((v) => v.trim())
+      .filter(Boolean)
+      .slice(0, MAX_TREND_MARKERS);
+
+    if (markerIds.length === 0) return res.json([]);
+
+    const series = await getMultiMarkerTrends(req.user!.id, markerIds);
+    await auditIfAdminViewer(req, 'own_trends', 'User');
+    res.json(series);
+  }),
+);
+
+patientsRouter.get(
+  '/library',
+  asyncHandler(async (req, res) => {
+    // Explanation copy is not patient data — but which markers the patient
+    // has results for is, so this stays on the audited path like the rest.
+    const library = await getMarkerLibraryForPatient(req.user!.id);
+    await auditIfAdminViewer(req, 'own_marker_library', 'User');
+    res.json(library);
+  }),
+);
+
+patientsRouter.get(
+  '/documents',
+  asyncHandler(async (req, res) => {
+    const documents = await listDocumentsForPatient(req.user!.id);
+    await auditIfAdminViewer(req, 'own_documents', 'User');
+    res.json(documents);
   }),
 );
 

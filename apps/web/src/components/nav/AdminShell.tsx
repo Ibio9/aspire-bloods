@@ -79,7 +79,8 @@ function SidebarContents({ collapsed, onNavigate }: { collapsed: boolean; onNavi
       {user?.hasPatientProfile && (
         <>
           <div className="my-2 border-t border-taupe" />
-          <SidebarLink item={{ to: '/my-results', label: 'My results', icon: ReportsIcon }} collapsed={collapsed} onNavigate={onNavigate} />
+          {/* Crosses into the patient shell — lands on its Overview, same as any patient's home. */}
+          <SidebarLink item={{ to: '/overview', label: 'My results', icon: ReportsIcon }} collapsed={collapsed} onNavigate={onNavigate} />
         </>
       )}
     </nav>

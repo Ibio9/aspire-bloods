@@ -99,8 +99,14 @@ export function MarkerDetailPage() {
       <Breadcrumbs
         items={
           navState
-            ? [{ label: 'Your results', to: '/my-results' }, { label: navState.panelName, to: `/reports/${navState.reportId}` }, { label: detail.name }]
-            : [{ label: 'Your results', to: '/my-results' }, { label: detail.name }]
+            ? [
+                { label: 'Overview', to: '/overview' },
+                { label: navState.panelName, to: `/reports/${navState.reportId}` },
+                { label: detail.name },
+              ]
+            : // Reached from All markers, Trends, the library or the sidebar search — none of which
+              // is a report, so the trail goes back to the marker list rather than to a panel.
+              [{ label: 'Overview', to: '/overview' }, { label: 'All markers', to: '/markers' }, { label: detail.name }]
         }
       />
 
