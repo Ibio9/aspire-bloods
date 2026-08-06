@@ -77,11 +77,19 @@ test('nothing patient-visible until a report is RELEASED', async ({ page, browse
   const panelList = await panels.json();
   const panel = panelList.find((p: { name: string }) => p.name === 'Signature');
 
+  // sourceId is required by the upload schema and always has been — the spec
+  // simply never sent it, so this upload had been failing its expect() before
+  // it ever reached the release-gate assertions this test exists for.
+  const sources = await adminRequest.get('/api/panels/sources');
+  const sourceList = await sources.json();
+  const source = sourceList.find((s: { key: string }) => s.key === 'randox_portal') ?? sourceList[0];
+
   const pdfBuffer = await buildTestPdf();
   const upload = await adminRequest.post('/api/reports', {
     multipart: {
       patientId,
       panelId: panel.id,
+      sourceId: source.id,
       sampleDate: '2026-03-01',
       file: { name: 'test-report.pdf', mimeType: 'application/pdf', buffer: pdfBuffer },
     },
