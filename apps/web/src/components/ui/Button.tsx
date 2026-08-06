@@ -29,8 +29,14 @@ const VARIANTS = {
     'bg-bronze bg-btn-primary text-white shadow-btn',
     'before:pointer-events-none before:absolute before:inset-0 before:rounded-full before:content-[""]',
     'before:shadow-[inset_0_1px_0_0_rgb(255_255_255_/_0.22),inset_0_-1px_0_0_rgb(66_60_54_/_0.18)]',
-    'hover:bg-bronze-400 hover:shadow-btn-hover motion-safe:hover:-translate-y-px',
-    'active:bg-bronze-600 active:shadow-btn-active active:translate-y-0 active:before:opacity-0',
+    // Hover goes DARKER, not lighter. bronze-400 under white label text is
+    // 4.06:1 — below the 4.5:1 minimum — so the old lighter hover quietly
+    // dropped the primary button out of AA for as long as the pointer was on
+    // it. bronze-600 is 6.37:1 (bronze-700, used on press, is 7.32:1) and
+    // still reads as a distinct hover because the lift and the shadow spread
+    // carry the state change, not the fill alone.
+    'hover:bg-bronze-600 hover:shadow-btn-hover motion-safe:hover:-translate-y-px',
+    'active:bg-bronze-700 active:shadow-btn-active active:translate-y-0 active:before:opacity-0',
   ].join(' '),
   secondary: [
     'bg-white bg-btn-secondary text-espresso border border-taupe shadow-btn',
