@@ -39,7 +39,13 @@ const upload = multer({
 
 const uploadRequestSchema = z.object({
   patientId: z.string().uuid(),
-  panelId: z.string().uuid(),
+  // multipart form field — an empty string means "no panel selected", not
+  // a malformed uuid, so it's normalised to undefined before validation.
+  panelId: z
+    .string()
+    .uuid()
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
   sourceId: z.string().uuid(),
   sampleDate: z.string().min(1),
 });
@@ -100,6 +106,7 @@ reportsRouter.post(
     try {
       const report = await uploadReport({
         ...parsed.data,
+        panelId: parsed.data.panelId ?? null,
         fileBuffer: req.file.buffer,
         originalFilename: req.file.originalname,
         mimeType: req.file.mimetype,
@@ -124,6 +131,7 @@ reportsRouter.post(
     try {
       const result = await createManualEntryReport({
         ...parsed.data,
+        panelId: parsed.data.panelId ?? null,
         enteredById: req.user!.id,
         ip: req.ip ?? null,
       });

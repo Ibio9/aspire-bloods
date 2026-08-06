@@ -109,7 +109,10 @@ function PdfUploadForm({
   onDone: () => void;
 }) {
   const [patientId, setPatientId] = useState('');
-  const [panelId, setPanelId] = useState('');
+  // 'none' rather than '' — the Select component treats a "" option as a
+  // non-real placeholder and disables the field when nothing else is
+  // configured, but "no panel" must stay a genuine, always-pickable choice.
+  const [panelId, setPanelId] = useState('none');
   const [sourceId, setSourceId] = useState('');
   const [sampleDate, setSampleDate] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -127,7 +130,7 @@ function PdfUploadForm({
     try {
       const formData = new FormData();
       formData.append('patientId', patientId);
-      formData.append('panelId', panelId);
+      if (panelId !== 'none') formData.append('panelId', panelId);
       formData.append('sourceId', sourceId);
       formData.append('sampleDate', sampleDate);
       formData.append('file', file);
@@ -144,7 +147,7 @@ function PdfUploadForm({
       }
       setFile(null);
       setPatientId('');
-      setPanelId('');
+      setPanelId('none');
       setSourceId('');
       setSampleDate('');
       onDone();
@@ -176,20 +179,25 @@ function PdfUploadForm({
         <div className="flex flex-col gap-1.5">
           <Select
             label="Which test package?"
-            hint="A panel is a bundle of markers run on one sample — e.g. Insight 360, Signature, Advanced GP3."
+            hint="A panel is a bundle of markers run on one sample — e.g. Insight 360, Signature, Advanced GP3. Leave it on individual markers for a one-off or repeat test that isn't part of a package."
             name="panelId"
             emptyMessage={<ConfigureLink what="panels" />}
             value={panelId}
             onChange={(e) => setPanelId(e.target.value)}
           >
-            <option value="">Select a panel…</option>
+            <option value="none">No panel — individual markers</option>
             {panels.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>
             ))}
           </Select>
-          {panelId && <PanelSummary panel={panels.find((p) => p.id === panelId)!} />}
+          {/* 'none' is a real selection, not an empty one — guard on the sentinel
+              rather than truthiness, and on the lookup, so an ad-hoc report never
+              tries to summarise a panel that isn't there. */}
+          {panelId !== 'none' && panels.some((p) => p.id === panelId) && (
+            <PanelSummary panel={panels.find((p) => p.id === panelId)!} />
+          )}
         </div>
         <Select
           label="Where was this analysed?"
@@ -245,7 +253,7 @@ function ManualEntryForm({
   onDone: () => void;
 }) {
   const [patientId, setPatientId] = useState('');
-  const [panelId, setPanelId] = useState('');
+  const [panelId, setPanelId] = useState('none');
   const [sampleDate, setSampleDate] = useState('');
   const [rows, setRows] = useState<ManualRow[]>([emptyRow()]);
   const [implausible, setImplausible] = useState<{ markerName: string; reason: string }[] | null>(null);
@@ -278,7 +286,13 @@ function ManualEntryForm({
         | { status: 'created'; reportId: string }
       >('/reports/manual-entry', {
         method: 'POST',
-        body: JSON.stringify({ patientId, panelId, sampleDate, results, confirmed }),
+        body: JSON.stringify({
+          patientId,
+          panelId: panelId === 'none' ? null : panelId,
+          sampleDate,
+          results,
+          confirmed,
+        }),
       });
       if (result.status === 'confirmation_required') {
         setImplausible(result.implausible);
@@ -286,7 +300,7 @@ function ManualEntryForm({
       }
       setImplausible(null);
       setPatientId('');
-      setPanelId('');
+      setPanelId('none');
       setSampleDate('');
       setRows([emptyRow()]);
       onDone();
@@ -329,20 +343,22 @@ function ManualEntryForm({
         <div className="flex flex-col gap-1.5">
           <Select
             label="Which test package?"
-            hint="A panel is a bundle of markers run on one sample — e.g. Insight 360, Signature, Advanced GP3."
+            hint="A panel is a bundle of markers run on one sample — e.g. Insight 360, Signature, Advanced GP3. Leave it on individual markers for a one-off or repeat test that isn't part of a package."
             name="manualPanelId"
             emptyMessage={<ConfigureLink what="panels" />}
             value={panelId}
             onChange={(e) => setPanelId(e.target.value)}
           >
-            <option value="">Select a panel…</option>
+            <option value="none">No panel — individual markers</option>
             {panels.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>
             ))}
           </Select>
-          {panelId && <PanelSummary panel={panels.find((p) => p.id === panelId)!} />}
+          {panelId !== 'none' && panels.some((p) => p.id === panelId) && (
+            <PanelSummary panel={panels.find((p) => p.id === panelId)!} />
+          )}
         </div>
         <DateField label="Sample date" name="manualSampleDate" value={sampleDate} onChange={setSampleDate} />
 

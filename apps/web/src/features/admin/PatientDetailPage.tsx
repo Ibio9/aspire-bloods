@@ -52,7 +52,7 @@ interface ReportRow {
   status: string;
   sampleDate: string;
   voidedAt: string | null;
-  panel: { name: string };
+  panel: { name: string } | null;
 }
 
 interface AuditRow {
@@ -270,7 +270,7 @@ export function PatientDetailPage() {
                     <TableCell className="tabular">{formatDate(r.sampleDate)}</TableCell>
                     <TableCell>
                       <Link to={`/admin/reports/${r.id}`} className="font-medium text-bronze-600 underline underline-offset-2">
-                        {r.panel.name}
+                        {r.panel?.name ?? 'No panel'}
                       </Link>
                     </TableCell>
                     <TableCell>{r.voidedAt ? 'Voided' : r.status.replace(/_/g, ' ')}</TableCell>

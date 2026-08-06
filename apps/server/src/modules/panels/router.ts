@@ -187,7 +187,6 @@ const createPanelSchema = z.object({
     .regex(/^[a-z0-9-]+$/, 'Use lowercase letters, numbers and hyphens only'),
   name: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
-  b2bPriceGBP: z.number().min(0).nullable().optional(),
 });
 
 panelsRouter.post(
@@ -220,7 +219,6 @@ const updatePanelSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   description: z.string().max(2000).nullable().optional(),
   isActive: z.boolean().optional(),
-  b2bPriceGBP: z.number().min(0).nullable().optional(),
 });
 
 panelsRouter.patch(
@@ -256,7 +254,6 @@ const createMarkerSchema = z.object({
   defaultUnit: z.string().min(1).max(30),
   severityMultiplier: z.number().min(0).optional(),
   crossSourceComparable: z.boolean().optional(),
-  addOnPriceGBP: z.number().min(0).nullable().optional(),
 });
 
 panelsRouter.post(
@@ -292,7 +289,6 @@ const updateMarkerSchema = z.object({
   severityAbsoluteDelta: z.number().min(0).nullable().optional(),
   crossSourceComparable: z.boolean().optional(),
   isActive: z.boolean().optional(),
-  addOnPriceGBP: z.number().min(0).nullable().optional(),
 });
 
 panelsRouter.patch(

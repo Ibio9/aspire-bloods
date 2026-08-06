@@ -19,7 +19,6 @@ interface MarkerRow {
   severityMultiplier: number;
   crossSourceComparable: boolean;
   isActive: boolean;
-  addOnPriceGBP: number | null;
 }
 
 interface PanelMarkerRow {
@@ -36,12 +35,7 @@ interface PanelRow {
   name: string;
   description: string | null;
   isActive: boolean;
-  b2bPriceGBP: number | null;
   markers: PanelMarkerRow[];
-}
-
-function formatGBP(value: number | null): string {
-  return value == null ? '—' : `£${value.toFixed(2).replace(/\.00$/, '')}`;
 }
 
 interface MarkerExplanationDetail {
@@ -67,11 +61,9 @@ function PanelsAndMarkersTab() {
   const [markers, setMarkers] = useState<MarkerRow[] | null>(null);
   const [newPanelKey, setNewPanelKey] = useState('');
   const [newPanelName, setNewPanelName] = useState('');
-  const [newPanelPrice, setNewPanelPrice] = useState('');
   const [newMarkerKey, setNewMarkerKey] = useState('');
   const [newMarkerName, setNewMarkerName] = useState('');
   const [newMarkerUnit, setNewMarkerUnit] = useState('');
-  const [newMarkerAddOnPrice, setNewMarkerAddOnPrice] = useState('');
   const [addToPanel, setAddToPanel] = useState<Record<string, string>>({});
 
   async function load() {
@@ -94,12 +86,10 @@ function PanelsAndMarkersTab() {
         body: JSON.stringify({
           key: newPanelKey,
           name: newPanelName,
-          b2bPriceGBP: newPanelPrice ? Number(newPanelPrice) : undefined,
         }),
       });
       setNewPanelKey('');
       setNewPanelName('');
-      setNewPanelPrice('');
       show('Panel created.', 'success');
       await load();
     } catch (e) {
@@ -115,13 +105,11 @@ function PanelsAndMarkersTab() {
           key: newMarkerKey,
           name: newMarkerName,
           defaultUnit: newMarkerUnit,
-          addOnPriceGBP: newMarkerAddOnPrice ? Number(newMarkerAddOnPrice) : undefined,
         }),
       });
       setNewMarkerKey('');
       setNewMarkerName('');
       setNewMarkerUnit('');
-      setNewMarkerAddOnPrice('');
       show('Marker created.', 'success');
       await load();
     } catch (e) {
@@ -135,17 +123,6 @@ function PanelsAndMarkersTab() {
       await load();
     } catch (e) {
       show(e instanceof ApiError ? e.message : 'Could not update panel.', 'error');
-    }
-  }
-
-  async function updatePanelPrice(panel: PanelRow, value: string) {
-    const b2bPriceGBP = value.trim() === '' ? null : Number(value);
-    if (b2bPriceGBP !== null && Number.isNaN(b2bPriceGBP)) return;
-    try {
-      await apiFetch(`/panels/${panel.id}`, { method: 'PATCH', body: JSON.stringify({ b2bPriceGBP }) });
-      await load();
-    } catch (e) {
-      show(e instanceof ApiError ? e.message : 'Could not update price.', 'error');
     }
   }
 
@@ -211,17 +188,6 @@ function PanelsAndMarkersTab() {
           <p className="eyebrow">New panel</p>
           <Input label="Key" name="panelKey" value={newPanelKey} onChange={(e) => setNewPanelKey(e.target.value)} hint="lowercase-with-hyphens" />
           <Input label="Name" name="panelName" value={newPanelName} onChange={(e) => setNewPanelName(e.target.value)} />
-          <Input
-            label="B2B price (GBP)"
-            name="panelPrice"
-            optional
-            type="number"
-            step="0.01"
-            min="0"
-            value={newPanelPrice}
-            onChange={(e) => setNewPanelPrice(e.target.value)}
-            hint="Leave blank if no price has been agreed yet"
-          />
           <Button onClick={createPanel} disabled={!newPanelKey || !newPanelName} className="self-start">
             Create panel
           </Button>
@@ -231,17 +197,6 @@ function PanelsAndMarkersTab() {
           <Input label="Key" name="markerKey" value={newMarkerKey} onChange={(e) => setNewMarkerKey(e.target.value)} hint="lowercase-with-hyphens" />
           <Input label="Name" name="markerName" value={newMarkerName} onChange={(e) => setNewMarkerName(e.target.value)} />
           <Input label="Default unit" name="markerUnit" value={newMarkerUnit} onChange={(e) => setNewMarkerUnit(e.target.value)} />
-          <Input
-            label="Add-on price (GBP)"
-            name="markerAddOnPrice"
-            optional
-            type="number"
-            step="0.01"
-            min="0"
-            value={newMarkerAddOnPrice}
-            onChange={(e) => setNewMarkerAddOnPrice(e.target.value)}
-            hint="Only if this marker is sold as an add-on"
-          />
           <Button onClick={createMarker} disabled={!newMarkerKey || !newMarkerName || !newMarkerUnit} className="self-start">
             Create marker
           </Button>
@@ -256,19 +211,6 @@ function PanelsAndMarkersTab() {
               <p className="text-sm text-espresso/80">{panel.key}</p>
             </div>
             <div className="flex items-center gap-4">
-              <label className="flex flex-col gap-1 text-xs">
-                <span className="text-espresso/80">B2B price</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  aria-label={`B2B price for ${panel.name}`}
-                  className="input-base w-28 py-1.5 tabular"
-                  defaultValue={panel.b2bPriceGBP ?? ''}
-                  placeholder="—"
-                  onBlur={(e) => updatePanelPrice(panel, e.target.value)}
-                />
-              </label>
               <Checkbox
                 name={`active-${panel.id}`}
                 checked={panel.isActive}
@@ -283,9 +225,6 @@ function PanelsAndMarkersTab() {
               <div key={pm.id} className="flex flex-wrap items-center gap-3 border-b border-taupe pb-2 last:border-b-0">
                 <span className="flex-1 text-sm text-espresso">
                   {pm.marker.name}
-                  {pm.marker.addOnPriceGBP != null && (
-                    <span className="ml-2 text-xs text-espresso/80">({formatGBP(pm.marker.addOnPriceGBP)})</span>
-                  )}
                   {!pm.marker.isActive && <span className="ml-2 text-xs text-status-significantHigh">deactivated</span>}
                 </span>
                 <Checkbox
@@ -342,7 +281,6 @@ function PanelsAndMarkersTab() {
             <div key={m.id} className="flex flex-wrap items-center gap-3 border-b border-taupe pb-2 last:border-b-0">
               <span className="flex-1 text-sm text-espresso">
                 {m.name} <span className="text-espresso/80">({m.defaultUnit})</span>
-                {m.addOnPriceGBP != null && <span className="ml-2 text-xs text-espresso/80">{formatGBP(m.addOnPriceGBP)} add-on</span>}
               </span>
               <Checkbox
                 name={`marker-active-${m.id}`}

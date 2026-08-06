@@ -20,7 +20,7 @@ export class ReportError extends Error {
 
 export async function uploadReport(input: {
   patientId: string;
-  panelId: string;
+  panelId: string | null;
   sourceId: string;
   sampleDate: string;
   fileBuffer: Buffer;
@@ -33,9 +33,11 @@ export async function uploadReport(input: {
   if (!patient || patient.role !== 'PATIENT') {
     throw new ReportError('Patient not found', 404);
   }
-  const panel = await prisma.panel.findUnique({ where: { id: input.panelId } });
-  if (!panel) {
-    throw new ReportError('Panel not found', 404);
+  if (input.panelId) {
+    const panel = await prisma.panel.findUnique({ where: { id: input.panelId } });
+    if (!panel) {
+      throw new ReportError('Panel not found', 404);
+    }
   }
   const source = await prisma.source.findUnique({ where: { id: input.sourceId } });
   if (!source || !source.isActive) {
