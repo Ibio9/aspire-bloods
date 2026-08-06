@@ -10,6 +10,7 @@ import { MarkerSearch } from './MarkerSearch';
 import { CloseIcon, CollapseIcon, MenuIcon, SearchIcon } from './icons';
 import {
   AccountIcon,
+  BookTestIcon,
   DocumentsIcon,
   LibraryIcon,
   MarkersIcon,
@@ -27,10 +28,23 @@ interface NavItem {
   /** One line under the label when expanded — the patient side has room for it and benefits from it. */
   hint: string;
   icon: (props: React.SVGProps<SVGSVGElement>) => JSX.Element;
+  /**
+   * Extra path prefixes this item owns. Booking and appointments are one
+   * destination as far as a patient is concerned, so the sidebar must not go
+   * blank the moment they open the appointment they just made.
+   */
+  alsoActiveOn?: string[];
 }
 
 const NAV_ITEMS: NavItem[] = [
   { to: '/overview', label: 'Overview', hint: 'Your latest results at a glance', icon: OverviewIcon },
+  {
+    to: '/book',
+    label: 'Book a test',
+    hint: 'Panels, clinics and appointment times',
+    icon: BookTestIcon,
+    alsoActiveOn: ['/appointments'],
+  },
   { to: '/my-results', label: 'My results', hint: 'Every panel you’ve had', icon: PanelsIcon },
   { to: '/markers', label: 'All markers', hint: 'Everything ever tested, in one list', icon: MarkersIcon },
   { to: '/trends', label: 'Trends', hint: 'Compare markers over time', icon: TrendsIcon },
@@ -41,17 +55,23 @@ const NAV_ITEMS: NavItem[] = [
 
 function SidebarLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed: boolean; onNavigate?: () => void }) {
   const Icon = item.icon;
+  const { pathname } = useLocation();
+  const ownsPath = item.alsoActiveOn?.some((prefix) => pathname.startsWith(prefix)) ?? false;
+
   return (
     <NavLink
       to={item.to}
       onClick={onNavigate}
-      className={({ isActive }) =>
-        `group relative flex items-start gap-3 rounded-input px-3 py-3 transition-colors duration-150 ease-out ${
+      className={({ isActive: routeActive }) => {
+        const isActive = routeActive || ownsPath;
+        return `group relative flex items-start gap-3 rounded-input px-3 py-3 transition-colors duration-150 ease-out ${
           collapsed ? 'justify-center' : ''
-        } ${isActive ? 'bg-bronze-50 text-bronze-700' : 'text-espresso/85 hover:bg-cream-200 hover:text-espresso'}`
-      }
+        } ${isActive ? 'bg-bronze-50 text-bronze-700' : 'text-espresso/85 hover:bg-cream-200 hover:text-espresso'}`;
+      }}
     >
-      {({ isActive }) => (
+      {({ isActive: routeActive }) => {
+        const isActive = routeActive || ownsPath;
+        return (
         <>
           {/* Active is carried by this bronze bar, the weight shift and the tinted
               background together — never by colour alone (brief). */}
@@ -77,7 +97,8 @@ function SidebarLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed
             </span>
           )}
         </>
-      )}
+        );
+      }}
     </NavLink>
   );
 }
@@ -201,9 +222,9 @@ function SidebarContents({
  * the density should say so.
  *
  * It replaces a two-item top bar. Two items in a sidebar would have looked
- * emptier than the bar did — the seven destinations here (Overview, results,
- * every marker, trends, the explanation library, documents, account) are what
- * make the shape earn itself.
+ * emptier than the bar did — the eight destinations here (Overview, booking,
+ * results, every marker, trends, the explanation library, documents, account)
+ * are what make the shape earn itself.
  */
 export function PatientShell({ children }: { children?: ReactNode }) {
   const [collapsed, setCollapsed] = useState(() => {

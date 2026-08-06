@@ -11,6 +11,7 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { useToast } from '../../components/ui/Toast';
 import { apiFetch } from '../../lib/api';
 import { API_BASE_URL } from '../../lib/apiBase';
+import { ReportBookingLink } from '../booking/ReportBookingLink';
 
 interface MarkerCard {
   markerId: string;
@@ -120,6 +121,9 @@ export function ReportView() {
       />
       <TwoTierHeading eyebrow={`Sample date ${sampleDate}`} title={title} />
       {report.sourceLabel && <p className="mt-3 text-sm text-espresso/80">{report.sourceLabel}</p>}
+      {/* Provenance — the appointment this sample came from, when the booking
+          system knows of one. Renders nothing for reports that pre-date it. */}
+      <ReportBookingLink reportId={report.reportId} />
 
       <div className="mt-8 flex flex-wrap gap-3">
         <Button

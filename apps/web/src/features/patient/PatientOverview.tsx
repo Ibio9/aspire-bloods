@@ -10,6 +10,7 @@ import { ArrowRightIcon, LibraryIcon, MarkersIcon, TrendsIcon } from '../../comp
 import { apiFetch } from '../../lib/api';
 import { formatRelativeDate, type ChangeItem, type PatientOverview as Overview } from '../../lib/patientPortal';
 import { MOVEMENT_COPY } from '../../lib/markerCopy';
+import { UpcomingAppointments } from '../booking/UpcomingAppointments';
 
 /**
  * The landing screen. Everything here answers one of the four questions
@@ -147,6 +148,15 @@ export function PatientOverview() {
           </p>
         )}
       </header>
+
+      {/* ---------------------------------------------------------------
+          Anything booked comes first. It is the only thing on this screen
+          with a deadline attached — a fast has to be started the night
+          before, and a result can be read whenever. It renders its own
+          prompt to book when the diary is empty, so the section never
+          silently disappears.
+          --------------------------------------------------------------- */}
+      <UpcomingAppointments />
 
       {/* ---------------------------------------------------------------
           Empty state — a new patient gets an explanation of what will show
