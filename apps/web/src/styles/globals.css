@@ -1,8 +1,6 @@
-@import '@fontsource/cormorant-garamond/400.css';
-@import '@fontsource/cormorant-garamond/500.css';
-@import '@fontsource/cormorant-garamond/600.css';
-@import '@fontsource/cormorant-garamond/500-italic.css';
-@import '@fontsource/cormorant-garamond/600-italic.css';
+@import '@fontsource/jost/400.css';
+@import '@fontsource/jost/500.css';
+@import '@fontsource/jost/600.css';
 @import '@fontsource/inter/400.css';
 @import '@fontsource/inter/500.css';
 @import '@fontsource/inter/600.css';
@@ -140,7 +138,7 @@
   /* Generously sized (brief: "currently too timid, let it be large") with tight leading —
      display type reads as a statement, not a slightly-bigger paragraph. */
   .display-heading {
-    @apply font-display text-5xl md:text-6xl lg:text-7xl leading-[1.02] text-espresso;
+    @apply font-display text-5xl md:text-6xl lg:text-7xl leading-[1.02] tracking-tight text-espresso;
   }
 
   /* Lighter off-white, not pure white — cards read as a distinct surface floating a shade above

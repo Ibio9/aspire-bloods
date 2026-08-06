@@ -4,6 +4,7 @@ import { AccountMenu } from '../AccountMenu';
 import { CommandPalette } from './CommandPalette';
 import { PageTransition } from '../PageTransition';
 import { useAuth } from '../../lib/AuthContext';
+import { Wordmark } from '../Wordmark';
 import { ReportsIcon, PatientsIcon, ContentIcon, AuditIcon, SearchIcon, MenuIcon, CollapseIcon } from './icons';
 
 const COLLAPSE_KEY = 'aspire_admin_sidebar_collapsed';
@@ -68,11 +69,12 @@ function SidebarContents({ collapsed, onNavigate }: { collapsed: boolean; onNavi
 
   return (
     <nav aria-label="Admin navigation" className="flex h-full flex-col gap-1 p-3">
-      <Link
-        to="/"
-        className={`mb-4 flex items-center gap-2 px-2 py-2 font-display italic text-bronze ${collapsed ? 'justify-center text-xl' : 'text-2xl'}`}
-      >
-        {collapsed ? 'A' : 'Aspire'}
+      <Link to="/" className={`mb-4 flex items-center px-2 py-2 ${collapsed ? 'justify-center' : ''}`} aria-label="Aspire Bloods, admin">
+        {collapsed ? (
+          <span className="font-display text-xl lowercase text-bronze">a</span>
+        ) : (
+          <Wordmark variant="light" size="sm" />
+        )}
       </Link>
       {items.map((item) => (
         <SidebarLink key={item.to} item={item} collapsed={collapsed} onNavigate={onNavigate} />
@@ -200,7 +202,7 @@ export function AdminShell({ children }: { children?: ReactNode }) {
 
       <div className="flex min-h-screen flex-1 flex-col">
         <AdminTopBar onOpenSearch={() => setSearchOpen(true)} onOpenDrawer={() => setDrawerOpen(true)} />
-        <main className="flex-1 px-5 py-14 sm:px-8 md:px-14 md:py-20">
+        <main className="flex-1 px-5 py-14 sm:px-8 md:px-14 md:py-24">
           <div className="mx-auto max-w-6xl">
             <PageTransition>{children ?? <Outlet />}</PageTransition>
           </div>

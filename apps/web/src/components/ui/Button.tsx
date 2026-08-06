@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes, MouseEvent } from 'react';
 import { Tooltip } from './Tooltip';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'ghost' | 'destructive';
+  variant?: 'primary' | 'secondary' | 'ghost' | 'destructive' | 'primaryOnDark' | 'secondaryOnDark';
   loading?: boolean;
   /** Shown in a tooltip (and read by screen readers) when disabled — a greyed-out button with no
    * explanation is a dead end, not a state. */
@@ -18,9 +18,13 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
  *    line at the bottom, both inset shadows, both derived from the palette;
  *  - a layered drop shadow — one tight, one wide (shadow-btn).
  *
- * Hover lifts 1px, the shadow spreads and the fill lightens. Active presses
- * down: scale 0.98, the shadow collapses inward (shadow-btn-active), the
- * top highlight dims. Every shadow value is espresso-derived, never grey.
+ * Hover lifts 1px, the shadow spreads and the fill darkens (darkens, not
+ * lightens — a lighter fill under white text drops below AA, see primary).
+ * Active presses down: scale 0.98, the shadow collapses inward
+ * (shadow-btn-active), the top highlight dims. Every shadow value is
+ * espresso-derived, never grey.
+ *
+ * The two *OnDark variants sit outside this recipe on purpose — see below.
  */
 const VARIANTS = {
   // The ::before layer carries the top highlight / bottom edge line, so it can be
@@ -51,6 +55,17 @@ const VARIANTS = {
     'hover:bg-status-significantHigh hover:text-white hover:shadow-btn-hover motion-safe:hover:-translate-y-px',
     'active:shadow-btn-active active:translate-y-0',
   ].join(' '),
+  // Frosted pill for dark/hero surfaces (the auth split panel, dark cards) — translucent white
+  // over whatever dark tone sits behind it rather than a flat colour, per visual-polish brief.
+  // cream text stays >4.5:1 here since the overlay only lightens the dark surface a little.
+  //
+  // These two deliberately do NOT use the shadow-btn depth recipe above: a
+  // warm espresso-derived drop shadow is invisible against an espresso-to-ink
+  // panel, and the frosted translucency is what does the lifting instead.
+  primaryOnDark:
+    'border border-white/20 bg-white/15 text-cream backdrop-blur-md hover:bg-white/25 motion-safe:hover:-translate-y-px active:translate-y-0 active:bg-white/10',
+  secondaryOnDark:
+    'border border-cream/40 bg-transparent text-cream hover:bg-cream/10 motion-safe:hover:-translate-y-px active:translate-y-0 active:bg-cream/5',
 };
 
 function Spinner() {
@@ -98,7 +113,7 @@ export function Button({
   const button = (
     <button
       type={type}
-      className={`relative inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium transition duration-150 ease-out active:scale-[0.98] active:duration-0 disabled:cursor-not-allowed disabled:opacity-50 ${
+      className={`relative inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full px-6 py-2.5 font-display text-sm tracking-wide transition duration-150 ease-out active:scale-[0.98] active:duration-0 disabled:cursor-not-allowed disabled:opacity-50 ${
         explainDisabled ? 'cursor-not-allowed opacity-50' : ''
       } ${VARIANTS[variant]} ${className}`}
       disabled={explainDisabled ? undefined : disabled || loading}
