@@ -31,6 +31,7 @@ const FLAG_LABEL: Record<string, string> = {
   value_order_of_magnitude: 'Value is far outside the reference range',
   two_pass_disagreement: 'A second AI read disagreed — check closely',
   non_numeric_result: 'Non-numeric result (e.g. "Not detected")',
+  duplicate_printing_disagreement: 'Printed twice in the report with different values — check closely',
 };
 
 interface ParsedRow {

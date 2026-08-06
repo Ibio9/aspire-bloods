@@ -78,7 +78,9 @@ Also extract:
 - panelName: the name of the test panel/profile printed on the report (e.g. "Insight 360", "Advanced GP3"), if one is printed. Null if none is printed — do not guess one.
 - sampleDate: the sample/collection date in ISO format (YYYY-MM-DD), if found. Null otherwise.
 
-Extract every row you can find and let confidence reflect your certainty — do not skip a row because it looks unusual. Never invent a value that is not in the text.`;
+Extract every row you can find and let confidence reflect your certainty — do not skip a row because it looks unusual. Never invent a value that is not in the text.
+
+Many lab reports print the same result twice — once in a narrative "explanation" section and again in a plain summary table near the end (often headed something like "Results for your Doctor"). When you recognise the same marker appearing more than once, extract it only ONCE, preferring the clearer/more complete printing (the summary table is usually cleaner). Do not return two rows for one result.`;
 
 async function callExtraction(text: string, focusHint?: string): Promise<LlmExtractionResult> {
   const userContent = focusHint
@@ -194,20 +196,49 @@ export interface LlmExtractionOutcome {
   rows: ParsedMarkerRow[];
 }
 
+/**
+ * Many real lab reports (Randox's included — confirmed against a real
+ * sample) print every result twice: once in a narrative explanation
+ * section and again in a plain summary table. The prompt asks the model
+ * to dedupe itself, but this is a cheap, cheap-to-verify safety net for
+ * when it doesn't — collapsing to the highest-confidence printing rather
+ * than silently keeping whichever the model happened to list first. If
+ * the two printings disagree on value, that's flagged rather than
+ * silently discarded — a same-marker mismatch is exactly the kind of
+ * thing a sanity check exists to catch.
+ */
+function dedupeByMarkerName(rows: ParsedMarkerRow[]): ParsedMarkerRow[] {
+  const byName = new Map<string, ParsedMarkerRow>();
+  for (const row of rows) {
+    const key = row.rawName.trim().toLowerCase();
+    const existing = byName.get(key);
+    if (!existing) {
+      byName.set(key, row);
+      continue;
+    }
+    const disagrees = existing.value !== row.value || (existing.unit ?? null) !== (row.unit ?? null);
+    const kept = (row.confidence ?? 0) > (existing.confidence ?? 0) ? row : existing;
+    byName.set(key, disagrees ? { ...kept, flags: [...(kept.flags ?? []), 'duplicate_printing_disagreement'] } : kept);
+  }
+  return [...byName.values()];
+}
+
 export async function extractWithLlm(pdfText: string): Promise<LlmExtractionOutcome> {
   const first = await callExtraction(pdfText);
 
-  const rows: ParsedMarkerRow[] = first.rows.map((r) => ({
-    rawName: r.rawName,
-    value: r.value,
-    unit: r.unit,
-    referenceLow: r.referenceLow,
-    referenceHigh: r.referenceHigh,
-    rawLine: r.sourceText,
-    sourceText: r.sourceText,
-    confidence: r.confidence,
-    flags: r.valueText && r.value == null ? ['non_numeric_result'] : [],
-  }));
+  const rows: ParsedMarkerRow[] = dedupeByMarkerName(
+    first.rows.map((r) => ({
+      rawName: r.rawName,
+      value: r.value,
+      unit: r.unit,
+      referenceLow: r.referenceLow,
+      referenceHigh: r.referenceHigh,
+      rawLine: r.sourceText,
+      sourceText: r.sourceText,
+      confidence: r.confidence,
+      flags: r.valueText && r.value == null ? ['non_numeric_result'] : [],
+    })),
+  );
 
   return {
     panelName: first.panelName,
