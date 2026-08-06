@@ -218,7 +218,11 @@ export function AdminShell({ children }: { children?: ReactNode }) {
         </div>
       )}
 
-      <div className="flex min-h-screen flex-1 flex-col">
+      {/* min-w-0: a flex item defaults to min-width:auto, which lets this column be
+          pushed wider than the viewport by its own content — and every overflow-x-auto
+          inside (the reports/patients/audit tables) then never engages. Matches
+          PatientShell. */}
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         <AdminTopBar onOpenSearch={() => setSearchOpen(true)} onOpenDrawer={() => setDrawerOpen(true)} />
         <main className="flex-1 px-5 py-14 sm:px-8 md:px-14 md:py-24">
           <div className="mx-auto max-w-6xl">

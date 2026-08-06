@@ -33,7 +33,10 @@ export function Tabs({ items, defaultTab }: { items: TabItem[]; defaultTab?: str
 
   return (
     <div>
-      <div role="tablist" onKeyDown={onKeyDown} className="flex gap-1 border-b border-taupe">
+      {/* Scrolls rather than pushing the page wide: four tabs exceed 375px, and a
+          tab strip is the one thing that must stay reachable at any width. No
+          scrollbar appears once there's room, so desktop is unchanged. */}
+      <div role="tablist" onKeyDown={onKeyDown} className="flex gap-1 overflow-x-auto border-b border-taupe">
         {items.map((item) => {
           const isActive = item.id === active;
           return (
@@ -49,7 +52,7 @@ export function Tabs({ items, defaultTab }: { items: TabItem[]; defaultTab?: str
               aria-controls={`tabpanel-${item.id}`}
               tabIndex={isActive ? 0 : -1}
               onClick={() => activate(item.id)}
-              className={`relative min-h-[44px] px-4 py-2.5 text-sm font-medium transition duration-150 ease-out ${
+              className={`relative min-h-[44px] shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-medium transition duration-150 ease-out ${
                 isActive ? 'text-espresso' : 'text-espresso/80 hover:text-espresso'
               }`}
             >

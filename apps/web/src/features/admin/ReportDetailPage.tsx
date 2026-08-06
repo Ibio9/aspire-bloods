@@ -280,7 +280,10 @@ export function ReportDetailPage() {
 
       {/* Sticky once the page heading scrolls past it — losing track of whose results are on
           screen partway down a long verify table is a real clinical risk, not just a UX nicety. */}
-      <div className="sticky top-[61px] z-20 -mx-6 mb-4 border-b border-taupe bg-cream/95 px-6 py-2.5 backdrop-blur md:-mx-10 md:px-10">
+      {/* Negative margin has to track the shell's own padding scale (px-5 / sm:px-8 /
+          md:px-14), or the bar hangs past the viewport edge — it was -mx-6 against
+          20px of mobile padding, which scrolled the page 4px sideways. */}
+      <div className="sticky top-[61px] z-20 -mx-5 mb-4 border-b border-taupe bg-cream/95 px-5 py-2.5 backdrop-blur sm:-mx-8 sm:px-8 md:-mx-10 md:px-10">
         <p className="truncate text-sm font-medium text-espresso">
           {patientName} <span className="text-espresso/50">·</span> {report.title}{' '}
           <span className="text-espresso/50">·</span> <span className="tabular">{sampleDateLabel}</span>
