@@ -217,7 +217,7 @@ function PdfUploadForm({
             </option>
           ))}
         </Select>
-        <DateField label="Sample date" name="sampleDate" value={sampleDate} onChange={setSampleDate} />
+        <DateField label="Sample date" name="sampleDate" preset="recent-past" value={sampleDate} onChange={setSampleDate} />
         <FileDropzone label="PDF report" file={file} onChange={setFile} accept="application/pdf" />
         {error && (
           <p role="alert" className="text-sm text-status-significantHigh">
@@ -363,7 +363,7 @@ function ManualEntryForm({
             <PanelSummary panel={panels.find((p) => p.id === panelId)!} />
           )}
         </div>
-        <DateField label="Sample date" name="manualSampleDate" value={sampleDate} onChange={setSampleDate} />
+        <DateField label="Sample date" name="manualSampleDate" preset="recent-past" value={sampleDate} onChange={setSampleDate} />
         {markers.length === 0 && (
           <p className="text-sm text-espresso/80">
             No markers configured yet —{' '}

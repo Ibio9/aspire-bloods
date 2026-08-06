@@ -9,7 +9,7 @@ import { test, expect } from '@playwright/test';
  * afterwards instead of on the thing you clicked.
  *
  * Requires EXPOSE_DEV_OTP_CODE=true in the server's env (see README) so the
- * specs can read confirmation links, reset links and OTP codes straight from
+ * specs can read confirmation codes, reset links and OTP codes straight from
  * the API responses instead of an inbox.
  */
 
@@ -31,13 +31,25 @@ async function registerAndVerify(page: import('@playwright/test').Page, request:
     },
   });
   expect(signup.ok()).toBeTruthy();
-  const token = new URL((await signup.json()).devVerificationUrl).searchParams.get('token');
+  const code = (await signup.json()).devVerificationCode as string;
+
+  // Verification is a six-digit code, so the way back into an unfinished
+  // registration is /verify-email asking for the address — not a link. Asking
+  // for a code seconds after registering hits the server's resend cooldown, so
+  // nothing is reissued and the code from signup is still the live one.
+  await page.goto('/verify-email');
+  await page.getByLabel('Email address').fill(email);
+  await page.getByRole('button', { name: 'Send me a code' }).click();
+  await expect(page.getByRole('heading', { name: 'Confirm your email' })).toBeVisible();
 
   const [verifyResponse] = await Promise.all([
-    page.waitForResponse((r) => r.url().includes('/api/auth/verify-email') && r.request().method() === 'POST'),
-    page.goto(`/verify-email?token=${token}`),
+    page.waitForResponse(
+      (r) => r.url().includes('/api/auth/verify-email') && !r.url().includes('resend') && r.request().method() === 'POST',
+    ),
+    page.locator('#otp-0').click().then(() => page.keyboard.type(code)),
   ]);
   const otp = (await verifyResponse.json()).devOtpCode as string;
+  await expect(page.getByRole('heading', { name: 'Set up two-factor sign-in' })).toBeVisible();
   await page.locator('#otp-0').click();
   await page.keyboard.type(otp);
 

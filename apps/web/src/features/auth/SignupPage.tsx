@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from '../../lib/api';
-import { authErrorMessage } from '../../lib/authErrors';
 import { RegistrationForm } from './RegistrationForm';
 import { AuthSplitLayout } from './AuthSplitLayout';
 import { AuthCrossLink } from './AuthCrossLink';
-import { Button } from '../../components/ui/Button';
+import { EmailCodeStep } from './EmailCodeStep';
 
 const EYEBROW = 'Aspire Clinic';
 const HEADLINE = 'Create your account.';
@@ -15,7 +14,8 @@ const SUPPORTING =
 interface SignupResponse {
   status: string;
   sentTo?: string;
-  expiresInHours?: number;
+  expiresInMinutes?: number;
+  cooldownSeconds?: number;
 }
 
 /**
@@ -30,69 +30,31 @@ interface SignupResponse {
  *
  * The flow is registration → confirm your email → 2FA → signed in, and this
  * page owns only the first two screens. Verification is what moves the
- * account out of PENDING_VERIFICATION, and the emailed link is what starts
- * 2FA enrolment (see VerifyEmailPage) — so there is no way to end up with a
- * working account that skipped either step.
+ * account out of PENDING_VERIFICATION, and entering the emailed code is what
+ * starts 2FA enrolment (see EmailCodeStep) — so there is no way to end up
+ * with a working account that skipped either step.
  */
 export function SignupPage() {
   const [sent, setSent] = useState<SignupResponse | null>(null);
-  const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle');
-  const [resendError, setResendError] = useState<string | null>(null);
   const [email, setEmail] = useState('');
-
-  async function handleResend() {
-    setResendState('sending');
-    setResendError(null);
-    try {
-      await apiFetch('/auth/verify-email/resend', { method: 'POST', body: JSON.stringify({ email }) });
-      setResendState('sent');
-    } catch (e) {
-      setResendError(authErrorMessage(e));
-      setResendState('failed');
-    }
-  }
 
   if (sent) {
     return (
       <AuthSplitLayout eyebrow={EYEBROW} headline={HEADLINE} supporting={SUPPORTING}>
-        <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">Almost there</p>
-        <h2 className="auth-heading">Confirm your email</h2>
-        <p className="mt-[var(--auth-step)] text-sm leading-relaxed text-espresso/80">
-          We've sent a link to <span className="font-medium text-espresso">{sent.sentTo ?? 'your email address'}</span>.
-          Open it to activate your account — we'll then send a one-time code to finish setting up two-factor
-          sign-in.
-        </p>
-        {sent.expiresInHours && (
-          <p className="mt-[calc(var(--auth-step)*0.75)] text-sm text-espresso/70">
-            The link is good for {sent.expiresInHours} hours.
-          </p>
-        )}
-
-        <div className="mt-[calc(var(--auth-step)*1.6)] border-t border-taupe pt-[calc(var(--auth-step)*1.2)]">
-          <p className="text-sm text-espresso/80">Didn't get it? Check your junk folder first — then:</p>
-          <div className="mt-[calc(var(--auth-step)*0.75)] flex flex-wrap items-center gap-x-4 gap-y-2">
-            <Button variant="secondary" onClick={handleResend} loading={resendState === 'sending'}>
-              Send the link again
-            </Button>
-            {resendState === 'sent' && (
-              <span role="status" className="text-sm text-espresso/70">
-                Sent. It can take a minute to arrive.
-              </span>
-            )}
-          </div>
-          {resendError && (
-            <p role="alert" className="mt-3 text-sm text-status-significantHigh">
-              {resendError}
+        <EmailCodeStep
+          email={email}
+          sentTo={sent.sentTo}
+          expiresInMinutes={sent.expiresInMinutes}
+          cooldownSeconds={sent.cooldownSeconds}
+          footer={
+            <p className="mt-[calc(var(--auth-step)*1.4)] text-sm text-espresso/80">
+              Already confirmed?{' '}
+              <Link to="/login" className="rounded-sm font-medium text-bronze underline underline-offset-2 hover:text-bronze-700">
+                Sign in
+              </Link>
             </p>
-          )}
-        </div>
-
-        <p className="mt-[calc(var(--auth-step)*1.4)] text-sm text-espresso/80">
-          Already confirmed?{' '}
-          <Link to="/login" className="rounded-sm font-medium text-bronze underline underline-offset-2 hover:text-bronze-700">
-            Sign in
-          </Link>
-        </p>
+          }
+        />
       </AuthSplitLayout>
     );
   }

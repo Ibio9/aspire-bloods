@@ -420,7 +420,7 @@ export function ReportDetailPage() {
             </p>
           )}
           <div className="mb-4 max-w-xs">
-            <DateField label="Sample date" name="sampleDate" value={sampleDate} onChange={setSampleDate} />
+            <DateField label="Sample date" name="sampleDate" preset="recent-past" value={sampleDate} onChange={setSampleDate} />
           </div>
           <Table>
             <TableHead>

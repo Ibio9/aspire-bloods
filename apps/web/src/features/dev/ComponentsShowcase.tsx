@@ -150,6 +150,7 @@ export function ComponentsShowcase() {
   const [demoSearchableSelect, setDemoSearchableSelect] = useState('');
   const [demoFile, setDemoFile] = useState<File | null>(null);
   const [demoDate, setDemoDate] = useState('');
+  const [demoDob, setDemoDob] = useState('');
 
   return (
     <main className="min-h-screen bg-cream px-6 py-16 md:px-16">
@@ -280,7 +281,8 @@ export function ComponentsShowcase() {
             ))}
           </Select>
           <FileDropzone label="File dropzone" file={demoFile} onChange={setDemoFile} accept="application/pdf" />
-          <DateField label="Date picker" name="demo8" value={demoDate} onChange={setDemoDate} />
+          <DateField label="Date picker (recent dates)" name="demo8" preset="recent-past" value={demoDate} onChange={setDemoDate} />
+          <DateField label="Date picker (date of birth)" name="demo8b" preset="birthdate" value={demoDob} onChange={setDemoDob} />
         </div>
         <div className="flex flex-col gap-1 max-w-md">
           <Checkbox name="demoCheck1" label="Unchecked checkbox" />

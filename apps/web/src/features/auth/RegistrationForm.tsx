@@ -171,13 +171,10 @@ export function RegistrationForm({ showEmailField, variant = 'full', submitLabel
           />
         </div>
         <div className="grid grid-cols-1 gap-[calc(var(--auth-step)*0.9)] sm:grid-cols-2">
-          <DateField
-            label="Date of birth"
-            name="dob"
-            value={form.dob}
-            onChange={(v) => set('dob', v)}
-            max={new Date().toISOString().slice(0, 10)}
-          />
+          {/* preset carries the range and the opening view — no future
+              dates, nothing implausibly old, and the calendar opens on a
+              plausible birth year instead of this month. */}
+          <DateField label="Date of birth" name="dob" preset="birthdate" value={form.dob} onChange={(v) => set('dob', v)} />
           {/* Optional here on purpose — registration stays frictionless, and
               a brand-new account holds no results for a range to apply to.
               But it isn't decoration either, so the label says what it's

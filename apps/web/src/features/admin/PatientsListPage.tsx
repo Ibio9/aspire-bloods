@@ -22,7 +22,7 @@ type SortKey = 'displayName' | 'email' | 'status' | 'createdAt';
 function statusLabel(p: PatientRow): string {
   if (p.deactivatedAt) return 'Deactivated';
   if (p.status === 'INVITED') return 'Invited';
-  // Self-registered, hasn't opened the confirmation link yet. Distinct from
+  // Self-registered, hasn't entered the confirmation code yet. Distinct from
   // "Invited" — nobody is waiting on the practice for this one.
   if (p.status === 'PENDING_VERIFICATION') return 'Email not confirmed';
   if (p.status === 'DISABLED') return 'Erased';

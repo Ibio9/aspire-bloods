@@ -22,8 +22,8 @@ enum UserStatus {
   // Self-registered but the email address hasn't been proved yet. The
   // account exists and holds nothing — no results are ever attached to an
   // account in this state, and login() rejects it exactly as it rejects
-  // INVITED. Becomes ACTIVE the moment the emailed link is opened, which
-  // is the point 2FA enrolment begins.
+  // INVITED. Becomes ACTIVE the moment the emailed six-digit code is
+  // entered, which is the point 2FA enrolment begins.
   PENDING_VERIFICATION
   ACTIVE
   DISABLED
@@ -138,7 +138,7 @@ model User {
   patientProfile    PatientProfile?
   staffProfile      StaffProfile?
   inviteTokens      InviteToken[]
-  emailVerificationTokens EmailVerificationToken[]
+  emailVerificationCodes EmailVerificationCode[]
   passwordResetTokens PasswordResetToken[]
   otpCodes          OtpCode[]
   refreshTokens     RefreshToken[]
@@ -209,19 +209,34 @@ model InviteToken {
 }
 
 // Self-registration only. Deliberately a separate model from InviteToken
-// even though the shape is nearly identical: an invite is the practice
-// vouching for someone and carries a 7-day expectation, whereas this is
-// only ever "prove you can read this mailbox" and is short-lived. Conflating
-// them would mean one TTL, one audit action, and one revocation story for
-// two genuinely different events.
-model EmailVerificationToken {
-  id        String    @id @default(uuid())
-  userId    String
-  user      User      @relation(fields: [userId], references: [id])
-  tokenHash String    @unique
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime  @default(now())
+// even though both prove something about an address: an invite is the
+// practice vouching for someone and carries a 7-day expectation, whereas
+// this is only ever "prove you can read this mailbox" and is short-lived.
+// Conflating them would mean one TTL, one audit action, and one revocation
+// story for two genuinely different events.
+//
+// A six-digit code emailed to confirm a new account's address — the same
+// shape as OtpCode on purpose, because it is the same interaction: one code
+// to verify, one code to sign in, one mental model.
+//
+// codeHash is deliberately NOT unique. Six digits across a whole user base
+// will collide, and a unique index would turn that collision into a failed
+// registration for whoever came second. Codes are only ever looked up
+// alongside the account they were issued to.
+model EmailVerificationCode {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  codeHash    String
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  // Capped, like OtpCode's — six digits is a million-wide search space, so
+  // an uncapped code is a guessable one.
+  attempts    Int       @default(0)
+  // Carried forward across reissues so the cap is per registration attempt
+  // rather than per row.
+  resendCount Int       @default(0)
+  createdAt   DateTime  @default(now())
 
   @@index([userId])
 }
