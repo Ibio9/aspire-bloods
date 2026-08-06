@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useClinicContact } from '../../lib/patientPortal';
 import { MailIcon, PhoneIcon, PinIcon } from '../nav/patientIcons';
 
@@ -25,37 +26,101 @@ function AddressBlock({ lines }: { lines: string[] }) {
   );
 }
 
-/** Sidebar footer variant — quiet, tight, always present. */
+const OPEN_KEY = 'aspire_patient_contact_open';
+
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      className={`shrink-0 transition-transform duration-200 ease-out ${open ? 'rotate-180' : ''}`}
+    >
+      <path d="M4 6.5 L8 10.5 L12 6.5" stroke="currentColor" strokeWidth="1.75" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/**
+ * Sidebar footer variant — one compact row that opens in place.
+ *
+ * It was a permanently-expanded card, and at a normal window height it took
+ * roughly half the sidebar: the navigation, which is what a sidebar is for,
+ * was squeezed into a scrolling strip below it. The details still have to be
+ * one action away — someone who has just read that a result is out of range
+ * should not go hunting for a phone number — but "one action away" and
+ * "permanently occupying half the column" are not the same requirement.
+ *
+ * Open state persists, so a patient who wants the number visible keeps it
+ * visible across pages and sessions. Expanding in place rather than in a
+ * popover on purpose: the same component has to work inside the mobile
+ * drawer, where a floating layer would have nowhere sensible to go.
+ */
 export function ClinicContactPanel() {
   const contact = useClinicContact();
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem(OPEN_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(OPEN_KEY, String(open));
+    } catch {
+      /* a locked-down browser losing the preference is not worth a broken render */
+    }
+  }, [open]);
+
   if (!contact) return null;
 
   return (
-    <div className="rounded-card border border-taupe bg-cream-100 p-4">
-      <p className="eyebrow mb-2.5">Contact the clinic</p>
-      <ul className="flex flex-col gap-2 text-[13px] leading-relaxed text-espresso">
-        {contact.phone && (
-          <li className="flex items-start gap-2">
-            <PhoneIcon className="mt-0.5 shrink-0 text-bronze-700" />
-            <a href={`tel:${contact.phone.replace(/\s/g, '')}`} className="rounded-sm underline-offset-2 hover:underline">
-              {contact.phone}
-            </a>
-          </li>
-        )}
-        <li className="flex items-start gap-2">
-          <MailIcon className="mt-0.5 shrink-0 text-bronze-700" />
-          <a href={`mailto:${contact.email}`} className="break-all rounded-sm underline-offset-2 hover:underline">
-            {contact.email}
-          </a>
-        </li>
-        <li className="flex items-start gap-2">
-          <PinIcon className="mt-0.5 shrink-0 text-bronze-700" />
-          <AddressBlock lines={contact.addressLines} />
-        </li>
-      </ul>
-      <p className="mt-3 border-t border-taupe pt-2.5 text-[12px] leading-relaxed text-espresso/80">
-        {contact.hours}. {contact.emergencyNote}
-      </p>
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-controls="clinic-contact-details"
+        className="flex w-full items-center gap-2.5 rounded-input px-2.5 py-2 text-left text-[13px] font-medium text-espresso/85 transition-colors duration-150 ease-out hover:bg-cream-200 hover:text-espresso"
+      >
+        <PhoneIcon className="shrink-0 text-bronze-700" />
+        <span className="min-w-0 flex-1 truncate">Contact the clinic</span>
+        <ChevronIcon open={open} />
+      </button>
+
+      {open && (
+        <div
+          id="clinic-contact-details"
+          className="mt-2 rounded-card border border-taupe bg-cream-100 p-3.5 motion-safe:animate-riseIn"
+        >
+          <ul className="flex flex-col gap-2 text-[13px] leading-relaxed text-espresso">
+            {contact.phone && (
+              <li className="flex items-start gap-2">
+                <PhoneIcon className="mt-0.5 shrink-0 text-bronze-700" />
+                <a href={`tel:${contact.phone.replace(/\s/g, '')}`} className="rounded-sm underline-offset-2 hover:underline">
+                  {contact.phone}
+                </a>
+              </li>
+            )}
+            <li className="flex items-start gap-2">
+              <MailIcon className="mt-0.5 shrink-0 text-bronze-700" />
+              <a href={`mailto:${contact.email}`} className="break-all rounded-sm underline-offset-2 hover:underline">
+                {contact.email}
+              </a>
+            </li>
+            <li className="flex items-start gap-2">
+              <PinIcon className="mt-0.5 shrink-0 text-bronze-700" />
+              <AddressBlock lines={contact.addressLines} />
+            </li>
+          </ul>
+          <p className="mt-3 border-t border-taupe pt-2.5 text-[12px] leading-relaxed text-espresso/80">
+            {contact.hours}. {contact.emergencyNote}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

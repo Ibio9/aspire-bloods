@@ -38,6 +38,116 @@ interface ReportSummary {
   voidedAt: string | null;
 }
 
+type DemoSeedOutcome = 'SKIPPED' | 'SUCCEEDED' | 'FAILED';
+
+interface DemoSeedRun {
+  outcome: DemoSeedOutcome;
+  ranAt: string;
+  durationMs: number | null;
+  reportsCreated: number;
+  patientEmail: string | null;
+  detail: string;
+  errorMessage: string | null;
+}
+
+/** Shape first, colour second — the same rule the marker statuses follow. */
+function SeedIcon({ outcome }: { outcome: DemoSeedOutcome }) {
+  if (outcome === 'SUCCEEDED') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M3 8.5 L6.5 12 L13 4" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  if (outcome === 'FAILED') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M8 3 L8 9" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" />
+        <circle cx="8" cy="12.5" r="1.25" fill="currentColor" />
+      </svg>
+    );
+  }
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <rect x="3" y="7" width="10" height="2" rx="1" fill="currentColor" />
+    </svg>
+  );
+}
+
+const SEED_LABEL: Record<DemoSeedOutcome, string> = {
+  SUCCEEDED: 'Demo data seeded',
+  FAILED: 'Demo data seed failed',
+  SKIPPED: 'Demo data not enabled',
+};
+
+/**
+ * The last boot-mode demo seed, for the deployment you are looking at.
+ *
+ * seedDemo.ts swallows its own failures so synthetic data can never stop the
+ * API booting. That is the right call and it has one bad consequence: a failed
+ * seed and a deliberately-disabled one look identical from the outside — a
+ * demo account that signs in and shows an empty portal. This is where the two
+ * are told apart without shell access to the deploy logs.
+ *
+ * Renders for ADMIN only, and only once a boot-mode seed has recorded
+ * something. Nothing here means the running container never made the call at
+ * all, which is itself worth knowing — see the copy below.
+ */
+function DemoSeedCard() {
+  const [run, setRun] = useState<DemoSeedRun | null | undefined>(undefined);
+  const [missing, setMissing] = useState(false);
+
+  useEffect(() => {
+    void apiFetch<DemoSeedRun | null>('/admin/demo-seed')
+      .then((r) => (r ? setRun(r) : setMissing(true)))
+      .catch(() => setMissing(true));
+  }, []);
+
+  if (run === undefined && !missing) return null;
+
+  return (
+    <div className="mt-14">
+      <p className="eyebrow mb-4">Demo data</p>
+      <Card className="max-w-2xl">
+        {missing || !run ? (
+          <>
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-espresso/70">
+              <SeedIcon outcome="SKIPPED" />
+              No demo seed recorded
+            </span>
+            <p className="mt-2.5 text-sm leading-relaxed text-espresso/80">
+              This deployment has not run the boot-mode demo seed. Either the running image predates it, or the
+              start command no longer calls it.
+            </p>
+          </>
+        ) : (
+          <>
+            <span
+              className={`inline-flex items-center gap-1.5 text-sm font-medium ${
+                run.outcome === 'FAILED' ? 'text-status-significantHigh' : 'text-espresso'
+              }`}
+            >
+              <SeedIcon outcome={run.outcome} />
+              {SEED_LABEL[run.outcome]}
+            </span>
+            <p className="mt-2.5 text-sm leading-relaxed text-espresso/80">{run.detail}</p>
+            {run.errorMessage && (
+              <p className="mt-2.5 rounded-input border border-taupe bg-cream-50 px-3 py-2 font-mono text-xs leading-relaxed text-espresso">
+                {run.errorMessage}
+              </p>
+            )}
+            <p className="mt-3 text-xs text-espresso/60">
+              {timeAgo(run.ranAt)}
+              {run.patientEmail ? ` · ${run.patientEmail}` : ''}
+              {run.outcome === 'SUCCEEDED' && run.durationMs !== null ? ` · ${(run.durationMs / 1000).toFixed(1)}s` : ''}
+            </p>
+          </>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 export function AdminDashboard() {
   const { user } = useAuth();
   const [recent, setRecent] = useState<RecentPatient[]>([]);
@@ -105,6 +215,8 @@ export function AdminDashboard() {
           </Link>
         ))}
       </div>
+
+      {user?.role === 'ADMIN' && <DemoSeedCard />}
 
       {recent.length > 0 && (
         <div className="mt-14">

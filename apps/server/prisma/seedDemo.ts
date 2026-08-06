@@ -66,6 +66,8 @@
  * missing rather than silently creating a parallel, undocumented catalogue.
  */
 import 'dotenv/config';
+import { randomUUID } from 'node:crypto';
+import { maskEmail } from '@aspire-bloods/shared';
 import { prisma } from '../src/db/client.js';
 import { encryptField, generateToken } from '../src/lib/crypto.js';
 import { hashPassword } from '../src/lib/password.js';
@@ -95,6 +97,44 @@ const productionAllowed = args.includes('--allow-production') || (bootMode && de
 
 /** Every ReferenceRange this file writes is prefixed with this — it's the handle for cleanup. */
 const DEMO_RANGE_TAG = 'DEMO DATA';
+
+/**
+ * Records what this run did, so a swallowed boot-mode failure is visible to an
+ * admin instead of only to whoever can read the deploy logs. See the
+ * DemoSeedRun model — one row, overwritten every boot.
+ *
+ * Only boot-mode runs record: a hand-run seed already has its outcome on the
+ * terminal in front of you, and writing there would overwrite the deployment's
+ * own state with a developer's local one.
+ *
+ * Deliberately swallows its OWN failure. This is diagnostic bookkeeping; if it
+ * cannot be written (a database that is up enough to seed but not to take this
+ * row is barely conceivable), that must not turn an already-degraded boot into
+ * a failed one.
+ */
+async function recordSeedRun(
+  outcome: 'SKIPPED' | 'SUCCEEDED' | 'FAILED',
+  detail: string,
+  extra: { durationMs?: number; reportsCreated?: number; errorMessage?: string } = {},
+): Promise<void> {
+  if (!bootMode) return;
+  const data = {
+    outcome,
+    ranAt: new Date(),
+    durationMs: extra.durationMs ?? null,
+    reportsCreated: extra.reportsCreated ?? 0,
+    // Never the address in full: SEED_DEMO_EMAIL is a real mailbox anywhere
+    // 2FA email is genuinely delivered.
+    patientEmail: outcome === 'SKIPPED' ? null : maskEmail(DEMO_PATIENT_EMAIL),
+    detail,
+    errorMessage: extra.errorMessage ?? null,
+  };
+  try {
+    await prisma.demoSeedRun.upsert({ where: { id: 'last' }, update: data, create: { id: 'last', ...data } });
+  } catch (e) {
+    console.error('[seedDemo] could not record the seed outcome for the admin console:', e);
+  }
+}
 
 const SIGNIFICANT_STATUSES = new Set(['SIGNIFICANT_HIGH', 'SIGNIFICANT_LOW']);
 const OUT_OF_RANGE_STATUSES = new Set(['HIGH', 'LOW', 'SIGNIFICANT_HIGH', 'SIGNIFICANT_LOW']);
@@ -424,11 +464,24 @@ async function resolveDemoStaff() {
   return { admin: demoAdmin, clinician: demoClinician };
 }
 
+const startedAt = Date.now();
+
 async function main() {
   // Boot-mode call from the container start script: absent the opt-in
   // variable this is a no-op, so the same start command is safe on a real
   // production service that has never wanted demo data.
-  if (bootMode && !demoDataEnabled) return;
+  //
+  // Recorded rather than merely returned. "The switch is off" and "the switch
+  // is on and the seed died" produce the identical symptom — an account that
+  // signs in and holds nothing — and telling them apart afterwards is the
+  // whole point of the DemoSeedRun row.
+  if (bootMode && !demoDataEnabled) {
+    await recordSeedRun(
+      'SKIPPED',
+      'SEED_DEMO_DATA is not set to "true", so no demo data was seeded on this deploy.',
+    );
+    return;
+  }
 
   if (isProduction && !productionAllowed) {
     console.log(
@@ -526,9 +579,68 @@ async function main() {
     const reviewedAt = new Date(sampleDate.getTime() + day * 2);
     const releasedAt = new Date(sampleDate.getTime() + day * 2 + 1000 * 60 * 45);
 
-    const { reportId, flagged } = await prisma.$transaction(async (tx) => {
+    // Everything that doesn't need the database is computed first, so the
+    // transaction below is a handful of round trips rather than two per
+    // marker. The widest report here has 41 markers; written one row at a
+    // time that was ~85 sequential round trips inside a single interactive
+    // transaction, which Prisma closes after 5 seconds by default. On a local
+    // Postgres that finishes in ~150ms and looks fine forever; against a
+    // managed database on the other side of a network it is one bad latency
+    // day from a P2028 that this file would then swallow at boot. Ids are
+    // generated here rather than by the database precisely so the results can
+    // reference their ranges without a round trip in between.
+    const reportId = randomUUID();
+    const flaggedMarkerIds: string[] = [];
+    let anySignificant = false;
+    const rangeRows: { id: string; markerId: string; sex: 'FEMALE'; unit: string; low: number; high: number; source: string }[] = [];
+    const resultRows: {
+      reportId: string;
+      markerId: string;
+      valueEncrypted: string;
+      unit: string;
+      referenceRangeId: string;
+      status: ReturnType<typeof computeMarkerStatus>;
+      createdAt: Date;
+    }[] = [];
+
+    for (const res of reportInput.results) {
+      const marker = markersByKey.get(res.markerKey)!;
+      usedMarkerIds.add(marker.id);
+      const unit = res.unit ?? marker.defaultUnit;
+
+      // Written per report, exactly as verifyReport() does — the range
+      // belongs to the result, not to the marker, which is what lets the
+      // vitamin D and ferritin bands move mid-series.
+      const rangeId = randomUUID();
+      rangeRows.push({
+        id: rangeId,
+        markerId: marker.id,
+        sex: 'FEMALE',
+        unit,
+        low: res.low,
+        high: res.high,
+        source: `${DEMO_RANGE_TAG}: synthetic ${source.name} range, report ${index + 1} of ${demoReports.length}`,
+      });
+
+      const status = computeMarkerStatus(res.value, res.low, res.high, marker.severityMultiplier, marker.severityAbsoluteDelta);
+      if (OUT_OF_RANGE_STATUSES.has(status)) flaggedMarkerIds.push(marker.id);
+      if (SIGNIFICANT_STATUSES.has(status)) anySignificant = true;
+
+      resultRows.push({
+        reportId,
+        markerId: marker.id,
+        valueEncrypted: encryptField(String(res.value)),
+        unit,
+        referenceRangeId: rangeId,
+        status,
+        createdAt: verifiedAt,
+      });
+    }
+
+    const flagged = await prisma.$transaction(async (tx) => {
       const report = await tx.report.create({
         data: {
+          id: reportId,
           patientId: patient.id,
           panelId: panel?.id ?? null,
           sourceId: source.id,
@@ -545,44 +657,8 @@ async function main() {
         },
       });
 
-      const flaggedMarkerIds: string[] = [];
-      let anySignificant = false;
-
-      for (const res of reportInput.results) {
-        const marker = markersByKey.get(res.markerKey)!;
-        usedMarkerIds.add(marker.id);
-        const unit = res.unit ?? marker.defaultUnit;
-
-        // Written per report, exactly as verifyReport() does — the range
-        // belongs to the result, not to the marker, which is what lets the
-        // vitamin D and ferritin bands move mid-series.
-        const referenceRange = await tx.referenceRange.create({
-          data: {
-            markerId: marker.id,
-            sex: 'FEMALE',
-            unit,
-            low: res.low,
-            high: res.high,
-            source: `${DEMO_RANGE_TAG}: synthetic ${source.name} range, report ${index + 1} of ${demoReports.length}`,
-          },
-        });
-
-        const status = computeMarkerStatus(res.value, res.low, res.high, marker.severityMultiplier, marker.severityAbsoluteDelta);
-        if (OUT_OF_RANGE_STATUSES.has(status)) flaggedMarkerIds.push(marker.id);
-        if (SIGNIFICANT_STATUSES.has(status)) anySignificant = true;
-
-        await tx.reportResult.create({
-          data: {
-            reportId: report.id,
-            markerId: marker.id,
-            valueEncrypted: encryptField(String(res.value)),
-            unit,
-            referenceRangeId: referenceRange.id,
-            status,
-            createdAt: verifiedAt,
-          },
-        });
-      }
+      await tx.referenceRange.createMany({ data: rangeRows });
+      await tx.reportResult.createMany({ data: resultRows });
 
       // Mirrors escalation/service.ts checkAndEscalate(), minus the actual
       // email/SMS — channelsNotified stays empty because nothing was really
@@ -610,7 +686,7 @@ async function main() {
         },
       });
 
-      return { reportId: report.id, flagged: flaggedMarkerIds.length };
+      return flaggedMarkerIds.length;
     });
 
     const title = panel?.name ?? `${reportInput.results.length} markers (no panel)`;
@@ -643,6 +719,12 @@ async function main() {
   const dates = demoReports.map((r) => sampleDateFor(r).getTime());
   const spanMonths = Math.round((Math.max(...dates) - Math.min(...dates)) / (1000 * 60 * 60 * 24 * 30.44));
 
+  await recordSeedRun(
+    'SUCCEEDED',
+    `${demoReports.length} released reports spanning ~${spanMonths} months, ${usedMarkerIds.size} distinct markers.`,
+    { durationMs: Date.now() - startedAt, reportsCreated: demoReports.length },
+  );
+
   console.log('\nDemo data seed complete — synthetic data, remove with `npm run prisma:seed:demo -- --purge`.');
   console.log(`${demoReports.length} released reports spanning ~${spanMonths} months, ${usedMarkerIds.size} distinct markers.`);
   console.log(`\nDemo patient login: ${DEMO_PATIENT_EMAIL} / ${demoPassword}`);
@@ -650,13 +732,19 @@ async function main() {
 }
 
 main()
-  .catch((e) => {
+  .catch(async (e) => {
     console.error(e);
     // In boot mode this runs inside the API container's start command, so a
     // non-zero exit would take the whole service down over demo data.
-    // Loud in the logs, fatal to nothing.
+    // Loud in the logs, fatal to nothing — and now also written down, because
+    // "loud in the logs" is only loud to someone already reading them, and
+    // the person who notices the missing data is looking at the admin console.
     if (bootMode) {
       console.error('[seedDemo] boot-mode demo seed FAILED — continuing startup without demo data.');
+      await recordSeedRun('FAILED', 'The demo data seed failed. No demo reports were written on this deploy.', {
+        durationMs: Date.now() - startedAt,
+        errorMessage: e instanceof Error ? e.message : String(e),
+      });
       return;
     }
     process.exitCode = 1;

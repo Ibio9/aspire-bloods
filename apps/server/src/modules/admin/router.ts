@@ -22,6 +22,7 @@ import {
   listCopyBlocks,
   updateCopyBlock,
   listIngestionLog,
+  getLastDemoSeedRun,
 } from './service.js';
 import {
   getLinkingQueue,
@@ -120,6 +121,15 @@ const paginationSchema = z.object({
   limit: z.coerce.number().min(1).max(200).default(50),
   offset: z.coerce.number().min(0).default(0),
 });
+
+// Deployment state, not patient data — no audit entry, because there is no
+// patient in it to view. The masked address is the only identifier it carries.
+adminRouter.get(
+  '/demo-seed',
+  asyncHandler(async (_req, res) => {
+    res.json(await getLastDemoSeedRun());
+  }),
+);
 
 // ---------------------------------------------------------------------------
 // Result linking — accounts with nothing attached, beside results with nobody

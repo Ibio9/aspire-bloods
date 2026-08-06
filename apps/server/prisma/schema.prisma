@@ -770,6 +770,40 @@ model RateLimitHit {
   @@index([resetAt])
 }
 
+enum DemoSeedOutcome {
+  // SEED_DEMO_DATA was not set to "true", so the boot-mode call did nothing.
+  SKIPPED
+  SUCCEEDED
+  FAILED
+}
+
+// The outcome of the last boot-mode demo-data seed (prisma/seedDemo.ts).
+//
+// That seed's failures are deliberately swallowed so synthetic demo data can
+// never stop the API booting — which means a failure and a deliberate no-op
+// look identical from outside: an account that signs in and has nothing in it.
+// The swallow is right; the silence isn't. This row is what an admin reads to
+// tell the two apart without shell access to the deploy logs.
+//
+// Exactly one row, keyed on a constant and overwritten on every boot. History
+// is not useful here — only the state of the deployment you are looking at is,
+// and an unbounded log of "skipped" on a service that never wanted demo data
+// would be pure noise.
+model DemoSeedRun {
+  id             String          @id @default("last")
+  outcome        DemoSeedOutcome
+  ranAt          DateTime        @default(now())
+  durationMs     Int?
+  reportsCreated Int             @default(0)
+  // Masked (maskEmail) — SEED_DEMO_EMAIL is a real mailbox in any environment
+  // where 2FA email is genuinely delivered, so it is not stored in full.
+  patientEmail   String?
+  /// One line, always set: what happened, in the terms an admin needs.
+  detail         String
+  /// Error message only, never a stack — stacks belong in the deploy logs.
+  errorMessage   String?
+}
+
 // ---------------------------------------------------------------------------
 // Randox API integration (Nexus Lab + Clinic Booking)
 // ---------------------------------------------------------------------------

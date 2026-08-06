@@ -1,0 +1,17 @@
+{
+  // Typecheck-only view of the workspace. The build config deliberately
+  // compiles just `src` (rootDir/outDir have to line up for dist/), which
+  // left prisma/seed.ts and prisma/seedDemo.ts unchecked by anything at all —
+  // they are run with tsx at container start, so the first time a broken
+  // import or a renamed field was noticed was a swallowed failure on a live
+  // boot. They import from ../src and are as much a part of this service as
+  // anything in it; they get checked like it.
+  //
+  // Emits nothing — `npm run build` still uses tsconfig.json.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "."
+  },
+  "include": ["src", "prisma", "tests", "scripts"]
+}

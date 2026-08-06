@@ -384,3 +384,16 @@ export async function updateCopyBlock(slug: string, body: string, actorId: strin
 
   return block;
 }
+
+/**
+ * The outcome of the last boot-mode demo-data seed, or null if no demo seed
+ * has ever recorded on this deployment.
+ *
+ * Null is itself an answer, and the admin screen says so: the seed writes this
+ * row on every boot including the no-op one, so nothing here means the current
+ * container has not run the boot-mode seed at all — an older image, or a start
+ * command that no longer calls it.
+ */
+export async function getLastDemoSeedRun() {
+  return prisma.demoSeedRun.findUnique({ where: { id: 'last' } });
+}

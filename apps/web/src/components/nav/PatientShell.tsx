@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { PageTransition } from '../PageTransition';
 import { Wordmark } from '../Wordmark';
@@ -53,6 +53,43 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/account', label: 'Account & privacy', hint: 'Profile, consents, your data', icon: AccountIcon },
 ];
 
+/**
+ * Whether a scrollable element has content out of view above or below it.
+ *
+ * The nav is sized to fit every item down to 768px, so this normally reports
+ * nothing at all. It exists for the window that genuinely is too short: an
+ * item cut in half at a hard edge reads as a broken layout, whereas the same
+ * item fading under a soft edge reads as "there is more, keep going".
+ */
+function useScrollEdges<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  const [edges, setEdges] = useState({ top: false, bottom: false });
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const update = () => {
+      const overflowing = el.scrollHeight - el.clientHeight > 1;
+      setEdges({
+        top: overflowing && el.scrollTop > 1,
+        bottom: overflowing && Math.ceil(el.scrollTop + el.clientHeight) < el.scrollHeight - 1,
+      });
+    };
+
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => {
+      el.removeEventListener('scroll', update);
+      observer.disconnect();
+    };
+  }, []);
+
+  return { ref, ...edges };
+}
+
 function SidebarLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed: boolean; onNavigate?: () => void }) {
   const Icon = item.icon;
   const { pathname } = useLocation();
@@ -64,7 +101,7 @@ function SidebarLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed
       onClick={onNavigate}
       className={({ isActive: routeActive }) => {
         const isActive = routeActive || ownsPath;
-        return `group relative flex items-start gap-3 rounded-input px-3 py-3 transition-colors duration-150 ease-out ${
+        return `group relative flex items-start gap-3 rounded-input px-3 py-2 transition-colors duration-150 ease-out ${
           collapsed ? 'justify-center' : ''
         } ${isActive ? 'bg-bronze-50 text-bronze-700' : 'text-espresso/85 hover:bg-cream-200 hover:text-espresso'}`;
       }}
@@ -114,6 +151,7 @@ function SidebarContents({
 }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const nav = useScrollEdges<HTMLElement>();
 
   async function handleLogout() {
     onNavigate?.();
@@ -123,7 +161,7 @@ function SidebarContents({
 
   return (
     <div className="flex h-full flex-col">
-      <div className={`shrink-0 ${collapsed ? 'px-2 pt-5' : 'px-4 pt-6'}`}>
+      <div className={`shrink-0 ${collapsed ? 'px-2 pt-4' : 'px-4 pt-5'}`}>
         {/* Same mark, same collapsed 'a', same accessible name shape as
             AdminShell — the two sidebars are one system, so they must not
             wear two different wordmarks. */}
@@ -142,7 +180,7 @@ function SidebarContents({
         {!collapsed && <p className="eyebrow mt-2">Patient portal</p>}
       </div>
 
-      <div className={`shrink-0 ${collapsed ? 'px-2 pt-5' : 'px-4 pt-6'}`}>
+      <div className={`shrink-0 ${collapsed ? 'px-2 pt-3' : 'px-4 pt-3'}`}>
         {collapsed ? (
           <button
             type="button"
@@ -163,18 +201,30 @@ function SidebarContents({
         )}
       </div>
 
-      {/* The nav itself scrolls if it must; the wordmark above and the contact
-          block below stay put, so the phone number never scrolls out of reach. */}
-      <nav
-        aria-label="Patient portal"
-        className={`scroll-thin mt-5 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pb-4 ${collapsed ? 'px-2' : 'px-4'}`}
-      >
-        {NAV_ITEMS.map((item) => (
-          <SidebarLink key={item.to} item={item} collapsed={collapsed} onNavigate={onNavigate} />
-        ))}
-      </nav>
+      {/* Navigation is the sidebar's job, so it gets the room: every item is
+          reachable without scrolling from 768px up, and the contact and
+          account rows below are single lines rather than blocks. The nav still
+          scrolls if a window is genuinely shorter than that — with a soft edge
+          rather than a row sliced in half. */}
+      <div className="relative mt-4 flex min-h-0 flex-1 flex-col">
+        <nav
+          ref={nav.ref}
+          aria-label="Patient portal"
+          className={`scroll-thin flex flex-1 flex-col gap-1 overflow-y-auto pb-1 ${collapsed ? 'px-2' : 'px-4'}`}
+        >
+          {NAV_ITEMS.map((item) => (
+            <SidebarLink key={item.to} item={item} collapsed={collapsed} onNavigate={onNavigate} />
+          ))}
+        </nav>
+        {nav.top && (
+          <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-5 bg-gradient-to-b from-cream-50 to-transparent" />
+        )}
+        {nav.bottom && (
+          <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-cream-50 to-transparent" />
+        )}
+      </div>
 
-      <div className={`shrink-0 border-t border-taupe ${collapsed ? 'px-2 py-3' : 'px-4 py-4'}`}>
+      <div className={`shrink-0 border-t border-taupe ${collapsed ? 'px-2 py-2.5' : 'px-3 py-2'}`}>
         {collapsed ? (
           <button
             type="button"
@@ -195,7 +245,7 @@ function SidebarContents({
         )}
 
         {user && !collapsed && (
-          <div className="mt-4 flex items-center gap-2.5">
+          <div className="mt-2 flex items-center gap-2.5 px-0.5">
             <Avatar name={user.displayName} size="sm" />
             <span className="min-w-0 flex-1 truncate text-sm font-medium text-espresso">{user.displayName}</span>
             <button
@@ -217,9 +267,9 @@ function SidebarContents({
  * AdminShell (bronze active bar, collapse-to-icons remembered in
  * localStorage, slide-over drawer under md) deliberately tuned softer:
  * wider, roomier rows with a line of description under each label, larger
- * type, and a permanent contact-the-clinic block pinned to the bottom.
- * Staff are working a queue; a patient is reading their own health data, and
- * the density should say so.
+ * type, and a contact-the-clinic row pinned to the bottom that opens in place
+ * (see ClinicContactPanel). Staff are working a queue; a patient is reading
+ * their own health data, and the density should say so.
  *
  * It replaces a two-item top bar. Two items in a sidebar would have looked
  * emptier than the bar did — the eight destinations here (Overview, booking,
