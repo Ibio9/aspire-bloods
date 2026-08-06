@@ -17,6 +17,7 @@ import { LinkingPage } from './features/admin/LinkingPage';
 import { PatientDetailPage } from './features/admin/PatientDetailPage';
 import { AuditLogPage } from './features/admin/AuditLogPage';
 import { IngestionLogPage } from './features/admin/IngestionLogPage';
+import { RandoxCataloguePage } from './features/admin/RandoxCataloguePage';
 import { ContentConfigPage } from './features/admin/ContentConfigPage';
 import { PatientOverview } from './features/patient/PatientOverview';
 import { PatientHome } from './features/patient/PatientHome';
@@ -122,6 +123,7 @@ export default function App() {
               >
                 <Route path="/admin/audit-log" element={<AuditLogPage />} />
                 <Route path="/admin/ingestion-log" element={<IngestionLogPage />} />
+                <Route path="/admin/randox-catalogue" element={<RandoxCataloguePage />} />
                 {/* Deciding whose results these are is a records action, and
                     the one the practice most wants a single accountable
                     identity attached to — ADMIN only, like the audit log. */}

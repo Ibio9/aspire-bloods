@@ -55,6 +55,13 @@ COPY --from=build /app/apps/server/prisma ./apps/server/prisma
 # until the runtime stage below), and the whole node_modules directory is
 # copied wholesale two lines up, so it's already present.
 COPY --from=build /app/apps/server/src ./apps/server/src
+# Randox void/caveat code map and panel/test id map, read at boot by
+# modules/randox/config.ts relative to the workspace cwd — without them the
+# integration refuses to start. Only the .example placeholders are baked in;
+# the real files are supplied by pointing RANDOX_CODE_MAP_FILE and
+# RANDOX_ID_MAP_FILE at a mounted volume (a live boot still pointing at an
+# .example path is refused — see assertRandoxConfigured).
+COPY --from=build /app/apps/server/config ./apps/server/config
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build /app/node_modules/@prisma ./node_modules/@prisma
 

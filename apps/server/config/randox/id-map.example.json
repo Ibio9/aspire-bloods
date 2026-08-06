@@ -1,0 +1,12 @@
+{
+  "source": "PLACEHOLDER — the agreed panel and test IDs have not been issued yet. `panels` and `tests` are intentionally EMPTY: a live boot with both empty is refused (no order could ever be placed), which is the intended behaviour until Randox confirm the IDs. The mock transport does not read these, so the whole flow is testable without them.",
+
+  "_panels_comment": "Our Panel.key -> Randox's panel/profile id. Used outbound when placing an order, and inverted inbound to map a result's panel id back to our catalogue.",
+  "panels": {},
+
+  "_tests_comment": "Our Marker.key -> Randox's individual test id. Used when ordering single markers outside any panel.",
+  "tests": {},
+
+  "_markerNameOverrides_comment": "Randox's marker name as it appears on a result -> our Marker.key. Only needed where fuzzy name matching gets it wrong. Anything absent here still goes through name matching; anything that then fails to match is flagged for an admin in the ingestion log, never silently dropped.",
+  "markerNameOverrides": {}
+}

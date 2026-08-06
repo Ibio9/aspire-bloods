@@ -10,7 +10,8 @@ import { prisma } from './db/client.js';
 import { runSessionCleanupJob } from './jobs/sessionCleanup.js';
 import { runRetentionReviewJob } from './jobs/retentionReview.js';
 import { runErasurePurgeJob } from './jobs/erasurePurge.js';
-import { runRandoxIngestionJob } from './modules/result-sources/randoxIngestionService.js';
+import { runRandoxPollingJob } from './modules/randox/pollingJob.js';
+import { assertRandoxConfigured } from './modules/randox/config.js';
 import { purgeExpiredRateLimitHits } from './lib/postgresRateLimitStore.js';
 import { securityHeaders } from './middleware/securityHeaders.js';
 import { authRouter } from './modules/auth/router.js';
@@ -20,8 +21,14 @@ import { adminRouter } from './modules/admin/router.js';
 import { filesRouter } from './modules/storage/filesRouter.js';
 import { patientsRouter } from './modules/patients/router.js';
 import { contentRouter } from './modules/content/router.js';
+import { randoxRouter } from './modules/randox/router.js';
 
 runProductionBootChecks();
+// Fails the boot — loudly, naming every missing variable at once — if the
+// Randox integration is switched on without what a real call needs. The
+// alternative is discovering a missing subscription key at the moment a
+// patient is standing in the clinic waiting for their order to be placed.
+assertRandoxConfigured();
 
 const app = express();
 
@@ -45,6 +52,7 @@ app.use('/api/admin', adminRouter);
 app.use('/api/files', filesRouter);
 app.use('/api/patient', patientsRouter);
 app.use('/api/content', contentRouter);
+app.use('/api/randox', randoxRouter);
 
 app.get('/api/health', async (_req, res) => {
   try {
@@ -90,14 +98,17 @@ cron.schedule('0 3 * * *', () => {
 cron.schedule('0 * * * *', () => {
   runErasurePurgeJob().catch((e) => console.error('erasurePurgeJob failed:', e));
 });
-// Only active once Randox's API is switched on (LAB_ADAPTER=RANDOX_API) —
-// otherwise RandoxApiAdapter's methods throw NotImplementedError, and
-// there's nothing to poll for. Automatic ingestion is not automatic
-// publication: this only ever lands reports at ADMIN_VERIFIED, never past
-// the clinician review/release gate.
-if (env.LAB_ADAPTER === 'RANDOX_API') {
+// Randox order polling. The cron here is only how often the sweeper wakes
+// up to look for orders that are DUE — each individual order is still
+// polled once an hour, staggered by its own creation time, as Randox ask.
+// See modules/randox/pollingJob.ts, which is written to be deleted once
+// webhooks land without anything downstream changing.
+//
+// Automatic ingestion is not automatic publication: this only ever lands
+// reports at ADMIN_VERIFIED, never past the clinician review/release gate.
+if (env.RANDOX_ENABLED) {
   cron.schedule(env.RANDOX_POLL_CRON, () => {
-    runRandoxIngestionJob().catch((e) => console.error('randoxIngestionJob failed:', e));
+    runRandoxPollingJob().catch((e) => console.error('randoxPollingJob failed:', e));
   });
 }
 

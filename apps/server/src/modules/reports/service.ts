@@ -444,6 +444,10 @@ export async function getReportDetail(reportId: string) {
         },
       },
       originalPdfFile: true,
+      // Markers the lab could not report. Staff see the code and the
+      // reason; the patient-facing surface gets only a neutral note (see
+      // portalService.listDocumentsForPatient).
+      exclusions: { include: { marker: true } },
     },
   });
   if (!report) throw new ReportError('Report not found', 404);
@@ -452,6 +456,16 @@ export async function getReportDetail(reportId: string) {
     ...report,
     sourceLabel: sourceLabel(report.source.key, report.source.name),
     title: formatReportTitle(report.panel?.name, report.results.length, report.sampleDate),
+    exclusions: report.exclusions.map((x) => ({
+      id: x.id,
+      markerName: x.marker?.name ?? x.rawMarkerName,
+      rawMarkerName: x.rawMarkerName,
+      code: x.code,
+      // An unrecognised code is shown as unrecognised rather than dressed
+      // up as a known reason — it's the signal the code map needs updating.
+      codeRecognised: x.codeRecognised,
+      reason: x.reason,
+    })),
     results: report.results.map((r) => ({
       ...r,
       value: Number(decryptField(r.valueEncrypted)),

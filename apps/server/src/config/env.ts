@@ -42,11 +42,133 @@ const envSchema = z.object({
   CLINIC_HOURS: z.string().default('Monday to Friday, 9am – 5pm'),
 
   LAB_ADAPTER: z.enum(['RANDOX_PORTAL', 'RANDOX_API']).default('RANDOX_PORTAL'),
-  RANDOX_API_BASE_URL: z.string().optional().default(''),
-  RANDOX_API_KEY: z.string().optional().default(''),
-  // How often the API adapter polls Randox for new/updated results, when
-  // LAB_ADAPTER=RANDOX_API. Cron expression.
-  RANDOX_POLL_CRON: z.string().default('*/15 * * * *'),
+
+  // --- Randox API integration ---------------------------------------------
+  // Master switch. False means nothing Randox-related runs: no polling job,
+  // no ordering endpoints, no config validation. LAB_ADAPTER is a separate,
+  // older switch about which adapter handles *results*; this one is about
+  // whether we talk to Randox's APIs at all.
+  RANDOX_ENABLED: z
+    .string()
+    .default('false')
+    .transform((v) => v === 'true'),
+  // 'mock' runs the entire order → book → poll → ingest flow against
+  // in-process fixtures, which is how this is developed and tested while
+  // sandbox access is pending. Refused in production (see config.ts).
+  RANDOX_TRANSPORT: z.enum(['mock', 'live']).default('mock'),
+
+  // Sandbox base URLs (stes-). Production is a one-variable change each.
+  RANDOX_NEXUS_BASE_URL: z.string().default('https://stes-gpto-appapi-001-apim.azure-api.net/api/'),
+  RANDOX_BOOKING_BASE_URL: z.string().default('https://stes-cb-platform-apim.azure-api.net/booking-platform-api/'),
+
+  // Azure B2C client ids. Documented, not secret — defaulted so a
+  // misconfiguration can't silently point at the wrong application, but
+  // still overridable if Randox issue us different ones for production.
+  RANDOX_NEXUS_CLIENT_ID: z.string().default('791f0001-20d7-4771-b4ab-359b4b9efd21'),
+  RANDOX_BOOKING_CLIENT_ID: z.string().default('0b0399a4-d61f-43fc-a0d0-3311f60cdcb1'),
+
+  // NOT ISSUED YET — subscription keys come from the Randox developer
+  // portal. No defaults: a live boot without them fails at startup with a
+  // message naming each one.
+  RANDOX_NEXUS_SUBSCRIPTION_KEY: z.string().optional().default(''),
+  RANDOX_BOOKING_SUBSCRIPTION_KEY: z.string().optional().default(''),
+
+  // Scopes, verified from the Randox STES auth documents in
+  // modules/randox/specs/. Defaulted rather than blank: a wrong scope fails
+  // as an opaque B2C rejection, and these are documented values, not
+  // secrets. Still overridable if production differs.
+  RANDOX_NEXUS_SCOPE: z
+    .string()
+    .default('https://randoxclinicbooking.onmicrosoft.com/gptestorderportal-externalapi/User.Read.All'),
+  RANDOX_BOOKING_SCOPE: z
+    .string()
+    .default('https://randoxclinicbooking.onmicrosoft.com/clinic-booking-platform-api/user_impersonation'),
+
+  // ROPC token endpoint. Both auth documents give the SAME tenant and
+  // policy (randoxclinicbooking / B2C_1_apim_ropc_signin1); only client id
+  // and scope differ per API, so one shared default is correct. The per-API
+  // overrides remain for a production tenant that splits them.
+  RANDOX_B2C_TOKEN_URL: z
+    .string()
+    .default(
+      'https://randoxclinicbooking.b2clogin.com/randoxclinicbooking.onmicrosoft.com/B2C_1_apim_ropc_signin1/oauth2/v2.0/token',
+    ),
+  RANDOX_NEXUS_TOKEN_URL: z.string().optional().default(''),
+  RANDOX_BOOKING_TOKEN_URL: z.string().optional().default(''),
+
+  // ROPC is a password grant, so it needs a service account. Shared pair
+  // with per-API overrides, same reasoning as the token URLs.
+  RANDOX_USERNAME: z.string().optional().default(''),
+  RANDOX_PASSWORD: z.string().optional().default(''),
+  RANDOX_NEXUS_USERNAME: z.string().optional().default(''),
+  RANDOX_NEXUS_PASSWORD: z.string().optional().default(''),
+  RANDOX_BOOKING_USERNAME: z.string().optional().default(''),
+  RANDOX_BOOKING_PASSWORD: z.string().optional().default(''),
+
+  // NOT ISSUED YET — our clinic id. It is an INTEGER on the wire
+  // (GetMyClinicDetails returns `id: 146`), kept as a string here so "not
+  // set" stays distinguishable from 0. Two distinct ids are involved: the
+  // clinicId that CancelOrder and both result endpoints take, and the
+  // TestClinicLocationId that CreatePendingOrder takes. They are the same
+  // for a single-site clinic and differ once a clinic has several test
+  // locations, so both are configurable. Both are readable from
+  // GET /Clinic/GetMyClinicDetails once access exists.
+  RANDOX_CLINIC_ID: z.string().optional().default(''),
+  /** Defaults to RANDOX_CLINIC_ID when unset. */
+  RANDOX_TEST_CLINIC_LOCATION_ID: z.string().optional().default(''),
+
+  // The two CreatePendingOrder report flags. Both documented, neither
+  // secret. IsHealthCheckPanelReport=true asks for the patient-facing
+  // "scalebar" report rather than the tabular laboratory one — that is the
+  // format of the example report in specs/, and the one we would show a
+  // patient. IsCvScoreRequired asks for a cardiovascular risk score, which
+  // is derived from measurements CreatePendingOrder cannot carry, so it is
+  // off until that flow exists.
+  RANDOX_HEALTH_CHECK_PANEL_REPORT: z
+    .string()
+    .default('true')
+    .transform((v) => v === 'true'),
+  RANDOX_CV_SCORE_REQUIRED: z
+    .string()
+    .default('false')
+    .transform((v) => v === 'true'),
+
+  // NOT AGREED YET — the testing reason sent on every order. The
+  // CreatePendingOrder schema requires a non-empty TestReasons array; valid
+  // ids come from GET /TestReason/GetTestingReasons.
+  RANDOX_DEFAULT_TEST_REASON_ID: z.string().optional().default(''),
+  RANDOX_DEFAULT_TEST_REASON_DETAILS: z.string().default('Private health screening requested by the patient.'),
+  // NOT AGREED YET — the cancellation reason id CancelOrder takes. From
+  // GET /CancellationReason/GetCancellationReasons; the documented example
+  // list is {1: Cancellation By Clinic, 2: Cancellation By Lab}.
+  RANDOX_DEFAULT_CANCELLATION_REASON_ID: z.string().optional().default(''),
+
+  // How long cached Randox reference data is trusted before being refetched.
+  RANDOX_REFERENCE_DATA_TTL_MINUTES: z.coerce.number().default(720),
+
+  // Which sample collection routes we may offer. Empty by default because
+  // we have not confirmed what we're contractually entitled to; an order
+  // requesting a method that isn't listed here is refused before it's sent.
+  RANDOX_COLLECTION_METHODS: z.string().optional().default(''),
+
+  // File-backed config. Defaults point at the checked-in .example files so
+  // a dev machine always boots; production with RANDOX_TRANSPORT=live
+  // refuses to start while still pointing at them.
+  RANDOX_CODE_MAP_FILE: z.string().default('./config/randox/result-codes.example.json'),
+  RANDOX_ID_MAP_FILE: z.string().default('./config/randox/id-map.example.json'),
+
+  // Randox ask for one poll per outstanding order per hour, staggered by
+  // order creation time. The cron here is how often the *sweeper* wakes up
+  // to look for orders that are due — each individual order is still only
+  // polled once per RANDOX_POLL_INTERVAL_MINUTES.
+  RANDOX_POLL_CRON: z.string().default('*/5 * * * *'),
+  RANDOX_POLL_INTERVAL_MINUTES: z.coerce.number().default(60),
+  // Cap on orders polled per sweep, so a large backlog is spread over
+  // several sweeps rather than hammering Randox in one burst.
+  RANDOX_POLL_BATCH_SIZE: z.coerce.number().default(25),
+  // After this many consecutive failures an order stops being polled and
+  // waits for an admin — it is not retried forever.
+  RANDOX_POLL_MAX_FAILURES: z.coerce.number().default(12),
 
   // PDF extraction: optional. Empty means every PDF upload falls back to
   // the regex extractor and says so in the admin UI — this must never be a

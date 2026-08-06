@@ -2,7 +2,7 @@ import { prisma } from '../../db/client.js';
 import { decryptField } from '../../lib/crypto.js';
 import { recordAuditLog } from '../../lib/auditLog.js';
 import { AdminError } from './service.js';
-import { materialiseParsedReport, MaterialiseError } from '../result-sources/randoxIngestionService.js';
+import { materialiseParsedReport, MaterialiseError } from '../reports/materialiseReport.js';
 import type { ParsedReport } from '../result-sources/ResultSourceAdapter.js';
 
 /**
