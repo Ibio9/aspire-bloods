@@ -5,6 +5,7 @@ import { nexusLabClient } from './clients/index.js';
 import { isRandoxEnabled } from './config.js';
 import { orderStatusFromCode } from './types.js';
 import { ingestOrderResults } from './ingestionService.js';
+import { orderRefOf } from './orderService.js';
 
 /**
  * Randox ask for one poll per outstanding order per hour, staggered by
@@ -80,24 +81,41 @@ export async function onOrderStatusChanged(orderNumber: string): Promise<OrderUp
   }
 
   const now = new Date();
-  const status = await nexusLabClient().getOrderStatus(orderNumber);
-  const statusName = orderStatusFromCode(status.statusCode);
+
+  // GetOrderStatus wants both identifiers. An order missing the numeric one
+  // cannot be polled at all, so it is stalled explicitly rather than
+  // failing on every sweep forever.
+  if (order.randoxOrderId === null) {
+    await prisma.randoxOrder.update({
+      where: { id: order.id },
+      data: { nextPollAt: null, lastPollError: 'No Randox numeric order id recorded — cannot call GetOrderStatus.' },
+    });
+    return {
+      orderNumber,
+      statusCode: null,
+      ingested: false,
+      message: `Order ${orderNumber} has no Randox order id recorded, so it cannot be polled.`,
+    };
+  }
+
+  const status = await nexusLabClient().getOrderStatus({ orderId: order.randoxOrderId, orderNumber });
+  const statusName = orderStatusFromCode(status.statusId);
 
   if (!statusName) {
     // An unrecognised status code is never coerced into a known one. The
     // order keeps its previous status, the raw code is recorded, and it
     // stays in the polling rotation.
     console.warn(
-      `[randox] order ${orderNumber} returned unrecognised status code ${status.statusCode} ("${status.statusDescription ?? 'no description'}") — status left unchanged.`,
+      `[randox] order ${orderNumber} returned unrecognised status code ${status.statusId} ("${status.statusDescription ?? 'no description'}") — status left unchanged.`,
     );
     await prisma.randoxOrder.update({
       where: { id: order.id },
       data: {
-        rawStatusCode: status.statusCode,
+        rawStatusCode: status.statusId,
         lastPolledAt: now,
         pollAttempts: { increment: 1 },
         nextPollAt: nextScheduledPoll(order, now),
-        lastPollError: `Unrecognised status code ${status.statusCode}`,
+        lastPollError: `Unrecognised status code ${status.statusId}`,
       },
     });
     await prisma.ingestionLogEntry.create({
@@ -105,14 +123,14 @@ export async function onOrderStatusChanged(orderNumber: string): Promise<OrderUp
         sourceKey: 'randox_api',
         externalId: orderNumber,
         outcome: 'FAILED',
-        message: `Randox returned an unrecognised order status code (${status.statusCode}). The order was left on its previous status rather than guessed at.`,
+        message: `Randox returned an unrecognised order status code (${status.statusId}). The order was left on its previous status rather than guessed at.`,
       },
     });
     return {
       orderNumber,
-      statusCode: status.statusCode,
+      statusCode: status.statusId,
       ingested: false,
-      message: `Unrecognised status code ${status.statusCode}.`,
+      message: `Unrecognised status code ${status.statusId}.`,
     };
   }
 
@@ -123,7 +141,7 @@ export async function onOrderStatusChanged(orderNumber: string): Promise<OrderUp
       where: { id: order.id },
       data: {
         status: 'CANCELLED',
-        rawStatusCode: status.statusCode,
+        rawStatusCode: status.statusId,
         cancelledAt: order.cancelledAt ?? now,
         cancelReason: order.cancelReason ?? (status.statusDescription ?? 'Cancelled by the laboratory.'),
         lastPolledAt: now,
@@ -133,7 +151,7 @@ export async function onOrderStatusChanged(orderNumber: string): Promise<OrderUp
         nextPollAt: null,
       },
     });
-    return { orderNumber, statusCode: status.statusCode, ingested: false, message: 'Order cancelled — polling stopped.' };
+    return { orderNumber, statusCode: status.statusId, ingested: false, message: 'Order cancelled — polling stopped.' };
   }
 
   if (statusName !== 'COMPLETE') {
@@ -141,7 +159,7 @@ export async function onOrderStatusChanged(orderNumber: string): Promise<OrderUp
       where: { id: order.id },
       data: {
         status: statusName,
-        rawStatusCode: status.statusCode,
+        rawStatusCode: status.statusId,
         lastPolledAt: now,
         pollAttempts: { increment: 1 },
         consecutiveFailures: 0,
@@ -151,13 +169,13 @@ export async function onOrderStatusChanged(orderNumber: string): Promise<OrderUp
     });
     return {
       orderNumber,
-      statusCode: status.statusCode,
+      statusCode: status.statusId,
       ingested: false,
       message: `Order is ${statusName.toLowerCase().replace(/_/g, ' ')}.`,
     };
   }
 
-  const result = await ingestOrderResults(orderNumber);
+  const result = await ingestOrderResults(orderRefOf(order));
 
   // A partial delivery keeps polling: more markers are still coming. A
   // complete one stops. An unmatched patient keeps polling too — the
@@ -168,7 +186,7 @@ export async function onOrderStatusChanged(orderNumber: string): Promise<OrderUp
     where: { id: order.id },
     data: {
       status: result.outcome === 'ALL_VOIDED' ? 'CANCELLED' : 'COMPLETE',
-      rawStatusCode: status.statusCode,
+      rawStatusCode: status.statusId,
       completedAt: order.completedAt ?? now,
       lastPolledAt: now,
       pollAttempts: { increment: 1 },
@@ -180,7 +198,7 @@ export async function onOrderStatusChanged(orderNumber: string): Promise<OrderUp
 
   return {
     orderNumber,
-    statusCode: status.statusCode,
+    statusCode: status.statusId,
     ingested: result.outcome === 'INGESTED' || result.outcome === 'PARTIAL',
     message: result.message,
   };

@@ -20,9 +20,13 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { to: '/admin', label: 'Reports & entry', icon: ReportsIcon },
   { to: '/admin/patients', label: 'Patients', icon: PatientsIcon },
+  // Sits directly under Patients: it's the same subject (who is who) at the
+  // moment it matters most, not a reporting screen.
+  { to: '/admin/linking', label: 'Result linking', icon: PatientsIcon, adminOnly: true },
   { to: '/admin/content', label: 'Panels & content', icon: ContentIcon },
   { to: '/admin/audit-log', label: 'Audit log', icon: AuditIcon, adminOnly: true },
   { to: '/admin/ingestion-log', label: 'Ingestion log', icon: AuditIcon, adminOnly: true },
+  { to: '/admin/randox-catalogue', label: 'Randox catalogue', icon: AuditIcon, adminOnly: true },
 ];
 
 function SidebarLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed: boolean; onNavigate?: () => void }) {
@@ -218,7 +222,11 @@ export function AdminShell({ children }: { children?: ReactNode }) {
         </div>
       )}
 
-      <div className="flex min-h-screen flex-1 flex-col">
+      {/* min-w-0: a flex item defaults to min-width:auto, which lets this column be
+          pushed wider than the viewport by its own content — and every overflow-x-auto
+          inside (the reports/patients/audit tables) then never engages. Matches
+          PatientShell. */}
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         <AdminTopBar onOpenSearch={() => setSearchOpen(true)} onOpenDrawer={() => setDrawerOpen(true)} />
         <main className="flex-1 px-5 py-14 sm:px-8 md:px-14 md:py-24">
           <div className="mx-auto max-w-6xl">

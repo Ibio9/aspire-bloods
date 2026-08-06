@@ -41,8 +41,8 @@ export class MockClinicBookingClient implements ClinicBookingClient {
   expireHoldsImmediately = false;
 
   private readonly locations: RandoxServiceLocation[] = [
-    { id: 'MOCK-LOC-1', name: 'Aspire Clinic — Manchester', addressLine1: '1 Example Street', city: 'Manchester', postcode: 'M1 1AA' },
-    { id: 'MOCK-LOC-2', name: 'Aspire Clinic — Leeds', addressLine1: '2 Example Road', city: 'Leeds', postcode: 'LS1 1AA' },
+    { id: 'MOCK-LOC-1', name: 'Aspire Clinic — Manchester', addressLine1: '1 Example Street', city: 'Manchester', postcode: 'M1 1AA', latitude: 53.4808, longitude: -2.2426 },
+    { id: 'MOCK-LOC-2', name: 'Aspire Clinic — Leeds', addressLine1: '2 Example Road', city: 'Leeds', postcode: 'LS1 1AA', latitude: 53.8008, longitude: -1.5491 },
   ];
 
   async getServiceLocations(): Promise<RandoxServiceLocation[]> {

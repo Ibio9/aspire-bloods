@@ -14,7 +14,9 @@ export function TwoTierHeading({ eyebrow, title, align = 'left' }: TwoTierHeadin
   return (
     <div className={align === 'center' ? 'text-center' : 'text-left'}>
       <p className="eyebrow mb-3">{eyebrow}</p>
-      <h1 className="display-heading">{title}</h1>
+      {/* break-words: admin headings carry the patient's email when there's no name
+          yet, and an unbroken address is wider than a 375px viewport. */}
+      <h1 className="display-heading break-words">{title}</h1>
     </div>
   );
 }

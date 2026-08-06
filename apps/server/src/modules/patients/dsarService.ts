@@ -61,7 +61,7 @@ export async function buildDsarExport(patientId: string): Promise<NodeJS.Readabl
           sex: profile.sex,
           dateOfBirth: decryptField(profile.dobEncrypted),
           contactNumber: decryptField(profile.contactNumberEncrypted),
-          address: decryptField(profile.addressEncrypted),
+          address: profile.addressEncrypted ? decryptField(profile.addressEncrypted) : null,
           postcode: profile.postcode,
           gpName: profile.gpName,
           gpAddress: profile.gpAddressEncrypted ? decryptField(profile.gpAddressEncrypted) : null,

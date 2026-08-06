@@ -1,0 +1,2410 @@
+{
+    "openapi": "3.0.1",
+    "info": {
+        "title": "GP Test Portal",
+        "description": "GP Test Order Portal endpoints made available to 3rd party clients.",
+        "version": "1.0"
+    },
+    "servers": [
+        {
+            "url": "https://stes-gpto-appapi-001-apim.azure-api.net/api"
+        }
+    ],
+    "paths": {
+        "/BiologicalSex/GetBiologicalSex": {
+            "get": {
+                "tags": [
+                    "Biological Sex"
+                ],
+                "summary": "Get Biological Sex",
+                "description": "Get a list of biological sexes",
+                "operationId": "get-biological-sex",
+                "responses": {
+                    "200": {
+                        "description": "Biological sexes retrieved successfully.",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": [
+                                    {
+                                        "id": "1",
+                                        "name": "Male"
+                                    },
+                                    {
+                                        "id": "2",
+                                        "name": "Female"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "400",
+                                    "message": "Bad Request: The submitted request is not a valid JSON or the order id is invalid or missing."
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization failure",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "status": "401",
+                                    "message": "Unauthorized: You are not authorized to make this call, contact Randox support if you think this is incorrect."
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "500",
+                                    "message": "Internal error."
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/CancellationReason/GetCancellationReasons": {
+            "get": {
+                "tags": [
+                    "Cancellation Reason"
+                ],
+                "summary": "Get Cancellation Reasons",
+                "description": "Get a list of cancellation reasons",
+                "operationId": "get-cancellation-reasons",
+                "responses": {
+                    "200": {
+                        "description": "Cancellation reasons retrieved successfully.",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": [
+                                    {
+                                        "id": "1",
+                                        "name": "Cancellation By Clinic"
+                                    },
+                                    {
+                                        "id": "2",
+                                        "name": "Cancellation By Lab"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "400",
+                                    "message": "Bad Request: The submitted request is not a valid JSON or the order id is invalid or missing."
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization failure",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "status": "401",
+                                    "message": "Unauthorized: You are not authorized to make this call, contact Randox support if you think this is incorrect."
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "500",
+                                    "message": "Internal server error."
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/Ethnicity/GetEthnicity": {
+            "get": {
+                "tags": [
+                    "Ethnicity"
+                ],
+                "summary": "Get Ethnicity",
+                "description": "Get a list of available ethnicities",
+                "operationId": "get-ethnicity",
+                "responses": {
+                    "200": {
+                        "description": "Ethnicities retrieved successfully",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": [
+                                    {
+                                        "id": 1,
+                                        "name": "White"
+                                    },
+                                    {
+                                        "id": 2,
+                                        "name": "Asian - Bangladeshi"
+                                    },
+                                    {
+                                        "id": 3,
+                                        "name": "Asian - Indian"
+                                    },
+                                    {
+                                        "id": 4,
+                                        "name": "Asian - Pakistani"
+                                    },
+                                    {
+                                        "id": 5,
+                                        "name": "Any Other Asian Background"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "400",
+                                    "message": "Bad Request: The submitted request is not a valid JSON or the order id is invalid or missing"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization failure",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "status": "401",
+                                    "message": "Unauthorized: You are not authorized to make this call, contact Randox support if you think this is incorrect."
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "500",
+                                    "message": "Internal server error."
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/Clinic/GetClinicStaff": {
+            "get": {
+                "tags": [
+                    "Clinic"
+                ],
+                "summary": "Get Clinic Staff",
+                "description": "Get a list of clinic staff within your clinic",
+                "operationId": "get-clinic-staff",
+                "responses": {
+                    "200": {
+                        "description": "Clinic staff retrieved successfully",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": [
+                                    {
+                                        "userId": "ce02dec0-9a46-4cfa-90c5-32gsdw52y223",
+                                        "firstName": "Joe",
+                                        "lastName": "Bloggs",
+                                        "active": true,
+                                        "role": "Laboratory"
+                                    },
+                                    {
+                                        "userId": "ce02dec0-9a46-4cfa-90c5-32gsdw52y224",
+                                        "firstName": "White",
+                                        "lastName": "Clarke",
+                                        "active": "Kent",
+                                        "role": "Management"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "400",
+                                    "message": "Bad Request: The submitted request is not a valid JSON or order id is invalid or missing."
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "500",
+                                    "message": "Internal error."
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/Clinic/GetMyClinicDetails": {
+            "get": {
+                "tags": [
+                    "Clinic"
+                ],
+                "summary": "Get My Clinic Details",
+                "description": "Get details for your clinic",
+                "operationId": "get-my-clinic-details",
+                "responses": {
+                    "200": {
+                        "description": "Retrieved clinic details successfully",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "id": 146,
+                                    "name": "Randox Health Antrim",
+                                    "code": "345865",
+                                    "addressLine1": "333 Victoria Street",
+                                    "addressLine2": "",
+                                    "townCity": "Antrim",
+                                    "county": "Northern Ireland",
+                                    "postalCode": "bf46trr",
+                                    "clinicTestLocations": [
+                                        {
+                                            "id": 147,
+                                            "name": "Randox Health Belfast",
+                                            "code": "fdh456",
+                                            "addressLine1": "33 Dudley Road",
+                                            "addressLine2": "West Midlands",
+                                            "townCity": "Birmingham",
+                                            "county": "United Kingdom",
+                                            "postalCode": "b345cv"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "400",
+                                    "message": "Bad Request: The submitted request is not a valid JSON or order id is invalid or missing"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization failure",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "status": "401",
+                                    "message": "Unauthorized: You are not authorized to make this call, contact Randox support if you think this is incorrect."
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "500",
+                                    "message": "Internal error."
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/Order/GetOrderStatus": {
+            "post": {
+                "tags": [
+                    "Order"
+                ],
+                "summary": "Get Order Status",
+                "description": "Get the status of an order",
+                "operationId": "get-order-status",
+                "requestBody": {
+                    "description": "",
+                    "content": {
+                        "application/json": {
+                            "example": {
+                                "OrderNumber": "ITTEST-00111234",
+                                "OrderId": 130
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "orderNumber": "GP-THE-00000130",
+                                    "orderId": 130,
+                                    "statusId": 4,
+                                    "statusDescription": "Complete",
+                                    "statusDate": "2023-01-30T08:51:25.0000000+00:00",
+                                    "arrangementType": "Own Clinic",
+                                    "arrangementStatus": "Samples received"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "400",
+                                    "message": "Bad Request: The submitted request is not a valid JSON or order id is invalid or missing."
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization failure",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "status": "401",
+                                    "message": "Unauthorized: You are not authorized to make this call, contact Randox support if you think this is incorrect."
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "500",
+                                    "message": "Internal error."
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/TestPanel/GetPanels": {
+            "get": {
+                "tags": [
+                    "Test Panel"
+                ],
+                "summary": "Get Panels",
+                "description": "Get a list of panels within your clinic",
+                "operationId": "get-panels",
+                "responses": {
+                    "200": {
+                        "description": "Retrieved panels successfully",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": [
+                                    {
+                                        "id": 71,
+                                        "name": "gdsg-TEMP2",
+                                        "code": "TM2",
+                                        "panelType": "Custom",
+                                        "profileDetails": null,
+                                        "specialInstructions": "",
+                                        "fastingRequired": true,
+                                        "sampleStabilityTime": 1,
+                                        "cost": 50,
+                                        "currency": "Pounds",
+                                        "sampleTubes": [
+                                            {
+                                                "id": 1,
+                                                "name": "3SST Gel Separator Tube (Red)",
+                                                "quantityRequired": 1
+                                            }
+                                        ],
+                                        "testItems": [
+                                            {
+                                                "id": 25,
+                                                "name": "Test Item 5"
+                                            },
+                                            {
+                                                "id": 27,
+                                                "name": "Test Item 7"
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "id": 72,
+                                        "name": "gdsg-TEMP3",
+                                        "code": "TM3",
+                                        "panelType": "Global",
+                                        "profileDetails": null,
+                                        "specialInstructions": "",
+                                        "fastingRequired": false,
+                                        "sampleStabilityTime": 1,
+                                        "cost": 50,
+                                        "currency": "Pounds",
+                                        "sampleTubes": [
+                                            {
+                                                "id": 1,
+                                                "name": "3SST Gel Separator Tube (Red)",
+                                                "quantityRequired": 1
+                                            }
+                                        ],
+                                        "testItems": [
+                                            {
+                                                "id": 36,
+                                                "name": "Test Item 15"
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "400",
+                                    "message": "Bad Request: The submitted request is not a valid JSON or order id is invalid or missing."
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization failure",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "status": "401",
+                                    "message": "Unauthorized: You are not authorized to make this call, contact Randox support if you think this is incorrect."
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "500",
+                                    "message": "Internal error."
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/TestReason/GetTestingReasons": {
+            "get": {
+                "tags": [
+                    "Test Reason"
+                ],
+                "summary": "Get testing reasons",
+                "description": "Get test reasons",
+                "operationId": "get-testing-reasons",
+                "responses": {
+                    "200": {
+                        "description": "Retrieved testing reasons successfully",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": [
+                                    {
+                                        "id": 1,
+                                        "name": "To investigate the cause of the patient's symptoms"
+                                    },
+                                    {
+                                        "id": 2,
+                                        "name": "To confirm a suspected diagnosis"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "400",
+                                    "message": "Bad Request: The submitted request is not a valid JSON or order id is invalid or missing."
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization failure",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "status": "401",
+                                    "message": "Unauthorized: You are not authorized to make this call, contact Randox support if you think this is incorrect."
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "500",
+                                    "message": "Internal error."
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/TestItem/GetTests": {
+            "get": {
+                "summary": "Get Tests",
+                "description": "Get a list of tests assigned to your clinic",
+                "operationId": "get-tests",
+                "responses": {
+                    "200": {
+                        "description": "Got testing reasons successfully",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": [
+                                    {
+                                        "id": 632,
+                                        "name": "01 LIPIDS",
+                                        "code": "LIPIDS",
+                                        "stabilityTime": 1,
+                                        "sampleTubes": [
+                                            {
+                                                "id": 1,
+                                                "name": "SST Gel Separator Vacutainer (8ml Gold)",
+                                                "quantityRequired": 1
+                                            }
+                                        ],
+                                        "cost": 0,
+                                        "currency": null
+                                    },
+                                    {
+                                        "id": 629,
+                                        "name": "01 NEWSON_HEALTH_1",
+                                        "code": "NEWSON_HEALTH_1",
+                                        "stabilityTime": 1,
+                                        "sampleTubes": [
+                                            {
+                                                "id": 1,
+                                                "name": "SST Gel Separator Vacutainer (8ml Gold)",
+                                                "quantityRequired": 1
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "400",
+                                    "message": "Bad Request: The submitted request is not a valid JSON or order id is invalid or missing."
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization failure",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "status": "401",
+                                    "message": "Unauthorized: You are not authorized to make this call, contact Randox support if you think this is incorrect."
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "500",
+                                    "message": "Internal error."
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/Order/CreatePendingOrder": {
+            "post": {
+                "tags": [
+                    "Order"
+                ],
+                "summary": "Create Pending Order",
+                "description": "Create Pending Order should be called if only initial test order details have been captured and Sample Collection is to take place at later date i.e. In Clinic Booking, Home Testing Kit.\n\nExternalNumber - This is returned in the success response and corresponds to the OrderNumber",
+                "operationId": "create-pending-order",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreatePendingOrderRequest"
+                            },
+                            "example": {
+                                "FirstName": "Joe",
+                                "LastName": "Bloggs",
+                                "DateOfBirth": "2001-01-01",
+                                "BiologicalSexId": 1,
+                                "TestClinicLocationId": 10,
+                                "PanelIds": [
+                                    1
+                                ],
+                                "TestIds": [],
+                                "IsHealthCheckPanelReport": false,
+                                "IsCvScoreRequired": false,
+                                "TestReasons": [
+                                    {
+                                        "Id": 1,
+                                        "Details": "Test Reason Details"
+                                    },
+                                    {
+                                        "Id": 3,
+                                        "Details": "More Test Reason Details"
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "orderId": 10300,
+                                    "externalNumber": "GC1123-00010300"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "400",
+                                    "message": "Bad Request: The submitted request is not a valid JSON or order id is invalid or missing."
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization failure",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "status": "401",
+                                    "message": "Unauthorized: You are not authorized to make this call, contact Randox support if you think this is incorrect."
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "500",
+                                    "message": "Internal error."
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/Order/CreateOrder": {
+            "post": {
+                "tags": [
+                    "Order"
+                ],
+                "summary": "Create Order",
+                "description": "Create Order should be called if Sample Collection has already been carried out and all details are ready to be sent through.\n\nSampleLaboratoryId - Always default to 1.\n\nSampleCollectionDate - It must include the time and be UTC: 2025-02-19T15:20 \n\nExternalNumber - This is returned in the success response and corresponds to the OrderNumber",
+                "operationId": "create-order",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "example": {
+                                "Patient": {
+                                    "FirstName": "Joe",
+                                    "LastName": "Bloggs",
+                                    "DateOfBirth": "2001-01-01",
+                                    "IsHealthCheckPanelReport": true,
+                                    "IsCvScoreRequired": false,
+                                    "Height": 180,
+                                    "Weight": 100,
+                                    "Waist": 40,
+                                    "Hip": 10,
+                                    "Pulse": 70,
+                                    "SystolicBloodPressure": 80,
+                                    "DiastolicBloodPressure": 60,
+                                    "Diabetic": false,
+                                    "Smoker": true,
+                                    "KnownVascularDisease": false,
+                                    "OnMedForHypertension": true,
+                                    "TestClinicLocationId": 10,
+                                    "EthnicityId": 1,
+                                    "BiologicalSexId": 1
+                                },
+                                "PanelIds": [
+                                    1
+                                ],
+                                "TestIds": [],
+                                "TestReasons": [
+                                    {
+                                        "Id": "1",
+                                        "Details": "Test Reason Details"
+                                    },
+                                    {
+                                        "Id": "3",
+                                        "Details": "More Test Reason Details"
+                                    }
+                                ],
+                                "SampleCollection": {
+                                    "SampleCollectionDate": "2025-04-19T03:20:00.0000000+00:00",
+                                    "SampleCollectionComment": "Hello",
+                                    "SampleLaboratoryId": 1,
+                                    "SampleTubes": [
+                                        {
+                                            "Id": 1,
+                                            "QuantityRequired": 2
+                                        },
+                                        {
+                                            "Id": 3,
+                                            "QuantityRequired": 3
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "orderId": 10300,
+                                    "externalNumber": "GC1123-00010300"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "400",
+                                    "message": "Bad Request: The submitted request is not a valid JSON or order id is invalid or missing."
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization failure",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "status": "401",
+                                    "message": "Unauthorized: You are not authorized to make this call, contact Randox support if you think this is incorrect."
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "500",
+                                    "message": "Internal error."
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/Order/UpdatePendingOrder": {
+            "post": {
+                "tags": [
+                    "Order"
+                ],
+                "summary": "Update Pending Order",
+                "description": "Update an existing Pending Order details.\n\nExternalNumber - This is returned in the success response and corresponds to the OrderNumber",
+                "operationId": "update-pending-order",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "example": {
+                                "OrderId": 94,
+                                "OrderNumber": "",
+                                "FirstName": "Joe",
+                                "LastName": "Bloggs",
+                                "DateOfBirth": "2001-01-01",
+                                "BiologicalSexId": 1,
+                                "TestClinicLocationId": 10,
+                                "PanelIds": [
+                                    1
+                                ],
+                                "TestIds": [],
+                                "IsHealthCheckPanelReport": true,
+                                "IsCvScoreRequired": false,
+                                "TestReasons": [
+                                    {
+                                        "Id": "1",
+                                        "Details": "Test Reason Details"
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "orderId": 10300,
+                                    "externalNumber": "GC1123-00010300"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "400",
+                                    "message": "Bad Request: The submitted request is not a valid JSON or order id is invalid or missing."
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization failure",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "status": "401",
+                                    "message": "Unauthorized: You are not authorized to make this call, contact Randox support if you think this is incorrect."
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "500",
+                                    "message": "Internal error."
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/Order/UpdateOrder": {
+            "post": {
+                "tags": [
+                    "Order"
+                ],
+                "summary": "Update Order",
+                "description": "Update an existing Order. If the order is currently Pending, this will move the Order forward to Sample Collection submitted. All order details must be provided again. Anything omitted will be taken as a removal i.e. if PanelIds is left blank, it will remove any existing Panels associated with the Order. \n\nSampleLaboratoryId - Always default to 1.\n\nSampleCollectionDate - It must include the time and be UTC: 2025-02-19T15:20\n\nExternalNumber - This is returned in the success response and corresponds to the OrderNumber ",
+                "operationId": "update-order",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "example": {
+                                "OrderId": 92,
+                                "OrderNumber": "",
+                                "Patient": {
+                                    "FirstName": "Joe",
+                                    "LastName": "Bloggs",
+                                    "DateOfBirth": "2001-01-01",
+                                    "BiologicalSexId": 1,
+                                    "TestClinicLocationId": 10,
+                                    "IsHealthCheckPanelReport": false,
+                                    "IsCvScoreRequired": false,
+                                    "Height": 180,
+                                    "Weight": 100,
+                                    "Hip": 10,
+                                    "Pulse": 70,
+                                    "SystolicBloodPressure": 120,
+                                    "DiastolicBloodPressure": 80,
+                                    "Diabetic": false,
+                                    "Smoker": true,
+                                    "KnownVascularDisease": false,
+                                    "OnMedForHypertension": true,
+                                    "EthnicityId": 1
+                                },
+                                "PanelIds": [
+                                    1
+                                ],
+                                "TestIds": [],
+                                "TestReasons": [
+                                    {
+                                        "Id": "1",
+                                        "Details": "Test Reason Details"
+                                    },
+                                    {
+                                        "Id": "3",
+                                        "Details": "More Test Reason Details"
+                                    }
+                                ],
+                                "SampleCollection": {
+                                    "SampleCollectionDate": "2025-04-19T03:20:00.0000000+00:00",
+                                    "SampleCollectionComment": "Hello",
+                                    "SampleLaboratoryId": 1,
+                                    "SampleTubes": [
+                                        {
+                                            "Id": 1,
+                                            "QuantityRequired": 2
+                                        },
+                                        {
+                                            "Id": 3,
+                                            "QuantityRequired": 3
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "orderId": 10300,
+                                    "externalNumber": "GC1123-00010300"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "400",
+                                    "message": "Bad Request: The submitted request is not a valid JSON or order id is invalid or missing."
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization failure",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "status": "401",
+                                    "message": "Unauthorized: You are not authorized to make this call, contact Randox support if you think this is incorrect."
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "500",
+                                    "message": "Internal error."
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/Order/CancelOrder": {
+            "post": {
+                "tags": [
+                    "Order"
+                ],
+                "summary": "Cancel Order",
+                "description": "Cancel an order",
+                "operationId": "cancel-order",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "example": {
+                                "ClinicId": 10,
+                                "OrderId": 34,
+                                "OrderNumber": "",
+                                "CancellationReasonId": "3"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Cancelled order successfully.",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "200",
+                                    "message": "Cancelled order successfully."
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "400",
+                                    "message": "Bad Request: The submitted request is not a valid JSON or order id is invalid or missing."
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization failure",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "status": "401",
+                                    "message": "Unauthorized: You are not authorized to make this call, contact Randox support if you think this is incorrect."
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "500",
+                                    "message": "Internal error."
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/Order/UpdateConsultationNote": {
+            "post": {
+                "tags": [
+                    "Order"
+                ],
+                "summary": "Update Consultation Note",
+                "description": "Update consultation notes",
+                "operationId": "update-consultation-note",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "example": {
+                                "orderId": 91,
+                                "orderNumber": "",
+                                "clinicId": 10,
+                                "consultationNotes": [
+                                    {
+                                        "id": 1,
+                                        "details": "Test"
+                                    },
+                                    {
+                                        "id": 2,
+                                        "details": "Test 1"
+                                    },
+                                    {
+                                        "id": 3,
+                                        "details": "Test 2"
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Consultation notes updated successfully.",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "200",
+                                    "message": "Consultation note updated successfully."
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "400",
+                                    "message": "Bad Request: The submitted request is not a valid JSON or order id is invalid or missing."
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization failure",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "status": "401",
+                                    "message": "Unauthorized: You are not authorized to make this call, contact Randox support if you think this is incorrect."
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "500",
+                                    "message": "Internal error."
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/Order/GetOrderResultReports": {
+            "post": {
+                "tags": [
+                    "Order"
+                ],
+                "summary": "Get Order Result Reports",
+                "description": "This returns the lab report or scalebar report (if isHealthCheckPanelReport = true) as base64 string that can be converted to pdf file.",
+                "operationId": "get-order-result-reports",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "example": {
+                                "orderId": 91,
+                                "orderNumber": "",
+                                "clinicId": 10
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Retrieved order result reports successfully.",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "orderId": 13,
+                                    "orderNumber": "C1-00000013",
+                                    "reportResults": "QwkbgQAAOgFQTMAAN+LDDexZHhu6asX/K+d1XsrD++nbH//nr1jx36esgUAAKBHBM0AAHwvMtxIclPmYmH51ov/wVxyUfP0O+8nbgEAAOgFQTMAABVkuPPL364/3Xjxv1no3Fp7/JylArfv0ODBN197PWULAABALwiaAQD4bycOH40M"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "400",
+                                    "message": "Bad Request: The submitted request is not a valid JSON or order id is invalid or missing."
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization failure",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "status": "401",
+                                    "message": "Unauthorized: You are not authorized to make this call, contact Randox support if you think this is incorrect."
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "500",
+                                    "message": "Internal error."
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/Order/GetOrderResultDetail": {
+            "post": {
+                "tags": [
+                    "Order"
+                ],
+                "summary": "Get Order Result Detail",
+                "description": "This returns the raw lab report data in JSON format.\n\nReport Results -> DateOfReceipt & DateOfReport will be returned in Europe/London timezone. All other times will be UTC.\n",
+                "operationId": "get-order-result-detail",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "example": {
+                                "orderId": 91,
+                                "orderNumber": "",
+                                "clinicId": 10
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Retrieved order result details successfully.",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "orderId": 0,
+                                    "orderNumber": "string",
+                                    "orderCreatedDate": "2024-08-01T08:45:10.0000000+00:00",
+                                    "sampleCollectionDate": "2024-08-01T08:45:10.0000000+00:00",
+                                    "sampleAccessioningDate": "2024-08-01T08:45:10.0000000+00:00",
+                                    "sampleCancellationDate": "2024-08-01T08:45:10.0000000+00:00",
+                                    "resultsUploadDate": "2024-08-01T08:45:10.0000000+00:00",
+                                    "reportResults": [
+                                        {
+                                            "orderNumber": "string",
+                                            "dateOfReceipt": "2024-08-01T08:45:10.0000000+00:00",
+                                            "dateOfReport": "2024-08-01T08:45:10.0000000+00:00",
+                                            "analyte": "string",
+                                            "group": "string",
+                                            "result": "string",
+                                            "units": "string",
+                                            "refLow": "string",
+                                            "refHigh": "string",
+                                            "lowHigh": "string",
+                                            "sampleType": "string",
+                                            "caveat": "string",
+                                            "displayName": "string"
+                                        }
+                                    ],
+                                    "patientHeight": 0,
+                                    "patientWeight": 0,
+                                    "patientWaist": 0,
+                                    "patientHip": 0,
+                                    "patientPulse": 0,
+                                    "patientSystolicBloodPressure": 0,
+                                    "patientDiastolicBloodPressure": 0,
+                                    "patientIsDiabetic": true,
+                                    "patientIsSmoker": true,
+                                    "patientKnownVascularDisease": true,
+                                    "patientOnMedicationforHypertension": true,
+                                    "patientEthnicity": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "400",
+                                    "message": "Bad Request: The submitted request is not a valid JSON or order id is invalid or missing."
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization failure",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "status": "401",
+                                    "message": "Unauthorized: You are not authorized to make this call, contact Randox support if you think this is incorrect."
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "500",
+                                    "message": "Internal error."
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "CreatePendingOrderRequest": {
+                "required": [
+                    "FirstName",
+                    "LastName",
+                    "DateOfBirth",
+                    "BiologicalSexId",
+                    "TestClinicLocationId",
+                    "IsHealthCheckPanelReport",
+                    "TestReasons"
+                ],
+                "type": "object",
+                "properties": {
+                    "FirstName": {
+                        "type": "string"
+                    },
+                    "LastName": {
+                        "type": "string"
+                    },
+                    "DateOfBirth": {
+                        "type": "string"
+                    },
+                    "BiologicalSexId": {
+                        "type": "integer"
+                    },
+                    "TestClinicLocationId": {
+                        "type": "integer"
+                    },
+                    "PanelIds": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        }
+                    },
+                    "TestIds": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        }
+                    },
+                    "IsHealthCheckPanelReport": {
+                        "type": "boolean"
+                    },
+                    "IsCvScoreRequired": {
+                        "type": "boolean"
+                    },
+                    "TestReasons": {
+                        "type": "array",
+                        "items": {
+                            "required": [
+                                "Id",
+                                "Details"
+                            ],
+                            "type": "object",
+                            "properties": {
+                                "Id": {
+                                    "type": "integer"
+                                },
+                                "Details": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "securitySchemes": {
+            "apiKeyHeader": {
+                "type": "apiKey",
+                "name": "Ocp-Apim-Subscription-Key",
+                "in": "header"
+            },
+            "apiKeyQuery": {
+                "type": "apiKey",
+                "name": "subscription-key",
+                "in": "query"
+            }
+        }
+    },
+    "security": [
+        {
+            "apiKeyHeader": []
+        },
+        {
+            "apiKeyQuery": []
+        }
+    ]
+}

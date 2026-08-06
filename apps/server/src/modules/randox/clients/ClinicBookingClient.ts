@@ -1,7 +1,7 @@
 import { RandoxHttpClient } from '../http/RandoxHttpClient.js';
 import { bookingConnection } from '../config.js';
 import type { ClinicBookingClient } from './types.js';
-import { pickArray, pickString, requireString, toUtcIso } from './parse.js';
+import { pickArray, pickNumber, pickString, requireString, toUtcIso } from './parse.js';
 import type {
   RandoxServiceLocation,
   RandoxAvailabilitySlot,
@@ -14,24 +14,42 @@ import type {
 const HOLD_DURATION_MS = 30 * 60 * 1000;
 
 /**
- * Clinic Booking API — in-clinic appointments only. Home-kit and mobile
- * phlebotomy orders never touch this client (no slot to book).
+ * Clinic Booking API — in-clinic appointments only. Home-kit orders never
+ * touch this client (there is no slot to book).
  *
- * Every timestamp crossing this boundary is UTC, converted through
- * toUtcIso() so a response without an explicit zone designator can't be
- * reinterpreted as server-local time.
+ * UNVERIFIED. No OpenAPI specification for this API has been provided —
+ * access is still pending. The endpoint PATHS and the call order below come
+ * from the Randox flow PDFs in specs/ and are documented fact:
+ * /Locations/GetServiceLocations, /Availability/AvailabilityDetails,
+ * /RandoxBookings/HoldAvailabilityBooking,
+ * /RandoxBookings/CreateRandoxBooking, plus CancelRandoxBooking and
+ * RescheduleAppointment.
+ *
+ * The request and response BODIES are not documented anywhere we have, so
+ * every property name here is an assumption, read through the tolerant
+ * helpers in parse.ts — a name guessed wrong degrades to "field absent",
+ * which is handled, rather than crashing. When the real spec lands, this
+ * file and the Clinic Booking section of types.ts are what change; nothing
+ * above them does.
+ *
+ * Availability is documented as UTC. Every timestamp crossing this boundary
+ * goes through toUtcIso() so a response without an explicit zone designator
+ * cannot be reinterpreted as server-local time.
  */
 export class LiveClinicBookingClient implements ClinicBookingClient {
   private readonly http = new RandoxHttpClient(bookingConnection());
 
   async getServiceLocations(): Promise<RandoxServiceLocation[]> {
-    const body = await this.http.request<unknown>('GetServiceLocations');
+    const body = await this.http.request<unknown>('Locations/GetServiceLocations');
     return pickArray(body, 'serviceLocations', 'ServiceLocations', 'locations').map((raw) => ({
       id: requireString(raw, 'a service location id', 'id', 'Id', 'serviceLocationId', 'locationId'),
       name: pickString(raw, 'name', 'Name', 'locationName', 'siteName') ?? 'Unnamed location',
       addressLine1: pickString(raw, 'addressLine1', 'AddressLine1', 'address1', 'address'),
-      city: pickString(raw, 'city', 'City', 'town'),
-      postcode: pickString(raw, 'postcode', 'Postcode', 'postCode', 'zip'),
+      city: pickString(raw, 'city', 'City', 'town', 'townCity'),
+      postcode: pickString(raw, 'postcode', 'Postcode', 'postCode', 'postalCode'),
+      // Documented as present, for "closest to" sorting we do ourselves.
+      latitude: pickNumber(raw, 'latitude', 'Latitude', 'lat'),
+      longitude: pickNumber(raw, 'longitude', 'Longitude', 'lng', 'long'),
     }));
   }
 
@@ -40,7 +58,7 @@ export class LiveClinicBookingClient implements ClinicBookingClient {
     fromIsoDate: string,
     toIsoDate: string,
   ): Promise<RandoxAvailabilitySlot[]> {
-    const body = await this.http.request<unknown>('AvailabilityDetails', {
+    const body = await this.http.request<unknown>('Availability/AvailabilityDetails', {
       query: { serviceLocationId, fromDate: fromIsoDate, toDate: toIsoDate },
     });
 
@@ -62,7 +80,7 @@ export class LiveClinicBookingClient implements ClinicBookingClient {
     serviceLocationId: string,
     slotReference: string,
   ): Promise<HoldAvailabilityBookingResponse> {
-    const body = await this.http.request<unknown>('HoldAvailabilityBooking', {
+    const body = await this.http.request<unknown>('RandoxBookings/HoldAvailabilityBooking', {
       method: 'POST',
       body: { serviceLocationId, slotReference },
     });
@@ -79,7 +97,7 @@ export class LiveClinicBookingClient implements ClinicBookingClient {
   }
 
   async createRandoxBooking(request: CreateRandoxBookingRequest): Promise<CreateRandoxBookingResponse> {
-    const body = await this.http.request<unknown>('CreateRandoxBooking', {
+    const body = await this.http.request<unknown>('RandoxBookings/CreateRandoxBooking', {
       method: 'POST',
       body: {
         holdReference: request.holdReference,
@@ -108,7 +126,7 @@ export class LiveClinicBookingClient implements ClinicBookingClient {
   }
 
   async cancelRandoxBooking(bookingReference: string, orderNumber: string): Promise<void> {
-    await this.http.request<unknown>('CancelRandoxBooking', {
+    await this.http.request<unknown>('RandoxBookings/CancelRandoxBooking', {
       method: 'POST',
       body: { bookingReference, GPExternalNumber: orderNumber },
       windowedOperation: { name: 'CancelRandoxBooking', orderNumber },
@@ -121,7 +139,7 @@ export class LiveClinicBookingClient implements ClinicBookingClient {
     newSlotReference: string,
     newStartUtc: string,
   ): Promise<CreateRandoxBookingResponse> {
-    const body = await this.http.request<unknown>('RescheduleAppointment', {
+    const body = await this.http.request<unknown>('RandoxBookings/RescheduleAppointment', {
       method: 'POST',
       body: { bookingReference, GPExternalNumber: orderNumber, slotReference: newSlotReference, startUtc: newStartUtc },
       windowedOperation: { name: 'RescheduleAppointment', orderNumber },

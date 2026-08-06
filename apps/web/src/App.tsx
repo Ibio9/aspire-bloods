@@ -5,6 +5,7 @@ import { PageTransition } from './components/PageTransition';
 import { LoginPage } from './features/auth/LoginPage';
 import { ActivatePage } from './features/auth/ActivatePage';
 import { SignupPage } from './features/auth/SignupPage';
+import { VerifyEmailPage } from './features/auth/VerifyEmailPage';
 import { ProtectedRoute } from './features/auth/ProtectedRoute';
 import { NotFoundPage } from './features/nav/NotFoundPage';
 import { RoleProtectedRoute } from './features/auth/RoleProtectedRoute';
@@ -12,9 +13,11 @@ import { HomeRouter } from './features/auth/HomeRouter';
 import { AdminReportsPage } from './features/admin/AdminReportsPage';
 import { ReportDetailPage } from './features/admin/ReportDetailPage';
 import { PatientsListPage } from './features/admin/PatientsListPage';
+import { LinkingPage } from './features/admin/LinkingPage';
 import { PatientDetailPage } from './features/admin/PatientDetailPage';
 import { AuditLogPage } from './features/admin/AuditLogPage';
 import { IngestionLogPage } from './features/admin/IngestionLogPage';
+import { RandoxCataloguePage } from './features/admin/RandoxCataloguePage';
 import { ContentConfigPage } from './features/admin/ContentConfigPage';
 import { PatientOverview } from './features/patient/PatientOverview';
 import { PatientHome } from './features/patient/PatientHome';
@@ -25,6 +28,10 @@ import { DocumentsPage } from './features/patient/DocumentsPage';
 import { ReportView } from './features/patient/ReportView';
 import { MarkerDetailPage } from './features/patient/MarkerDetailPage';
 import { AccountPage } from './features/patient/AccountPage';
+import { BookingPage } from './features/booking/BookingPage';
+import { AppointmentsPage } from './features/booking/AppointmentsPage';
+import { AppointmentDetailPage } from './features/booking/AppointmentDetailPage';
+import { ReschedulePage } from './features/booking/ReschedulePage';
 import { AdminShell } from './components/nav/AdminShell';
 import { PatientShell } from './components/nav/PatientShell';
 import { Footer } from './components/Footer';
@@ -52,6 +59,7 @@ export default function App() {
               <Route path="/login" element={<PageTransition><LoginPage /></PageTransition>} />
               <Route path="/activate" element={<PageTransition><ActivatePage /></PageTransition>} />
               <Route path="/signup" element={<PageTransition><SignupPage /></PageTransition>} />
+              <Route path="/verify-email" element={<PageTransition><VerifyEmailPage /></PageTransition>} />
               <Route
                 path="/"
                 element={
@@ -72,6 +80,14 @@ export default function App() {
                 }
               >
                 <Route path="/overview" element={<PatientOverview />} />
+                {/* Booking — the flow itself, the diary, and one appointment.
+                    `/appointments/:id` doubles as the confirmation screen
+                    (with ?booked=1) so the summary a patient checks before
+                    confirming is the same one they come back to. */}
+                <Route path="/book" element={<BookingPage />} />
+                <Route path="/appointments" element={<AppointmentsPage />} />
+                <Route path="/appointments/:id" element={<AppointmentDetailPage />} />
+                <Route path="/appointments/:id/reschedule" element={<ReschedulePage />} />
                 <Route path="/my-results" element={<PatientHome />} />
                 <Route path="/markers" element={<AllMarkersPage />} />
                 <Route path="/trends" element={<TrendsPage />} />
@@ -107,6 +123,11 @@ export default function App() {
               >
                 <Route path="/admin/audit-log" element={<AuditLogPage />} />
                 <Route path="/admin/ingestion-log" element={<IngestionLogPage />} />
+                <Route path="/admin/randox-catalogue" element={<RandoxCataloguePage />} />
+                {/* Deciding whose results these are is a records action, and
+                    the one the practice most wants a single accountable
+                    identity attached to — ADMIN only, like the audit log. */}
+                <Route path="/admin/linking" element={<LinkingPage />} />
               </Route>
 
               {/* Dev-only design system review — tree-shaken out of production builds entirely, not just hidden. */}

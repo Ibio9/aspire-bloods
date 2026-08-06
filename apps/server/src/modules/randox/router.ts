@@ -10,6 +10,12 @@ import { RandoxOrderError, placeOrder, amendOrder, cancelOrder } from './orderSe
 import { listServiceLocations, listAvailability, holdSlot, confirmBooking, cancelBooking, rescheduleBooking } from './bookingService.js';
 import { onOrderStatusChanged } from './pollingJob.js';
 import { randoxConfigSummary, enabledCollectionMethods, RandoxConfigError } from './config.js';
+import {
+  refreshReferenceData,
+  catalogueReconciliation,
+  listCatalogue,
+  setCatalogueMapping,
+} from './referenceDataService.js';
 
 /**
  * Staff-facing Randox routes. Ordering, booking and forcing a status check
@@ -62,6 +68,106 @@ randoxRouter.get(
   asyncHandler(async (_req, res) => {
     const codes = await prisma.randoxUnknownCode.findMany({ orderBy: { lastSeenAt: 'desc' }, take: 200 });
     res.json(codes);
+  }),
+);
+
+// --- Randox's own catalogue, and how it lines up with ours ----------------
+
+// Randox's live panel/test list beside ours, with everything that doesn't
+// line up called out. Our catalogue was seeded from a pricing email, so
+// divergence is expected — this is the screen that makes it visible rather
+// than letting it surface as a failed order.
+randoxRouter.get(
+  '/catalogue',
+  roleGuard('ADMIN'),
+  asyncHandler(async (_req, res) => {
+    try {
+      res.json(await catalogueReconciliation());
+    } catch (e) {
+      if (!handleRandoxError(e, res)) throw e;
+    }
+  }),
+);
+
+const catalogueKindSchema = z.object({
+  kind: z.enum(['PANEL', 'TEST', 'BIOLOGICAL_SEX', 'ETHNICITY', 'TESTING_REASON', 'CANCELLATION_REASON', 'CLINIC_LOCATION']),
+});
+
+randoxRouter.get(
+  '/catalogue/:kind',
+  roleGuard('ADMIN'),
+  asyncHandler(async (req, res) => {
+    const parsed = catalogueKindSchema.safeParse(req.params);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    res.json(await listCatalogue(parsed.data.kind));
+  }),
+);
+
+// Refetches all seven reference sets. Deliberately manual rather than on a
+// schedule: it's a handful of calls a few times a year, and an admin
+// running it is an admin who is about to look at the result.
+randoxRouter.post(
+  '/catalogue/refresh',
+  roleGuard('ADMIN'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    try {
+      res.json({ summaries: await refreshReferenceData(req.user!.id) });
+    } catch (e) {
+      if (handleRandoxError(e, res)) return;
+      // A partial refresh reports which sets failed rather than pretending
+      // the whole thing did — the ones that succeeded were still saved.
+      res.status(502).json({ error: e instanceof Error ? e.message : 'Refresh failed.' });
+    }
+  }),
+);
+
+const mappingSchema = z.object({
+  // null unmaps. Nothing here is automatic: a name match between
+  // "01 LIPIDS" and our "Lipid Profile" is suggestive, not conclusive, and
+  // a wrong panel mapping orders the wrong tests for a real patient.
+  mappedKey: z.string().min(1).max(200).nullable(),
+});
+
+randoxRouter.patch(
+  '/catalogue/entry/:id',
+  roleGuard('ADMIN'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const parsed = mappingSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    try {
+      await setCatalogueMapping(req.params.id, parsed.data.mappedKey, req.user!.id, req.ip ?? null);
+      res.json({ ok: true });
+    } catch (e) {
+      if (handleRandoxError(e, res)) return;
+      res.status(400).json({ error: e instanceof Error ? e.message : 'Could not save that mapping.' });
+    }
+  }),
+);
+
+// Patients who cannot be ordered for yet. CreatePendingOrder requires
+// BiologicalSexId, but self-registration asks for sex optionally — so an
+// account can exist that no order can be placed against. Surfaced here so
+// staff find out before they try, not at the point of ordering.
+randoxRouter.get(
+  '/patients-not-orderable',
+  roleGuard('ADMIN'),
+  asyncHandler(async (_req, res) => {
+    const patients = await prisma.user.findMany({
+      where: { role: 'PATIENT', status: { not: 'DISABLED' }, patientProfile: { sex: null } },
+      include: { patientProfile: true },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+    res.json(
+      patients.map((p) => ({
+        patientId: p.id,
+        email: p.email,
+        displayName: p.patientProfile ? `${p.patientProfile.firstName} ${p.patientProfile.lastName}` : p.email,
+        missing: ['biological sex'],
+      })),
+    );
   }),
 );
 

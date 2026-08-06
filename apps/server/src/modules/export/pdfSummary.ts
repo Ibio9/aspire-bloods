@@ -40,7 +40,9 @@ export async function generateAspireSummaryPdf(reportId: string): Promise<Buffer
 
   const profile = report.patient.patientProfile;
   const patientName = profile ? `${profile.title ? profile.title + ' ' : ''}${profile.firstName} ${profile.lastName}` : report.patient.email;
-  const address = profile ? decryptField(profile.addressEncrypted) : '';
+  // Optional since self-registration: the recipient block simply omits the
+  // address line rather than printing a blank one.
+  const address = profile?.addressEncrypted ? decryptField(profile.addressEncrypted) : '';
 
   const chunks: Buffer[] = [];
   const doc = new PDFDocument({ size: 'A4', margin: 56 });

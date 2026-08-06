@@ -236,8 +236,44 @@ export function isCollectionMethodEnabled(method: string): method is CollectionM
   return enabledCollectionMethods().includes(method as CollectionMethod);
 }
 
-export function randoxClinicId(): string {
-  return env.RANDOX_CLINIC_ID;
+/**
+ * Our clinic id, as the integer Randox use on the wire
+ * (GetMyClinicDetails returns `id: 146`). Returns null when unset, so
+ * callers refuse rather than sending 0 — clinic 0 is not our clinic.
+ */
+export function randoxClinicId(): number | null {
+  const raw = env.RANDOX_CLINIC_ID.trim();
+  if (raw === '') return null;
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) ? parsed : null;
+}
+
+/**
+ * TestClinicLocationId for CreatePendingOrder. A clinic with one site has
+ * the same value as the clinic id; a clinic with several has a distinct id
+ * per test location (see GetMyClinicDetails clinicTestLocations), so it is
+ * separately configurable and falls back to the clinic id.
+ */
+export function randoxTestClinicLocationId(): number | null {
+  const raw = env.RANDOX_TEST_CLINIC_LOCATION_ID.trim();
+  if (raw === '') return randoxClinicId();
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) ? parsed : null;
+}
+
+/** The testing reason sent on every order. Required non-empty by the spec. */
+export function defaultTestReason(): { Id: number; Details: string } | null {
+  const raw = env.RANDOX_DEFAULT_TEST_REASON_ID.trim();
+  if (raw === '') return null;
+  const id = Number(raw);
+  if (!Number.isInteger(id)) return null;
+  return { Id: id, Details: env.RANDOX_DEFAULT_TEST_REASON_DETAILS };
+}
+
+/** CancelOrder takes a reason id from GetCancellationReasons, not free text. */
+export function defaultCancellationReasonId(): string | null {
+  const raw = env.RANDOX_DEFAULT_CANCELLATION_REASON_ID.trim();
+  return raw === '' ? null : raw;
 }
 
 /** 'mock' runs the whole flow against fixtures; 'live' hits Randox. */
@@ -290,7 +326,9 @@ export function assertRandoxConfigured(): void {
   const booking = bookingConnection();
 
   const required: RequiredVar[] = [
-    { name: 'RANDOX_CLINIC_ID', value: env.RANDOX_CLINIC_ID, why: 'every CreatePendingOrder call must carry the clinic id Randox issued us' },
+    { name: 'RANDOX_CLINIC_ID', value: env.RANDOX_CLINIC_ID, why: 'CancelOrder and both result endpoints take clinicId; it comes from GET /Clinic/GetMyClinicDetails' },
+    { name: 'RANDOX_DEFAULT_TEST_REASON_ID', value: env.RANDOX_DEFAULT_TEST_REASON_ID, why: 'CreatePendingOrder requires a non-empty TestReasons array; ids come from GET /TestReason/GetTestingReasons' },
+    { name: 'RANDOX_DEFAULT_CANCELLATION_REASON_ID', value: env.RANDOX_DEFAULT_CANCELLATION_REASON_ID, why: 'CancelOrder takes a CancellationReasonId, not free text; ids come from GET /CancellationReason/GetCancellationReasons' },
     { name: 'RANDOX_NEXUS_BASE_URL', value: nexus.baseUrl, why: 'Nexus Lab API root' },
     { name: 'RANDOX_NEXUS_CLIENT_ID', value: nexus.clientId, why: 'Azure B2C client id for Nexus Lab' },
     { name: 'RANDOX_NEXUS_SCOPE', value: nexus.scope, why: 'ROPC token request needs the Nexus scope' },
@@ -306,6 +344,12 @@ export function assertRandoxConfigured(): void {
     { name: 'RANDOX_BOOKING_USERNAME (or RANDOX_USERNAME)', value: booking.username, why: 'ROPC is a password grant — it needs a service account' },
     { name: 'RANDOX_BOOKING_PASSWORD (or RANDOX_PASSWORD)', value: booking.password, why: 'ROPC is a password grant — it needs a service account' },
   ];
+
+  if (env.RANDOX_CLINIC_ID.trim() !== '' && randoxClinicId() === null) {
+    throw new RandoxConfigError(
+      `Refusing to boot: RANDOX_CLINIC_ID is "${env.RANDOX_CLINIC_ID}", which is not an integer. Randox issue clinic ids as integers (GetMyClinicDetails returns e.g. 146).`,
+    );
+  }
 
   const missing = required.filter((v) => !v.value || v.value.trim() === '');
   if (missing.length > 0) {
@@ -360,7 +404,13 @@ export function randoxConfigSummary() {
   return {
     enabled: isRandoxEnabled(),
     transport: randoxTransport(),
-    clinicIdConfigured: env.RANDOX_CLINIC_ID.trim() !== '',
+    clinicId: randoxClinicId(),
+    testClinicLocationId: randoxTestClinicLocationId(),
+    clinicIdConfigured: randoxClinicId() !== null,
+    testReasonConfigured: defaultTestReason() !== null,
+    cancellationReasonConfigured: defaultCancellationReasonId() !== null,
+    healthCheckPanelReport: env.RANDOX_HEALTH_CHECK_PANEL_REPORT,
+    cvScoreRequired: env.RANDOX_CV_SCORE_REQUIRED,
     collectionMethods: enabledCollectionMethods(),
     nexus: {
       baseUrl: nexus.baseUrl,

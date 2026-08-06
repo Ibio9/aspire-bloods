@@ -19,6 +19,12 @@ enum UserRole {
 
 enum UserStatus {
   INVITED
+  // Self-registered but the email address hasn't been proved yet. The
+  // account exists and holds nothing — no results are ever attached to an
+  // account in this state, and login() rejects it exactly as it rejects
+  // INVITED. Becomes ACTIVE the moment the emailed link is opened, which
+  // is the point 2FA enrolment begins.
+  PENDING_VERIFICATION
   ACTIVE
   DISABLED
 }
@@ -132,6 +138,7 @@ model User {
   patientProfile    PatientProfile?
   staffProfile      StaffProfile?
   inviteTokens      InviteToken[]
+  emailVerificationTokens EmailVerificationToken[]
   otpCodes          OtpCode[]
   refreshTokens     RefreshToken[]
   trustedDevices    TrustedDevice[]
@@ -158,10 +165,15 @@ model PatientProfile {
   firstName                       String
   lastName                        String
   sex                             Sex?
+  // DOB and contact number are the two fields an admin matches an incoming
+  // result against (see modules/admin/linkingService.ts), so both are
+  // captured at self-signup and stay required. Address and postcode are
+  // not part of that decision and are optional — they're asked for at
+  // invite-activation, and can be filled in later otherwise.
   dobEncrypted                    String
   contactNumberEncrypted          String
-  addressEncrypted                String
-  postcode                        String
+  addressEncrypted                String?
+  postcode                        String?
   gpName                          String?
   gpAddressEncrypted              String?
   medicationEncrypted              String?
@@ -184,6 +196,24 @@ model StaffProfile {
 }
 
 model InviteToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+// Self-registration only. Deliberately a separate model from InviteToken
+// even though the shape is nearly identical: an invite is the practice
+// vouching for someone and carries a 7-day expectation, whereas this is
+// only ever "prove you can read this mailbox" and is short-lived. Conflating
+// them would mean one TTL, one audit action, and one revocation story for
+// two genuinely different events.
+model EmailVerificationToken {
   id        String    @id @default(uuid())
   userId    String
   user      User      @relation(fields: [userId], references: [id])
@@ -441,6 +471,7 @@ model Report {
   // ReportResult rows: a voided value must have no row anywhere a patient
   // read path could reach it. See ReportResultExclusion.
   exclusions          ReportResultExclusion[]
+  measurements        ReportMeasurements?
   randoxOrder         RandoxOrder?
 
   createdAt DateTime @default(now())
@@ -472,6 +503,16 @@ model ReportResult {
   // Surfaced to admins always; surfaced to patients only for codes whose
   // patientSafeNote is filled in in the code map.
   caveatCodes      String[]       @default([])
+
+  // Randox's own out-of-range indicator (`lowHigh`), verbatim. Advisory
+  // only: `status` above is always computed from the value against the
+  // range, never copied from here.
+  labStatusIndicator String?
+  // True when the lab's indicator and our computed status disagree. Neither
+  // is silently preferred — the disagreement is surfaced to an admin,
+  // because it usually means the range we parsed is not the range the lab
+  // applied, and quietly picking either answer would hide that.
+  labStatusDisagrees Boolean       @default(false)
 
   // Set (and refreshed) whenever a RELEASED report's value is amended —
   // never on the pre-release verify/re-verify overwrite path, which isn't
@@ -562,6 +603,67 @@ model IngestionLogEntry {
   @@index([sourceKey])
   @@index([externalId])
   @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Unmatched results — a result set that arrived without a patient account we
+// could attach it to. Now that anyone can register, most inbound results will
+// land here first: the account and the lab order are created independently and
+// nothing ties them together automatically.
+//
+// This is deliberately NOT a Report with a null patientId. A Report is a thing
+// that belongs to someone — every read path in the app assumes that, and the
+// release state machine is built on it. An unmatched result belongs to nobody
+// yet, so it lives outside that machine entirely until an admin says whose it
+// is. Linking then creates the Report; it never mutates one into existence
+// behind the state machine's back.
+// ---------------------------------------------------------------------------
+
+enum UnmatchedResultStatus {
+  PENDING
+  LINKED
+  DISMISSED
+}
+
+model UnmatchedResult {
+  id         String  @id @default(uuid())
+  sourceKey  String
+  // The lab's own id for this result set. Unique so a redelivery updates the
+  // same pending row rather than stacking up duplicates in the admin queue.
+  externalId String? @unique
+
+  // Identity exactly as the LAB stated it — never as we guessed it. This is
+  // the entirety of what an admin has to match against, so it's stored
+  // verbatim and encrypted like every other identifier we hold.
+  claimedFirstName              String?
+  claimedLastName               String?
+  claimedDobEncrypted           String?
+  claimedContactNumberEncrypted String?
+
+  sampleDate  DateTime?
+  markerCount Int       @default(0)
+  // The normalised ParsedReport, kept whole so linking can replay it through
+  // the ordinary ingestion path. Nothing is thrown away while we wait.
+  payload     Json
+
+  status UnmatchedResultStatus @default(PENDING)
+
+  // Set on link; cleared again on unlink, which returns the row to PENDING so
+  // it goes straight back into the queue rather than disappearing. No hard
+  // deletes — a dismissed row keeps its reason and its dismisser forever.
+  linkedReportId  String?
+  linkedPatientId String?
+  linkedById      String?
+  linkedAt        DateTime?
+  dismissedAt     DateTime?
+  dismissedById   String?
+  dismissReason   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([sourceKey])
 }
 
 // ---------------------------------------------------------------------------
@@ -673,6 +775,23 @@ enum RandoxAppointmentStatus {
 model RandoxOrder {
   id          String            @id @default(uuid())
   orderNumber String            @unique
+  // Randox issue TWO identifiers per order and several endpoints want both
+  // plus the clinic id together (GetOrderResultDetail, GetOrderResultReports,
+  // CancelOrder). Both are stored rather than one being derived.
+  //
+  // orderNumber is the string reference the flow documentation calls "the
+  // main reference id", and is what CreateRandoxBooking carries as
+  // GPExternalNumber. Note CreatePendingOrder returns it under the name
+  // `externalNumber`, NOT `orderNumber` — see clients/NexusLabClient.ts.
+  //
+  // randoxOrderId is the integer CreatePendingOrder returns as `orderId`.
+  // Nullable only because rows created before it was captured may exist;
+  // an order without it cannot be polled and is stalled explicitly.
+  randoxOrderId Int?            @unique
+  // The clinic this order belongs to, captured at order time rather than
+  // read from config at call time: config can change, and a request about
+  // an old order must carry the clinic id that order actually belongs to.
+  clinicId    Int?
   patientId   String
   patient     User              @relation("PatientRandoxOrders", fields: [patientId], references: [id])
   // Staff member who placed it. Null for anything system-initiated.
@@ -792,4 +911,87 @@ model RandoxUnknownCode {
   sampleMarkerName  String?
 
   @@index([lastSeenAt])
+}
+
+// Patient measurements Randox return alongside results
+// (GetOrderResultDetail). Recorded at collection, not derived from the
+// blood sample — height, weight, blood pressure, smoking status and so on,
+// which is why they sit beside the results rather than among them.
+//
+// Kept in their own table rather than as columns on Report: every field is
+// optional, most reports have none of them, and they are a different KIND
+// of data from a lab result (self-reported or clinic-measured, not
+// assayed). No patient-facing UI reads this yet — it is stored because
+// discarding data the lab has already sent us means it cannot be recovered
+// later, and because IsCvScoreRequired depends on several of these fields.
+model ReportMeasurements {
+  id       String @id @default(uuid())
+  reportId String @unique
+  report   Report @relation(fields: [reportId], references: [id])
+
+  heightCm    Float?
+  weightKg    Float?
+  waistCm     Float?
+  hipCm       Float?
+  pulseBpm    Int?
+  systolicBp  Int?
+  diastolicBp Int?
+
+  isDiabetic                  Boolean?
+  isSmoker                    Boolean?
+  knownVascularDisease        Boolean?
+  onMedicationForHypertension Boolean?
+  // Free text as Randox report it, not our Sex/Ethnicity enum — this is
+  // their vocabulary (see GetEthnicity) and mapping it into one of ours
+  // would lose the distinction between "not asked" and "not recorded".
+  ethnicity                   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// A cached copy of Randox's own reference data (panels, tests, biological
+// sexes, ethnicities, testing reasons, cancellation reasons, clinic
+// details). Fetched from the self-serve endpoints rather than hardcoded,
+// because our catalogue was seeded from a pricing email and Randox's live
+// list is the authority on what can actually be ordered.
+//
+// One row per (kind, randoxId). Refreshed wholesale; rows that disappear
+// from Randox are marked stale rather than deleted, so an order placed
+// against a since-withdrawn panel can still be explained.
+model RandoxCatalogueEntry {
+  id       String              @id @default(uuid())
+  kind     RandoxCatalogueKind
+  // Randox's own id, as a string regardless of whether they type it as an
+  // integer — GetBiologicalSex returns "1" and GetEthnicity returns 1.
+  randoxId String
+  name     String
+  code     String?
+  // The whole entry as returned, so a field we don't model yet (sample
+  // tubes, fasting requirement, cost) is not lost.
+  payload  Json?
+
+  // Our catalogue key this maps to (Panel.key / Marker.key), set by an admin
+  // on the mapping screen. Null means unmapped — which is not an error, but
+  // is surfaced prominently because an unmapped panel cannot be ordered.
+  mappedKey String?
+  mappedAt  DateTime?
+
+  // False once Randox stop returning it. Never deleted.
+  isCurrent   Boolean  @default(true)
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  @@unique([kind, randoxId])
+  @@index([kind, isCurrent])
+}
+
+enum RandoxCatalogueKind {
+  PANEL
+  TEST
+  BIOLOGICAL_SEX
+  ETHNICITY
+  TESTING_REASON
+  CANCELLATION_REASON
+  CLINIC_LOCATION
 }

@@ -10,6 +10,7 @@ import { ArrowRightIcon, LibraryIcon, MarkersIcon, TrendsIcon } from '../../comp
 import { apiFetch } from '../../lib/api';
 import { formatRelativeDate, type ChangeItem, type PatientOverview as Overview } from '../../lib/patientPortal';
 import { MOVEMENT_COPY } from '../../lib/markerCopy';
+import { UpcomingAppointments } from '../booking/UpcomingAppointments';
 
 /**
  * The landing screen. Everything here answers one of the four questions
@@ -149,6 +150,15 @@ export function PatientOverview() {
       </header>
 
       {/* ---------------------------------------------------------------
+          Anything booked comes first. It is the only thing on this screen
+          with a deadline attached — a fast has to be started the night
+          before, and a result can be read whenever. It renders its own
+          prompt to book when the diary is empty, so the section never
+          silently disappears.
+          --------------------------------------------------------------- */}
+      <UpcomingAppointments />
+
+      {/* ---------------------------------------------------------------
           Empty state — a new patient gets an explanation of what will show
           up and when, not seven empty sections with headings on them.
           --------------------------------------------------------------- */}
@@ -159,11 +169,18 @@ export function PatientOverview() {
           </h2>
           <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
             <Card>
+              <p className="eyebrow mb-3">Your account is ready</p>
+              <p className="text-[15px] leading-relaxed text-espresso">
+                There's nothing here yet, and nothing has gone wrong — a new account simply starts empty.
+                Results appear once you've had a sample taken and the clinic has matched it to you.
+              </p>
+            </Card>
+            <Card>
               <p className="eyebrow mb-3">After your appointment</p>
               <p className="text-[15px] leading-relaxed text-espresso">
-                Your sample goes to the laboratory, and the results come back to the Aspire clinical team first. A
-                clinician reviews every result before anything is published to you — nothing appears here
-                automatically.
+                Your sample goes to the laboratory, and the results come back to the Aspire clinical team first.
+                They check the result is yours before it reaches your account, and a clinician reviews it before
+                it's published — nothing appears here automatically.
               </p>
             </Card>
             <Card>

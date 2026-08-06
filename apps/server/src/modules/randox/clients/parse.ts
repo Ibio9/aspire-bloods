@@ -48,6 +48,16 @@ export function requireString(source: unknown, label: string, ...names: string[]
   return value;
 }
 
+export function requireNumber(source: unknown, label: string, ...names: string[]): number {
+  const value = pickNumber(source, ...names);
+  if (value === null) {
+    throw new Error(
+      `Randox response is missing ${label} (looked for: ${names.join(', ')}). The response shape has changed — see modules/randox/types.ts.`,
+    );
+  }
+  return value;
+}
+
 export function pickNumber(source: unknown, ...names: string[]): number | null {
   const value = pick(source, ...names);
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
@@ -120,18 +130,101 @@ export function pickArray(source: unknown, ...names: string[]): unknown[] {
 }
 
 /**
- * Normalises a Randox timestamp to a real ISO-8601 UTC string.
+ * Normalises a timestamp that is documented as UTC to an ISO-8601 UTC
+ * string.
  *
- * Randox document availability as UTC but do not guarantee the string
- * carries a zone designator. A bare "2026-08-07T09:30:00" parsed by
- * `new Date()` is interpreted as LOCAL time, which on a UK-hosted server
- * silently shifts every summer appointment by an hour. So: if there's no
- * explicit offset, append Z rather than letting the runtime guess.
+ * Use this for every Randox timestamp EXCEPT dateOfReceipt and
+ * dateOfReport — see fromEuropeLondon() for those two.
+ *
+ * Randox's examples carry an explicit offset
+ * ("2024-08-01T08:45:10.0000000+00:00"), but the spec doesn't guarantee it.
+ * A bare "2026-08-07T09:30:00" handed to `new Date()` is interpreted as
+ * LOCAL time, which on a UK-hosted server silently shifts every summer
+ * timestamp by an hour. So when there's no offset, append Z rather than
+ * letting the runtime guess.
  */
 export function toUtcIso(raw: string | null): string | null {
   if (!raw) return null;
-  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw.trim());
-  const candidate = hasZone ? raw.trim() : `${raw.trim()}Z`;
-  const parsed = new Date(candidate);
+  const trimmed = raw.trim();
+  if (trimmed === '') return null;
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(trimmed);
+  const parsed = new Date(hasZone ? trimmed : `${trimmed}Z`);
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+/**
+ * Converts a timestamp Randox documents as Europe/London wall-clock time
+ * into a true UTC instant.
+ *
+ * GetOrderResultDetail states this explicitly: "Report Results ->
+ * DateOfReceipt & DateOfReport will be returned in Europe/London timezone.
+ * All other times will be UTC." Those two fields, and only those two, go
+ * through here.
+ *
+ * Why this matters rather than being pedantry: for roughly seven months of
+ * the year London is UTC+1. Reading a London wall-clock 00:30 as UTC puts
+ * the sample on the wrong calendar day, and a report dated a day out is a
+ * report a clinician cannot reconcile against the appointment.
+ *
+ * If the string already carries an explicit offset, it is trusted as-is —
+ * an offset is unambiguous and beats the documentation about it.
+ *
+ * The offset is derived from the IANA database via Intl rather than
+ * hardcoding "BST is late March to late October", so it stays correct if
+ * the UK ever changes its DST rules.
+ */
+export function fromEuropeLondon(raw: string | null): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (trimmed === '') return null;
+
+  if (/(?:Z|[+-]\d{2}:?\d{2})$/i.test(trimmed)) {
+    const explicit = new Date(trimmed);
+    return Number.isNaN(explicit.getTime()) ? null : explicit.toISOString();
+  }
+
+  // Read the wall-clock components as though they were UTC, then ask what
+  // London's offset was at approximately that instant and subtract it.
+  const provisional = new Date(`${trimmed}Z`);
+  if (Number.isNaN(provisional.getTime())) return null;
+
+  const offsetMs = londonOffsetMs(provisional);
+  const corrected = new Date(provisional.getTime() - offsetMs);
+
+  // One refinement pass. Within an hour of a DST boundary the offset at the
+  // provisional instant can differ from the offset at the true instant; if
+  // recomputing at the corrected instant gives a different answer, that one
+  // is right. (Times inside the skipped hour each spring do not exist in
+  // London at all; they resolve to the boundary, which is the least-wrong
+  // answer available and is not a case a lab timestamp should ever hit.)
+  const refinedOffsetMs = londonOffsetMs(corrected);
+  const result = refinedOffsetMs === offsetMs ? corrected : new Date(provisional.getTime() - refinedOffsetMs);
+
+  return result.toISOString();
+}
+
+const LONDON_PARTS = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Europe/London',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hourCycle: 'h23',
+});
+
+/** London's UTC offset in milliseconds at a given instant (+3600000 in BST). */
+function londonOffsetMs(instant: Date): number {
+  const parts = LONDON_PARTS.formatToParts(instant);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? '0');
+  const asUtc = Date.UTC(
+    get('year'),
+    get('month') - 1,
+    get('day'),
+    get('hour'),
+    get('minute'),
+    get('second'),
+  );
+  return asUtc - Math.floor(instant.getTime() / 1000) * 1000;
 }

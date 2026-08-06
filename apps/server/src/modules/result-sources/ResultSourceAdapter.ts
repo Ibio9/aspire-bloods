@@ -30,6 +30,37 @@ export interface ParsedMarkerRow {
   // 'two_pass_disagreement'. Never used to silently drop or auto-accept a
   // row — only to flag it in the verify table. Empty for a clean row.
   flags?: string[];
+
+  // --- Lab API sources only -------------------------------------------------
+
+  // Caveat codes carried on this result. A caveat qualifies a result that IS
+  // reportable; anything that makes a result unreportable is a void and
+  // never reaches a row at all (see ParsedExclusion).
+  caveatCodes?: string[];
+
+  // The lab's own out-of-range indicator, verbatim (Randox: `lowHigh`).
+  // Advisory only — we compute our own status from the value and the range.
+  labStatusIndicator?: string | null;
+
+  // True when the lab's indicator and our own computed status disagree.
+  // Neither is silently preferred: the value and range are stored as the lab
+  // sent them, our status is computed as usual, and the disagreement is
+  // raised for an admin. A mismatch usually means the range we parsed isn't
+  // the range the lab actually applied.
+  labStatusDisagrees?: boolean;
+
+  // Randox's grouping for this analyte ("Full Blood Count", "Heart Health")
+  // and its patient-facing name, both straight off the result.
+  group?: string | null;
+  displayName?: string | null;
+  sampleType?: string | null;
+
+  // The reference bounds exactly as the lab sent them, before parsing.
+  // Randox type these as strings and genuinely use "<5.0" / "≥60" / "" for
+  // one-sided and absent ranges, so the parsed numbers are lossy and the
+  // originals are what an admin needs to see when a range looks wrong.
+  referenceLowRaw?: string | null;
+  referenceHighRaw?: string | null;
 }
 
 export interface ParsedReport {
@@ -52,6 +83,21 @@ export interface ParsedReport {
   // API result is matched to one of our accounts. Null/absent for PDF and
   // manual sources.
   externalPatientRef?: string | null;
+  // Who the LAB says this result belongs to, verbatim. Never used to match
+  // automatically — matching on a name is exactly the mistake that puts one
+  // person's results in front of another. It exists so that when
+  // externalPatientRef doesn't resolve (which, now that patients register
+  // themselves, is the common case rather than the exception) an admin has
+  // something concrete to compare against instead of an opaque reference.
+  // See modules/admin/linkingService.ts for what is and isn't allowed to
+  // count as agreement.
+  claimedPatient?: {
+    firstName?: string | null;
+    lastName?: string | null;
+    /** ISO date. The field that has to agree before any link is permitted. */
+    dob?: string | null;
+    contactNumber?: string | null;
+  } | null;
   // API sources only: the lab's key for the test profile/panel this result
   // belongs to, matched against Panel.key. Left null when the lab doesn't
   // report one we recognise — the report is still valid with no panel (see
@@ -60,6 +106,47 @@ export interface ParsedReport {
   // API sources only: true when more markers for this order are still
   // pending (a partial report).
   isPartial?: boolean;
+
+  // Markers the lab could not report at all. Deliberately NOT rows: a row
+  // becomes a ReportResult, and a voided result must never have one. Carried
+  // here so the same shape survives a trip through the unmatched queue —
+  // an admin linking a parked result gets the same void handling the
+  // automated path would have applied. See modules/randox/codes.ts.
+  exclusions?: ParsedExclusion[];
+
+  // Randox only: patient measurements taken at collection (height, BP,
+  // smoker, …). Stored against the report; no UI yet.
+  measurements?: ParsedMeasurements | null;
+}
+
+export interface ParsedExclusion {
+  rawName: string;
+  /** The lab code that caused it, when there was one. */
+  code: string | null;
+  /** False when the code wasn't in our configured map — see codes.ts. */
+  codeRecognised: boolean;
+  /** Admin-facing reason. Never shown to a patient. */
+  reason: string;
+}
+
+/**
+ * Measurements Randox return alongside results (GetOrderResultDetail).
+ * Every field is optional: which are present depends on what the clinic
+ * recorded at collection, and none is required to report a result.
+ */
+export interface ParsedMeasurements {
+  heightCm?: number | null;
+  weightKg?: number | null;
+  waistCm?: number | null;
+  hipCm?: number | null;
+  pulseBpm?: number | null;
+  systolicBp?: number | null;
+  diastolicBp?: number | null;
+  isDiabetic?: boolean | null;
+  isSmoker?: boolean | null;
+  knownVascularDisease?: boolean | null;
+  onMedicationForHypertension?: boolean | null;
+  ethnicity?: string | null;
 }
 
 /**

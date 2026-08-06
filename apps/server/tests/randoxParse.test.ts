@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pick, pickString, pickNumber, pickCodeList, pickArray, toUtcIso } from '../src/modules/randox/clients/parse.js';
+import { pick, pickString, pickNumber, pickCodeList, pickArray, toUtcIso, fromEuropeLondon } from '../src/modules/randox/clients/parse.js';
 
 /**
  * The response readers are deliberately tolerant because we could not
@@ -82,13 +82,45 @@ describe('pickArray', () => {
   });
 });
 
+describe('fromEuropeLondon', () => {
+  /**
+   * GetOrderResultDetail states it verbatim: "DateOfReceipt & DateOfReport
+   * will be returned in Europe/London timezone. All other times will be
+   * UTC." Reading a London wall-clock time as UTC shifts it an hour for
+   * seven months of the year — and near midnight that changes the calendar
+   * date on the report.
+   */
+  it('treats a summer wall-clock time as BST (UTC+1)', () => {
+    expect(fromEuropeLondon('2026-07-01T09:30:00')).toBe('2026-07-01T08:30:00.000Z');
+  });
+
+  it('treats a winter wall-clock time as GMT (UTC+0)', () => {
+    expect(fromEuropeLondon('2026-01-15T09:30:00')).toBe('2026-01-15T09:30:00.000Z');
+  });
+
+  it('moves a just-after-midnight BST timestamp onto the previous UTC day', () => {
+    expect(fromEuropeLondon('2026-07-02T00:30:00')).toBe('2026-07-01T23:30:00.000Z');
+  });
+
+  it('trusts an explicit offset over the documentation about it', () => {
+    expect(fromEuropeLondon('2026-07-01T09:30:00+00:00')).toBe('2026-07-01T09:30:00.000Z');
+    expect(fromEuropeLondon('2026-07-01T09:30:00Z')).toBe('2026-07-01T09:30:00.000Z');
+  });
+
+  it('returns null for junk rather than an Invalid Date', () => {
+    expect(fromEuropeLondon('not a date')).toBeNull();
+    expect(fromEuropeLondon(null)).toBeNull();
+    expect(fromEuropeLondon('')).toBeNull();
+  });
+});
+
 describe('toUtcIso', () => {
   it('keeps an explicit Z', () => {
     expect(toUtcIso('2026-09-01T09:30:00Z')).toBe('2026-09-01T09:30:00.000Z');
   });
 
-  // The one that matters: Randox document UTC but may not send a
-  // designator. Parsed as local time, a summer appointment shifts an hour.
+  // Randox's examples carry an offset, but the spec doesn't guarantee one.
+  // Parsed as local time, a summer appointment shifts by an hour.
   it('treats a zone-less timestamp as UTC, not as server-local time', () => {
     expect(toUtcIso('2026-07-01T09:30:00')).toBe('2026-07-01T09:30:00.000Z');
   });

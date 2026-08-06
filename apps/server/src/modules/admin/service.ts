@@ -56,7 +56,9 @@ export async function getPatientProfile(patientId: string) {
           sex: p.sex,
           dob: decryptField(p.dobEncrypted),
           contactNumber: decryptField(p.contactNumberEncrypted),
-          address: decryptField(p.addressEncrypted),
+          // Optional since self-registration — a self-registered patient has
+          // never been asked for these, so null means "not given", not "lost".
+          address: p.addressEncrypted ? decryptField(p.addressEncrypted) : null,
           postcode: p.postcode,
           gpName: p.gpName,
           gpAddress: p.gpAddressEncrypted ? decryptField(p.gpAddressEncrypted) : null,

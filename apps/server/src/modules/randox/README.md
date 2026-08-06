@@ -1,65 +1,106 @@
 # Randox API integration
 
-Two separate Randox APIs, one shared auth mechanism, one ingestion path
-into the existing normalised store — and no way past the clinician release
-gate.
+Two Randox APIs, one shared auth mechanism, one ingestion path into the
+existing normalised store — and no way past the clinician release gate.
 
-## Sourcing note — read this first
+## What is verified and what is not
 
-**The documentation PDFs were not present in the repository.** Nothing
-matching `*.pdf` exists anywhere in the tree, tracked or untracked. This
-module is therefore built from the written brief: endpoint names, the auth
-mechanism, base URLs, client ids, the order lifecycle, the numeric status
-codes (1–5), the 30-minute hold, UTC availability, `GPExternalNumber`,
-base64 PDF reports, and the existence of void/caveat codes.
+**Nexus Lab: verified.** Built against `specs/nexus-openapi.json` ("GP Test
+Portal" v1.0) plus the four Randox flow and auth PDFs in `specs/`. Every
+request and response shape in `types.ts` comes from an example in that spec.
+There are no remaining guesses on the Nexus side.
 
-What the brief does **not** pin down — exact request/response property
-names, envelope shapes, HTTP verbs and paths for each named operation, and
-Randox's error-code vocabulary — is guessed, and every guess is marked in
-`types.ts` and `clients/parse.ts`. The wire layer reads several plausible
-spellings of each field so a casing mismatch degrades to "field absent"
-(handled) rather than a crash. See "Ambiguities" below.
+**Clinic Booking: unverified.** No OpenAPI document exists for it — access
+is still pending. What *is* documented (flow PDFs) and treated as fact: the
+endpoint paths (`/Locations/GetServiceLocations`,
+`/Availability/AvailabilityDetails`,
+`/RandoxBookings/HoldAvailabilityBooking`,
+`/RandoxBookings/CreateRandoxBooking`, plus `CancelRandoxBooking` and
+`RescheduleAppointment`), the call order, that availability is UTC, that a
+hold lasts 30 minutes, and that the Nexus order number crosses as
+`GPExternalNumber`. The request and response *bodies* are assumed, read
+through the tolerant helpers in `clients/parse.ts` so a wrong property name
+degrades to "field absent" rather than crashing. When the spec arrives,
+`types.ts` (Clinic Booking section) and `ClinicBookingClient.ts` are what
+change; nothing above them does.
+
+## Six things about this API that are easy to get wrong
+
+1. **The order number comes back as `externalNumber`.** Not `orderNumber`.
+   The spec says so in three separate endpoint descriptions. Reading
+   `orderNumber` off a `CreatePendingOrder` response gets `undefined`.
+2. **`/Order/*` endpoints are POST — including the `Get*` ones.**
+   `GetOrderStatus`, `GetOrderResultDetail` and `GetOrderResultReports` all
+   take a JSON body. The seven reference-data endpoints are plain `GET`.
+3. **`result`, `refLow` and `refHigh` are strings**, and genuinely carry
+   `"< 5.0"`, `"≥60"` and `"Not detected"` alongside `"5.85"`. See below.
+4. **There is no void field.** `caveat` is one string, and void codes arrive
+   in it. That is why classification is by configured map with
+   unknown-means-void, not by which field a code turned up in.
+5. **`dateOfReceipt` and `dateOfReport` are Europe/London**; everything else
+   on the payload is UTC. The endpoint description states it verbatim.
+6. **Two identifiers.** Integer `orderId` and string `orderNumber`, and
+   several endpoints want both plus `clinicId`. All three are stored.
+
+## The rules this is built around
+
+**Nothing unknown is hardcoded.** `assertRandoxConfigured()` runs at boot
+and fails the process, naming *every* missing variable at once, rather than
+failing at the first API call — which would be the moment a patient is
+standing in the clinic.
+
+**A non-numeric result never becomes a number.** `clients/parseResult.ts` is
+the whole of this rule. `"< 5.0"` is a detection limit, not a value:
+recording 5.0 would put a number on a patient's record the laboratory did
+not measure, and then plot it on a trend line. A comparator or qualitative
+result yields `value: null`, keeps its text, and renders — with no range-bar
+position and no trend point. One-sided ranges (`"<5.0"` / `"≥60"`, both real
+on the example report) are reported as one-sided rather than having the
+missing end invented; substituting 0 or Infinity would make every result on
+that marker read as in range at one end.
+
+**An unknown code is void.** A result carrying a void code produces no
+`ReportResult` row at all — only a `ReportResultExclusion` and a neutral
+"this test could not be reported" note. Not a greyed-out value, not a value
+with a warning: there is no value in the database for a read path to leak. A
+code absent from the configured map is void *by design*, not as a fallback,
+and is recorded in `RandoxUnknownCode` (`GET /api/randox/unknown-codes`) so
+the real list can be assembled from what actually arrives.
+
+**Randox's own flag is compared, not trusted.** `lowHigh` is stored
+verbatim; our status is always computed from the value against the range.
+Where they disagree the disagreement is raised for an admin rather than
+either being silently preferred — a mismatch usually means the range we
+parsed is not the range the laboratory applied.
+
+**Ingestion is not publication.** Results land at `ADMIN_VERIFIED` and stop.
 
 ## Shape
 
 ```
-config.ts        every unknown, loaded from env + JSON files, validated at boot
-codes.ts         void/caveat classification — unknown codes fail closed
-types.ts         wire contracts + the documented 1–5 status mapping
-errors.ts        RandoxApiError / RandoxAuthError / RandoxWindowExpiredError
-auth/            Azure B2C ROPC token client — cached, one instance per API
-http/            bearer + Ocp-Apim-Subscription-Key on every call, 401 retry
-clients/         live Nexus + Booking clients, and the mock/live factory
-mock/            in-memory implementations + the five result fixtures
-orderService.ts  CreatePendingOrder / UpdatePendingOrder / CancelOrder
-bookingService.ts locations → availability → hold → book / cancel / reschedule
-ingestionService.ts results → normalised store, stopping at ADMIN_VERIFIED
-pollingJob.ts    the trigger — written to be deleted when webhooks land
-router.ts        staff-facing endpoints under /api/randox
+config.ts           every unknown, from env + JSON files, validated at boot
+codes.ts            void/caveat classification — unknown codes fail closed
+types.ts            wire contracts; Nexus verified, Booking marked unverified
+errors.ts           RandoxApiError / RandoxAuthError / RandoxWindowExpiredError
+auth/               Azure B2C ROPC token client — cached, one per API
+http/               bearer + Ocp-Apim-Subscription-Key on every call, 401 retry
+clients/parse.ts    tolerant readers + the two timezone converters
+clients/parseResult.ts  the string-value rules. Read this one.
+clients/            live Nexus + Booking clients, and the mock/live factory
+mock/               in-memory implementations + six result fixtures
+orderService.ts     CreatePendingOrder / UpdatePendingOrder / CancelOrder
+bookingService.ts   locations → availability → hold → book / cancel / reschedule
+ingestionService.ts Randox payload → ParsedReport → the shared writer
+referenceDataService.ts  the seven self-serve endpoints, cached + reconciled
+catalogueLookup.ts  our catalogue key → Randox's integer id
+pollingJob.ts       the trigger — written to be deleted when webhooks land
+router.ts           staff endpoints under /api/randox
 ```
 
-## The three rules this is built around
-
-**1. Nothing unknown is hardcoded.** Subscription keys, clinic id, panel
-and test ids, credentials, base URLs, the code map and the permitted
-collection methods are all env vars or JSON config. `assertRandoxConfigured()`
-runs at boot and fails the process, naming *every* missing variable at once,
-rather than failing at the first API call — which would be the moment a
-patient is standing in the clinic.
-
-**2. An unknown code is void.** A result carrying a void code produces no
-`ReportResult` row at all — only a `ReportResultExclusion` and a neutral
-"this test could not be reported" note. Not a greyed-out value, not a value
-with a warning: there is no value in the database for a read path to leak.
-A code that isn't in the configured map is treated as void by design, not
-as a fallback, and is recorded in `RandoxUnknownCode` so the real list can
-be assembled from what actually arrives (`GET /api/randox/unknown-codes`).
-
-A void code arriving in Randox's *caveat* field still voids. The field a
-code arrives in is a hint, not an authority.
-
-**3. Ingestion is not publication.** Results land at `ADMIN_VERIFIED` and
-stop. Clinician review and release are unchanged, explicit, human actions.
+Writing a report is **not** here. That is
+`modules/reports/materialiseReport.ts`, shared with the admin
+result-linking flow (`modules/admin/linkingService.ts`) and entirely
+unaware Randox exists. This module normalises and hands over.
 
 ## Running it before the credentials arrive
 
@@ -68,82 +109,72 @@ RANDOX_ENABLED=true
 RANDOX_TRANSPORT=mock
 ```
 
-The mock implements both documented contracts in memory, including the
-parts our code has to survive: status advances 2 → 3 → 4 rather than
-jumping to results, holds expire and are single-use, windowed operations
-start failing once an order has moved on, and an order whose results are
-all voided reports status 5.
-
-Five fixtures, selected by a marker in the patient reference
-(`…+voided`, `…+fully-voided`, `…+unmapped`, `…+partial`, or none):
+Six fixtures, all shaped as the real payload:
 
 | Scenario | What it exercises |
 | --- | --- |
-| normal | every analyte maps, has a value and a range |
+| normal | every analyte maps, numeric value, two-sided range |
 | partially voided | a void code on a perfectly normal-looking value |
-| fully voided | order-level void → status 5, no report created |
+| fully voided | order moves to status 5, no report created |
 | unmapped marker | a marker absent from the catalogue, plus an unknown code |
-| partial results | analytes still pending; redelivery merges into one report |
+| partial results | analytes on the order not yet reported |
+| awkward values | one-sided ranges, a comparator result, a qualitative result, and a `lowHigh` that disagrees with the range |
 
 Going live is `RANDOX_TRANSPORT=live`. No code changes.
 
 ## Webhooks
 
 `onOrderStatusChanged(orderNumber)` in `pollingJob.ts` is the seam. The
-sweep decides *when* to look at an order and calls it; a webhook handler
-would call the same function with the order number from the callback body
-and need to change nothing else. All ingestion, mapping, code handling and
-storage lives below that line, so deleting the polling schedule is safe.
+documentation confirms webhooks are coming ("In due course monitoring
+options will be enhanced with the addition of appropriate web hooks but at
+this time this polling endpoint must be used"). A webhook handler calls that
+same function and nothing else changes.
 
-## Ambiguities I had to guess at
+## What is still outstanding
 
-Flagged here rather than buried in code comments, because each one wants
-confirming against the real specs.
+- **Subscription keys and the service-account credentials.** Developer
+  portal access is pending.
+- **Our clinic id and test-clinic-location id.** Readable from
+  `GET /Clinic/GetMyClinicDetails` the moment access exists.
+- **The panel and test ids.** Fetched live by the reference-data service and
+  mapped to ours on the admin catalogue screen — no hardcoding needed, but
+  nothing can be ordered until an admin maps them.
+- **The void/caveat code list.** The flow PDF says it comes from the Randox
+  Business Team. Until then every code is unrecognised, and therefore void.
+  The fixture codes are invented placeholders.
+- **The default testing reason and cancellation reason ids.** Both are
+  required by the API; ids come from the reference-data endpoints.
+- **Which collection methods we may offer.** Note the documentation
+  describes only two (home kit, in clinic) — `MOBILE_PHLEBOTOMY` is in our
+  enum but is not a Randox method.
 
-1. **Request/response property casing.** Azure/.NET APIs commonly return
-   PascalCase; APIM often re-serialises to camelCase. Handled by reading
-   several spellings (`clients/parse.ts`), which should be narrowed once
-   confirmed.
-2. **Paths and verbs per operation.** Only operation *names* were given.
-   Assembled as `{base}/{OperationName}`, POST for mutations and GET with
-   query parameters for reads. All in the two client classes.
-3. **The B2C token endpoint, and whether both APIs share one.** ROPC needs
-   a tenant and policy name; neither was available. Hence
-   `RANDOX_B2C_TOKEN_URL` plus per-API overrides.
-4. **The scope strings.** Not documented. Left as required env vars.
-5. **Whether ROPC uses a service account or per-user credentials.** Assumed
-   a single service account (there is nowhere else for the password to come
-   from in a server-to-server integration), with per-API overrides in case
-   they issue two.
-6. **The error vocabulary for a closed window.** No error-code list was
-   available, so `looksLikeWindowExpired()` matches on HTTP status plus
-   body wording. This is deliberately broad and should be narrowed to real
-   codes — a *missed* window-expiry is only mis-reported as a fault, never
-   mis-treated as success, so the failure mode is a confusing message
-   rather than a wrong result.
-7. **Whether void/caveat codes appear at order level, analyte level, or
-   both.** Handled as both; order-level codes are applied to every analyte.
-8. **Patient sex vocabulary** on the order payload (`Male`/`Female`/
-   `Unknown` assumed).
-9. **Whether `GetOrderResultReports` returns one report or several.**
-   Handled as an array, falling back to treating the body itself as one
-   report. The first is attached as the report's original PDF; any others
-   attach as generated files.
-10. **Partial-result signalling.** Assumed a per-analyte `pending` flag.
-    If Randox instead signal it order-level, it changes in `mapResultItem`.
-11. **How long the amendment window is.** Only "limited" was documented.
-    Not modelled locally at all — we attempt the call and treat Randox's
-    rejection as authoritative, which is the right way round regardless.
+## Known gap: biological sex at signup
+
+`CreatePendingOrder` marks `BiologicalSexId` **required**. Self-registration
+(`patientProfileFormSchema` in `packages/shared`) captures `sex` as
+**optional**, and the registration form marks the field optional too. Date
+of birth is already required, so that half is fine.
+
+So an account can exist that no Randox order can be placed against.
+`placeOrder()` refuses such an order with an explicit message rather than
+defaulting a sex — sex-specific reference ranges depend on it, and guessing
+changes which ranges the laboratory applies. Affected patients are listed at
+`GET /api/randox/patients-not-orderable` so staff find out before they try.
+
+Making the field required at signup was left alone deliberately: it would
+change a registration flow that just shipped, and it does not fix the
+accounts that already exist. That is a product decision, not a code fix.
 
 ## Things deliberately not built
 
-- **A patient-facing booking UI.** The API surface is there
-  (`/api/randox/service-locations`, `/availability`, `/orders/:n/hold`,
-  `/book`); the front-end for it wasn't in scope.
-- **Home-kit and mobile-phlebotomy fulfilment.** Those orders place
-  normally and never touch the Booking API, which is correct, but whatever
-  dispatch/tracking they need on Randox's side isn't documented anywhere
-  we have.
+- **`CreateOrder` / `UpdateOrder`** (the sample-collection-complete path)
+  and `UpdateConsultationNote`. We create pending orders and let the
+  collection method complete them.
+- **The Home Test Kit Dispatch portal.** A third API suite with its own
+  endpoints; home-kit orders currently place in Nexus and stop there.
+- **A patient-facing Randox booking UI.** The API surface exists; the
+  front-end for it wasn't in scope.
 - **Caveat display to patients.** Structurally supported
-  (`patientSafeNote` in the code map, `ReportResult.caveatCodes`), but
-  every note is blank until we know what each code means.
+  (`patientSafeNote`, `ReportResult.caveatCodes`) but every note is blank
+  until we know what each code means.
+- **UI for patient measurements.** Stored (`ReportMeasurements`), not shown.

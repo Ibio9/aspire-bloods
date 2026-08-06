@@ -69,15 +69,17 @@ export class B2CTokenClient {
   private async requestToken(): Promise<string> {
     const { tokenUrl, clientId, scope, username, password, label } = this.connection;
 
+    // Exactly the five form fields the Randox STES auth documents show in
+    // their Postman example (specs/Randox IT API Integration - {Nexus,CB}
+    // STES Auth General.pdf): grant_type, client_id, scope, username,
+    // password. No response_type — it isn't in their example, and B2C ROPC
+    // policies reject unexpected parameters on some configurations.
     const body = new URLSearchParams({
       grant_type: 'password',
       client_id: clientId,
       scope,
       username,
       password,
-      // B2C's ROPC policy returns the access token only when it's asked for
-      // explicitly; without this some tenants return an id_token alone.
-      response_type: 'token id_token',
     });
 
     let res: Response;

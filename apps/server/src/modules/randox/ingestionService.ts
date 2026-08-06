@@ -1,46 +1,42 @@
-import type { Prisma, Marker } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../../db/client.js';
-import { encryptField } from '../../lib/crypto.js';
 import { computeMarkerStatus } from '../../lib/markerStatus.js';
 import { recordAuditLog } from '../../lib/auditLog.js';
-import { findBestMarkerMatch } from '../reports/matchMarker.js';
 import { storageAdapter } from '../storage/LocalDiskStorageAdapter.js';
+import {
+  materialiseParsedReport,
+  parkAsUnmatched,
+  MaterialiseError,
+  type MappingFailure,
+} from '../reports/materialiseReport.js';
+import type {
+  ParsedReport,
+  ParsedMarkerRow,
+  ParsedExclusion,
+} from '../result-sources/ResultSourceAdapter.js';
 import { nexusLabClient } from './clients/index.js';
 import { loadIdMap } from './config.js';
 import { assessCodes, recordUnknownCode } from './codes.js';
-import type { GetOrderResultDetailResponse, RandoxResultItem } from './types.js';
+import { parseRandoxValue, parseReferenceRange, normaliseLabIndicator, labStatusDisagrees } from './clients/parseResult.js';
+import { mappedKeyFor } from './referenceDataService.js';
+import type { GetOrderResultDetailResponse, RandoxReportResultRow, OrderRef } from './types.js';
 
 /**
- * Turns a completed Randox order into a Report in the normalised store.
+ * Turns a completed Randox order into a Report.
  *
- * Three things this deliberately does NOT do:
+ * The division of labour here matters: this file knows about Randox — the
+ * result payload shape, void and caveat codes, the string-typed value
+ * fields, the two identifiers. It knows nothing about how a Report is
+ * written. That is modules/reports/materialiseReport.ts, which is shared
+ * with the admin result-linking flow and has no idea Randox exists.
  *
- *  1. It does not publish. Ingestion lands a report at ADMIN_VERIFIED and
- *     stops. Clinician review and release stay explicit human actions —
- *     an API result reaching a patient without a clinician releasing it
- *     would be exactly the failure the release gate exists to prevent.
- *  2. It does not write a value for anything carrying a void code. There
- *     is no ReportResult row for a voided marker at all, so no read path
- *     can render one by accident.
- *  3. It does not drop anything silently. Every skipped marker becomes a
- *     mapping failure on the IngestionLogEntry, visible in the admin area.
- *
- * Idempotency is on the Randox Order Number, carried as Report.externalId
- * (unique). A redelivered payload merges into the same report; a report
- * that has already passed the review gate is left alone and logged as a
- * duplicate.
+ * So this file's job is exactly: fetch → normalise into a ParsedReport →
+ * hand it to the shared writer, or park it for an admin if we cannot say
+ * whose it is. Ingestion never publishes; the writer lands everything at
+ * ADMIN_VERIFIED and the clinician release gate is untouched.
  */
 
-/** Statuses a report can still be merged into on a redelivery. */
-const MERGEABLE_STATUSES = new Set(['UPLOADED', 'PARSED', 'ADMIN_VERIFIED', 'CHANGES_REQUESTED']);
-
 const SOURCE_KEY = 'randox_api';
-
-interface MappingFailure {
-  markerName: string;
-  reason: string;
-  code?: string;
-}
 
 export type IngestOutcome =
   | 'INGESTED'
@@ -58,6 +54,9 @@ export interface IngestResult {
   markersExcluded: number;
   message: string;
 }
+
+/** Statuses a report can still be merged into on a redelivery. */
+const MERGEABLE_STATUSES = new Set(['UPLOADED', 'PARSED', 'ADMIN_VERIFIED', 'CHANGES_REQUESTED']);
 
 async function logAttempt(input: {
   orderNumber: string;
@@ -90,171 +89,206 @@ async function logAttempt(input: {
   });
 }
 
-/**
- * Resolves one Randox marker name to our catalogue: explicit override
- * first (config), then fuzzy name match. Never invents a marker.
- */
-function resolveMarker(rawName: string, markers: Marker[]): Marker | null {
-  const override = loadIdMap().markerNameOverrides[rawName.trim().toLowerCase()];
-  if (override) {
-    const byKey = markers.find((m) => m.key === override);
-    if (byKey) return byKey;
-  }
-  return findBestMarkerMatch(rawName, markers);
-}
+// ---------------------------------------------------------------------------
+// Normalisation: Randox's payload → the shared ParsedReport shape
+// ---------------------------------------------------------------------------
 
-interface AssessedRow {
-  raw: RandoxResultItem;
-  marker: Marker | null;
-  /** Set when the row must not become a ReportResult. */
-  exclusion: { code: string | null; codeRecognised: boolean; reason: string } | null;
-  caveatCodes: string[];
-  /** Still being processed by the lab — not an exclusion, just not here yet. */
-  pending: boolean;
+interface NormalisedPayload {
+  parsed: ParsedReport;
+  /** Rows the lab is still processing. Not failures — just not here yet. */
+  pendingCount: number;
 }
 
 /**
- * Classifies every row before anything is written. Order-level void and
- * caveat codes are folded into each row, because a code on the order
- * applies to every analyte on it.
+ * Builds a ParsedReport from a GetOrderResultDetail response.
+ *
+ * Exported for the mock-driven tests, which exercise the payload→rows
+ * translation directly rather than through the database.
  */
-async function assessRows(
+export async function normaliseResultDetail(
   detail: GetOrderResultDetailResponse,
-  markers: Marker[],
-): Promise<{ rows: AssessedRow[]; unrecognisedCodes: Set<string> }> {
-  const unrecognised = new Set<string>();
-  const rows: AssessedRow[] = [];
+  options: { patientRef?: string | null; claimedName?: { firstName?: string | null; lastName?: string | null; dob?: string | null } | null } = {},
+): Promise<NormalisedPayload> {
+  const rows: ParsedMarkerRow[] = [];
+  const exclusions: ParsedExclusion[] = [];
+  let pendingCount = 0;
 
-  for (const raw of detail.results) {
-    const assessment = assessCodes({
-      voidCodes: [...detail.voidCodes, ...raw.voidCodes],
-      caveatCodes: [...detail.caveatCodes, ...raw.caveatCodes],
-    });
+  const markers = await prisma.marker.findMany({ where: { isActive: true }, select: { id: true, key: true, name: true, severityMultiplier: true, severityAbsoluteDelta: true } });
+
+  for (const raw of detail.reportResults) {
+    const name = raw.displayName?.trim() || raw.analyte?.trim() || '(unnamed test)';
+
+    // Randox carry void AND caveat codes in one `caveat` string — there is
+    // no separate void field in the spec. So every code goes through the
+    // same classifier and the configured map decides which it is; an
+    // unrecognised code is void. See codes.ts.
+    const codes = splitCaveatField(raw.caveat);
+    const assessment = assessCodes({ voidCodes: [], caveatCodes: codes });
 
     for (const code of assessment.unrecognisedCodes) {
-      unrecognised.add(code);
-      await recordUnknownCode(code, { orderNumber: detail.orderNumber, markerName: raw.testName });
+      await recordUnknownCode(code, { orderNumber: detail.orderNumber, markerName: name });
     }
 
-    const marker = resolveMarker(raw.testName, markers);
-
-    let exclusion: AssessedRow['exclusion'] = null;
     if (assessment.isVoid) {
       const first = assessment.voidCodes[0];
-      exclusion = {
+      exclusions.push({
+        rawName: name,
         code: first?.code ?? null,
         codeRecognised: first?.recognised ?? false,
-        reason: assessment.voidReason ?? 'Voided by the laboratory.',
-      };
-    } else if (!raw.pending && raw.value === null) {
-      // A reportable result with no number. Not void — the lab didn't say
-      // it was unreportable — but there's nothing to plot or range-check,
-      // so it goes to an admin rather than into the trend store.
-      exclusion = {
-        code: null,
-        codeRecognised: true,
-        reason: raw.textValue
-          ? `Non-numeric result ("${raw.textValue}") — needs manual entry.`
-          : 'No value supplied for this test.',
-      };
-    } else if (!raw.pending && (raw.referenceLow === null || raw.referenceHigh === null)) {
-      // Reference ranges live on the result, not the marker (project rule).
-      // Without one from the API there is nothing to store, and inventing a
-      // range from the marker catalogue would attach a range the lab never
-      // issued to a value the lab did.
-      exclusion = {
-        code: null,
-        codeRecognised: true,
-        reason: 'No reference range supplied on the incoming result — cannot be range-checked.',
-      };
+        reason: assessment.voidReason ?? 'Withheld by the laboratory.',
+      });
+      continue;
     }
 
+    // The three string fields. None of these is coerced — see parseResult.ts.
+    const value = parseRandoxValue(raw.result);
+    const range = parseReferenceRange(raw.refLow, raw.refHigh);
+
+    if (value.kind === 'absent') {
+      // No result text at all: the lab has the analyte on the order but
+      // hasn't reported it. That's a pending analyte, not a void one.
+      pendingCount += 1;
+      continue;
+    }
+
+    const indicator = normaliseLabIndicator(raw.lowHigh);
+
+    // A disagreement can only be computed where we have both a number and a
+    // two-sided range to compute our own status from.
+    let disagrees = false;
+    if (value.kind === 'numeric' && value.value !== null && range.low !== null && range.high !== null) {
+      const marker = markers.find((m) => m.key.toLowerCase() === name.toLowerCase().replace(/[^a-z0-9]/gi, ''));
+      const ourStatus = computeMarkerStatus(
+        value.value,
+        range.low,
+        range.high,
+        marker?.severityMultiplier ?? 1.5,
+        marker?.severityAbsoluteDelta ?? null,
+      );
+      disagrees = labStatusDisagrees(indicator, ourStatus);
+    }
+
+    const reviewReason =
+      value.kind === 'comparator'
+        ? `Result is a limit, not a measurement ("${value.text}") — it has no position on a range bar and is not plotted on a trend.`
+        : value.kind === 'qualitative'
+          ? `Non-numeric result ("${value.text}").`
+          : range.oneSided
+            ? `The laboratory supplied only one side of the reference range ("${range.lowRaw ?? ''}" – "${range.highRaw ?? ''}").`
+            : disagrees
+              ? `The laboratory flagged this result "${raw.lowHigh}", which disagrees with the range they supplied.`
+              : null;
+
     rows.push({
-      raw,
-      marker,
-      exclusion,
+      rawName: name,
+      // Non-null ONLY for a plain number. "< 5.0" never becomes 5.0.
+      value: value.kind === 'numeric' ? value.value : null,
+      unit: raw.units,
+      referenceLow: range.low,
+      referenceHigh: range.high,
+      rawLine: [name, raw.result, raw.units].filter(Boolean).join(' '),
+      resultText: value.kind === 'numeric' ? null : value.text,
+      needsReview: reviewReason !== null,
+      reviewReason,
+      sourceText: JSON.stringify(raw),
+      // Structured API data carries no extraction uncertainty of its own.
+      confidence: null,
+      flags: [
+        ...(value.kind === 'comparator' ? ['comparator_result'] : []),
+        ...(value.kind === 'qualitative' ? ['non_numeric_result'] : []),
+        ...(range.oneSided ? ['one_sided_reference_range'] : []),
+        ...(disagrees ? ['lab_status_disagreement'] : []),
+      ],
       caveatCodes: assessment.caveatCodes.map((c) => c.code),
-      pending: raw.pending,
+      labStatusIndicator: raw.lowHigh,
+      labStatusDisagrees: disagrees,
+      group: raw.group,
+      displayName: raw.displayName,
+      sampleType: raw.sampleType,
+      referenceLowRaw: range.lowRaw,
+      referenceHighRaw: range.highRaw,
     });
   }
 
-  return { rows, unrecognisedCodes: unrecognised };
+  const panelKey = await resolvePanelKey(detail);
+
+  return {
+    pendingCount,
+    parsed: {
+      // Documented UTC on the payload. dateOfReceipt/dateOfReport on the
+      // rows are Europe/London and are already converted by the client.
+      sampleDate: detail.sampleCollectionDate ?? detail.orderCreatedDate ?? null,
+      panelName: null,
+      panelKey,
+      rows,
+      exclusions,
+      extractionMethod: 'api',
+      externalPatientRef: options.patientRef ?? null,
+      claimedPatient: options.claimedName ?? null,
+      isPartial: pendingCount > 0,
+      measurements: {
+        heightCm: detail.patientHeight,
+        weightKg: detail.patientWeight,
+        waistCm: detail.patientWaist,
+        hipCm: detail.patientHip,
+        pulseBpm: detail.patientPulse,
+        systolicBp: detail.patientSystolicBloodPressure,
+        diastolicBp: detail.patientDiastolicBloodPressure,
+        isDiabetic: detail.patientIsDiabetic,
+        isSmoker: detail.patientIsSmoker,
+        knownVascularDisease: detail.patientKnownVascularDisease,
+        onMedicationForHypertension: detail.patientOnMedicationforHypertension,
+        ethnicity: detail.patientEthnicity,
+      },
+    },
+  };
 }
 
 /**
- * Stores the raw payload and the lab PDF. Both are kept: the normalised
- * results are a lossy read of the JSON, and the PDF is the document the
- * lab actually issued.
- *
- * Storage failures are logged and swallowed — losing the archive copy is
- * bad, but discarding a whole set of results because a disk write failed
- * would be worse.
+ * Randox's `caveat` is one string. It has no documented delimiter, so it is
+ * split on the separators labs conventionally use and each fragment is
+ * classified independently. A single unsplittable string classifies as one
+ * code — which, if we don't recognise it, voids the result. That is the
+ * intended direction of failure.
  */
-async function storeArtefacts(
-  orderNumber: string,
-  reportId: string,
-  detail: GetOrderResultDetailResponse,
-): Promise<{ pdfFileId: string | null; jsonFileId: string | null }> {
-  let jsonFileId: string | null = null;
-  let pdfFileId: string | null = null;
-
-  try {
-    const jsonBuffer = Buffer.from(JSON.stringify(detail, null, 2), 'utf-8');
-    const saved = await storageAdapter.save(jsonBuffer, {
-      originalFilename: `randox-${orderNumber}.json`,
-      mimeType: 'application/json',
-    });
-    const file = await prisma.storedFile.create({
-      data: {
-        kind: 'RANDOX_RESULT_JSON',
-        storageKey: saved.storageKey,
-        originalFilename: `randox-${orderNumber}.json`,
-        mimeType: 'application/json',
-        sizeBytes: saved.sizeBytes,
-        generatedForReportId: reportId,
-      },
-    });
-    jsonFileId = file.id;
-  } catch (e) {
-    console.error(`[randox] failed to store result JSON for order ${orderNumber}:`, e);
-  }
-
-  try {
-    const reports = await nexusLabClient().getOrderResultReports(orderNumber);
-    const first = reports[0];
-    if (first) {
-      const buffer = Buffer.from(first.contentBase64, 'base64');
-      const saved = await storageAdapter.save(buffer, {
-        originalFilename: first.filename,
-        mimeType: first.mimeType,
-      });
-      const file = await prisma.storedFile.create({
-        data: {
-          kind: 'RANDOX_PDF',
-          storageKey: saved.storageKey,
-          originalFilename: first.filename,
-          mimeType: first.mimeType,
-          sizeBytes: saved.sizeBytes,
-        },
-      });
-      pdfFileId = file.id;
-    }
-  } catch (e) {
-    console.error(`[randox] failed to store result PDF for order ${orderNumber}:`, e);
-  }
-
-  return { pdfFileId, jsonFileId };
+function splitCaveatField(caveat: string | null): string[] {
+  if (!caveat || caveat.trim() === '') return [];
+  return caveat
+    .split(/[,;|\n]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
+
+/**
+ * Our Panel.key for the order's panel. The result payload doesn't carry a
+ * panel id, so this comes from what we recorded at order time, resolved
+ * through the admin's catalogue mapping.
+ */
+async function resolvePanelKey(detail: GetOrderResultDetailResponse): Promise<string | null> {
+  const order = await prisma.randoxOrder.findUnique({ where: { orderNumber: detail.orderNumber } });
+  const firstPanelId = order?.randoxPanelIds[0];
+  if (!firstPanelId) return null;
+
+  const mapped = await mappedKeyFor('PANEL', firstPanelId);
+  if (mapped) return mapped;
+
+  // Fall back to the static id map for a deployment that hasn't run a
+  // reference-data refresh yet.
+  return loadIdMap().panelsByRandoxId[firstPanelId] ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Ingestion
+// ---------------------------------------------------------------------------
 
 /**
  * The single entry point for "this order has results — take them".
  *
- * Called by the polling sweep today. A webhook would call exactly this
- * with the order number from the callback body and need to change nothing
- * else — which is the point: the trigger is replaceable, the ingestion is
- * not.
+ * Called by the polling sweep today. A webhook would call exactly this with
+ * the order number from the callback body and need to change nothing else.
  */
-export async function ingestOrderResults(orderNumber: string): Promise<IngestResult> {
+export async function ingestOrderResults(ref: OrderRef): Promise<IngestResult> {
+  const { orderNumber } = ref;
   const existing = await prisma.report.findUnique({ where: { externalId: orderNumber } });
 
   if (existing && !MERGEABLE_STATUSES.has(existing.status)) {
@@ -265,234 +299,184 @@ export async function ingestOrderResults(orderNumber: string): Promise<IngestRes
 
   let detail: GetOrderResultDetailResponse;
   try {
-    detail = await nexusLabClient().getOrderResultDetail(orderNumber);
+    detail = await nexusLabClient().getOrderResultDetail(ref);
   } catch (e) {
     const message = `Could not fetch results for order ${orderNumber}: ${e instanceof Error ? e.message : 'unknown error'}`;
     await logAttempt({ orderNumber, outcome: 'FAILED', message });
     return { outcome: 'FAILED', reportId: null, markersIngested: 0, markersExcluded: 0, message };
   }
 
-  // Patient matching: we submit our own patient id as the external
-  // reference and Randox echo it back. A result we can't attribute is
-  // logged and left — the next poll picks it up if the account appears.
-  // It is never attached to a best-guess patient.
-  const patient = detail.externalPatientReference
-    ? await prisma.user.findUnique({ where: { id: detail.externalPatientReference } })
-    : null;
+  // Which patient this belongs to comes from OUR order record, not from the
+  // payload: CreatePendingOrder has no field for a client-side patient
+  // reference, so Randox have nothing of ours to echo back. The order row we
+  // wrote when we placed it is the only link, which is why placeOrder()
+  // persists it in the same breath as the call returning.
+  const order = await prisma.randoxOrder.findUnique({
+    where: { orderNumber },
+    include: { patient: { include: { patientProfile: true } } },
+  });
 
-  if (!patient || patient.role !== 'PATIENT') {
-    const message = detail.externalPatientReference
-      ? `No patient account matches reference "${detail.externalPatientReference}" on order ${orderNumber}. Nothing was stored; the next poll will retry.`
-      : `Randox returned no patient reference on order ${orderNumber}, so it cannot be attributed to an account.`;
+  const { parsed, pendingCount } = await normaliseResultDetail(detail, {
+    patientRef: order?.patientId ?? null,
+    claimedName: order?.patient.patientProfile
+      ? { firstName: order.patient.patientProfile.firstName, lastName: order.patient.patientProfile.lastName }
+      : null,
+  });
+
+  if (!order || order.patient.role !== 'PATIENT') {
+    // No local order record for a result Randox are returning. This is the
+    // case the unmatched queue exists for: park it with whatever identity we
+    // have and let an admin link it explicitly. Nothing is matched on a name
+    // here — see modules/admin/linkingService.ts.
+    await parkAsUnmatched(SOURCE_KEY, orderNumber, parsed);
+    const message = `No local record of Randox order ${orderNumber}, so it cannot be attributed to an account automatically. Held for an admin to link — see Result linking.`;
     await logAttempt({ orderNumber, outcome: 'UNMATCHED_PATIENT', message });
     return { outcome: 'UNMATCHED_PATIENT', reportId: null, markersIngested: 0, markersExcluded: 0, message };
   }
 
-  const source = await prisma.source.findUnique({ where: { key: SOURCE_KEY } });
-  if (!source) {
-    const message = `The "${SOURCE_KEY}" source row is missing — run the seed. Order ${orderNumber} was not ingested.`;
-    await logAttempt({ orderNumber, outcome: 'FAILED', message });
-    return { outcome: 'FAILED', reportId: null, markersIngested: 0, markersExcluded: 0, message };
-  }
-
-  const markers = await prisma.marker.findMany({ where: { isActive: true } });
-  const { rows } = await assessRows(detail, markers);
-
-  const reportable = rows.filter((r) => !r.exclusion && !r.pending && r.marker && r.raw.value !== null);
-  const excluded = rows.filter((r) => r.exclusion);
-  const pending = rows.filter((r) => r.pending && !r.exclusion);
-
-  const mappingFailures: MappingFailure[] = [];
-  for (const row of rows) {
-    if (row.exclusion) {
-      mappingFailures.push({
-        markerName: row.raw.testName,
-        reason: row.exclusion.reason,
-        ...(row.exclusion.code ? { code: row.exclusion.code } : {}),
-      });
-    } else if (!row.pending && !row.marker) {
-      mappingFailures.push({
-        markerName: row.raw.testName,
-        reason: 'No matching marker in our catalogue — add a mapping (RANDOX_ID_MAP_FILE markerNameOverrides) or the marker itself.',
-      });
-    }
-  }
-
-  // Every result on the order was voided. Randox report this as status 5,
-  // and there is nothing to put in a report — creating an empty one would
-  // put a report in the patient's list with no content in it.
-  if (reportable.length === 0 && pending.length === 0 && excluded.length === rows.length && rows.length > 0) {
-    const message = `Every result on order ${orderNumber} was voided by the laboratory — no report was created. ${excluded.length} test(s) could not be reported.`;
+  // Every reportable analyte was voided. Randox move the order to status 5
+  // themselves in this case. Creating an empty report would put a report in
+  // the patient's list with nothing in it.
+  if (parsed.rows.length === 0 && pendingCount === 0 && (parsed.exclusions?.length ?? 0) > 0) {
+    const excluded = parsed.exclusions!.length;
+    const message = `Every result on order ${orderNumber} was withheld by the laboratory — no report was created. ${excluded} test(s) could not be reported.`;
     await logAttempt({
       orderNumber,
       outcome: 'FAILED',
       message,
-      markerCount: 0,
-      mappingFailures,
+      mappingFailures: parsed.exclusions!.map((x) => ({
+        markerName: x.rawName,
+        reason: x.reason,
+        ...(x.code ? { code: x.code } : {}),
+      })),
     });
-    await prisma.randoxOrder.updateMany({
-      where: { orderNumber },
-      data: { status: 'CANCELLED', cancelledAt: new Date(), cancelReason: 'All results voided by the laboratory.', nextPollAt: null },
+    await prisma.randoxOrder.update({
+      where: { id: order.id },
+      data: {
+        status: 'CANCELLED',
+        cancelledAt: new Date(),
+        cancelReason: 'All results voided by the laboratory.',
+        nextPollAt: null,
+      },
     });
-    return { outcome: 'ALL_VOIDED', reportId: null, markersIngested: 0, markersExcluded: excluded.length, message };
+    return { outcome: 'ALL_VOIDED', reportId: null, markersIngested: 0, markersExcluded: excluded, message };
   }
 
-  // Nothing usable and nothing voided either — an empty or unmappable
-  // delivery. Don't create a report; log it so an admin sees it.
-  if (reportable.length === 0 && pending.length === 0) {
-    const message = `Nothing on order ${orderNumber} could be ingested — ${rows.length} result(s) received, none mapped to our catalogue.`;
-    await logAttempt({ orderNumber, outcome: 'FAILED', message, mappingFailures });
-    return { outcome: 'FAILED', reportId: null, markersIngested: 0, markersExcluded: excluded.length, message };
-  }
-
-  const panelKey = detail.randoxPanelId ? loadIdMap().panelsByRandoxId[detail.randoxPanelId] : undefined;
-  const panel = panelKey ? await prisma.panel.findUnique({ where: { key: panelKey } }) : null;
-  const patientSex = (await prisma.patientProfile.findUnique({ where: { userId: patient.id } }))?.sex ?? 'ANY';
-  const sampleDate = detail.sampleCollectedAt ? new Date(detail.sampleCollectedAt) : new Date();
-
-  const reportId = await prisma.$transaction(async (tx) => {
-    const report = existing
-      ? await tx.report.update({
-          where: { id: existing.id },
-          data: { panelId: panel?.id ?? existing.panelId, sampleDate },
-        })
-      : await tx.report.create({
-          data: {
-            patientId: patient.id,
-            panelId: panel?.id ?? null,
-            sourceId: source.id,
-            externalId: orderNumber,
-            sampleDate,
-            status: 'PARSED',
-            // No staff uploader on an automated feed; attribution is the
-            // SYSTEM audit entry and the IngestionLogEntry.
-            uploadedById: null,
-          },
-        });
-
-    for (const row of reportable) {
-      const marker = row.marker!;
-      const value = row.raw.value!;
-      const unit = row.raw.unit ?? marker.defaultUnit;
-      const low = row.raw.referenceLow!;
-      const high = row.raw.referenceHigh!;
-
-      // The range Randox issued with THIS result, stored against the
-      // result — not looked up from the marker. Project rule: reference
-      // ranges live on the result.
-      const referenceRange = await tx.referenceRange.create({
-        data: {
-          markerId: marker.id,
-          sex: patientSex,
-          unit,
-          low,
-          high,
-          source: `Randox API, order ${orderNumber}, ingested ${new Date().toISOString().slice(0, 10)}`,
-        },
-      });
-
-      const status = computeMarkerStatus(value, low, high, marker.severityMultiplier, marker.severityAbsoluteDelta);
-
-      await tx.reportResult.upsert({
-        where: { reportId_markerId: { reportId: report.id, markerId: marker.id } },
-        create: {
-          reportId: report.id,
-          markerId: marker.id,
-          valueEncrypted: encryptField(String(value)),
-          unit,
-          referenceRangeId: referenceRange.id,
-          status,
-          caveatCodes: row.caveatCodes,
-        },
-        update: {
-          valueEncrypted: encryptField(String(value)),
-          unit,
-          referenceRangeId: referenceRange.id,
-          status,
-          caveatCodes: row.caveatCodes,
-        },
-      });
-    }
-
-    // Exclusions are recorded, not just omitted — a marker that was
-    // ordered and could not be reported is information the patient and the
-    // clinician both need, even though the value never appears.
-    for (const row of excluded) {
-      await tx.reportResultExclusion.upsert({
-        where: { reportId_rawMarkerName: { reportId: report.id, rawMarkerName: row.raw.testName } },
-        create: {
-          reportId: report.id,
-          markerId: row.marker?.id ?? null,
-          rawMarkerName: row.raw.testName,
-          code: row.exclusion!.code,
-          codeRecognised: row.exclusion!.codeRecognised,
-          reason: row.exclusion!.reason,
-        },
-        update: {
-          markerId: row.marker?.id ?? null,
-          code: row.exclusion!.code,
-          codeRecognised: row.exclusion!.codeRecognised,
-          reason: row.exclusion!.reason,
-        },
-      });
-
-      // A marker that was excluded on a redelivery but had been ingested
-      // on an earlier partial one must lose its value. Otherwise a result
-      // the lab has since voided would stay visible.
-      if (row.marker) {
-        await tx.reportResult.deleteMany({ where: { reportId: report.id, markerId: row.marker.id } });
-      }
-    }
-
-    // Structured, machine-sourced data — there's no OCR ambiguity for an
-    // admin to eyeball, so it lands at ADMIN_VERIFIED rather than PARSED.
-    // verifiedById stays null: no human verified it, and the audit trail
-    // says so. Clinician review and release are untouched.
-    await tx.report.update({
-      where: { id: report.id },
-      data: { status: 'ADMIN_VERIFIED', verifiedAt: new Date() },
+  let outcome;
+  try {
+    outcome = await materialiseParsedReport({
+      patientId: order.patientId,
+      sourceKey: SOURCE_KEY,
+      externalId: orderNumber,
+      parsed,
     });
-
-    return report.id;
-  });
-
-  const { pdfFileId } = await storeArtefacts(orderNumber, reportId, detail);
-  if (pdfFileId) {
-    // originalPdfFileId is unique — on a redelivery the report may already
-    // have one, in which case the newer file stays attached as a generated
-    // file rather than replacing history.
-    const report = await prisma.report.findUnique({ where: { id: reportId }, select: { originalPdfFileId: true } });
-    if (!report?.originalPdfFileId) {
-      await prisma.report.update({ where: { id: reportId }, data: { originalPdfFileId: pdfFileId } });
-    } else {
-      await prisma.storedFile.update({ where: { id: pdfFileId }, data: { generatedForReportId: reportId } });
+  } catch (e) {
+    if (e instanceof MaterialiseError) {
+      await logAttempt({
+        orderNumber,
+        outcome: 'FAILED',
+        reportId: existing?.id,
+        message: e.message,
+        mappingFailures: e.mappingFailures,
+      });
+      return { outcome: 'FAILED', reportId: existing?.id ?? null, markersIngested: 0, markersExcluded: 0, message: e.message };
     }
+    throw e;
   }
 
-  await prisma.randoxOrder.updateMany({ where: { orderNumber }, data: { reportId } });
+  await storeArtefacts(ref, outcome.reportId, detail);
+  await prisma.randoxOrder.update({ where: { id: order.id }, data: { reportId: outcome.reportId } });
 
-  const isPartial = pending.length > 0;
-  const outcome: 'INGESTED' | 'PARTIAL' = isPartial || mappingFailures.length > 0 ? 'PARTIAL' : 'INGESTED';
-
-  const parts = [`${reportable.length} marker(s) ingested`];
-  if (excluded.length > 0) parts.push(`${excluded.length} could not be reported`);
-  if (pending.length > 0) parts.push(`${pending.length} still being processed by the lab`);
+  const isPartial = pendingCount > 0;
+  const parts = [`${outcome.markerCount} marker(s) ingested`];
+  if (outcome.excludedCount > 0) parts.push(`${outcome.excludedCount} could not be reported`);
+  if (pendingCount > 0) parts.push(`${pendingCount} still being processed by the lab`);
+  if (outcome.disagreementCount > 0) {
+    parts.push(`${outcome.disagreementCount} where Randox's own high/low flag disagrees with the range they sent`);
+  }
   const message = `Order ${orderNumber}: ${parts.join(', ')}.`;
 
   await logAttempt({
     orderNumber,
-    outcome,
-    reportId,
-    markerCount: reportable.length,
+    outcome: isPartial || outcome.mappingFailures.length > 0 || outcome.disagreementCount > 0 ? 'PARTIAL' : 'INGESTED',
+    reportId: outcome.reportId,
+    markerCount: outcome.markerCount,
     message,
-    mappingFailures,
+    mappingFailures: outcome.mappingFailures,
   });
 
   return {
     outcome: isPartial ? 'PARTIAL' : 'INGESTED',
-    reportId,
-    markersIngested: reportable.length,
-    markersExcluded: excluded.length,
+    reportId: outcome.reportId,
+    markersIngested: outcome.markerCount,
+    markersExcluded: outcome.excludedCount,
     message,
   };
+}
+
+/**
+ * Stores the raw payload and the lab PDF. Both are kept: the normalised
+ * ReportResult rows are a lossy read of the JSON (voided analytes, unmapped
+ * markers and qualitative results all leave no row), and the PDF is the
+ * document the laboratory actually issued.
+ *
+ * Failures here are logged and swallowed — losing the archive copy is bad,
+ * but discarding a whole set of results because a disk write failed is
+ * worse.
+ */
+async function storeArtefacts(ref: OrderRef, reportId: string, detail: GetOrderResultDetailResponse): Promise<void> {
+  try {
+    const buffer = Buffer.from(JSON.stringify(detail, null, 2), 'utf-8');
+    const saved = await storageAdapter.save(buffer, {
+      originalFilename: `randox-${ref.orderNumber}.json`,
+      mimeType: 'application/json',
+    });
+    await prisma.storedFile.create({
+      data: {
+        kind: 'RANDOX_RESULT_JSON',
+        storageKey: saved.storageKey,
+        originalFilename: `randox-${ref.orderNumber}.json`,
+        mimeType: 'application/json',
+        sizeBytes: saved.sizeBytes,
+        generatedForReportId: reportId,
+      },
+    });
+  } catch (e) {
+    console.error(`[randox] failed to store result JSON for order ${ref.orderNumber}:`, e);
+  }
+
+  try {
+    const base64 = await nexusLabClient().getOrderResultReports(ref);
+    if (!base64) return;
+
+    const filename = `randox-${ref.orderNumber}.pdf`;
+    const buffer = Buffer.from(base64, 'base64');
+    const saved = await storageAdapter.save(buffer, { originalFilename: filename, mimeType: 'application/pdf' });
+    const file = await prisma.storedFile.create({
+      data: {
+        kind: 'RANDOX_PDF',
+        storageKey: saved.storageKey,
+        originalFilename: filename,
+        mimeType: 'application/pdf',
+        sizeBytes: saved.sizeBytes,
+      },
+    });
+
+    // originalPdfFileId is unique — on a redelivery the report may already
+    // have one, in which case the newer file attaches as a generated file
+    // rather than replacing what the patient may already have downloaded.
+    const report = await prisma.report.findUnique({ where: { id: reportId }, select: { originalPdfFileId: true } });
+    if (!report?.originalPdfFileId) {
+      await prisma.report.update({ where: { id: reportId }, data: { originalPdfFileId: file.id } });
+    } else {
+      await prisma.storedFile.update({ where: { id: file.id }, data: { generatedForReportId: reportId } });
+    }
+  } catch (e) {
+    console.error(`[randox] failed to store result PDF for order ${ref.orderNumber}:`, e);
+  }
+}
+
+/** Rows on a payload that the lab has not reported yet. Exported for tests. */
+export function countPendingRows(rows: RandoxReportResultRow[]): number {
+  return rows.filter((r) => parseRandoxValue(r.result).kind === 'absent').length;
 }
