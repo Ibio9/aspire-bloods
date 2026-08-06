@@ -1,6 +1,6 @@
 import { useEffect, useState, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { formatDate, formatReportTitle } from '@aspire-bloods/shared';
+import { formatDate } from '@aspire-bloods/shared';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { Skeleton } from '../../components/ui/Skeleton';
@@ -11,6 +11,8 @@ interface ReportSummary {
   reportId: string;
   /** Null when the report isn't from a catalogue panel — the title falls back to markers + date. */
   panelName: string | null;
+  /** Composed server-side so portal, PDF and escalation email cannot drift apart. */
+  title: string;
   sampleDate: string;
   patientStatus: 'PENDING' | 'RELEASED';
   markerCount?: number;
@@ -29,7 +31,7 @@ interface ReportSummary {
 function ReleasedReportCard({ report, index }: { report: ReportSummary; index: number }) {
   const navigate = useNavigate();
   const to = `/reports/${report.reportId}`;
-  const title = formatReportTitle(report.panelName, report.markerCount, report.sampleDate);
+  const title = report.title;
 
   function handleKeyDown(e: KeyboardEvent<HTMLAnchorElement>) {
     if (e.key === ' ' || e.key === 'Spacebar') {
@@ -78,7 +80,7 @@ function PendingReportCard({ report, index }: { report: ReportSummary; index: nu
     >
       <p className="eyebrow mb-2">{formatDate(report.sampleDate)}</p>
       <p className="font-display text-3xl leading-tight text-espresso">
-        {formatReportTitle(report.panelName, report.markerCount, report.sampleDate)}
+        {report.title}
       </p>
       <p className="mt-6 text-sm text-espresso">
         Your results are with the clinical team and will be available shortly.

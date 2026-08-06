@@ -85,6 +85,18 @@ enum ErasureStatus {
   COMPLETED
 }
 
+// Phase 3: outcome of one attempt to ingest a result from an automated
+// source (currently Randox's API). A single externalId may appear more than
+// once across entries — e.g. UNMATCHED_PATIENT logged on every poll until
+// the account exists, then INGESTED once it does.
+enum IngestionOutcome {
+  INGESTED
+  PARTIAL
+  DUPLICATE
+  UNMATCHED_PATIENT
+  FAILED
+}
+
 // ---------------------------------------------------------------------------
 // Identity & auth
 // ---------------------------------------------------------------------------
@@ -378,12 +390,21 @@ model Report {
   panel        Panel?       @relation(fields: [panelId], references: [id])
   sourceId     String
   source       Source       @relation(fields: [sourceId], references: [id])
+  // Randox's own identifier for this result set (order/report id) — set only
+  // for API-ingested reports. Unique so a redelivered payload updates the
+  // same report instead of creating a duplicate (Postgres allows multiple
+  // NULLs under a unique constraint, so PDF/manual reports are unaffected).
+  externalId   String?      @unique
   sampleDate   DateTime
   receivedDate DateTime     @default(now())
   status       ReportStatus @default(UPLOADED)
 
-  uploadedById String
-  uploadedBy   User      @relation("UploadedByStaff", fields: [uploadedById], references: [id])
+  // Nullable: automated ingestion (RandoxApiAdapter) has no staff uploader —
+  // that attempt is attributed via IngestionLogEntry + an actorType SYSTEM
+  // audit log entry instead. Every human-initiated route (PDF upload,
+  // manual entry) still always sets this.
+  uploadedById String?
+  uploadedBy   User?     @relation("UploadedByStaff", fields: [uploadedById], references: [id])
   verifiedById String?
   verifiedBy   User?     @relation("VerifiedByStaff", fields: [verifiedById], references: [id])
   verifiedAt   DateTime?
@@ -404,8 +425,9 @@ model Report {
   originalPdfFile   StoredFile? @relation("OriginalPdf", fields: [originalPdfFileId], references: [id])
   generatedFiles    StoredFile[] @relation("GeneratedFiles")
 
-  results          ReportResult[]
-  escalationEvents EscalationEvent[]
+  results             ReportResult[]
+  escalationEvents    EscalationEvent[]
+  ingestionLogEntries IngestionLogEntry[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -493,6 +515,31 @@ model EscalationEvent {
   acknowledgedAt   DateTime?
 
   @@index([reportId])
+}
+
+// ---------------------------------------------------------------------------
+// Ingestion log — every automated-source attempt, success or not, so a
+// silently failed import doesn't go unnoticed (Phase 3 §3).
+// ---------------------------------------------------------------------------
+
+model IngestionLogEntry {
+  id         String           @id @default(uuid())
+  sourceKey  String
+  externalId String?
+  outcome    IngestionOutcome
+  reportId   String?
+  report     Report?          @relation(fields: [reportId], references: [id])
+  // Markers successfully mapped and written on this attempt.
+  markerCount Int             @default(0)
+  message    String
+  // Per-row detail for anything skipped: unknown marker key, implausible
+  // unit, unmatched patient reference, etc. Structure is source-specific.
+  mappingFailures Json?
+  createdAt  DateTime         @default(now())
+
+  @@index([sourceKey])
+  @@index([externalId])
+  @@index([createdAt])
 }
 
 // ---------------------------------------------------------------------------

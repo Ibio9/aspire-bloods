@@ -89,6 +89,8 @@ interface ReportRow {
   voidedAt: string | null;
   sampleDate: string;
   panel: { name: string } | null;
+  /** Composed server-side — carries the marker-count fallback the list payload can't derive. */
+  title: string;
   source: { name: string };
   patient: { email: string; patientProfile: { firstName: string; lastName: string } | null };
 }
@@ -578,7 +580,7 @@ export function AdminReportsPage() {
                     {r.patient.patientProfile
                       ? `${r.patient.patientProfile.firstName} ${r.patient.patientProfile.lastName}`
                       : r.patient.email}{' '}
-                    — {formatReportTitle(r.panel?.name, null, r.sampleDate)}
+                    — {r.title}
                   </p>
                   <p className="text-sm text-espresso">
                     Sample date: {formatDate(r.sampleDate)} · {r.source.name}

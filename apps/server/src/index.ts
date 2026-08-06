@@ -10,6 +10,7 @@ import { prisma } from './db/client.js';
 import { runSessionCleanupJob } from './jobs/sessionCleanup.js';
 import { runRetentionReviewJob } from './jobs/retentionReview.js';
 import { runErasurePurgeJob } from './jobs/erasurePurge.js';
+import { runRandoxIngestionJob } from './modules/result-sources/randoxIngestionService.js';
 import { purgeExpiredRateLimitHits } from './lib/postgresRateLimitStore.js';
 import { securityHeaders } from './middleware/securityHeaders.js';
 import { authRouter } from './modules/auth/router.js';
@@ -89,6 +90,16 @@ cron.schedule('0 3 * * *', () => {
 cron.schedule('0 * * * *', () => {
   runErasurePurgeJob().catch((e) => console.error('erasurePurgeJob failed:', e));
 });
+// Only active once Randox's API is switched on (LAB_ADAPTER=RANDOX_API) —
+// otherwise RandoxApiAdapter's methods throw NotImplementedError, and
+// there's nothing to poll for. Automatic ingestion is not automatic
+// publication: this only ever lands reports at ADMIN_VERIFIED, never past
+// the clinician review/release gate.
+if (env.LAB_ADAPTER === 'RANDOX_API') {
+  cron.schedule(env.RANDOX_POLL_CRON, () => {
+    runRandoxIngestionJob().catch((e) => console.error('randoxIngestionJob failed:', e));
+  });
+}
 
 app.listen(env.PORT, () => {
   console.log(`Aspire Bloods server listening on port ${env.PORT} (${env.NODE_ENV})`);

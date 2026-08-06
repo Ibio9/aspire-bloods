@@ -2,6 +2,12 @@ import { extractText, getDocumentProxy } from 'unpdf';
 import { prisma } from '../../db/client.js';
 import type { ResultSourceAdapter, ParsedMarkerRow, ParsedReport } from './ResultSourceAdapter.js';
 import { NotImplementedError } from './ResultSourceAdapter.js';
+import { llmExtractionAvailable, extractWithLlm, applySanityChecks, reconcileFlaggedRows } from './llmExtraction.js';
+
+// Fallback path only now — normaliseReport() prefers LLM extraction
+// (llmExtraction.ts) whenever ANTHROPIC_API_KEY is configured. The
+// pattern-based parser below still runs whenever the LLM path is
+// unavailable or errors, so it has to keep working standalone.
 
 const DATE_PATTERNS = [
   /date\s*of\s*sample\s*collection[:\s]+([\w/\-.]+)/i,
@@ -353,10 +359,47 @@ export class PdfUploadAdapter implements ResultSourceAdapter {
   async normaliseReport(pdfBuffer: Buffer): Promise<ParsedReport> {
     const pdf = await getDocumentProxy(new Uint8Array(pdfBuffer));
     const { text } = await extractText(pdf, { mergePages: true });
-    return {
-      sampleDate: extractSampleDate(text),
-      rows: extractRows(text),
-    };
+
+    if (!llmExtractionAvailable()) {
+      return {
+        sampleDate: extractSampleDate(text),
+        panelName: null,
+        rows: extractRows(text),
+        extractionMethod: 'regex',
+        fallbackReason: 'AI extraction is not configured (ANTHROPIC_API_KEY unset) — using pattern-based extraction.',
+      };
+    }
+
+    try {
+      const llmResult = await extractWithLlm(text);
+      const catalogueMarkers = await prisma.marker.findMany({
+        where: { isActive: true },
+        select: { id: true, key: true, name: true, defaultUnit: true },
+      });
+      let rows = applySanityChecks(llmResult.rows, catalogueMarkers);
+      // Two-pass only for rows a sanity check actually flagged — every
+      // extraction re-reading the whole report twice regardless of quality
+      // would double cost and latency for no benefit on clean rows.
+      rows = await reconcileFlaggedRows(text, rows);
+
+      return {
+        sampleDate: llmResult.sampleDate ?? extractSampleDate(text),
+        panelName: llmResult.panelName,
+        rows,
+        extractionMethod: 'llm',
+      };
+    } catch (e) {
+      // An LLM failure (API down, malformed response, rate limit) must
+      // never block extraction entirely — fall back to the regex path and
+      // say so in the UI, rather than silently returning nothing.
+      return {
+        sampleDate: extractSampleDate(text),
+        panelName: null,
+        rows: extractRows(text),
+        extractionMethod: 'regex',
+        fallbackReason: `AI extraction failed (${e instanceof Error ? e.message : 'unknown error'}) — using pattern-based extraction.`,
+      };
+    }
   }
 
   async listPanels(): Promise<{ key: string; name: string }[]> {

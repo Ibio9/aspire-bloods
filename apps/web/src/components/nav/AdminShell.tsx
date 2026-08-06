@@ -20,6 +20,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/admin/patients', label: 'Patients', icon: PatientsIcon },
   { to: '/admin/content', label: 'Panels & content', icon: ContentIcon },
   { to: '/admin/audit-log', label: 'Audit log', icon: AuditIcon, adminOnly: true },
+  { to: '/admin/ingestion-log', label: 'Ingestion log', icon: AuditIcon, adminOnly: true },
 ];
 
 function SidebarLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed: boolean; onNavigate?: () => void }) {

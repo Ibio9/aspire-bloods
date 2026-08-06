@@ -4,6 +4,7 @@ import { recordAuditLog } from '../../lib/auditLog.js';
 import { sourceLabel } from '../../lib/sourceLabel.js';
 import { convertToDisplayUnit, hasKnownConversion } from '../../lib/unitConversion.js';
 import type { ConsentType } from '@aspire-bloods/shared';
+import { formatReportTitle } from '@aspire-bloods/shared';
 
 export class PatientAccessError extends Error {
   constructor(
@@ -29,10 +30,14 @@ export async function listReportsForPatient(patientId: string) {
     const attentionCount = r.results.filter((res) => res.status !== 'IN_RANGE').length;
     return {
       reportId: r.id,
-      // Nullable by design (schema: Report.panelId is optional) — the client
-      // composes the card title via formatReportTitle(), which falls back to
-      // "12 markers · 4 August 2026" rather than rendering an empty heading.
+      // Nullable by design (schema: Report.panelId is optional). The title is
+      // composed here rather than on the client so the portal, the PDF and the
+      // escalation email cannot drift apart — formatReportTitle falls back to
+      // "12 markers · 4 August 2026" rather than an empty heading. panelName
+      // and markerCount stay on the payload for callers that need the parts
+      // rather than the composed string.
       panelName: r.panel?.name ?? null,
+      title: formatReportTitle(r.panel?.name, r.results.length, r.sampleDate),
       sampleDate: r.sampleDate.toISOString().slice(0, 10),
       patientStatus: released ? ('RELEASED' as const) : ('PENDING' as const),
       // Sent regardless of release state: it's the fallback title's raw
@@ -63,6 +68,7 @@ export async function getReleasedReportForPatient(patientId: string, reportId: s
     reportId: report.id,
     panelName: report.panel?.name ?? null,
     markerCount: report.results.length,
+    title: formatReportTitle(report.panel?.name, report.results.length, report.sampleDate),
     sampleDate: report.sampleDate.toISOString().slice(0, 10),
     sourceLabel: sourceLabel(report.source.key, report.source.name),
     markers: report.results.map((r) => ({

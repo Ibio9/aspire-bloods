@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { formatDate, formatReportTitle, type MarkerStatus } from '@aspire-bloods/shared';
+import { formatDate, type MarkerStatus } from '@aspire-bloods/shared';
 import { Breadcrumbs } from '../../components/nav/Breadcrumbs';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import type { MarkerNavState } from './markerNavState';
@@ -27,6 +27,7 @@ interface ReportDetail {
   reportId: string;
   panelName: string | null;
   markerCount?: number;
+  title: string;
   sampleDate: string;
   sourceLabel?: string;
   markers: MarkerCard[];
@@ -64,7 +65,7 @@ export function ReportView() {
     );
   }
 
-  const title = formatReportTitle(report.panelName, report.markerCount ?? report.markers.length, report.sampleDate);
+  const title = report.title;
   const sampleDate = formatDate(report.sampleDate);
 
   return (
@@ -90,7 +91,7 @@ export function ReportView() {
           <Link
             key={m.markerId}
             to={`/markers/${m.markerId}`}
-            state={{ reportId: report.reportId, panelName: title, markerIds: report.markers.map((mk) => mk.markerId) } satisfies MarkerNavState}
+            state={{ reportId: report.reportId, title: report.title, markerIds: report.markers.map((mk) => mk.markerId) } satisfies MarkerNavState}
             className="stagger-item block rounded-card motion-safe:animate-riseIn focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
             style={{ animationDelay: `${i * 30}ms` }}
           >

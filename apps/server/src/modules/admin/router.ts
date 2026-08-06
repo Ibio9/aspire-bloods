@@ -20,6 +20,7 @@ import {
   getSystemAuditLog,
   listCopyBlocks,
   updateCopyBlock,
+  listIngestionLog,
 } from './service.js';
 
 export const adminRouter = Router();
@@ -299,6 +300,18 @@ adminRouter.get(
       offset,
     });
     res.json(result);
+  }),
+);
+
+// Phase 3 §3: automated-source ingestion attempts, success or not — ADMIN
+// only, same as the system audit log this sits alongside.
+adminRouter.get(
+  '/ingestion-log',
+  roleGuard('ADMIN'),
+  asyncHandler(async (req, res) => {
+    const parsed = paginationSchema.safeParse(req.query);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    res.json(await listIngestionLog(parsed.data.limit, parsed.data.offset));
   }),
 );
 

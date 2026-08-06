@@ -15,11 +15,53 @@ export interface ParsedMarkerRow {
   // surface this rather than silently accepting a guessed range.
   needsReview: boolean;
   reviewReason: string | null;
+  // The exact text the extractor read this row from — shown verbatim in the
+  // admin verify table so the admin sees what was read, not just what was
+  // concluded. Regex extraction: same as rawLine. LLM extraction: the
+  // model's own quote of the source text for this row.
+  sourceText?: string;
+  // 0–1, LLM extraction only. Capped low whenever a sanity check fails —
+  // never purely the model's self-reported confidence (see llmExtraction.ts
+  // applySanityChecks). Null for regex extraction, which has no notion of
+  // confidence — every row is either matched by the pattern or not present.
+  confidence?: number | null;
+  // Machine-readable reasons this row needs a closer look, e.g.
+  // 'unknown_marker', 'implausible_unit', 'value_order_of_magnitude',
+  // 'two_pass_disagreement'. Never used to silently drop or auto-accept a
+  // row — only to flag it in the verify table. Empty for a clean row.
+  flags?: string[];
 }
 
 export interface ParsedReport {
   sampleDate: string | null; // ISO date, if found in the document
+  // Parsed off the report itself when present (e.g. a printed panel/profile
+  // name) — left null otherwise. A report with no panel is still valid; see
+  // packages/shared formatReportTitle().
+  panelName?: string | null;
   rows: ParsedMarkerRow[];
+  // 'api' marks structured data straight from RandoxApiAdapter — no OCR or
+  // model guesswork involved, so it doesn't carry the same fallback concept
+  // PDF extraction does.
+  extractionMethod: 'llm' | 'regex' | 'api';
+  // Set only when extractionMethod is 'regex' because the LLM path was
+  // unavailable (no API key, request failed, timed out) — surfaced in the
+  // admin UI so a degraded extraction is never mistaken for a clean one.
+  fallbackReason?: string | null;
+  // RandoxApiAdapter only: the practice's own patientId, as submitted to
+  // Randox at order time and echoed back on the result — this is how an
+  // inbound API result is matched to one of our accounts. Null/absent for
+  // PDF and manual sources.
+  externalPatientRef?: string | null;
+  // RandoxApiAdapter only: Randox's key for the test profile/panel this
+  // result belongs to, matched against Panel.key. Left null when Randox
+  // doesn't report one we recognise — the report is still valid with no
+  // panel (see formatReportTitle()).
+  panelKey?: string | null;
+  // RandoxApiAdapter only: true when Randox has indicated more markers for
+  // this order are still pending (a partial report) — see
+  // randoxIngestionService.ts, which merges later deliveries for the same
+  // externalId into the same Report rather than creating duplicates.
+  isPartial?: boolean;
 }
 
 /**
@@ -41,9 +83,12 @@ export interface ParsedReport {
  *    normaliseReport()/fetchResults() aren't meaningful here; see
  *    modules/reports/manualEntryService.ts, which bypasses parsing
  *    entirely but still uses the same verify→review→release gate.
- *  - RandoxApiAdapter (scaffold only): Randox's API requires a one-off
- *    £5,000 activation payment that hasn't happened — every method throws
- *    NotImplemented until it's switched on via LAB_ADAPTER env config.
+ *  - RandoxApiAdapter (live now): Randox's direct results API. fetchResults()
+ *    pulls one result by their externalId; normaliseReport() maps their JSON
+ *    payload onto the same row shape as the other adapters. Driven by
+ *    randoxIngestionService.ts on a schedule, never by the interactive
+ *    PDF-upload flow — see that file for patient/marker mapping, dedupe,
+ *    and how ingestion still stops short of the release gate.
  */
 export interface ResultSourceAdapter {
   fetchResults(externalId: string): Promise<Buffer>;
@@ -53,6 +98,6 @@ export interface ResultSourceAdapter {
 
 export class NotImplementedError extends Error {
   constructor(method: string) {
-    super(`${method} is not implemented — RandoxApiAdapter is a scaffold pending Randox API activation`);
+    super(`${method} is not implemented`);
   }
 }

@@ -39,6 +39,14 @@ const envSchema = z.object({
   LAB_ADAPTER: z.enum(['RANDOX_PORTAL', 'RANDOX_API']).default('RANDOX_PORTAL'),
   RANDOX_API_BASE_URL: z.string().optional().default(''),
   RANDOX_API_KEY: z.string().optional().default(''),
+  // How often the API adapter polls Randox for new/updated results, when
+  // LAB_ADAPTER=RANDOX_API. Cron expression.
+  RANDOX_POLL_CRON: z.string().default('*/15 * * * *'),
+
+  // PDF extraction: optional. Empty means every PDF upload falls back to
+  // the regex extractor and says so in the admin UI — this must never be a
+  // hard failure, since the regex path is fully functional on its own.
+  ANTHROPIC_API_KEY: z.string().optional().default(''),
 
   // Explicit opt-in only — DO NOT set true anywhere internet-reachable.
   // Deliberately not derived from NODE_ENV: a misconfigured staging

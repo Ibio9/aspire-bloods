@@ -31,7 +31,8 @@ export type ConsentType = 'DATA_PROCESSING' | 'RESULTS_STORAGE' | 'COMMS_EMAIL' 
 
 export interface PanelCardDTO {
   reportId: string;
-  panelName: string;
+  panelName: string | null;
+  title: string; // panelName, or a derived "{N} markers · {date}" fallback
   sampleDate: string; // ISO date
   markerCount: number;
   inRangeCount: number;

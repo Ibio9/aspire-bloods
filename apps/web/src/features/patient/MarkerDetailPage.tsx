@@ -99,14 +99,7 @@ export function MarkerDetailPage() {
       <Breadcrumbs
         items={
           navState
-            ? [
-                { label: 'Your results', to: '/my-results' },
-                {
-                  label: navState.panelName ?? `${navState.markerIds.length} marker${navState.markerIds.length === 1 ? '' : 's'}`,
-                  to: `/reports/${navState.reportId}`,
-                },
-                { label: detail.name },
-              ]
+            ? [{ label: 'Your results', to: '/my-results' }, { label: navState.title, to: `/reports/${navState.reportId}` }, { label: detail.name }]
             : [{ label: 'Your results', to: '/my-results' }, { label: detail.name }]
         }
       />

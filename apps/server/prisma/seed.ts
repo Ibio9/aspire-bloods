@@ -196,6 +196,7 @@ const EXCLUDED_MARKER_KEYS = ['oxidised-ldl', 'mpo'];
 
 const sourceDefinitions = [
   { key: 'randox_portal', name: 'Randox Portal' },
+  { key: 'randox_api', name: 'Randox API' },
   { key: 'aspire_inhouse', name: 'Aspire In-House' },
   { key: 'manual_entry', name: 'Manual Entry' },
 ];

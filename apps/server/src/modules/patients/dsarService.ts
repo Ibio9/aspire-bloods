@@ -3,6 +3,7 @@ import { prisma } from '../../db/client.js';
 import { decryptField } from '../../lib/crypto.js';
 import { storageAdapter } from '../storage/LocalDiskStorageAdapter.js';
 import { recordAuditLog } from '../../lib/auditLog.js';
+import { formatReportTitle } from '@aspire-bloods/shared';
 
 /**
  * One-click full data export (brief §6, DSAR support): every held record
@@ -77,6 +78,7 @@ export async function buildDsarExport(patientId: string): Promise<NodeJS.Readabl
   const reportsJson = reports.map((r) => ({
     reportId: r.id,
     panel: r.panel?.name ?? null,
+    title: formatReportTitle(r.panel?.name, r.results.length, r.sampleDate),
     sampleDate: r.sampleDate,
     status: r.status,
     releasedAt: r.releasedAt,

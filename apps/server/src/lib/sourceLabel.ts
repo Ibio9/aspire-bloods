@@ -7,6 +7,8 @@
  */
 const LABELS: Record<string, string> = {
   randox_pdf: 'Analysed by Randox Health',
+  randox_portal: 'Analysed by Randox Health',
+  randox_api: 'Analysed by Randox Health',
   aspire_inhouse: 'Analysed in-house at Aspire Clinic',
   manual_entry: 'Recorded by the Aspire clinical team',
 };
