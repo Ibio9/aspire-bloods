@@ -93,6 +93,10 @@ export function MarkerSearch({ onNavigate }: { onNavigate?: () => void }) {
           aria-autocomplete="list"
           aria-label="Search your markers"
           value={query}
+          // The listbox is never in the tab order (see the options below) — the
+          // input keeps focus throughout, so the highlighted option has to be
+          // named here or a screen reader hears nothing as you arrow down.
+          aria-activedescendant={open && matches[activeIndex] ? `${listId}-opt-${activeIndex}` : undefined}
           disabled={hasNoMarkers}
           placeholder={hasNoMarkers ? 'No markers yet' : 'Search your markers…'}
           onChange={(e) => {
@@ -116,21 +120,26 @@ export function MarkerSearch({ onNavigate }: { onNavigate?: () => void }) {
           {matches.length === 0 ? (
             <li className="px-3.5 py-2.5 text-sm text-espresso/60">No marker of yours matches “{query.trim()}”.</li>
           ) : (
+            // The option is the clickable element itself rather than a button
+            // inside one: an option must not contain interactive descendants,
+            // and a tabbable control per row would put six extra stops between
+            // the search box and the first nav link.
             matches.map((m, i) => (
-              <li key={m.markerId} role="option" aria-selected={i === activeIndex}>
-                <button
-                  type="button"
-                  onClick={() => go(m)}
-                  onMouseEnter={() => setActiveIndex(i)}
-                  className={`flex w-full flex-col items-start px-3.5 py-2.5 text-left transition-colors duration-100 ${
-                    i === activeIndex ? 'bg-bronze text-white' : 'text-espresso'
-                  }`}
-                >
-                  <span className="text-sm font-medium">{m.name}</span>
-                  <span className={`tabular text-xs ${i === activeIndex ? 'text-white/85' : 'text-espresso/60'}`}>
-                    {m.value} {m.unit} · {statusLabel(m.status)}
-                  </span>
-                </button>
+              <li
+                key={m.markerId}
+                id={`${listId}-opt-${i}`}
+                role="option"
+                aria-selected={i === activeIndex}
+                onClick={() => go(m)}
+                onMouseEnter={() => setActiveIndex(i)}
+                className={`flex cursor-pointer flex-col items-start px-3.5 py-2.5 text-left transition-colors duration-100 ${
+                  i === activeIndex ? 'bg-bronze text-white' : 'text-espresso'
+                }`}
+              >
+                <span className="text-sm font-medium">{m.name}</span>
+                <span className={`tabular text-xs ${i === activeIndex ? 'text-white/85' : 'text-espresso/60'}`}>
+                  {m.value} {m.unit} · {statusLabel(m.status)}
+                </span>
               </li>
             ))
           )}
