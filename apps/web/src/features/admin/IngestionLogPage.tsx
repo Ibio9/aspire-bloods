@@ -108,7 +108,7 @@ export function IngestionLogPage() {
                     <TableCell className="max-w-[420px]">
                       <p className="text-sm text-espresso">{r.message}</p>
                       {r.mappingFailures && r.mappingFailures.length > 0 && (
-                        <ul className="mt-1 list-disc pl-4 text-xs text-espresso/70">
+                        <ul className="mt-1 list-disc pl-4 text-xs text-espresso/80">
                           {r.mappingFailures.map((f, i) => (
                             <li key={i}>
                               {f.markerName}: {f.reason}

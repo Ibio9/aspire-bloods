@@ -155,7 +155,7 @@ export function Prepare({
                 acknowledged ? 'border-bronze bg-bronze' : 'border-taupe bg-white'
               }`}
             >
-              <TickIcon className={`h-3 w-3 text-white transition duration-150 ease-out ${acknowledged ? 'opacity-100' : 'opacity-0'}`} />
+              <TickIcon className={`h-3 w-3 text-onaccent transition duration-150 ease-out ${acknowledged ? 'opacity-100' : 'opacity-0'}`} />
             </span>
             {/* The label names the actual time. "I have read the instructions"
                 is not something anyone can be held to; "I will not eat after

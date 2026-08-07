@@ -150,7 +150,7 @@ function ChartTooltip({
     <div className="rounded-card border border-taupe bg-white px-4 py-3 text-xs shadow-popover">
       <p className="tabular text-base font-semibold leading-none text-espresso">
         {point.value}
-        {point.unit && <span className="ml-1 text-xs font-normal text-espresso/70">{point.unit}</span>}
+        {point.unit && <span className="ml-1 text-xs font-normal text-espresso/80">{point.unit}</span>}
       </p>
       <p className="mt-1.5 text-espresso/80">{formatDate(point.sampleDate)}</p>
       <p className="mt-1.5 flex items-center gap-1.5 font-medium text-espresso">
@@ -159,19 +159,19 @@ function ChartTooltip({
         </svg>
         {statusLabel(point.status)}
       </p>
-      <p className="tabular mt-1.5 text-espresso/70">
+      <p className="tabular mt-1.5 text-espresso/80">
         Reference range {point.referenceLow}–{point.referenceHigh}
       </p>
       {/* Advisory, and clearly separate from the status above it. */}
       {optimal && (
-        <p className="tabular mt-1 text-espresso/70">
+        <p className="tabular mt-1 text-espresso/80">
           Optimal {formatOptimalRange(optimal.low, optimal.high, optimal.unit)}
           <span> · {withinOptimal ? 'within optimal' : 'outside optimal'}</span>
         </p>
       )}
-      {point.sourceLabel && <p className="mt-1.5 text-espresso/70">{point.sourceLabel}</p>}
+      {point.sourceLabel && <p className="mt-1.5 text-espresso/80">{point.sourceLabel}</p>}
       {point.converted && (
-        <p className="mt-1.5 text-espresso/70">
+        <p className="mt-1.5 text-espresso/80">
           Converted from {point.originalValue} {point.originalUnit}
         </p>
       )}

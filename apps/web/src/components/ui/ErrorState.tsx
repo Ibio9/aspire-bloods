@@ -93,7 +93,7 @@ export function ErrorState({ error, subject = 'this page', backTo, onRetry, chil
       <p className="mt-5 font-display text-3xl leading-tight text-espresso">{title}</p>
       <p className="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-espresso/80">{description}</p>
       {detail && detail !== 'Something went wrong' && (
-        <p className="mx-auto mt-3 max-w-sm text-xs text-espresso/60">{detail}</p>
+        <p className="mx-auto mt-3 max-w-sm text-xs text-espresso/80">{detail}</p>
       )}
       {children}
       <div className="mt-8 flex flex-wrap items-center justify-center gap-3">

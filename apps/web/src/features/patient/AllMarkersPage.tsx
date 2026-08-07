@@ -15,7 +15,16 @@ import { staggerDelay } from '../../components/motion/stagger';
 import { ArrowRightIcon } from '../../components/nav/patientIcons';
 import { apiFetch } from '../../lib/api';
 import { type MarkerRow } from '../../lib/patientPortal';
-import { STATUS_FILTERS, matchesStatusFilter, optimalRangeLabel, optimalStatusLabel, type StatusFilter } from '../../lib/markerCopy';
+import {
+  STATUS_FILTERS,
+  filterCountLabel,
+  matchesMarkerQuery,
+  matchesStatusFilter,
+  optimalRangeLabel,
+  optimalStatusLabel,
+  type StatusFilter,
+} from '../../lib/markerCopy';
+import { Button } from '../../components/ui/Button';
 
 /**
  * Every marker the patient has ever had tested, in one list, independent of
@@ -56,32 +65,34 @@ function relativeMovement(m: MarkerRow): number {
 function MarkerListRow({ marker }: { marker: MarkerRow }) {
   return (
     <Link to={`/markers/${marker.markerId}`} className="block rounded-card">
-      <Card interactive padding="tight">
+      {/* Same rule as the result cards: the tint is a surface wash only, and
+          the StatusBadge inside still carries the status in shape and words. */}
+      <Card interactive tint={marker.status} padding="tight">
         {/* Stacked until lg: the four fixed columns total ~630px, which fits
             beside the sidebar only from lg up — at tablet widths the row was
             quietly crushing the marker name to nothing. */}
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-6">
           <div className="min-w-0 flex-1">
             <p className="font-display text-xl leading-tight text-espresso sm:text-2xl">{marker.name}</p>
-            <p className="mt-1 text-xs text-espresso/70">
+            <p className="mt-1 text-xs text-espresso/80">
               {marker.panelName} · {formatDate(marker.sampleDate)}
               {marker.resultCount > 1 && ` · ${marker.resultCount} results`}
             </p>
           </div>
 
           <p className="tabular flex shrink-0 items-baseline gap-1.5 text-2xl font-semibold text-espresso lg:w-40 lg:justify-end">
-            {marker.valueText ?? marker.value} <span className="text-sm font-normal text-espresso/70">{marker.unit}</span>
+            {marker.valueText ?? marker.value} <span className="text-sm font-normal text-espresso/80">{marker.unit}</span>
           </p>
 
           <div className="shrink-0 lg:w-52">
             <StatusBadge status={marker.status} />
-            <p className="tabular mt-1 text-xs text-espresso/60">
+            <p className="tabular mt-1 text-xs text-espresso/80">
               Usual range {marker.referenceLow}–{marker.referenceHigh}
             </p>
             {/* Advisory, and clearly the second of two ranges. Absent
                 entirely for a marker with no established optimal. */}
             {marker.optimal && (
-              <p className="tabular mt-0.5 text-xs text-espresso/60">
+              <p className="tabular mt-0.5 text-xs text-espresso/80">
                 {optimalRangeLabel(marker.optimal)}
                 {optimalStatusLabel(marker.optimal) && (
                   <span> · {optimalStatusLabel(marker.optimal)!.toLowerCase()}</span>
@@ -99,7 +110,7 @@ function MarkerListRow({ marker }: { marker: MarkerRow }) {
                 optimal={marker.optimal}
               />
             ) : (
-              <span className="text-xs text-espresso/50">{marker.comparable ? 'First result' : 'Not comparable'}</span>
+              <span className="text-xs text-espresso/80">{marker.comparable ? 'First result' : 'Not comparable'}</span>
             )}
             <ArrowRightIcon className="hidden shrink-0 text-bronze-700 lg:block" />
           </div>
@@ -111,21 +122,39 @@ function MarkerListRow({ marker }: { marker: MarkerRow }) {
 
 export function AllMarkersPage() {
   const [markers, setMarkers] = useState<MarkerRow[] | null>(null);
+  const [categories, setCategories] = useState<{ key: string; name: string }[]>([]);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
+  const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
   const [sort, setSort] = useState<SortKey>('ATTENTION');
 
   useEffect(() => {
     apiFetch<MarkerRow[]>('/patient/markers')
       .then(setMarkers)
       .catch(() => setMarkers([]));
+    // Health areas for the category filter. A failure here costs the category
+    // picker and nothing else, so it degrades rather than blocking the page.
+    apiFetch<{ key: string; name: string }[]>('/content/marker-categories')
+      .then(setCategories)
+      .catch(() => setCategories([]));
   }, []);
 
+  /**
+   * Genetic indicators, food sensitivities and microbiome proportions never
+   * appear on this screen at all. It is a list of things with a value, a range
+   * and a direction of travel, and none of those three has any of them.
+   */
+  const measured = useMemo(
+    () => (markers ?? []).filter((m) => (m.resultType ?? 'MEASURED') === 'MEASURED'),
+    [markers],
+  );
+
   const visible = useMemo(() => {
-    if (!markers) return [];
-    const q = query.trim().toLowerCase();
-    const filtered = markers.filter(
-      (m) => matchesStatusFilter(m.status, statusFilter) && (q === '' || m.name.toLowerCase().includes(q)),
+    const filtered = measured.filter(
+      (m) =>
+        matchesStatusFilter(m.status, statusFilter) &&
+        matchesMarkerQuery(m, query) &&
+        (categoryFilter === 'ALL' || (m.categoryKeys ?? []).includes(categoryFilter)),
     );
 
     const sorted = [...filtered];
@@ -134,9 +163,22 @@ export function AllMarkersPage() {
     else if (sort === 'MOVEMENT') sorted.sort((a, b) => relativeMovement(b) - relativeMovement(a) || a.name.localeCompare(b.name));
     else sorted.sort((a, b) => ATTENTION_RANK[a.status] - ATTENTION_RANK[b.status] || a.name.localeCompare(b.name));
     return sorted;
-  }, [markers, query, statusFilter, sort]);
+  }, [measured, query, statusFilter, categoryFilter, sort]);
 
-  const attentionCount = markers?.filter((m) => m.status !== 'IN_RANGE').length ?? 0;
+  // Only areas this patient actually has results in — offering a filter that
+  // can only ever return nothing is worse than not offering it.
+  const filterableCategories = useMemo(() => {
+    const present = new Set(measured.flatMap((m) => m.categoryKeys ?? []));
+    return categories.filter((c) => present.has(c.key));
+  }, [categories, measured]);
+
+  const filtersApplied = query.trim() !== '' || statusFilter !== 'ALL' || categoryFilter !== 'ALL';
+
+  function clearFilters() {
+    setQuery('');
+    setStatusFilter('ALL');
+    setCategoryFilter('ALL');
+  }
 
   return (
     <>
@@ -164,22 +206,42 @@ export function AllMarkersPage() {
         </div>
       ) : (
         <>
-          <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Input
               label="Find a marker"
               name="marker-filter"
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Ferritin, vitamin D…"
+              // The abbreviation is the only name most people know, and search
+              // matches aliases as well as the printed name — so "ALT" finds
+              // Alanine Aminotransferase and "TSH" finds Thyroid Stimulating
+              // Hormone. The placeholder says so by example.
+              placeholder="Ferritin, ALT, TSH…"
               // A filter, not a form field — Input marks required by default (see its comment on
               // the inverted asterisk convention), which would be wrong on something you can leave blank.
               required={false}
             />
             <Select label="Show" name="status-filter" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}>
-              {STATUS_FILTERS.map((f) => (
-                <option key={f.value} value={f.value}>
-                  {f.value === 'ATTENTION' ? `${f.label} (${attentionCount})` : f.label}
+              {STATUS_FILTERS.map((f) => {
+                const n = measured.filter((m) => matchesStatusFilter(m.status, f.value)).length;
+                return (
+                  <option key={f.value} value={f.value}>
+                    {f.value === 'ALL' ? f.label : `${f.label} (${n})`}
+                  </option>
+                );
+              })}
+            </Select>
+            <Select
+              label="Health area"
+              name="category-filter"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+            >
+              <option value="ALL">All health areas</option>
+              {filterableCategories.map((c) => (
+                <option key={c.key} value={c.key}>
+                  {c.name}
                 </option>
               ))}
             </Select>
@@ -192,15 +254,23 @@ export function AllMarkersPage() {
             </Select>
           </div>
 
-          <p className="mt-6 text-sm text-espresso/70" role="status">
-            {visible.length} of {markers.length} marker{markers.length === 1 ? '' : 's'}
-          </p>
+          <div className="mt-6 flex flex-wrap items-center gap-4">
+            <p className="text-sm text-espresso/80" role="status">
+              {filterCountLabel(visible.length, measured.length)}
+            </p>
+            {filtersApplied && (
+              <Button variant="secondary" onClick={clearFilters}>
+                Clear filters
+              </Button>
+            )}
+          </div>
 
           {visible.length === 0 ? (
             <div className="mt-4 max-w-2xl">
               <EmptyState
                 title="Nothing matches those filters"
-                description="Try clearing the search box or switching “Show” back to all markers."
+                description="Try clearing the search box, or widening the state and health area you have chosen. Only markers you have actually had tested are ever listed here, so a narrower filter cannot reveal one you have not had."
+                action={filtersApplied ? <Button onClick={clearFilters}>Clear filters</Button> : undefined}
               />
             </div>
           ) : (

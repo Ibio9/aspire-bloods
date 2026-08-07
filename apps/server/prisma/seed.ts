@@ -20,6 +20,7 @@ import { prisma } from '../src/db/client.js';
 import { encryptField } from '../src/lib/crypto.js';
 import { hashPassword } from '../src/lib/password.js';
 import { hashToken, generateToken } from '../src/lib/crypto.js';
+import { seedRandoxCatalogue, formatCatalogueReport } from './seedCatalogue.js';
 
 interface MarkerSeed {
   key: string;
@@ -131,70 +132,36 @@ const markers: MarkerSeed[] = [
   { key: 'cortisol', name: 'Cortisol', unit: 'nmol/L', low: 133, high: 537, whatItIs: 'The body’s primary stress hormone, also involved in metabolism and immune regulation.', highMeans: 'Can reflect ongoing stress or, rarely, an adrenal condition.', lowMeans: 'Can reflect adrenal insufficiency.', lifestyleContext: 'Time of day significantly affects results, so this is best tested in the morning.' },
 ];
 
-const panelDefinitions: {
-  key: string;
-  name: string;
-  description: string;
-  markerKeys: { key: string; isAddOn?: boolean }[];
-}[] = [
-  {
-    key: 'ran-chip-insight-360',
-    name: 'Ran Chip Insight 360',
-    description: 'Randox’s most comprehensive panel: a full 360-degree view across blood count, organ function, cardiovascular, metabolic, and inflammatory markers.',
-    markerKeys: ['haemoglobin','haemoglobin-f','wbc','platelets','rbc','haematocrit','mcv','rdw','neutrophils','lymphocytes','alt','ast','ggt','bilirubin','albumin','alp','total-protein','creatinine','egfr','urea','sodium','potassium','total-cholesterol','hdl','ldl','triglycerides','chol-hdl-ratio','glucose','hba1c','tsh','free-t4','free-t3','vitamin-d','vitamin-b12','folate','ferritin','iron','calcium','hs-crp','esr','uric-acid'].map((key) => ({ key })),
-  },
-  {
-    key: 'signature',
-    name: 'Signature',
-    description: 'A focused general health check covering blood count, key organ function, and cardiovascular markers.',
-    markerKeys: ['haemoglobin','haemoglobin-f','wbc','platelets','alt','creatinine','egfr','total-cholesterol','hdl','ldl','triglycerides','glucose','tsh'].map((key) => ({ key })),
-  },
-  {
-    key: 'advanced-gp3-male',
-    name: 'Advanced GP3 (Male)',
-    description: 'Comprehensive men’s health panel spanning organ function, cardiovascular, metabolic, and male hormone markers.',
-    markerKeys: ['haemoglobin','wbc','platelets','alt','ast','ggt','creatinine','egfr','total-cholesterol','hdl','ldl','triglycerides','glucose','hba1c','tsh','free-t4','free-t3','vitamin-d','vitamin-b12','ferritin','testosterone','shbg'].map((key) => ({ key })),
-  },
-  {
-    key: 'advanced-gp3-female',
-    name: 'Advanced GP3 (Female)',
-    description: 'Comprehensive women’s health panel spanning organ function, cardiovascular, metabolic, and female hormone markers.',
-    markerKeys: ['haemoglobin-f','wbc','platelets','alt','ast','ggt','creatinine','egfr','total-cholesterol','hdl','ldl','triglycerides','glucose','hba1c','tsh','free-t4','free-t3','vitamin-d','vitamin-b12','ferritin','testosterone-f','oestradiol','shbg'].map((key) => ({ key })),
-  },
-  {
-    key: 'nutritional-health-hsc15',
-    name: 'Nutritional Health HSC15',
-    description: 'A 15-marker panel focused on vitamin, mineral, and nutritional status.',
-    markerKeys: ['vitamin-d','vitamin-b12','folate','ferritin','iron','tibc','calcium','rbc-magnesium','zinc','haemoglobin','albumin','total-protein','uric-acid','hba1c'].map((key) => ({ key })),
-  },
-  {
-    key: 'rp3-metabolic-syndrome',
-    name: 'RP3 Metabolic Syndrome',
-    description: 'Markers associated with metabolic syndrome: blood sugar regulation, insulin sensitivity, and related lipids.',
-    markerKeys: ['glucose','hba1c','fasting-insulin','triglycerides','hdl','total-cholesterol'].map((key) => ({ key, isAddOn: key === 'fasting-insulin' })),
-  },
-  {
-    key: 'rp10-heart-health',
-    name: 'RP10 Heart Health',
-    description: 'An in-depth cardiovascular risk panel covering lipids, apolipoproteins, and vascular inflammation markers.',
-    // oxidised-ldl deliberately excluded — Randox cannot supply it, see EXCLUDED_MARKER_KEYS.
-    markerKeys: ['total-cholesterol','hdl','ldl','triglycerides','chol-hdl-ratio','apob','lp-pla2','hs-crp','homocysteine','omega-3-index'].map((key) => ({ key, isAddOn: ['apob','lp-pla2','homocysteine','omega-3-index'].includes(key) })),
-  },
-  {
-    key: 'hsc14-fertility',
-    name: 'HSC14 Fertility',
-    description: 'A 14-marker fertility and reproductive hormone panel.',
-    markerKeys: ['fsh','lh','oestradiol','progesterone','prolactin','shbg','amh','testosterone-f','dhea-s','cortisol','tsh','vitamin-d'].map((key) => ({ key, isAddOn: ['amh','dhea-s','cortisol'].includes(key) })),
-  },
+/**
+ * The clinic offers three test levels — Core, Insight 360 and Signature — and
+ * those are now seeded from the real Randox catalogue (see seedCatalogue.ts and
+ * shared/markerCatalogue.ts) rather than from the guessed compositions this
+ * file used to hold.
+ *
+ * The panels below are what those guesses were. They are DEACTIVATED rather
+ * than deleted, per the no-hard-deletes rule: a report released last year
+ * against "RP10 Heart Health" still has to render with its panel name intact,
+ * and deleting the row would leave that report with a dangling foreign key and
+ * a patient with a titleless result set. Deactivated panels disappear from the
+ * pickers and from the booking catalogue; nothing else about them changes.
+ *
+ * `signature` is absent from this list on purpose — the new catalogue reuses
+ * that exact key, so the panel is upgraded in place rather than retired.
+ */
+const SUPERSEDED_PANEL_KEYS = [
+  'ran-chip-insight-360',
+  'advanced-gp3-male',
+  'advanced-gp3-female',
+  'nutritional-health-hsc15',
+  'rp3-metabolic-syndrome',
+  'rp10-heart-health',
+  'hsc14-fertility',
 ];
 
-// Add-on markers named in the brief as "available across panels" (not tied
-// to one panel's composition) — Omega-3 Index, AMH, Free Testosterone,
-// Calprotectin. Attached as an add-on to every panel that doesn't already
-// carry them as a base marker, so any panel can have any of the four added
-// at order time. Markers still named directly in a panelDefinitions
-// markerKeys list above (e.g. omega-3-index on rp10-heart-health) keep
-// their existing sortOrder there instead of being re-attached here.
+// Markers available across panels rather than tied to one panel's composition
+// — Omega-3 Index, AMH, Free Testosterone, Calprotectin. Attached as an add-on
+// to every active panel that doesn't already carry them as a base marker, so
+// any panel can have any of the four added at order time.
 const crossPanelAddOnMarkerKeys = ['omega-3-index', 'amh', 'free-testosterone', 'calprotectin'];
 
 // Randox cannot supply these under Aspire's current agreement — never
@@ -330,40 +297,34 @@ async function main() {
     console.log(`Approved ${approvedExplanations} untouched seed explanation(s) to REVIEWED.`);
   }
 
-  console.log('Seeding panels...');
-  const panelIdByKey = new Map<string, string>();
-  for (const p of panelDefinitions) {
-    const panel = await prisma.panel.upsert({
-      where: { key: p.key },
-      update: { name: p.name, description: p.description },
-      create: { key: p.key, name: p.name, description: p.description },
-    });
-    panelIdByKey.set(p.key, panel.id);
-
-    for (const [i, mk] of p.markerKeys.entries()) {
-      const markerId = markerIdByKey.get(mk.key);
-      if (!markerId) continue;
-      await prisma.panelMarker.upsert({
-        where: { panelId_markerId: { panelId: panel.id, markerId } },
-        update: { isAddOn: mk.isAddOn ?? false, sortOrder: i },
-        create: { panelId: panel.id, markerId, isAddOn: mk.isAddOn ?? false, sortOrder: i },
-      });
-    }
+  console.log('Retiring superseded guessed panels (deactivated, never deleted)...');
+  for (const key of SUPERSEDED_PANEL_KEYS) {
+    const existing = await prisma.panel.findUnique({ where: { key } });
+    if (!existing || !existing.isActive) continue;
+    await prisma.panel.update({ where: { id: existing.id }, data: { isActive: false } });
+    console.log(`  - deactivated: ${key} (reports already filed against it keep their title)`);
   }
 
+  console.log('Importing the Randox catalogue (Core, Insight 360, Signature)...');
+  const catalogueReport = await seedRandoxCatalogue();
+  console.log(formatCatalogueReport(catalogueReport));
+
   console.log('Attaching cross-panel add-on markers (Omega-3 Index, AMH, Free Testosterone, Calprotectin)...');
-  for (const p of panelDefinitions) {
-    const panelId = panelIdByKey.get(p.key);
-    if (!panelId) continue;
-    const basePanelMarkerKeys = new Set(p.markerKeys.map((mk) => mk.key));
+  const activePanels = await prisma.panel.findMany({
+    where: { isActive: true },
+    include: { markers: { select: { markerId: true } } },
+  });
+  for (const panel of activePanels) {
+    const already = new Set(panel.markers.map((pm) => pm.markerId));
     for (const markerKey of crossPanelAddOnMarkerKeys) {
-      if (basePanelMarkerKeys.has(markerKey)) continue; // already attached directly above, don't override its sortOrder
       const markerId = markerIdByKey.get(markerKey);
-      if (!markerId) continue;
+      // Already on the panel as a base marker — don't override its sortOrder
+      // or demote it to an add-on.
+      if (!markerId || already.has(markerId)) continue;
       await prisma.panelMarker.upsert({
-        where: { panelId_markerId: { panelId, markerId } },
+        where: { panelId_markerId: { panelId: panel.id, markerId } },
         update: { isAddOn: true },
-        create: { panelId, markerId, isAddOn: true, sortOrder: 999 },
+        create: { panelId: panel.id, markerId, isAddOn: true, sortOrder: 999 },
       });
     }
   }

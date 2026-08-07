@@ -53,19 +53,19 @@ function ChangeCard({ change }: { change: ChangeItem }) {
       <Card interactive className="flex h-full flex-col">
         <p className="font-display text-2xl leading-tight text-espresso">{change.name}</p>
         <p className="tabular mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-espresso">
-          <span className="text-espresso/70">{change.previousValue}</span>
+          <span className="text-espresso/80">{change.previousValue}</span>
           <span aria-hidden="true" className="text-taupe">
             →
           </span>
           <span className="text-2xl font-semibold">{change.currentValue}</span>
-          <span className="text-sm text-espresso/70">{change.unit}</span>
+          <span className="text-sm text-espresso/80">{change.unit}</span>
         </p>
         {/* Direction is stated in words and drawn as an arrow; the tone never rests on colour. */}
         <p className="mt-3 flex items-center gap-1.5 text-sm font-medium text-espresso">
           <MovementArrow direction={change.direction} />
           {copy.label}
         </p>
-        <p className="mt-2 text-xs text-espresso/70">
+        <p className="mt-2 text-xs text-espresso/80">
           Compared with {formatDate(change.previousDate)}
         </p>
         <div className="mt-4">
@@ -245,7 +245,7 @@ export function PatientOverview() {
                         <div>
                           <p className="font-display text-2xl leading-tight text-espresso">{item.name}</p>
                           <p className="tabular mt-2 flex items-baseline gap-1.5 text-3xl font-semibold text-espresso">
-                            {item.value} <span className="text-sm font-normal text-espresso/70">{item.unit}</span>
+                            {item.value} <span className="text-sm font-normal text-espresso/80">{item.unit}</span>
                           </p>
                         </div>
                         <StatusBadge status={item.status} />
@@ -253,7 +253,7 @@ export function PatientOverview() {
                       <div className="mt-6 max-w-md">
                         <RangeBar value={item.value} low={item.referenceLow} high={item.referenceHigh} status={item.status} />
                       </div>
-                      <p className="mt-4 text-xs text-espresso/70">
+                      <p className="mt-4 text-xs text-espresso/80">
                         {item.panelName} · {formatDate(item.sampleDate)}
                         {item.fromEarlierReport && ' · not repeated in your most recent panel'}
                       </p>
@@ -315,7 +315,7 @@ export function PatientOverview() {
               <div>
                 <p className="eyebrow mb-2">{formatDate(data.latest.sampleDate)}</p>
                 <p className="font-display text-3xl leading-tight text-espresso">{data.latest.panelName}</p>
-                <p className="mt-2 text-xs text-espresso/70">{data.latest.sourceLabel}</p>
+                <p className="mt-2 text-xs text-espresso/80">{data.latest.sourceLabel}</p>
               </div>
               <LinkButton to={`/reports/${data.latest.reportId}`} variant="primary">
                 View the full panel <ArrowRightIcon />

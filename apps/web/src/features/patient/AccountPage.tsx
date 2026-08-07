@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { Modal } from '../../components/ui/Modal';
 import { CopyButton } from '../../components/ui/CopyButton';
+import { ThemeToggle } from '../../components/ui/ThemeToggle';
 import { useToast } from '../../components/ui/Toast';
 import { apiFetch, ApiError } from '../../lib/api';
 import { API_BASE_URL } from '../../lib/apiBase';
@@ -128,6 +129,15 @@ export function AccountPage() {
         </Card>
 
         <div className="flex flex-col gap-6">
+          <Card>
+            <p className="eyebrow mb-3">Appearance</p>
+            <p className="text-sm text-espresso">
+              Choose how the portal looks on this device. Your choice is saved here rather than to your account, so
+              your phone and your computer can differ.
+            </p>
+            <ThemeToggle className="mt-4" />
+          </Card>
+
           {/* Sits above the data/deletion cards because it's the one thing on
               this page that can be incomplete — and the only one where a gap
               has a clinical consequence rather than an administrative one.

@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './lib/AuthContext';
+import { ThemeProvider } from './lib/ThemeContext';
 import { ToastProvider } from './components/ui/Toast';
 import { PageTransition } from './components/PageTransition';
 import { LoginPage } from './features/auth/LoginPage';
@@ -48,6 +49,10 @@ const PATIENT_DATA_ROLES = ['PATIENT', 'ADMIN', 'CLINICIAN'] as const;
 export default function App() {
   return (
     <BrowserRouter>
+      {/* Outside AuthProvider on purpose: the theme applies to the sign-in
+          screen too, and someone who prefers dark mode should not have to
+          authenticate before the app stops being bright at them. */}
+      <ThemeProvider>
       <AuthProvider>
         <ToastProvider>
           <SessionGuard />
@@ -154,6 +159,7 @@ export default function App() {
           </div>
         </ToastProvider>
       </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 }

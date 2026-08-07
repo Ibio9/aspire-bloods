@@ -39,16 +39,38 @@ test('invite -> activate -> login -> 2FA -> session', async ({ page, request }) 
   expect(inviteToken).toBeTruthy();
 
   // --- Patient activates via the actual registration form ---
+  //
+  // The form is a sequence of steps rather than one long page: stacked, it was
+  // half a viewport taller than a 1280x720 laptop, and the auth card is not
+  // allowed to scroll inside itself. Same fields, same copy, same single
+  // submit at the end — walked here in the order a patient walks it.
   await page.goto(`/activate?token=${inviteToken}`);
+
+  // Step 1 — who you are.
   await page.fill('input[name=firstName]', 'E2E');
   await page.fill('input[name=lastName]', 'Tester');
+  await page.getByRole('button', { name: 'Continue' }).click();
+
+  // Step 2 — how the clinic reaches you and confirms a result is yours.
   // DateField is a custom control: its `name` sits on a hidden input, and
   // the visible field wants DD/MM/YYYY typed — fill by label, not by name.
   await page.getByLabel('Date of birth').fill('02/02/1992');
   await page.fill('input[name=contactNumber]', '+44 7000 000000');
   await page.fill('input[name=address]', '1 Test Street, London');
   await page.fill('input[name=postcode]', 'E1 6AN');
+  await page.getByRole('button', { name: 'Continue' }).click();
+
+  // Steps 3 and 4 — GP details and emergency contact, both entirely optional.
+  await expect(page.getByText('GP & medical details')).toBeVisible();
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await expect(page.getByText('Emergency contact')).toBeVisible();
+  await page.getByRole('button', { name: 'Continue' }).click();
+
+  // Step 5 — password.
   await page.fill('input[name=password]', 'E2eTestPassword123!');
+  await page.getByRole('button', { name: 'Continue' }).click();
+
+  // Step 6 — consent, and the only submit in the whole form.
   await page.getByRole('checkbox', { name: /consent to Aspire Clinic processing/i }).check();
   await page.getByRole('checkbox', { name: /results being stored securely/i }).check();
   await page.click('button[type=submit]');

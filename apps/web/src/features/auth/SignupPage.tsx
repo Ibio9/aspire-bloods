@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from '../../lib/api';
 import { RegistrationForm } from './RegistrationForm';
-import { AuthSplitLayout } from './AuthSplitLayout';
+import { AuthSplitLayout, AuthWideBody } from './AuthSplitLayout';
 import { AuthCrossLink } from './AuthCrossLink';
 import { EmailCodeStep } from './EmailCodeStep';
 
@@ -61,15 +61,27 @@ export function SignupPage() {
 
   return (
     <AuthSplitLayout eyebrow={EYEBROW} headline={HEADLINE} supporting={SUPPORTING} wide>
-      <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">Patient portal</p>
-      <h2 className="auth-heading">Create an account</h2>
-      <p className="mt-[var(--auth-step)] max-w-prose text-sm leading-relaxed text-espresso/80">
-        Anyone can register. You don't need an invitation. We'll confirm your email address, then set up
-        two-factor sign-in. Your date of birth and contact number are how the clinic makes sure a result is
-        yours before it's added to your account.
-      </p>
+      {/* Introduction beside the form rather than above it at md+ — see
+          AuthWideBody. Same copy, same order on a phone, half the height on a
+          laptop, and no scrollbar inside the card. */}
+      <AuthWideBody
+        intro={
+          <>
+            <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">Patient portal</p>
+            <h2 className="auth-heading">Create an account</h2>
+            <p className="mt-[var(--auth-step)] max-w-prose text-sm leading-relaxed text-espresso/80">
+              Anyone can register. You don't need an invitation. We'll confirm your email address, then set up
+              two-factor sign-in. Your date of birth and contact number are how the clinic makes sure a result is
+              yours before it's added to your account.
+            </p>
 
-      <div className="mt-[calc(var(--auth-step)*1.6)]">
+            {/* The exact mirror of the band on the sign-in screen — same component,
+                same weight, reversed direction. Someone who lands on the wrong one
+                of these two screens should find the other in the same place. */}
+            <AuthCrossLink prompt="Already have an account?" to="/login" label="Sign in" />
+          </>
+        }
+      >
         <RegistrationForm
           showEmailField
           variant="signup"
@@ -83,12 +95,7 @@ export function SignupPage() {
             setSent(result);
           }}
         />
-      </div>
-
-      {/* The exact mirror of the band on the sign-in screen — same component,
-          same weight, reversed direction. Someone who lands on the wrong one
-          of these two screens should find the other in the same place. */}
-      <AuthCrossLink prompt="Already have an account?" to="/login" label="Sign in" />
+      </AuthWideBody>
     </AuthSplitLayout>
   );
 }

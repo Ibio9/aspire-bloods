@@ -411,7 +411,7 @@ function StepProgress({ step, furthest, onJump }: { step: number; furthest: numb
           <span className="font-medium text-espresso">
             Step {step + 1} of {STEPS.length}
           </span>
-          <span className="text-espresso/75">{STEPS[step].short}</span>
+          <span className="text-espresso/80">{STEPS[step].short}</span>
         </p>
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-cream-300">
           <div
@@ -432,15 +432,15 @@ function StepProgress({ step, furthest, onJump }: { step: number; furthest: numb
                 aria-hidden="true"
                 className={`tabular flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold ${
                   currentStep
-                    ? 'border-bronze bg-bronze text-white'
+                    ? 'border-bronze bg-bronze text-onaccent'
                     : done
                       ? 'border-bronze bg-bronze-50 text-bronze-700'
-                      : 'border-taupe bg-white text-espresso/60'
+                      : 'border-taupe bg-white text-espresso/80'
                 }`}
               >
                 {i + 1}
               </span>
-              <span className={currentStep ? 'font-semibold text-espresso' : done ? 'text-espresso' : 'text-espresso/60'}>
+              <span className={currentStep ? 'font-semibold text-espresso' : done ? 'text-espresso' : 'text-espresso/80'}>
                 {s.short}
               </span>
             </>

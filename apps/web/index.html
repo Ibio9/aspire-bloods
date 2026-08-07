@@ -13,6 +13,22 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Theme, resolved before the first paint rather than after React mounts.
+         Kept inline and blocking on purpose: a deferred or bundled version
+         runs after the browser has already painted the light default, which
+         is exactly the cream flash this exists to prevent. The body of it is
+         generated from src/lib/theme.ts (THEME_BOOTSTRAP_SCRIPT) so
+         the storage key and the resolution rules are defined once. -->
+    <script>
+      (function () {
+        try {
+          var p = localStorage.getItem('aspire-theme');
+          var dark = p === 'dark' || (p !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) document.documentElement.classList.add('dark');
+          document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+        } catch (e) {}
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

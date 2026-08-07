@@ -96,6 +96,10 @@ export const inkScale = {
 // green/amber/red hues, so these are hand-picked to sit at the same tonal
 // weight (desaturated, mid-dark) as bronze/espresso. Verified AA below.
 // Bronze is the brand accent and is never reused as a status color.
+//
+// These are the TEXT/ICON colors and they are unchanged. The surface wash that
+// now sits behind a result (see `statusTint`) is a separate token family —
+// the tint is allowed to read as green/orange/red; the label beside it is not.
 // ---------------------------------------------------------------------------
 
 export const status = {
@@ -103,30 +107,334 @@ export const status = {
     label: 'In range',
     hex: '#5B604A', // muted sage — calm, recessive
     icon: 'dash', // level/dash mark
+    /** Runtime color, theme-aware. Use this anywhere the value is applied to a live element. */
+    cssVar: 'var(--c-status-in-range)',
   },
   high: {
     label: 'Above range',
     hex: '#765429', // ochre / amber-clay
     icon: 'chevron-up',
+    cssVar: 'var(--c-status-high)',
   },
   low: {
     label: 'Below range',
     hex: '#765429', // same tone as `high`; direction is carried by icon, not color
     icon: 'chevron-down',
+    cssVar: 'var(--c-status-low)',
   },
   significantHigh: {
     label: 'Significantly above range',
     hex: '#8A4A3A', // deep terracotta-red
     icon: 'chevron-double-up',
+    cssVar: 'var(--c-status-significant-high)',
   },
   significantLow: {
     label: 'Significantly below range',
     hex: '#8A4A3A',
     icon: 'chevron-double-down',
+    cssVar: 'var(--c-status-significant-low)',
   },
 } as const;
 
 export type StatusKey = keyof typeof status;
+
+// ---------------------------------------------------------------------------
+// Status TINTS — a deliberate, documented change to the design system.
+//
+// The system's original rule was "no green, amber or red anywhere". That rule
+// was about not turning a person's blood results into a dashboard, and it is
+// still the reason everything below is a *wash* rather than a fill. But
+// patients arrive expecting traffic-light coding on a blood result, and
+// withholding it made the page harder to scan without making it any calmer.
+//
+// So: five tints, applied as a soft background on a result card or row.
+//
+//   significantLow  → red      significantHigh → red
+//   low             → orange   high            → orange
+//   inRange         → green
+//
+// Four rules hold, and the tint is worthless without them:
+//
+//  1. The tint is the LAST thing that carries status, never the first. The
+//     level mark / chevron / doubled chevron and the word ("Above range")
+//     are unchanged and still carry the whole meaning in greyscale and to a
+//     colourblind reader. Delete every colour on the page and nothing is lost.
+//  2. Tint only. Text, borders, headings and icons keep the existing palette;
+//     a tinted card does not get red text or a red border.
+//  3. Low-saturation and warm-leaning. These hues are picked to sit on cream
+//     and on the dark warm-brown surfaces without either one turning into a
+//     web-red alert box. The page still has to read as the same premium warm
+//     product it was before.
+//  4. Nothing escalates beyond the tint. No pulse, no warning triangle, no
+//     red body copy. Someone reading a bad number is not to be frightened by
+//     the interface; the out-of-range prompt points calmly at their GP.
+//
+// The tint bases are deliberately NOT the status text hues above. Those are
+// chosen to be recessive next to their own label, and washed out to 12% they
+// stop reading as green/orange/red at all — which would give us the cost of
+// colour-coding with none of the benefit. These carry a little more chroma so
+// that a 12% wash is still identifiably the colour it is meant to be.
+// ---------------------------------------------------------------------------
+
+const tintBase = {
+  /** Warm sage-green. Olive-leaning, never a saturated web green. */
+  green: '#6E7F4A',
+  /** Warm clay-orange, the same family as the ochre `high` text tone. */
+  orange: '#B5763A',
+  /** Warm terracotta-red, the same family as the `significant*` text tone. */
+  red: '#A8503C',
+} as const;
+
+const STATUS_TINT_HUE: Record<StatusKey, keyof typeof tintBase> = {
+  significantLow: 'red',
+  low: 'orange',
+  inRange: 'green',
+  high: 'orange',
+  significantHigh: 'red',
+};
+
+/**
+ * How much of the hue survives the wash.
+ *
+ * `surface` is the card/row background — deliberately faint, because it sits
+ * under body text that has to stay comfortably readable on top of it.
+ * `bar` is the category summary bar, which is a field of colour with no text
+ * on it and would simply disappear at surface strength.
+ */
+const TINT_MIX = { surface: 0.12, surfaceDark: 0.2, bar: 0.55, barDark: 0.62 } as const;
+
+// ---------------------------------------------------------------------------
+// Dark mode.
+//
+// Every token below has a dark counterpart, derived rather than hand-picked so
+// the two themes cannot drift. Dark surfaces are the warm near-black browns
+// the palette already contains (espresso mixed toward black), never a pure
+// black and never a cool grey — a neutral-grey dark mode under this palette
+// looks like a different product with the logo swapped in.
+//
+// The scales invert by ROLE, not by number:
+//  - `cream` is the surface family. In both themes a lower step number means
+//    a more raised surface: light gets brighter, dark gets brighter too.
+//  - `espresso` (text), `bronze` (accent) and `taupe` (borders) are contrast
+//    families. In both themes a higher step number means more contrast
+//    against the page: light gets darker, dark gets lighter.
+//  - `white` is the recessed input surface. Light: actual white, brighter
+//    than the card. Dark: darker than the card, so a field still reads as cut
+//    into the surface rather than floating on it.
+//
+// Status tints are re-derived against the dark surface rather than reused —
+// a 12% wash tuned for cream is invisible on a near-black brown.
+// ---------------------------------------------------------------------------
+
+/** The darkest warm tone in the system: espresso taken most of the way to black, never past it. */
+const nightBase = mix(brand.espresso, '#000000', 0.6);
+/** The lift direction for dark surfaces — toward a warm mid-brown, never toward grey. */
+const nightLift = mix(brand.espresso, brand.taupe, 0.55);
+
+/** Surface family in dark: lower step = more raised. */
+function buildDarkSurfaceScale(base: string): Record<number, string> {
+  const steps: Record<number, number> = {
+    50: 0.07, 100: 0.1, 200: 0.16, 300: 0.24, 400: 0.34,
+    500: 0, 600: -0.18, 700: -0.34, 800: -0.5, 900: -0.66,
+  };
+  const out: Record<number, string> = {};
+  for (const [step, t] of Object.entries(steps)) {
+    const n = Number(step);
+    out[n] = t === 0 ? base : t > 0 ? mix(base, nightLift, t) : mix(base, '#000000', -t);
+  }
+  return out;
+}
+
+/** Contrast family in dark: higher step = brighter, i.e. more contrast against the page. */
+function buildDarkContrastScale(base: string, page: string): Record<number, string> {
+  const steps: Record<number, number> = {
+    50: -0.86, 100: -0.72, 200: -0.52, 300: -0.32, 400: -0.14,
+    500: 0, 600: 0.16, 700: 0.32, 800: 0.5, 900: 0.68,
+  };
+  const out: Record<number, string> = {};
+  for (const [step, t] of Object.entries(steps)) {
+    const n = Number(step);
+    out[n] = t === 0 ? base : t < 0 ? mix(base, page, -t) : mix(base, brand.white, t);
+  }
+  return out;
+}
+
+const darkPage = nightBase;
+/** Text: a warm light cream, never pure white — white body text on a warm dark surface glares. */
+const darkText = mix(brand.cream, brand.white, 0.45);
+/** Accent: bronze lifted far enough to clear AA against the dark page. */
+const darkBronze = mix(brand.bronze, brand.cream, 0.42);
+/** Borders: a warm mid-brown that shows against every dark surface without becoming a line of light. */
+const darkTaupe = mix(brand.taupe, nightBase, 0.66);
+
+export const darkScales = {
+  cream: buildDarkSurfaceScale(darkPage),
+  espresso: buildDarkContrastScale(darkText, darkPage),
+  bronze: buildDarkContrastScale(darkBronze, darkPage),
+  taupe: buildDarkContrastScale(darkTaupe, darkPage),
+} as const;
+
+/**
+ * The recessed input surface. Light: literal white, one step brighter than
+ * the card. Dark: one step *darker* than the card, which is what makes the
+ * same inset shadow read as recessed in both themes.
+ */
+const darkWhite = mix(darkPage, '#000000', 0.35);
+
+function darkStatusHex(hex: string): string {
+  // Toward the dark theme's text tone, so a status label sits at roughly the
+  // same weight as body copy rather than shouting or vanishing.
+  return mix(hex, darkText, 0.52);
+}
+
+/** Every colour token, per theme, as a flat map of CSS custom property → hex. */
+function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
+  const dark = mode === 'dark';
+  const s = dark ? darkScales : scales;
+  const surface = dark ? darkScales.cream[500] : brand.cream;
+  const tintSurfaceMix = dark ? TINT_MIX.surfaceDark : TINT_MIX.surface;
+  const tintBarMix = dark ? TINT_MIX.barDark : TINT_MIX.bar;
+  // A tint washes toward the surface it sits on: the card in light mode, the
+  // card in dark mode too — both are `cream-50`, which is what a tinted card
+  // actually replaces.
+  const tintTowards = dark ? darkScales.cream[50] : scales.cream[50];
+
+  const out: Record<string, string> = {};
+
+  for (const family of ['bronze', 'espresso', 'cream', 'taupe'] as const) {
+    const scale = s[family];
+    out[`--c-${family}`] = dark
+      ? scale[500]
+      : family === 'bronze' ? brand.bronze
+      : family === 'espresso' ? brand.espresso
+      : family === 'cream' ? brand.cream
+      : brand.taupe;
+    for (const step of [50, 100, 200, 300, 400, 500, 600, 700, 800, 900]) {
+      out[`--c-${family}-${step}`] = scale[step];
+    }
+  }
+
+  out['--c-white'] = dark ? darkWhite : brand.white;
+  out['--c-page'] = surface;
+
+  /**
+   * Text and icons on a FILLED accent — a bronze button, a selected option, an
+   * avatar, the current step of a progress bar.
+   *
+   * This has to flip with the theme, and it is the one pairing that a naive
+   * dark mode gets wrong every time. In dark, bronze is LIGHTENED so it clears
+   * AA against a near-black page — at which point a light label on it measures
+   * about 1.9:1, which is unreadable. So in dark the label goes dark instead.
+   *
+   * In light it is white rather than cream, and that is not a stylistic
+   * preference either: cream on bronze measures 4.18:1, which fails AA for the
+   * label on the product's primary button. White clears it. The "never pure
+   * white" rule this palette carries is about SURFACES — a hard-white card on
+   * cream reads as a cutout — and has never applied to type sitting on a fill.
+   *
+   * Deliberately NOT the same token as `oncolor` (staticTokens), which is the
+   * light text on the atmospheric night panels. Those are dark in both themes
+   * and their text must stay light in both; these fills are not.
+   */
+  out['--c-onaccent'] = dark ? mix(darkPage, '#000000', 0.25) : brand.white;
+
+  for (const key of Object.keys(status) as StatusKey[]) {
+    const base = status[key].hex;
+    out[`--c-status-${kebab(key)}`] = dark ? darkStatusHex(base) : base;
+    const hue = tintBase[STATUS_TINT_HUE[key]];
+    out[`--c-tint-${kebab(key)}`] = mix(tintTowards, hue, tintSurfaceMix);
+    out[`--c-tint-${kebab(key)}-bar`] = mix(tintTowards, hue, tintBarMix);
+  }
+
+  // Charts. Same rule as the light-mode note below: status is carried by shape
+  // and by the text label, never by hue, so none of these is a status colour.
+  out['--c-chart-line'] = dark ? darkScales.bronze[600] : brand.bronze;
+  out['--c-chart-point'] = dark ? darkScales.bronze[600] : brand.bronze;
+  out['--c-chart-point-ring'] = dark ? darkScales.cream[50] : brand.white;
+  out['--c-chart-point-out'] = dark ? darkScales.bronze[800] : scales.bronze[800];
+  out['--c-chart-point-far-out'] = dark ? brand.cream : ink;
+  out['--c-chart-reference-band'] = dark ? darkScales.taupe[600] : brand.taupe;
+  out['--c-chart-reference-edge'] = dark ? darkScales.taupe[800] : scales.taupe[600];
+  out['--c-chart-optimal-band'] = dark ? darkScales.bronze[400] : scales.bronze[300];
+  out['--c-chart-optimal-edge'] = dark ? darkScales.bronze[700] : scales.bronze[600];
+  out['--c-chart-axis-line'] = dark ? darkScales.taupe[600] : brand.taupe;
+  out['--c-chart-axis-text'] = dark ? darkScales.espresso[400] : scales.espresso[400];
+  out['--c-chart-gridline'] = dark ? darkScales.taupe[300] : scales.taupe[200];
+  out['--c-chart-cursor'] = dark ? darkScales.taupe[700] : scales.taupe[600];
+  out['--c-chart-surface'] = dark ? darkScales.cream[50] : mix(brand.white, brand.cream, 0.35);
+
+  // Shadow colour. Light: espresso, so depth stays warm rather than grey.
+  // Dark: true black, because a warm shadow on a warm dark surface is not a
+  // shadow, it is a smudge — the depth has to come from darkness alone.
+  out['--c-shadow'] = dark ? '#000000' : brand.espresso;
+
+  return out;
+}
+
+function kebab(s: string): string {
+  return s.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+}
+
+export const themeTokens = {
+  light: buildThemeTokens('light'),
+  dark: buildThemeTokens('dark'),
+} as const;
+
+/** `#8a5e45` → `138 94 69`, the channel triplet Tailwind's `<alpha-value>` syntax needs. */
+export function hexToRgbChannels(hex: string): string {
+  return hexToRgb(hex).join(' ');
+}
+
+/**
+ * The two custom-property blocks, ready for Tailwind's `addBase`. Light is on
+ * `:root` so it is the default before any JS runs; dark is on `.dark`, set by
+ * the theme provider from the persisted choice or the system preference.
+ */
+export function themeCssVars(mode: 'light' | 'dark'): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [name, hex] of Object.entries(themeTokens[mode])) {
+    out[name] = hexToRgbChannels(hex);
+  }
+  return out;
+}
+
+/**
+ * Static tokens — the two families that do NOT flip with the theme.
+ *
+ * `night` is the atmospheric dark panel (the auth split, tooltips, the fasting
+ * notice, the sidebar's hover labels). Those surfaces are dark on purpose in
+ * both themes; inverting them in dark mode would turn the one deliberately
+ * dark thing on the page into the one deliberately light thing.
+ *
+ * `oncolor` is the light text that sits on them, and on any filled accent
+ * (a bronze button, a selected option). It is `cream` frozen at its light
+ * value — using the theme-aware `cream` there would put dark text on a bronze
+ * fill the moment someone switched to dark mode.
+ */
+export const staticTokens = {
+  oncolor: brand.cream,
+  night: {
+    ...inkScale,
+    /** The shallowest of the dark tones — espresso itself. The top stop of the auth panel's gradient. */
+    soft: brand.espresso,
+    /**
+     * The brand accent AS IT APPEARS ON A NIGHT PANEL — a lightened bronze.
+     * Frozen for the same reason the panel is: `bronze-300` is a pale tint in
+     * light mode and a near-black one in dark, so the wordmark's dot on the
+     * auth panel would simply disappear the moment someone chose dark.
+     */
+    accent: scales.bronze[300],
+  },
+} as const;
+
+/** Status tint utilities, by status key. Values are theme-aware CSS variables. */
+export const statusTint = {
+  inRange: { surface: 'var(--c-tint-in-range)', bar: 'var(--c-tint-in-range-bar)' },
+  high: { surface: 'var(--c-tint-high)', bar: 'var(--c-tint-high-bar)' },
+  low: { surface: 'var(--c-tint-low)', bar: 'var(--c-tint-low-bar)' },
+  significantHigh: { surface: 'var(--c-tint-significant-high)', bar: 'var(--c-tint-significant-high-bar)' },
+  significantLow: { surface: 'var(--c-tint-significant-low)', bar: 'var(--c-tint-significant-low-bar)' },
+} as const;
 
 // ---------------------------------------------------------------------------
 // Charts — palette only, no exceptions.
@@ -145,33 +453,39 @@ export type StatusKey = keyof typeof status;
 // were the one place still leaning on colour to say it.
 // ---------------------------------------------------------------------------
 
+// Every value here is a CSS custom property rather than a literal hex, so a
+// chart follows the light/dark theme without any component needing to know
+// which one is active — SVG `fill`/`stroke` resolve custom properties the same
+// way any other CSS colour does. The concrete hexes per theme live in
+// `themeTokens` above; only the opacities are literal, because they are the
+// same in both.
 export const chart = {
   /** The trend line itself, and the fill of an in-range point. */
-  line: brand.bronze,
-  point: brand.bronze,
+  line: 'var(--c-chart-line)',
+  point: 'var(--c-chart-point)',
   /** Ring around every point so it stays legible against a band. */
-  pointRing: brand.white,
-  /** An out-of-range point. Darker, so the emphasis survives greyscale — the shape still carries which direction. */
-  pointOut: scales.bronze[800],
-  /** A significantly out-of-range point: the deepest warm tone available. */
-  pointFarOut: ink,
+  pointRing: 'var(--c-chart-point-ring)',
+  /** An out-of-range point. Higher contrast, so the emphasis survives greyscale — the shape still carries which direction. */
+  pointOut: 'var(--c-chart-point-out)',
+  /** A significantly out-of-range point: the most extreme warm tone available in the active theme. */
+  pointFarOut: 'var(--c-chart-point-far-out)',
   /** The lab reference range: a calm background region, not a block. */
-  referenceBand: brand.taupe,
+  referenceBand: 'var(--c-chart-reference-band)',
   referenceBandOpacity: 0.22,
   /** Hairline top/bottom edge on the reference band, so it reads as bounded without weight. */
-  referenceEdge: scales.taupe[600],
+  referenceEdge: 'var(--c-chart-reference-edge)',
   /** The optimal band, drawn inside/overlapping the reference band. Distinguished by a hatch, not by hue alone. */
-  optimalBand: scales.bronze[300],
+  optimalBand: 'var(--c-chart-optimal-band)',
   optimalBandOpacity: 0.34,
-  optimalEdge: scales.bronze[600],
+  optimalEdge: 'var(--c-chart-optimal-edge)',
   /** Axis rule and ticks. */
-  axisLine: brand.taupe,
-  axisText: scales.espresso[400],
-  gridline: scales.taupe[200],
+  axisLine: 'var(--c-chart-axis-line)',
+  axisText: 'var(--c-chart-axis-text)',
+  gridline: 'var(--c-chart-gridline)',
   /** Cursor/crosshair on hover. */
-  cursor: scales.taupe[600],
-  /** Warm off-white for chart card surfaces — never pure white, never grey. */
-  surface: mix(brand.white, brand.cream, 0.35),
+  cursor: 'var(--c-chart-cursor)',
+  /** Warm off-white (light) / raised warm near-black (dark) for chart card surfaces — never pure white, never grey. */
+  surface: 'var(--c-chart-surface)',
 } as const;
 
 // ---------------------------------------------------------------------------

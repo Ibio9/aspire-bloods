@@ -574,7 +574,7 @@ export function AdminReportsPage() {
             </Button>
           )}
         </div>
-        <p className="mt-1 mb-4 text-xs text-espresso/60">
+        <p className="mt-1 mb-4 text-xs text-espresso/80">
           Reports still moving through the pipeline are listed first, closest to release first. Released reports
           trail behind, most recent first.
         </p>

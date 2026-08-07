@@ -16,6 +16,20 @@
     @apply bg-cream text-espresso font-body;
   }
 
+  /* Theme switching. Every colour in the product resolves through a custom
+     property (see tailwind.config.ts), so flipping .dark on <html> re-themes
+     the whole app without a single component knowing about it.
+
+     The transition is on colour only and is deliberately short: a 150ms
+     cross-fade stops the switch reading as a page reload, but anything longer
+     turns a settings toggle into an animation. Suppressed under reduced
+     motion by the global rule at the foot of this layer. */
+  html {
+    transition:
+      background-color 150ms ease-out,
+      color 150ms ease-out;
+  }
+
   /* Bronze-tinted focus ring everywhere, replacing every browser default
      (Chrome/Safari/Firefox native focus rings differ and none use brand
      colour). outline- meets 3:1 against both cream and white. Deliberately
@@ -36,9 +50,9 @@
   textarea:-webkit-autofill,
   textarea:-webkit-autofill:hover,
   textarea:-webkit-autofill:focus {
-    -webkit-text-fill-color: theme('colors.espresso.DEFAULT');
-    -webkit-box-shadow: 0 0 0px 1000px theme('colors.white') inset;
-    caret-color: theme('colors.espresso.DEFAULT');
+    -webkit-text-fill-color: rgb(var(--c-espresso));
+    -webkit-box-shadow: 0 0 0px 1000px rgb(var(--c-white)) inset;
+    caret-color: rgb(var(--c-espresso));
     transition: background-color 9999s ease-in-out 0s;
   }
 
@@ -73,8 +87,8 @@
 
   /* Brand-tinted text selection, replacing the OS-default blue. */
   ::selection {
-    background-color: theme('colors.bronze.200');
-    color: theme('colors.espresso.DEFAULT');
+    background-color: rgb(var(--c-bronze-200));
+    color: rgb(var(--c-espresso));
   }
 
   /* Tap highlight is a flat grey flash with no relationship to the brand —
@@ -89,7 +103,7 @@
      scrollbar-color, WebKit/Blink via the pseudo-elements below. */
   .scroll-thin {
     scrollbar-width: thin;
-    scrollbar-color: theme('colors.taupe.DEFAULT') transparent;
+    scrollbar-color: rgb(var(--c-taupe)) transparent;
   }
   .scroll-thin::-webkit-scrollbar {
     width: 8px;
@@ -99,12 +113,12 @@
     background: transparent;
   }
   .scroll-thin::-webkit-scrollbar-thumb {
-    background-color: theme('colors.taupe.DEFAULT');
+    background-color: rgb(var(--c-taupe));
     border-radius: 999px;
-    border: 2px solid theme('colors.cream.DEFAULT');
+    border: 2px solid rgb(var(--c-cream));
   }
   .scroll-thin::-webkit-scrollbar-thumb:hover {
-    background-color: theme('colors.bronze.DEFAULT');
+    background-color: rgb(var(--c-bronze));
   }
 
   /* Entrance animations use a delay (staggered lists) — without this,
@@ -242,7 +256,7 @@
   /* Still a statement, just one that shares the screen — the old fixed
      text-4xl/5xl/6xl ladder alone ate ~90px of a 720px viewport. */
   .auth-display {
-    @apply font-display text-cream;
+    @apply font-display text-oncolor;
     font-size: clamp(1.875rem, 3.4vh + 0.6rem, 3.5rem);
     line-height: 1.08;
   }
@@ -276,7 +290,7 @@
   /* Off-screen until keyboard-focused, then drops into view above
      everything else — standard skip-to-content pattern. */
   .skip-link {
-    @apply fixed left-4 top-4 z-[100] -translate-y-20 rounded-card bg-espresso px-4 py-2.5 text-sm font-medium text-white opacity-0 transition duration-150 ease-out;
+    @apply fixed left-4 top-4 z-[100] -translate-y-20 rounded-card bg-night px-4 py-2.5 text-sm font-medium text-oncolor opacity-0 transition duration-150 ease-out;
   }
   .skip-link:focus-visible {
     @apply translate-y-0 opacity-100 outline-2 outline-offset-2 outline-bronze-300;

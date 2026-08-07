@@ -86,7 +86,7 @@ export function DocumentsPage() {
                   <div>
                     <p className="eyebrow mb-2">{formatDate(doc.sampleDate)}</p>
                     <p className="font-display text-2xl leading-tight text-espresso">{doc.panelName}</p>
-                    <p className="tabular mt-2 text-xs text-espresso/70">
+                    <p className="tabular mt-2 text-xs text-espresso/80">
                       {doc.markerCount} marker{doc.markerCount === 1 ? '' : 's'} · {doc.sourceLabel}
                     </p>
                   </div>

@@ -83,6 +83,17 @@ export interface SparkPoint {
 export interface MarkerRow {
   markerId: string;
   name: string;
+  /** Abbreviations and alternate spellings; search matches these as well as the name. */
+  aliases?: string[];
+  /** Health areas this marker belongs to. A marker can be in several. */
+  categoryKeys?: string[];
+  /**
+   * MEASURED / GENETIC / SENSITIVITY / COMPOSITION. Absent on an older payload,
+   * which is treated as MEASURED. Only MEASURED markers appear on All markers,
+   * in Trends or in any count — the other three have no reference range and so
+   * no status, no direction of travel and nothing to plot.
+   */
+  resultType?: string;
   unit: string;
   // Null when the latest result is textual ("< 0.6", "Not detected") —
   // valueText then carries the lab's wording verbatim.

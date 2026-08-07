@@ -25,7 +25,7 @@ export function ReportProgress({ status, voided }: { status: ReportStatus; voide
                     voided
                       ? 'border-espresso/30 bg-transparent text-espresso/30'
                       : isDone
-                        ? 'border-bronze bg-bronze text-white'
+                        ? 'border-bronze bg-bronze text-onaccent'
                         : isCurrent
                           ? isChangesRequested
                             ? 'border-status-high bg-white text-status-high'
@@ -42,7 +42,7 @@ export function ReportProgress({ status, voided }: { status: ReportStatus; voide
                     i + 1
                   )}
                 </div>
-                <span className={`text-xs ${isCurrent ? 'font-medium text-espresso' : 'text-espresso/60'}`}>{stage.label}</span>
+                <span className={`text-xs ${isCurrent ? 'font-medium text-espresso' : 'text-espresso/80'}`}>{stage.label}</span>
               </div>
               {i < PIPELINE_STAGES.length - 1 && (
                 <div

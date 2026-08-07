@@ -27,7 +27,7 @@ export function LinkButton({
         // white label text is 4.06:1, below the 4.5:1 minimum, so the old
         // lighter hover dropped this out of AA for as long as the pointer was
         // on it. bronze-600 is 6.37:1 and the lift carries the state anyway.
-        'bg-bronze bg-btn-primary text-white shadow-btn hover:bg-bronze-600 hover:shadow-btn-hover motion-safe:hover:-translate-y-px'
+        'bg-bronze bg-btn-primary text-onaccent shadow-btn hover:bg-bronze-600 hover:shadow-btn-hover motion-safe:hover:-translate-y-px'
       : 'bg-white bg-btn-secondary text-espresso border border-taupe shadow-btn hover:border-bronze hover:shadow-btn-hover motion-safe:hover:-translate-y-px';
 
   return (

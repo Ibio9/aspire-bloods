@@ -222,7 +222,7 @@ export function LoginPage() {
               up directly, and that link goes to /activate, not here. Kept as
               a footnote rather than deleted: registration being open doesn't
               make an invitation email wrong, it just makes it optional. */}
-          <p className="mt-[calc(var(--auth-step)*0.9)] text-xs leading-relaxed text-espresso/70">
+          <p className="mt-[calc(var(--auth-step)*0.9)] text-xs leading-relaxed text-espresso/80">
             If the clinic emailed you an invitation, use the link in it instead. It sets your account up with the
             details we already hold.
           </p>

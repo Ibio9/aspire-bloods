@@ -21,7 +21,7 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
-        className="absolute inset-0 bg-espresso/50 motion-safe:animate-fadeIn"
+        className="absolute inset-0 bg-night/60 motion-safe:animate-fadeIn"
         onClick={onClose}
         aria-hidden="true"
       />

@@ -20,7 +20,7 @@ import { LinkButton } from '../../components/ui/LinkButton';
  */
 export function AuthCrossLink({ prompt, to, label }: { prompt: string; to: string; label: string }) {
   return (
-    <div className="mt-[calc(var(--auth-step)*1.5)] border-t border-taupe pt-[calc(var(--auth-step)*1.25)]">
+    <div className="mt-auto border-t border-taupe pt-[calc(var(--auth-step)*1.25)]">
       <p className="text-sm leading-relaxed text-espresso/90">{prompt}</p>
       <LinkButton to={to} variant="secondary" className="mt-[calc(var(--auth-step)*0.75)] w-full">
         {label}

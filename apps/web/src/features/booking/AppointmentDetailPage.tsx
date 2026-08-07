@@ -124,7 +124,7 @@ export function AppointmentDetailPage() {
       {justBooked && appointment.status === 'CONFIRMED' && (
         <div role="status" className="mb-8 rounded-card border border-bronze/50 bg-bronze-50 p-6 sm:p-8">
           <p className="flex items-center gap-3 font-display text-2xl leading-tight text-espresso sm:text-3xl">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bronze text-white">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bronze text-onaccent">
               <TickIcon />
             </span>
             You're booked in
@@ -153,7 +153,7 @@ export function AppointmentDetailPage() {
       {appointment.status === 'CANCELLED' && (
         <div className="mt-8 rounded-card border border-taupe bg-cream-100 p-6 sm:p-8">
           <p className="flex items-center gap-2.5 font-medium text-espresso">
-            <AlertIcon className="shrink-0 text-espresso/75" />
+            <AlertIcon className="shrink-0 text-espresso/80" />
             This appointment was cancelled
           </p>
           <p className="mt-3 text-reading leading-relaxed text-espresso/90">

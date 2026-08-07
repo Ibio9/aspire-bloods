@@ -129,7 +129,7 @@ export function RandoxCataloguePage() {
           {refreshing ? 'Refreshing…' : 'Refresh from Randox'}
         </Button>
         {summary && (
-          <span className="text-sm text-espresso/70">
+          <span className="text-sm text-espresso/80">
             {summary.lastRefreshedAt
               ? `Last refreshed ${new Date(summary.lastRefreshedAt).toLocaleString('en-GB')}`
               : 'Never refreshed'}
@@ -155,7 +155,7 @@ export function RandoxCataloguePage() {
             aria-selected={tab === t}
             onClick={() => setTab(t)}
             className={`min-h-tap rounded-full px-4 py-1.5 text-sm transition duration-150 ease-out ${
-              tab === t ? 'bg-bronze text-white shadow-btn' : 'bg-taupe/30 text-espresso hover:bg-taupe/50'
+              tab === t ? 'bg-bronze text-onaccent shadow-btn' : 'bg-taupe/30 text-espresso hover:bg-taupe/50'
             }`}
           >
             {t === 'PANEL' ? 'Panels' : 'Tests'}
@@ -166,22 +166,22 @@ export function RandoxCataloguePage() {
       {side && (
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
           <Card>
-            <p className="text-sm text-espresso/70">Mapped</p>
+            <p className="text-sm text-espresso/80">Mapped</p>
             <p className="text-2xl tabular text-espresso">
               {side.mapped}
-              <span className="text-base text-espresso/60"> / {side.randoxTotal}</span>
+              <span className="text-base text-espresso/80"> / {side.randoxTotal}</span>
             </p>
-            <p className="mt-1 text-xs text-espresso/60">Randox entries with one of ours against them.</p>
+            <p className="mt-1 text-xs text-espresso/80">Randox entries with one of ours against them.</p>
           </Card>
           <Card>
-            <p className="text-sm text-espresso/70">Not mapped</p>
+            <p className="text-sm text-espresso/80">Not mapped</p>
             <p className="text-2xl tabular text-espresso">{side.unmappedRandox.length}</p>
-            <p className="mt-1 text-xs text-espresso/60">Randox offer these; we can't order them yet.</p>
+            <p className="mt-1 text-xs text-espresso/80">Randox offer these; we can't order them yet.</p>
           </Card>
           <Card>
-            <p className="text-sm text-espresso/70">Only in our catalogue</p>
+            <p className="text-sm text-espresso/80">Only in our catalogue</p>
             <p className="text-2xl tabular text-espresso">{side.unmappedOurs.length}</p>
-            <p className="mt-1 text-xs text-espresso/60">Aspire in-house, or not actually sold by Randox.</p>
+            <p className="mt-1 text-xs text-espresso/80">Aspire in-house, or not actually sold by Randox.</p>
           </Card>
         </div>
       )}
@@ -191,13 +191,13 @@ export function RandoxCataloguePage() {
           <p className="text-sm font-medium text-espresso">
             Withdrawn by Randox: {side.retired.length} mapped {side.retired.length === 1 ? 'entry' : 'entries'}
           </p>
-          <p className="mt-1 text-sm text-espresso/75">
+          <p className="mt-1 text-sm text-espresso/80">
             Existing reports are unaffected. New orders using these will be rejected.
           </p>
           <ul className="mt-2 list-disc pl-5 text-sm text-espresso/80">
             {side.retired.map((r) => (
               <li key={r.randoxId}>
-                {r.name} <span className="text-espresso/60">(mapped to {r.mappedKey})</span>
+                {r.name} <span className="text-espresso/80">(mapped to {r.mappedKey})</span>
               </li>
             ))}
           </ul>

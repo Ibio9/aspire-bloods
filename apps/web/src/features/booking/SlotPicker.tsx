@@ -198,7 +198,7 @@ export function SlotPicker({
               <fieldset>
                 <legend className="text-sm font-medium text-espresso">Times on {formatWeekdayDate(day.date)}</legend>
                 {currentSlotLabel && (
-                  <p className="mt-1.5 text-sm text-espresso/75">Currently booked for {currentSlotLabel}.</p>
+                  <p className="mt-1.5 text-sm text-espresso/80">Currently booked for {currentSlotLabel}.</p>
                 )}
                 {(fastingRequired || morningRequiredBy) && (
                   <p className="mt-3 flex items-start gap-2 text-sm text-espresso/85">
@@ -222,7 +222,7 @@ export function SlotPicker({
                     />
                   ))}
                 </div>
-                <p className="tabular mt-4 text-xs text-espresso/70">
+                <p className="tabular mt-4 text-xs text-espresso/80">
                   Allow about {day.slots[0].durationMinutes} minutes at the clinic.
                 </p>
               </fieldset>
@@ -279,20 +279,20 @@ function DateChip({ day, checked, onSelect }: { day: DayAvailability; checked: b
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 rounded-input border border-taupe bg-white transition duration-150 ease-out peer-hover:border-bronze/60 peer-checked:border-2 peer-checked:border-bronze peer-checked:bg-bronze-50 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-bronze peer-disabled:border-taupe peer-disabled:bg-cream-200"
       />
-      <span className={`relative text-[11px] font-medium uppercase tracking-eyebrow ${unavailable ? 'text-espresso/50' : 'text-espresso/70'}`}>
+      <span className={`relative text-[11px] font-medium uppercase tracking-eyebrow ${unavailable ? 'text-espresso/80' : 'text-espresso/80'}`}>
         {weekday}
       </span>
       <span
         className={`tabular relative text-xl leading-none ${
-          unavailable ? 'text-espresso/50' : checked ? 'font-semibold text-bronze-700' : 'text-espresso'
+          unavailable ? 'text-espresso/80' : checked ? 'font-semibold text-bronze-700' : 'text-espresso'
         }`}
       >
         {dayNum}
       </span>
-      <span className={`relative text-[11px] ${unavailable ? 'text-espresso/50' : 'text-espresso/70'}`}>{month}</span>
+      <span className={`relative text-[11px] ${unavailable ? 'text-espresso/80' : 'text-espresso/80'}`}>{month}</span>
       {/* The count is the point of the strip — it lets someone skip three
           fully-booked days without opening each one. */}
-      <span className={`tabular relative mt-1 text-[11px] font-medium ${unavailable ? 'text-espresso/60' : 'text-espresso/80'}`}>
+      <span className={`tabular relative mt-1 text-[11px] font-medium ${unavailable ? 'text-espresso/80' : 'text-espresso/80'}`}>
         {unavailable ? 'None' : `${count} free`}
       </span>
     </label>
@@ -342,8 +342,8 @@ function SlotChip({
       >
         {formatClockTime(slot.time)}
       </span>
-      {earlyHint && <span className="relative mt-0.5 text-[11px] leading-none text-espresso/70">easier fast</span>}
-      {blocked && <span className="relative mt-0.5 text-[11px] leading-none text-espresso/70">too late</span>}
+      {earlyHint && <span className="relative mt-0.5 text-[11px] leading-none text-espresso/80">easier fast</span>}
+      {blocked && <span className="relative mt-0.5 text-[11px] leading-none text-espresso/80">too late</span>}
     </label>
   );
 }

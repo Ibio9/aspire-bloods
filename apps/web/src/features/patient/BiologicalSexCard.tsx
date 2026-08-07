@@ -117,7 +117,7 @@ export function BiologicalSexCard({ variant, onSaved }: Props) {
       </p>
       <p className="mt-2 text-reading leading-relaxed text-espresso/80">{BIOLOGICAL_SEX_PURPOSE}</p>
       {!editing && !blocking && (
-        <p className="mt-2 text-sm leading-relaxed text-espresso/70">
+        <p className="mt-2 text-sm leading-relaxed text-espresso/80">
           Without it, any result whose range differs by sex will show its range as unavailable rather than showing
           you one that might not be yours.
         </p>
@@ -163,7 +163,7 @@ export function BiologicalSexCard({ variant, onSaved }: Props) {
         )}
       </div>
 
-      <p className="mt-4 text-xs leading-relaxed text-espresso/70">
+      <p className="mt-4 text-xs leading-relaxed text-espresso/80">
         This is the biological sex your results are interpreted against. If neither option fits, or your record
         needs to say something different, call the clinic and we'll handle it with you.
       </p>

@@ -57,7 +57,7 @@ export interface OptimalRangeEntry {
  * alongside nothing yet — it exists so a future audit can say which revision
  * of this table a given rendering came from.
  */
-export const OPTIMAL_RANGE_TABLE_VERSION = 1;
+export const OPTIMAL_RANGE_TABLE_VERSION = 2;
 
 const NO_OPTIMAL = 'no established optimal' as const;
 
@@ -388,6 +388,218 @@ export const OPTIMAL_RANGES: readonly OptimalRangeEntry[] = [
   gap('shbg', 'nmol/L', 'No guideline defines an optimal band; SHBG is interpreted alongside total and free testosterone.'),
   gap('dhea-s', 'µmol/L', 'DHEA-S declines steadily with age and is interpreted against age-specific reference data, not against an optimal.'),
   gap('cortisol', 'nmol/L', 'Cortisol follows a strong diurnal rhythm; a single optimal band would misrepresent any sample not drawn at the same time of day.'),
+
+  // ===========================================================================
+  // The full Randox catalogue (Core, Insight 360, Signature).
+  //
+  // 121 further MEASURED analytes. Exactly one of them has a published,
+  // guideline-adopted optimal band, and it is recorded below with its source.
+  // The other 120 are recorded as explicit gaps, each with the reason.
+  //
+  // That ratio is not an oversight, and writing it down matters more than the
+  // one entry does. Almost every analyte here falls into one of four kinds,
+  // and none of the four has an optimal band in the sense this table means:
+  //
+  //  · Autoantibodies and infection serology are answered as positive or
+  //    negative against an assay's own cut-off. There is no "better" value
+  //    below the cut-off, so a target inside the negative range is meaningless.
+  //  · Tumour markers, cardiac markers and enzymes of tissue damage are read
+  //    against a diagnostic threshold, and a *lower* result is not a healthier
+  //    one. Printing "optimal" beside a CA 125 would be the single most
+  //    frightening piece of interface in this product.
+  //  · Research and vascular-inflammation analytes (the selectins, the
+  //    adhesion molecules, the interleukins, the soluble TNF receptors) are not
+  //    standardised between platforms. A number from one assay does not mean
+  //    the same thing as the same number from another, so no cross-laboratory
+  //    band can exist.
+  //  · Personal measurements (height, weight, blood pressure, the two
+  //    circumferences) DO have published targets — and they are deliberately
+  //    not recorded here. This table drives a band drawn beside a number on a
+  //    patient's own results page. Telling someone their waist is "outside
+  //    optimal" next to their blood chemistry is a judgement about their body,
+  //    delivered by a web page, with no clinician in the room. Blood pressure
+  //    in particular has a real NICE threshold, and it belongs in a
+  //    consultation, not in a tooltip.
+  // ===========================================================================
+
+  {
+    markerKey: 'lipoprotein-a',
+    sex: 'ANY',
+    ageMin: null,
+    ageMax: null,
+    low: null,
+    high: 75,
+    unit: 'nmol/L',
+    source:
+      'European Atherosclerosis Society 2022 consensus statement on lipoprotein(a) (Kronenberg F et al., Eur Heart J 2022) — below 75 nmol/L (30 mg/dL) carries no appreciable excess cardiovascular risk.',
+    confidence: 'established',
+    note: 'One-sided. Lp(a) is roughly 90% genetically determined and changes very little with lifestyle, so this band describes inherited risk rather than anything that responds to what the patient does.',
+  },
+
+  // --- Autoimmune and allergy: cut-off tests, not graded ones ---------------
+  gap('ige', 'kU/L', 'Total IgE is interpreted against an age-specific cut-off and alongside symptoms. Concentrations vary widely in healthy people and no body defines an optimal.'),
+  gap('anti-ccp', 'U/mL', 'Reported positive or negative against the assay’s own cut-off. There is no graded optimal below it.'),
+  gap('ana', 'titre', 'Reported as a titre and a staining pattern, not a concentration. Low titres are common in healthy people, so no optimal exists.'),
+  gap('anti-tg', 'IU/mL', 'An antibody reported against an assay cut-off. Below the cut-off there is nothing to optimise toward.'),
+  gap('anti-tpo', 'IU/mL', 'An antibody reported against an assay cut-off. Below the cut-off there is nothing to optimise toward.'),
+  gap('anti-ttg', 'U/mL', 'Coeliac serology is read against the assay’s cut-off alongside IgA status and, where indicated, biopsy. No optimal band is defined.'),
+  gap('ttg-iga', 'U/mL', 'Coeliac serology is read against the assay’s cut-off alongside total IgA. No optimal band is defined.'),
+  gap('gastric-parietal-cell-antibodies', 'U/mL', 'Reported positive or negative against an assay cut-off; no graded optimal exists.'),
+  gap('intrinsic-factor-antibodies', 'U/mL', 'Reported positive or negative against an assay cut-off; no graded optimal exists.'),
+  gap('rheumatoid-factor', 'IU/mL', 'Reported against an assay cut-off and interpreted alongside anti-CCP and symptoms. Low titres occur in healthy older adults.'),
+  gap('t1d-autoantibodies', 'U/mL', 'A panel of islet autoantibodies reported against assay cut-offs. Presence or absence is the result; there is no optimal concentration.'),
+
+  // --- Endocrine and metabolic ---------------------------------------------
+  gap('pth', 'pmol/L', 'PTH is interpreted alongside calcium and vitamin D rather than against a target of its own; the same PTH means different things at different calcium levels.'),
+  gap('c-peptide', 'nmol/L', 'C-peptide is used to characterise insulin secretion in a known diabetes context, not measured against an optimal in a well population.'),
+  gap('fructosamine', 'µmol/L', 'Fructosamine is a shorter-window alternative to HbA1c used where HbA1c is unreliable. No body defines an optimal, and the diabetes thresholds that exist are stated in HbA1c.'),
+  gap('nefa', 'mmol/L', 'Non-esterified fatty acids swing several-fold with fasting duration and recent exercise. No optimal band is defined.'),
+  gap('adiponectin', 'µg/mL', 'Assay values are not comparable between platforms and no clinical body defines a target.'),
+  gap('igf-1', 'nmol/L', 'IGF-1 is interpreted against age- and sex-specific reference data in suspected growth hormone disorders, not against an optimal for a well population.'),
+  gap('free-androgen-index', 'ratio', 'A calculated index whose value depends on both the testosterone and the SHBG assay used, so no cross-laboratory optimal exists.'),
+  gap('calcitonin', 'ng/L', 'Calcitonin is a tumour marker for medullary thyroid carcinoma, read against a diagnostic threshold. A lower value is not a better one.'),
+  gap('thyroid-binding-globulin-tbg', 'mg/L', 'TBG is measured to explain a discordant thyroid result. It has no optimal of its own.'),
+  gap('microalbumin-creatinine-ratio', 'mg/mmol', 'KDIGO define albuminuria categories (A1 below 3 mg/mmol), which are the boundary of the reference interval rather than an optimal band inside it.'),
+
+  // --- Cardiac and lipoprotein ---------------------------------------------
+  gap('apo-a1', 'g/L', 'ESC/EAS define targets for ApoB and for LDL, and explicitly decline to set one for ApoA-I. Extrapolating from HDL guidance would be an estimate, not a source.'),
+  gap('apo-b-a1-ratio', 'ratio', 'Widely studied as a risk marker but no guideline body has adopted a cut-point, and the ratio inherits both assays’ standardisation problems.'),
+  gap('apo-cii', 'mg/dL', 'A specialist analyte used in investigating rare dyslipidaemias. No optimal band is defined.'),
+  gap('apo-e', 'mg/dL', 'ApoE concentration is interpreted alongside genotype in specialist lipid clinics. No optimal band exists for the concentration alone.'),
+  gap('cv-risk-score', '%', 'A calculated 10-year risk estimate, not a measured analyte. NICE act on it at 10% but that is a treatment-discussion threshold, and rendering it as "outside optimal" would misstate what a risk percentage is.'),
+  gap('creatine-kinase', 'U/L', 'CK rises for days after ordinary exercise and varies severalfold with muscle mass and ethnicity. No optimal band is defined.'),
+  gap('ck-mb', 'µg/L', 'A cardiac injury marker read against a diagnostic threshold, now largely superseded by troponin. A lower value is not a better one.'),
+  gap('myoglobin', 'µg/L', 'Released by any skeletal muscle injury including exercise, and read against a diagnostic threshold rather than a target.'),
+  gap('troponin-i', 'ng/L', 'A cardiac injury marker with a sex-specific 99th-centile diagnostic threshold. There is no optimal below it, and presenting one would imply a normal troponin could be improved on.'),
+  gap('troponin-t', 'ng/L', 'A cardiac injury marker with a 99th-centile diagnostic threshold. There is no optimal below it.'),
+  gap('d-dimer', 'µg/L', 'Used with a clinical probability score to rule OUT thrombosis, against an age-adjusted threshold. It has no meaning as a standalone target.'),
+  gap('ecg', '', 'A recording interpreted by a clinician, not a measured quantity. There is nothing to bound.'),
+
+  // --- Infection, inflammation and the vascular research panel -------------
+  gap('aso', 'IU/mL', 'Antistreptolysin O is read against an age-specific upper limit reflecting recent streptococcal exposure, not against an optimal.'),
+  gap('complement-c3', 'g/L', 'C3 is interpreted alongside C4 and clinical context in suspected complement-mediated disease. No optimal sub-band is defined.'),
+  gap('e-selectin', 'ng/mL', 'A vascular adhesion marker used in research. Values are not standardised between assay platforms, so no cross-laboratory band can exist.'),
+  gap('l-selectin', 'ng/mL', 'A vascular adhesion marker used in research. Values are not standardised between assay platforms.'),
+  gap('p-selectin', 'ng/mL', 'A vascular adhesion marker used in research. Values are not standardised between assay platforms.'),
+  gap('icam-1', 'ng/mL', 'An endothelial activation marker used in research; no clinical body defines a target and assays are not cross-comparable.'),
+  gap('vcam-1', 'ng/mL', 'An endothelial activation marker used in research; no clinical body defines a target and assays are not cross-comparable.'),
+  gap('egf', 'pg/mL', 'A growth factor measured in research contexts. No guideline-defined optimal, and results depend heavily on sample handling.'),
+  gap('il-8', 'pg/mL', 'A cytokine with no guideline-defined optimal; concentrations are not comparable between assay platforms.'),
+  gap('il-10', 'pg/mL', 'A cytokine with no guideline-defined optimal; concentrations are not comparable between assay platforms.'),
+  gap('mcp-1', 'pg/mL', 'A chemokine measured in research contexts, with no guideline-defined optimal and no cross-platform standardisation.'),
+  gap('mip-1-alpha', 'pg/mL', 'A chemokine measured in research contexts, with no guideline-defined optimal and no cross-platform standardisation.'),
+  gap('stnf-r1', 'ng/mL', 'A soluble TNF receptor studied as a kidney-risk marker. No clinical body has adopted a cut-point.'),
+  gap('stnf-r2', 'ng/mL', 'A soluble TNF receptor studied as a kidney-risk marker. No clinical body has adopted a cut-point.'),
+  gap('h-pylori', '', 'Reported as detected or not detected. A qualitative result has no band.'),
+
+  // --- Iron transport -------------------------------------------------------
+  gap('transferrin', 'g/L', 'Transferrin rises in iron deficiency and falls in inflammation, so it is read directionally alongside ferritin rather than against a target.'),
+  gap('transferrin-saturation', '%', 'BSG (2021) treat below 20% as supporting iron deficiency and above 45% as prompting investigation for iron overload. Both are the edges of the reference interval, not an optimal band inside it.'),
+
+  // --- Kidney ---------------------------------------------------------------
+  gap('b2-microglobulin', 'mg/L', 'Used in specific disease monitoring rather than as a general kidney measure; no optimal band is defined.'),
+  gap('bicarbonate', 'mmol/L', 'Part of the acid–base picture and interpreted with it. No published optimal sub-band.'),
+  gap('cystatin-c', 'mg/L', 'Cystatin C is interpreted through the eGFR equation it feeds, not against a concentration target.'),
+  gap('ngal', 'ng/mL', 'An acute kidney injury marker studied against event thresholds in hospital settings. No optimal is defined for a well population.'),
+  gap('magnesium', 'mmol/L', 'Serum magnesium reflects only about 1% of total body magnesium and is held tightly constant, so no optimal sub-band is defined. Distinct from RBC Magnesium, which is a different analyte with its own entry.'),
+
+  // --- Liver ---------------------------------------------------------------
+  gap('aldolase', 'U/L', 'A muscle enzyme read alongside CK in suspected myopathy, against the reference interval rather than a target.'),
+  gap('bile-acids', 'µmol/L', 'Fasting bile acids are read against a diagnostic threshold, chiefly in obstetric cholestasis. No optimal band is defined.'),
+  gap('copper', 'µmol/L', 'Serum copper rises with inflammation and oestrogen independently of copper status, and is interpreted alongside caeruloplasmin. No optimal band exists.'),
+  gap('direct-bilirubin', 'µmol/L', 'Interpreted as a fraction of total bilirubin to separate conjugated from unconjugated hyperbilirubinaemia, not against a target.'),
+  gap('globulin', 'g/L', 'A calculated difference between total protein and albumin, interpreted alongside both. No optimal sub-band is defined.'),
+  gap('gldh', 'U/L', 'A liver-specific enzyme read against its reference interval; no guideline defines a target within it.'),
+  gap('ldh', 'U/L', 'Raised by haemolysis, tissue turnover and even a difficult venepuncture. Non-specific by nature, so no optimal band is defined.'),
+
+  // --- Pancreas and gut ----------------------------------------------------
+  gap('lipase', 'U/L', 'Read against a diagnostic threshold (three times the upper reference limit) in suspected pancreatitis, not against an optimal.'),
+  gap('pancreatic-amylase', 'U/L', 'Read against a diagnostic threshold in suspected pancreatitis, not against an optimal.'),
+  gap('gastrin', 'pmol/L', 'Fasting gastrin is interpreted alongside acid-suppressing medication, which raises it substantially. No optimal band is defined.'),
+  gap('pepsinogen-1', 'µg/L', 'Interpreted as the Pepsinogen 1/2 ratio in assessing gastric atrophy, not as a standalone target.'),
+  gap('pepsinogen-2', 'µg/L', 'Interpreted as the Pepsinogen 1/2 ratio in assessing gastric atrophy, not as a standalone target.'),
+  gap('qfit', 'µg Hb/g', 'NICE DG56 act on faecal haemoglobin at or above 10 µg Hb/g. That is a referral threshold, and the result below it is simply negative — there is no optimal to approach.'),
+
+  // --- Nutritional ---------------------------------------------------------
+  gap('glutathione-reductase', 'U/g Hb', 'Used as an activation coefficient to assess riboflavin status rather than as an absolute activity with a target.'),
+
+  // --- Tumour markers ------------------------------------------------------
+  // Every one of these deliberately has no band. They are read against a
+  // diagnostic threshold and, in screening, against a trend over time. A
+  // "within optimal" printed beside one would imply the opposite reading is
+  // available, and there is no version of that sentence a patient should meet
+  // on a web page without a clinician.
+  gap('afp', 'kU/L', 'A tumour marker read against a diagnostic threshold and, in surveillance, against its own trend. There is no optimal below the threshold.'),
+  gap('beta-hcg', 'IU/L', 'Read against a diagnostic threshold and, in pregnancy, against gestation. There is no optimal band.'),
+  gap('ca-15-3', 'kU/L', 'A tumour marker used for monitoring rather than screening, read against its own previous values. No optimal band exists.'),
+  gap('ca-19-9', 'kU/L', 'A tumour marker read against a diagnostic threshold. Around 5–10% of people cannot express it at all, so a low value is not informative on its own.'),
+  gap('ca-125', 'kU/L', 'Read against a diagnostic threshold and affected by menstruation, endometriosis and pregnancy. There is no optimal below it.'),
+  gap('cea', 'µg/L', 'A tumour marker read against a diagnostic threshold and raised by smoking independently of any disease.'),
+  gap('nse', 'µg/L', 'A tumour marker read against a diagnostic threshold; haemolysis in the sample raises it artefactually.'),
+  gap('total-psa', 'µg/L', 'PSA thresholds are age-specific referral thresholds used alongside examination and MRI, not an optimal band. It also rises with a benign prostate, cycling and recent ejaculation.'),
+  gap('prostate-cancer-risk-score', '', 'A calculated risk score rather than a measured analyte, and one that only means anything in a conversation about what to do next.'),
+
+  // --- Epstein-Barr serology -----------------------------------------------
+  gap('epstein-barr-antibodies', 'index', 'Reported as reactive or non-reactive against the assay’s index cut-off. Past infection is extremely common and is not a finding to optimise.'),
+  gap('epstein-barr-nuclear-antigen-igg', 'index', 'An index against the assay cut-off, used with the other EBV antibodies to date an infection rather than grade it.'),
+  gap('epstein-barr-viral-capsid-antigen-igg', 'index', 'An index against the assay cut-off, used with the other EBV antibodies to date an infection rather than grade it.'),
+  gap('epstein-barr-viral-capsid-antigen-igm', 'index', 'An index against the assay cut-off, indicating recent infection. There is no optimal value.'),
+
+  // --- Urinalysis ----------------------------------------------------------
+  // A dipstick is read as negative, trace, or a + grade. Qualified "(urine)" in
+  // the catalogue so none of these can ever be confused with the blood analyte
+  // of the same name — a dipstick glucose is not a fasting plasma glucose.
+  gap('bilirubin-urine', '', 'A dipstick grade, not a concentration. Nothing to bound.'),
+  gap('glucose-urine', '', 'A dipstick grade, not a concentration, and not interchangeable with a plasma glucose.'),
+  gap('ketones-urine', '', 'A dipstick grade. Present in ordinary fasting and low-carbohydrate eating as well as in illness.'),
+  gap('ph-urine', 'pH', 'Urine pH swings with diet and time of day by design — that is the kidney working. No optimal band is defined.'),
+  gap('protein-urine', '', 'A dipstick grade. Quantified properly by the albumin/creatinine ratio, which has its own entry.'),
+  gap('red-blood-cells-urine', '', 'A dipstick grade, confirmed by microscopy where it matters. Nothing to bound.'),
+  gap('urobilinogen-urine', '', 'A dipstick grade. Nothing to bound.'),
+  gap('white-blood-cells-urine', '', 'A dipstick grade, confirmed by culture where it matters. Nothing to bound.'),
+  gap('nitrite-urine', '', 'Positive or negative. A qualitative result has no band.'),
+
+  // --- UTI panel -----------------------------------------------------------
+  // Detected / not detected, every one of them. Listed individually rather
+  // than handled by a blanket rule so the table can state, per analyte, that
+  // the absence of a band is deliberate.
+  ...[
+    'acinetobacter-baumannii',
+    'enterobacter-cloacae',
+    'enterococcus-faecalis',
+    'enterococcus-faecium',
+    'escherichia-coli',
+    'klebsiella-aerogenes',
+    'klebsiella-oxytoca',
+    'klebsiella-pneumoniae',
+    'morganella-morganii',
+    'proteus-spp',
+    'providencia-stuartii',
+    'pseudomonas-aeruginosa',
+    'staphylococcus-aureus',
+    'staphylococcus-epidermidis',
+    'staphylococcus-saprophyticus',
+    'streptococcus-agalactiae-gbs',
+  ].map((k) => gap(k, '', 'A urinary organism reported as detected or not detected. A qualitative result has no band, and detection without symptoms is frequently not treated.')),
+  ...['methicillin-resistance', 'trimethoprim-resistance', 'vancomycin-resistance'].map((k) =>
+    gap(k, '', 'An antimicrobial resistance marker reported as detected or not detected. It describes an organism, not the person, and has no band.'),
+  ),
+
+  // --- Personal health measurements ----------------------------------------
+  // Published targets exist for several of these and are deliberately not
+  // recorded. See the note at the head of this section: an optimal band here
+  // would be a judgement about someone's body rendered beside their blood
+  // chemistry, with nobody present to have the conversation.
+  gap('height', 'cm', 'A measurement, not a result. There is nothing to optimise.'),
+  gap('weight', 'kg', 'Deliberately no band. Weight targets are set with a clinician against a person’s whole situation, never printed alongside a blood result.'),
+  gap('waist-circumference', 'cm', 'Deliberately no band. Published thresholds exist and belong in a consultation, not beside a blood result on a portal.'),
+  gap('hip-circumference', 'cm', 'Recorded to calculate the waist/hip ratio. It has no target of its own.'),
+  gap('waist-hip-ratio', 'ratio', 'Deliberately no band, for the same reason as waist circumference.'),
+  gap('systolic-blood-pressure', 'mmHg', 'NICE define hypertension thresholds, which are diagnostic thresholds acted on in a consultation with a repeat measurement — not an optimal band to print beside a single clinic reading.'),
+  gap('diastolic-blood-pressure', 'mmHg', 'NICE define hypertension thresholds, which are diagnostic thresholds acted on in a consultation with a repeat measurement — not an optimal band to print beside a single clinic reading.'),
+  gap('pulse', 'bpm', 'Resting pulse varies enormously with fitness, medication and how the last ten minutes went. No optimal band is defined.'),
+  gap('oxygen-saturation', '%', 'A single clinic reading is read against a clinical threshold in context, not against an optimal.'),
+  gap('body-composition-analyser', '', 'A composite of several measurements rather than one value. Nothing here to bound.'),
 ];
 
 /**

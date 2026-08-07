@@ -97,7 +97,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
   return createPortal(
     <div className="fixed inset-0 z-[60] flex items-start justify-center px-4 pt-[12vh]">
-      <div className="absolute inset-0 bg-espresso/50 motion-safe:animate-fadeIn" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-night/60 motion-safe:animate-fadeIn" onClick={onClose} aria-hidden="true" />
       <div
         ref={dialogRef}
         tabIndex={-1}
@@ -122,9 +122,9 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
           />
         </div>
         <div className="scroll-thin flex-1 overflow-y-auto p-1.5">
-          {results.length === 0 && <p className="px-3 py-4 text-sm text-espresso/60">No matches.</p>}
+          {results.length === 0 && <p className="px-3 py-4 text-sm text-espresso/80">No matches.</p>}
           {matchedDestinations.length > 0 && (
-            <p className="px-3 pb-1 pt-2 text-xs font-medium uppercase tracking-eyebrow text-espresso/50">Go to</p>
+            <p className="px-3 pb-1 pt-2 text-xs font-medium uppercase tracking-eyebrow text-espresso/80">Go to</p>
           )}
           {results.map((r, i) => (
             <button
@@ -133,20 +133,20 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
               onClick={() => go(r)}
               onMouseEnter={() => setActiveIndex(i)}
               className={`flex w-full flex-col items-start rounded-input px-3 py-2.5 text-left transition-colors duration-100 ${
-                i === activeIndex ? 'bg-bronze text-white' : 'text-espresso'
+                i === activeIndex ? 'bg-bronze text-onaccent' : 'text-espresso'
               }`}
             >
               <span className="text-sm font-medium">{r.kind === 'destination' ? r.item.label : r.item.displayName}</span>
-              <span className={`text-xs ${i === activeIndex ? 'text-white/80' : 'text-espresso/60'}`}>
+              <span className={`text-xs ${i === activeIndex ? 'text-onaccent/80' : 'text-espresso/80'}`}>
                 {r.kind === 'destination' ? r.item.hint : r.item.email}
               </span>
             </button>
           ))}
           {query && matchedPatients.length > 0 && (
-            <p className="px-3 pb-1 pt-3 text-xs font-medium uppercase tracking-eyebrow text-espresso/50">Patients</p>
+            <p className="px-3 pb-1 pt-3 text-xs font-medium uppercase tracking-eyebrow text-espresso/80">Patients</p>
           )}
         </div>
-        <div className="flex items-center justify-between border-t border-taupe px-4 py-2 text-xs text-espresso/60">
+        <div className="flex items-center justify-between border-t border-taupe px-4 py-2 text-xs text-espresso/80">
           <span>↑↓ to navigate, ↵ to select</span>
           <span>Esc to close</span>
         </div>

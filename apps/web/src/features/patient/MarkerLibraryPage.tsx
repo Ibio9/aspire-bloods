@@ -61,7 +61,7 @@ function LibraryCard({ entry }: { entry: LibraryEntry }) {
         >
           <span className="min-w-0">
             <span className="block font-display text-xl leading-tight text-espresso sm:text-2xl">{entry.name}</span>
-            <span className="mt-1.5 block text-xs text-espresso/70">
+            <span className="mt-1.5 block text-xs text-espresso/80">
               Measured in {entry.unit}
               {entry.hasResults && ' · you have results for this'}
               {entry.panels.length > 0 && ` · ${entry.panels.slice(0, 2).join(', ')}`}
@@ -174,7 +174,7 @@ export function MarkerLibraryPage() {
             </Select>
           </div>
 
-          <p className="mt-6 text-sm text-espresso/70" role="status">
+          <p className="mt-6 text-sm text-espresso/80" role="status">
             {visible.length} marker{visible.length === 1 ? '' : 's'}
           </p>
 

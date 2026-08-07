@@ -210,7 +210,7 @@ export function Listbox({
             aria-activedescendant={filteredOptions[activeIndex] ? `${id ?? 'listbox'}-opt-${activeIndex}` : undefined}
             className="scroll-thin flex-1 overflow-y-auto py-1"
           >
-            {filteredOptions.length === 0 && <li className="px-3.5 py-2.5 text-sm text-espresso/60">No matches</li>}
+            {filteredOptions.length === 0 && <li className="px-3.5 py-2.5 text-sm text-espresso/80">No matches</li>}
             {filteredOptions.map((opt, i) => (
               <li
                 key={opt.value}
@@ -224,7 +224,7 @@ export function Listbox({
                   opt.disabled
                     ? 'cursor-not-allowed text-espresso/40'
                     : i === activeIndex
-                      ? 'bg-bronze text-white'
+                      ? 'bg-bronze text-onaccent'
                       : opt.value === value
                         ? 'text-bronze-700 font-medium'
                         : 'text-espresso'

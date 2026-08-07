@@ -58,6 +58,46 @@ function isRotation(a: string, b: string): boolean {
  * (High-Sensitivity C-Reactive Protein)", and first-wins made that a coin
  * flip decided by catalogue ordering between two genuinely different tests.
  */
+/**
+ * How confidently two names identify the same analyte.
+ *
+ * The five passes in `findBestMarkerMatch` are not equally safe. The first
+ * four each assert that the same WORDS are present on both sides — a
+ * different spelling of one name. The fifth only asserts that one name
+ * contains the other, which is true of "Magnesium" and "RBC Magnesium", of
+ * "Testosterone" and "Free Testosterone", and of "Bilirubin" and "Direct
+ * Bilirubin". Every one of those pairs is two genuinely different analytes.
+ *
+ * That difference doesn't matter when the answer is a suggestion an admin
+ * confirms in the verify table, which is what findBestMarkerMatch feeds. It
+ * matters enormously when the answer decides whether the catalogue gets one
+ * record or two, because nobody is watching a seed run. So the tier is
+ * exposed and the catalogue seed merges on the first four only, reporting the
+ * fifth for a human to look at.
+ */
+export type MatchTier = 'exact' | 'rotation' | 'tokens' | 'stem' | 'substring';
+
+export function classifyMarkerMatch(rawName: string, candidate: { name: string; key: string }): MatchTier | null {
+  const target = normalise(rawName);
+  if (!target) return null;
+  const name = normalise(candidate.name);
+
+  if (name === target || normalise(candidate.key) === target) return 'exact';
+  if (isRotation(name, target)) return 'rotation';
+
+  const targetTokens = tokenSet(rawName);
+  if (targetTokens.includes('|') && tokenSet(candidate.name) === targetTokens) return 'tokens';
+
+  const s = stem(name);
+  if (s.length > 3 && s === stem(target)) return 'stem';
+
+  if (name.length > 3 && (target.includes(name) || name.includes(target))) return 'substring';
+  return null;
+}
+
+/** The four tiers that assert the same words, not merely an overlap. */
+export const STRONG_MATCH_TIERS: readonly MatchTier[] = ['exact', 'rotation', 'tokens', 'stem'];
+
 export function findBestMarkerMatch<T extends { id: string; name: string; key: string }>(
   rawName: string,
   candidates: T[],

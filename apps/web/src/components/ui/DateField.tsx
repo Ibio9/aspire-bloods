@@ -450,7 +450,7 @@ export function DateField({
             <>
               <div className="grid grid-cols-7 gap-y-1 text-center">
                 {WEEKDAY_LABELS.map((d) => (
-                  <span key={d} className="text-xs font-medium text-espresso/60">
+                  <span key={d} className="text-xs font-medium text-espresso/80">
                     {d}
                   </span>
                 ))}
@@ -479,7 +479,7 @@ export function DateField({
                         disabledDay
                           ? 'cursor-not-allowed text-espresso/25'
                           : isSelected
-                            ? 'bg-bronze text-white'
+                            ? 'bg-bronze text-onaccent'
                             : isFocused
                               ? 'bg-cream-300 text-espresso'
                               : inMonth
@@ -521,7 +521,7 @@ export function DateField({
                       monthDisabled
                         ? 'cursor-not-allowed text-espresso/25'
                         : isSelected
-                          ? 'bg-bronze text-white'
+                          ? 'bg-bronze text-onaccent'
                           : isFocused
                             ? 'bg-cream-300 text-espresso'
                             : 'text-espresso hover:bg-cream-200'
@@ -557,7 +557,7 @@ export function DateField({
                       yearDisabled
                         ? 'cursor-not-allowed text-espresso/25'
                         : isSelected
-                          ? 'bg-bronze text-white'
+                          ? 'bg-bronze text-onaccent'
                           : isFocused
                             ? 'bg-cream-300 text-espresso'
                             : 'text-espresso hover:bg-cream-200'
@@ -588,7 +588,7 @@ export function DateField({
                   setTypeError(undefined);
                   close();
                 }}
-                className="text-xs font-medium text-espresso/70 transition duration-150 ease-out hover:text-espresso"
+                className="text-xs font-medium text-espresso/80 transition duration-150 ease-out hover:text-espresso"
               >
                 Clear
               </button>

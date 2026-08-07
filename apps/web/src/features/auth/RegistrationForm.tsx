@@ -133,12 +133,98 @@ export function RegistrationForm({ showEmailField, variant = 'full', submitLabel
     }
   }
 
+  // The step this form is showing. The sections below were always separate
+  // cards; they are now separate screens, because five of them stacked was
+  // roughly twice the height of a 720px laptop viewport and the only way to
+  // see the bottom of the consent list was to scroll inside the auth card.
+  //
+  // Nothing about what is asked, in what words, or what gets submitted has
+  // changed: the same payload is built from the same state and posted once,
+  // at the end, exactly as before.
+  //
+  // "Your details" is two steps rather than one, both under that same heading:
+  // who you are, then how the clinic reaches you and confirms a result is
+  // yours. Five field rows plus two explanatory hints was still ~120px taller
+  // than a 1280x720 laptop could show, and the fields do split cleanly at that
+  // seam — so it splits there instead of scrolling.
+  const steps = full
+    ? (['details', 'details-contact', 'gp', 'emergency', 'password', 'consent'] as const)
+    : (['details', 'details-contact', 'password', 'consent'] as const);
+  const [stepIndex, setStepIndex] = useState(0);
+  const step = steps[stepIndex];
+  const isLast = stepIndex === steps.length - 1;
+
+  /**
+   * What has to be filled in before the step will advance.
+   *
+   * Stated per step because a step that isn't rendered can't validate itself —
+   * and letting someone reach the consent screen with an empty surname, only
+   * to be rejected by the server after they had agreed to everything, would be
+   * a worse experience than the scrollbar this replaced.
+   */
+  function stepIsComplete(): boolean {
+    if (step === 'details') {
+      const emailOk = !showEmailField || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+      return emailOk && !!(form.firstName.trim() && form.lastName.trim());
+    }
+    if (step === 'details-contact') {
+      const baseOk = !!(form.dob && form.contactNumber.trim());
+      const fullOk = !full || !!(form.address.trim() && form.postcode.trim());
+      return baseOk && fullOk;
+    }
+    if (step === 'password') return password.length >= 12;
+    if (step === 'consent') return consents.dataProcessing && consents.resultsStorage;
+    // GP details and emergency contact are entirely optional fields.
+    return true;
+  }
+
+  function goNext() {
+    setError(null);
+    if (!stepIsComplete()) {
+      setError('Please complete the fields on this step before continuing.');
+      return;
+    }
+    setStepIndex((i) => Math.min(i + 1, steps.length - 1));
+  }
+
+  function goBack() {
+    setError(null);
+    setStepIndex((i) => Math.max(i - 1, 0));
+  }
+
   // Spacing here is driven by the auth vertical rhythm (--auth-step) and the
   // section cards drop to tight padding: this form is nested inside the auth
-  // card, so its own generous padding was compounding with the card's and
-  // making the tallest screen in the product taller still.
+  // card, so its own generous padding was compounding with the card's.
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-[calc(var(--auth-step)*1.4)]" noValidate>
+    <form
+      onSubmit={(e) => {
+        // Enter inside a field must not submit a half-finished registration
+        // from step one. Only the final step's submit does anything.
+        if (!isLast) {
+          e.preventDefault();
+          goNext();
+          return;
+        }
+        void handleSubmit(e);
+      }}
+      className="flex min-h-0 flex-col gap-[calc(var(--auth-step)*1.4)]"
+      noValidate
+    >
+      {/* Where you are, without a sentence of copy: one mark per step, the
+          current one filled. aria-label carries it for a screen reader. */}
+      <ol className="flex items-center gap-2" aria-label={`Step ${stepIndex + 1} of ${steps.length}`}>
+        {steps.map((s, i) => (
+          <li
+            key={s}
+            aria-hidden="true"
+            className={`h-1.5 flex-1 rounded-full transition duration-150 ease-out ${
+              i < stepIndex ? 'bg-bronze-700' : i === stepIndex ? 'bg-bronze' : 'bg-taupe'
+            }`}
+          />
+        ))}
+      </ol>
+
+      {step === 'details' && (
       <Card padding="tight" className="flex flex-col gap-[calc(var(--auth-step)*0.9)]">
         <p className="eyebrow">Your details</p>
         {showEmailField && (
@@ -170,6 +256,14 @@ export function RegistrationForm({ showEmailField, variant = 'full', submitLabel
             validate={required('Last name')}
           />
         </div>
+      </Card>
+      )}
+
+      {step === 'details-contact' && (
+      <Card padding="tight" className="flex flex-col gap-[calc(var(--auth-step)*0.9)]">
+        {/* Same heading as the step before it on purpose: this is the second
+            half of one thing, not a second thing. */}
+        <p className="eyebrow">Your details</p>
         <div className="grid grid-cols-1 gap-[calc(var(--auth-step)*0.9)] sm:grid-cols-2">
           {/* preset carries the range and the opening view — no future
               dates, nothing implausibly old, and the calendar opens on a
@@ -207,7 +301,9 @@ export function RegistrationForm({ showEmailField, variant = 'full', submitLabel
           }
         />
         {full && (
-          <>
+          // Side by side rather than stacked: two more full-width rows was the
+          // difference between this step fitting a 720px viewport and not.
+          <div className="grid grid-cols-1 gap-[calc(var(--auth-step)*0.9)] sm:grid-cols-2">
             <Input
               label="Home address"
               name="address"
@@ -222,62 +318,68 @@ export function RegistrationForm({ showEmailField, variant = 'full', submitLabel
               onChange={(e) => set('postcode', e.target.value)}
               validate={required('Postcode')}
             />
-          </>
+          </div>
         )}
       </Card>
+      )}
 
-      {full && (
+      {step === 'gp' && (
       <Card padding="tight" className="flex flex-col gap-[calc(var(--auth-step)*0.9)]">
         <p className="eyebrow">GP &amp; medical details</p>
         <p className="text-sm text-espresso -mt-2">
           If any of your results come back outside the expected range, we'll ask you to contact your GP. Having
           these details on file helps us point you in the right direction.
         </p>
-        <Input label="GP name" name="gpName" optional value={form.gpName} onChange={(e) => set('gpName', e.target.value)} />
-        <Input
-          label="GP address"
-          name="gpAddress"
-          optional
-          value={form.gpAddress}
-          onChange={(e) => set('gpAddress', e.target.value)}
-        />
-        <Input
-          label="Current medication"
-          name="medication"
-          optional
-          value={form.medication}
-          onChange={(e) => set('medication', e.target.value)}
-        />
-        <Input
-          label="Allergies"
-          name="allergies"
-          optional
-          value={form.allergies}
-          onChange={(e) => set('allergies', e.target.value)}
-        />
+        <div className="grid grid-cols-1 gap-[calc(var(--auth-step)*0.9)] sm:grid-cols-2">
+          <Input label="GP name" name="gpName" optional value={form.gpName} onChange={(e) => set('gpName', e.target.value)} />
+          <Input
+            label="GP address"
+            name="gpAddress"
+            optional
+            value={form.gpAddress}
+            onChange={(e) => set('gpAddress', e.target.value)}
+          />
+          <Input
+            label="Current medication"
+            name="medication"
+            optional
+            value={form.medication}
+            onChange={(e) => set('medication', e.target.value)}
+          />
+          <Input
+            label="Allergies"
+            name="allergies"
+            optional
+            value={form.allergies}
+            onChange={(e) => set('allergies', e.target.value)}
+          />
+        </div>
       </Card>
       )}
 
-      {full && (
+      {step === 'emergency' && (
       <Card padding="tight" className="flex flex-col gap-[calc(var(--auth-step)*0.9)]">
         <p className="eyebrow">Emergency contact</p>
-        <Input
-          label="Name"
-          name="emergencyContactName"
-          optional
-          value={form.emergencyContactName}
-          onChange={(e) => set('emergencyContactName', e.target.value)}
-        />
-        <Input
-          label="Contact number"
-          name="emergencyContactNumber"
-          optional
-          value={form.emergencyContactNumber}
-          onChange={(e) => set('emergencyContactNumber', e.target.value)}
-        />
+        <div className="grid grid-cols-1 gap-[calc(var(--auth-step)*0.9)] sm:grid-cols-2">
+          <Input
+            label="Name"
+            name="emergencyContactName"
+            optional
+            value={form.emergencyContactName}
+            onChange={(e) => set('emergencyContactName', e.target.value)}
+          />
+          <Input
+            label="Contact number"
+            name="emergencyContactNumber"
+            optional
+            value={form.emergencyContactNumber}
+            onChange={(e) => set('emergencyContactNumber', e.target.value)}
+          />
+        </div>
       </Card>
       )}
 
+      {step === 'password' && (
       <Card padding="tight" className="flex flex-col gap-[calc(var(--auth-step)*0.9)]">
         <p className="eyebrow">Set your password</p>
         <Input
@@ -292,7 +394,9 @@ export function RegistrationForm({ showEmailField, variant = 'full', submitLabel
           validate={(v) => (v.length >= 12 ? undefined : 'Password must be at least 12 characters.')}
         />
       </Card>
+      )}
 
+      {step === 'consent' && (
       <Card padding="tight" className="flex flex-col gap-1">
         <p className="eyebrow mb-2">Consent</p>
         <Checkbox
@@ -322,12 +426,30 @@ export function RegistrationForm({ showEmailField, variant = 'full', submitLabel
           label="I'm happy to receive SMS communications about my results and account."
         />
       </Card>
+      )}
 
-      {error && <p className="text-sm text-status-significantHigh">{error}</p>}
+      {error && (
+        <p role="alert" className="text-sm text-status-significantHigh">
+          {error}
+        </p>
+      )}
 
-      <Button type="submit" loading={submitting}>
-        {submitLabel}
-      </Button>
+      <div className="flex gap-3">
+        {stepIndex > 0 && (
+          <Button type="button" variant="secondary" onClick={goBack} disabled={submitting}>
+            Back
+          </Button>
+        )}
+        {isLast ? (
+          <Button type="submit" loading={submitting} className="flex-1">
+            {submitLabel}
+          </Button>
+        ) : (
+          <Button type="button" onClick={goNext} className="flex-1">
+            Continue
+          </Button>
+        )}
+      </div>
     </form>
   );
 }

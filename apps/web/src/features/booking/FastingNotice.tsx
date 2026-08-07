@@ -90,10 +90,10 @@ function FastingRequired({
   return (
     <section
       aria-labelledby={headingId}
-      className={`overflow-hidden rounded-card border border-espresso bg-espresso text-cream shadow-card ${className}`}
+      className={`overflow-hidden rounded-card border border-night bg-night text-oncolor shadow-card ${className}`}
     >
       <div className="p-6 sm:p-9">
-        <p className="flex items-center gap-2.5 font-eyebrow text-xs uppercase tracking-eyebrow text-cream/80">
+        <p className="flex items-center gap-2.5 font-eyebrow text-xs uppercase tracking-eyebrow text-oncolor/80">
           <NoFoodIcon className="shrink-0" />
           Before this appointment
         </p>
@@ -105,9 +105,9 @@ function FastingRequired({
             <h2 id={headingId} className="mt-4 font-display text-4xl leading-[1.08] sm:text-5xl">
               Nothing to eat after <span className="tabular">{deadlinePhrase(window.closeBy)}</span>
             </h2>
-            <p className="mt-5 max-w-2xl text-reading leading-relaxed text-cream/90">
+            <p className="mt-5 max-w-2xl text-reading leading-relaxed text-oncolor/90">
               {panelName} needs {rule.minHours} to {rule.maxHours} hours without food, and your appointment is at{' '}
-              <span className="tabular font-medium text-cream">{formatClockTime(appointmentTime ?? '00:00')}</span>.{' '}
+              <span className="tabular font-medium text-oncolor">{formatClockTime(appointmentTime ?? '00:00')}</span>.{' '}
               {fastingInstruction(window)} Fasting for longer than {rule.maxHours} hours skews the results as surely
               as not fasting at all, so don't start early to be safe.
             </p>
@@ -120,7 +120,7 @@ function FastingRequired({
                 {rule.minHours}–{rule.maxHours} hours
               </span>
             </h2>
-            <p className="mt-5 max-w-2xl text-reading leading-relaxed text-cream/90">
+            <p className="mt-5 max-w-2xl text-reading leading-relaxed text-oncolor/90">
               {panelName} measures things that food moves within minutes: blood sugar and triglycerides most of all.
               Once you've picked a time we'll tell you the exact hour to stop eating, so there is nothing for you to
               work out.
@@ -129,8 +129,8 @@ function FastingRequired({
         )}
       </div>
 
-      <div className="border-t border-cream/20 p-6 sm:p-9">
-        <p className="font-eyebrow text-xs uppercase tracking-eyebrow text-cream/80">During the fast</p>
+      <div className="border-t border-oncolor/20 p-6 sm:p-9">
+        <p className="font-eyebrow text-xs uppercase tracking-eyebrow text-oncolor/80">During the fast</p>
         {/* Tick and cross are shape-distinct and each row names its own state
             in words — the two halves never rely on colour to separate. */}
         <ul className="mt-4 grid grid-cols-1 gap-x-10 gap-y-4 sm:grid-cols-2">
@@ -138,17 +138,17 @@ function FastingRequired({
             <li key={item.label} className="flex items-start gap-3">
               <span
                 className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
-                  item.allowed ? 'bg-cream text-espresso' : 'border border-cream/50 text-cream'
+                  item.allowed ? 'bg-oncolor text-night' : 'border border-oncolor/50 text-oncolor'
                 }`}
               >
                 {item.allowed ? <TickIcon className="h-3 w-3" /> : <CrossIcon className="h-3 w-3" />}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-reading font-medium text-cream">
+                <span className="block text-reading font-medium text-oncolor">
                   <span className="sr-only">{item.allowed ? 'Allowed: ' : 'Not allowed: '}</span>
                   {item.label}
                 </span>
-                <span className="mt-0.5 block text-[13px] leading-relaxed text-cream/80">{item.detail}</span>
+                <span className="mt-0.5 block text-[13px] leading-relaxed text-oncolor/80">{item.detail}</span>
               </span>
             </li>
           ))}
@@ -158,9 +158,9 @@ function FastingRequired({
       {/* One tone deeper than the panel above it (ink, not black — the palette
           has no pure black) so the consequence reads as a separate statement
           rather than a fourth paragraph. */}
-      <div className="flex items-start gap-3 border-t border-cream/20 bg-ink p-6 sm:px-9">
-        <AlertIcon className="mt-0.5 shrink-0 text-cream" />
-        <p className="text-reading leading-relaxed text-cream">
+      <div className="flex items-start gap-3 border-t border-oncolor/20 bg-ink p-6 sm:px-9">
+        <AlertIcon className="mt-0.5 shrink-0 text-oncolor" />
+        <p className="text-reading leading-relaxed text-oncolor">
           <span className="font-medium">If you eat, we can't use the sample.</span> The draw would go ahead and the
           results would be misleading, so we'd have to ask you back for a second appointment. If you slip up, tell the
           phlebotomist when you arrive. Rebooking on the day costs you nothing.
@@ -217,14 +217,14 @@ function FastingSummary({
 
   return (
     <p
-      className={`flex items-start gap-2.5 rounded-input bg-espresso px-3.5 py-3 text-sm text-cream ${className}`}
+      className={`flex items-start gap-2.5 rounded-input bg-night px-3.5 py-3 text-sm text-oncolor ${className}`}
     >
       <NoFoodIcon className="mt-px h-4 w-4 shrink-0" />
       <span>
         {window ? (
           <>
             <span className="tabular font-medium">Nothing to eat after {deadlinePhrase(window.closeBy)}.</span>{' '}
-            <span className="text-cream/85">Water and your usual medication are fine.</span>
+            <span className="text-oncolor/85">Water and your usual medication are fine.</span>
           </>
         ) : (
           <span className="font-medium">

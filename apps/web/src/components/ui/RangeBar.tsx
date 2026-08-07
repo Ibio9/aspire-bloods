@@ -109,7 +109,7 @@ export function RangeBar({ value, low, high, status, optimal = null }: RangeBarP
         <span>{high}</span>
       </div>
       {optimalBand && (
-        <p className="mt-2 flex items-center gap-2 text-xs text-espresso/75" aria-hidden="true">
+        <p className="mt-2 flex items-center gap-2 text-xs text-espresso/80" aria-hidden="true">
           <span
             className="inline-block h-2.5 w-5 shrink-0 rounded-full"
             style={{

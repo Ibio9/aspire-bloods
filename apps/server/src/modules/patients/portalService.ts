@@ -29,6 +29,12 @@ interface NormalisedPoint {
   markerId: string;
   markerKey: string;
   markerName: string;
+  /** See the ResultType enum. Only MEASURED points belong in a trend or a count. */
+  resultType: string;
+  /** Abbreviations and alternate spellings, so search finds "ALT" as well as "Alanine Aminotransferase". */
+  aliases: string[];
+  /** Health areas this marker belongs to, for the category filter. */
+  categoryKeys: string[];
   displayUnit: string;
   reportId: string;
   /** Null on an ad-hoc report with no catalogue panel — use reportTitle to label it. */
@@ -62,7 +68,7 @@ async function loadReleasedPoints(patientId: string): Promise<NormalisedPoint[]>
     where: { report: { patientId, status: 'RELEASED', voidedAt: null } },
     include: {
       report: { include: { panel: true, source: true } },
-      marker: true,
+      marker: { include: { categories: { include: { category: true } } } },
       referenceRange: true,
     },
     orderBy: [{ report: { sampleDate: 'asc' } }, { createdAt: 'asc' }],
@@ -87,6 +93,9 @@ async function loadReleasedPoints(patientId: string): Promise<NormalisedPoint[]>
       markerId: r.markerId,
       markerKey: r.marker.key,
       markerName: r.marker.name,
+      resultType: r.marker.resultType,
+      aliases: r.marker.aliases,
+      categoryKeys: r.marker.categories.map((m) => m.category.key),
       displayUnit,
       reportId: r.reportId,
       panelName: r.report.panel?.name ?? null,
@@ -304,6 +313,11 @@ export async function listAllMarkersForPatient(patientId: string) {
       return {
         markerId: latest.markerId,
         name: latest.markerName,
+        // Search matches these as well as the name, so "ALT" finds Alanine
+        // Aminotransferase and "TSH" finds Thyroid Stimulating Hormone.
+        aliases: latest.aliases,
+        categoryKeys: latest.categoryKeys,
+        resultType: latest.resultType,
         unit: latest.unit,
         value: latest.value,
         valueText: latest.valueText,
@@ -347,6 +361,11 @@ export async function getMultiMarkerTrends(patientId: string, markerIds: string[
     .map((markerId) => {
       const series = points.filter((p) => p.markerId === markerId);
       if (series.length === 0) return null;
+      // A genome does not change between tests, a food-sensitivity level has no
+      // reference range, and a relative abundance is not an amount. None of the
+      // three is plottable, so none of them is offered a line — refused here
+      // rather than in the UI so a hand-built URL can't produce one either.
+      if (series[0].resultType !== 'MEASURED') return null;
       const comparable = series.every((p) => p.convertible);
       return {
         markerId,

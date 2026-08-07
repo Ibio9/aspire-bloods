@@ -59,7 +59,7 @@ export function FileDropzone({ label, file, onChange, accept, optional, hint, er
             type="button"
             onClick={() => onChange(null)}
             aria-label={`Remove ${file.name}`}
-            className="shrink-0 rounded-full p-1.5 text-espresso/60 transition duration-150 ease-out hover:bg-cream-200 hover:text-status-significantHigh"
+            className="shrink-0 rounded-full p-1.5 text-espresso/80 transition duration-150 ease-out hover:bg-cream-200 hover:text-status-significantHigh"
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
               <path d="M1 1L13 13M13 1L1 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -94,7 +94,7 @@ export function FileDropzone({ label, file, onChange, accept, optional, hint, er
           <p className="text-sm text-espresso">
             <span className="font-medium text-bronze-700">Choose a file</span> or drag it here
           </p>
-          {accept && <p className="text-xs text-espresso/60">{accept.replace('application/pdf', 'PDF')} up to 20MB</p>}
+          {accept && <p className="text-xs text-espresso/80">{accept.replace('application/pdf', 'PDF')} up to 20MB</p>}
         </div>
       )}
 

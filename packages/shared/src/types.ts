@@ -66,6 +66,16 @@ export interface OptimalRangeDTO {
   within: boolean | null;
 }
 
+/** A health area, as the catalogue groups markers. See MarkerCategory in the schema. */
+export interface MarkerCategoryDTO {
+  key: string;
+  name: string;
+  resultType: string;
+  /** Framing shown above the section where a patient needs it ("recorded at your appointment"). */
+  note: string | null;
+  sortOrder: number;
+}
+
 export interface MarkerCardDTO {
   markerId: string;
   name: string;
@@ -78,6 +88,18 @@ export interface MarkerCardDTO {
   referenceLow: number;
   referenceHigh: number;
   status: MarkerStatus;
+  /**
+   * MEASURED / GENETIC / SENSITIVITY / COMPOSITION. Decides which section this
+   * result renders in, whether it counts toward the counts strip and the
+   * category bars, whether it gets a status tint, and whether it can be
+   * plotted. Optional on the DTO so a client reading an older payload treats
+   * everything as MEASURED, which is what it was.
+   */
+  resultType?: string;
+  /** Health areas this marker belongs to. A marker can be in several. */
+  categoryKeys?: string[];
+  /** Abbreviations and alternate spellings, matched by search alongside the name. */
+  aliases?: string[];
   /** Null when this marker has no established optimal range. See OptimalRangeDTO. */
   optimal?: OptimalRangeDTO | null;
   gloss: string; // one-line plain-English summary

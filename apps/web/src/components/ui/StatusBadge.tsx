@@ -52,9 +52,12 @@ function StatusIcon({ icon, color }: { icon: string; color: string }) {
 export function StatusBadge({ status, className = '' }: { status: MarkerStatus; className?: string }) {
   const key = STATUS_MAP[status];
   const token = statusTokens[key];
+  // The theme-aware custom property rather than the light-mode hex: the same
+  // label has to stay AA on cream and on a warm near-black. `currentColor` in
+  // the icon then follows it without a second lookup.
   return (
-    <span className={`inline-flex items-center gap-1.5 text-sm font-medium ${className}`} style={{ color: token.hex }}>
-      <StatusIcon icon={token.icon} color={token.hex} />
+    <span className={`inline-flex items-center gap-1.5 text-sm font-medium ${className}`} style={{ color: token.cssVar }}>
+      <StatusIcon icon={token.icon} color="currentColor" />
       {token.label}
     </span>
   );

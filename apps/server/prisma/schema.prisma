@@ -63,6 +63,34 @@ enum MarkerStatus {
   SIGNIFICANT_LOW
 }
 
+// What KIND of result a marker produces. Not a category and not a display
+// preference — it decides whether a result has a reference range at all, and
+// therefore whether it can have a status, a tint, a trend or an optimal band.
+//
+// It exists because the real catalogue is not homogeneous. Signature carries
+// 207 food-sensitivity items and ~32 genetic indicators alongside ~186 actual
+// blood measurements. Rendered in one grid, the 186 things a clinician would
+// act on are outnumbered two to one by things nobody should act on alone —
+// and every one of them would look equally clinical.
+enum ResultType {
+  // A substance measured in blood or urine, with units and a reference range.
+  // Trends over time are meaningful. The large majority of the catalogue, and
+  // the only type that reaches the main results grid, the counts strip, the
+  // category summary bars and Trends.
+  MEASURED
+  // A fixed genetic risk indicator. No units, no reference range, and no trend
+  // — a genome does not change between tests, so plotting one would imply a
+  // measurement error was a change in the person. Renders as a risk category.
+  GENETIC
+  // IgG food reactivity. No clinical reference range and no established
+  // clinical consensus on interpretation, so it gets its own section and its
+  // own framing rather than a status.
+  SENSITIVITY
+  // Gut microbiome measures: relative abundance rather than an absolute value.
+  // Own section, own presentation.
+  COMPOSITION
+}
+
 enum EscalationSeverity {
   MILD
   SIGNIFICANT
@@ -352,6 +380,21 @@ model Panel {
   // editor (add/remove/reorder) flips it true — the point isn't to gate
   // functionality, only to stop the guessed default from looking verified.
   compositionConfirmed Boolean @default(false)
+  // Panels this one contains in full, by key. Randox's screens nest — Advanced
+  // GP3 contains Advanced GP2, which contains Standard Screen Plus, which
+  // contains Standard Screen, which contains Basic Screen — and this panel
+  // holds the flattened marker list. Flattening alone would lose the
+  // containment, which is the fact anyone asking "what's the difference
+  // between GP2 and GP3" actually wants.
+  includesPanelKeys String[] @default([])
+  // Working days from receipt at the lab. Nullable for a panel whose
+  // turnaround we have not been told rather than defaulted to a guess.
+  turnaroundWorkingDays Int?
+  // Set where the published turnaround is contradictory or carries a caveat
+  // worth keeping next to the number.
+  turnaroundNote        String?
+  // Where the panel is offered as a repeat programme.
+  repeatIntervalMonths  Int?
   markers     PanelMarker[]
   reports     Report[]
   createdAt   DateTime      @default(now())
@@ -362,7 +405,26 @@ model Marker {
   id                     String             @id @default(uuid())
   key                    String             @unique
   name                   String
+  // Empty for a qualitative result — a UTI organism reported detected/not
+  // detected, a urine dipstick grade, an ECG interpretation. Deliberately not
+  // filled with a plausible-looking unit: the optimal-range resolver refuses a
+  // band whose units disagree with the value beside it, and a made-up unit
+  // would defeat exactly that guard. Always empty for a non-MEASURED marker.
   defaultUnit            String
+  // See the ResultType enum. Defaults to MEASURED so every marker that existed
+  // before this field did keeps behaving exactly as it did.
+  resultType             ResultType         @default(MEASURED)
+  // Randox's own product code from the catalogue's individual-tests index,
+  // where a match exists. This is the mapping key for ordering and for
+  // reconciling an inbound result against our catalogue — a name match is a
+  // suggestion, a code match is an identity. Null where Randox publish no code
+  // for the analyte, which is most of the DNA and food-sensitivity items.
+  randoxCode             String?
+  // Abbreviations and alternate spellings, for search and for lab-name
+  // matching: "ALT" has to find Alanine Aminotransferase, "TSH" has to find
+  // Thyroid Stimulating Hormone. Not display names — the marker has one of
+  // those and it is `name`.
+  aliases                String[]           @default([])
   severityMultiplier     Float              @default(1.5)
   severityAbsoluteDelta  Float?
   // Mirrors Panel.isActive — lets an admin retire a marker Randox can no
@@ -379,12 +441,61 @@ model Marker {
   // regardless of this flag — never draw a guess.
   crossSourceComparable  Boolean            @default(true)
   panels                 PanelMarker[]
+  categories             MarkerCategoryMembership[]
   exclusions             ReportResultExclusion[]
   referenceRanges        ReferenceRange[]
   explanation            MarkerExplanation?
   results                ReportResult[]
   createdAt              DateTime           @default(now())
   updatedAt              DateTime           @updatedAt
+
+  @@index([resultType])
+}
+
+// A health area, as Randox group them: Thyroid Health, Kidney Health, Iron
+// Status, and so on. Distinct from Panel, which is a product — a panel is what
+// someone bought, a category is what a result is about. One report's markers
+// group by category on screen; the panel is the report's title.
+model MarkerCategory {
+  id        String @id @default(uuid())
+  key       String @unique
+  name      String
+  // Randox's own numeric id where they publish one (Thyroid Health is 78,
+  // Full Blood Count is 24). Stored so an inbound payload grouped by their id
+  // can be matched without going through the display name, which is the one
+  // part of their data most likely to be re-worded.
+  randoxId  Int?
+  // Mirrors Marker.resultType: a whole category can be one kind of result
+  // (Food Sensitivity, Bacterial Composition, Athletic Performance), which is
+  // what lets the UI frame the section without inspecting every member.
+  resultType ResultType @default(MEASURED)
+  // Shown above the section where the category needs framing a patient
+  // wouldn't otherwise have — "recorded at your appointment rather than
+  // measured from your blood", "returned separately in an at-home kit".
+  note      String?
+  sortOrder Int    @default(0)
+  isActive  Boolean @default(true)
+  members   MarkerCategoryMembership[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([randoxId])
+}
+
+// Many-to-many, and genuinely many: Randox list Albumin in four health areas,
+// Ferritin in three, Rheumatoid Factor in three, Calcium in three, Testosterone
+// in three, PTH and Cortisol in two. One Marker row, several memberships — a
+// patient with a raised ferritin has one raised ferritin, not three.
+model MarkerCategoryMembership {
+  id         String         @id @default(uuid())
+  markerId   String
+  marker     Marker         @relation(fields: [markerId], references: [id])
+  categoryId String
+  category   MarkerCategory @relation(fields: [categoryId], references: [id])
+  sortOrder  Int            @default(0)
+
+  @@unique([markerId, categoryId])
+  @@index([categoryId])
 }
 
 // Phase 2 §2.2: every result set records where it came from. Admin-

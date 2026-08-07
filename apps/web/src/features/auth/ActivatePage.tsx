@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../../lib/api';
-import { AuthSplitLayout } from './AuthSplitLayout';
+import { AuthSplitLayout, AuthWideBody } from './AuthSplitLayout';
 import { RegistrationForm } from './RegistrationForm';
 
 const ACTIVATE_EYEBROW = 'Aspire Clinic';
@@ -47,13 +47,19 @@ export function ActivatePage() {
 
   return (
     <AuthSplitLayout eyebrow={ACTIVATE_EYEBROW} headline={ACTIVATE_HEADLINE} supporting={ACTIVATE_SUPPORTING} wide>
-      <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">Aspire Clinic</p>
-      <h2 className="auth-heading">Activate your account</h2>
-      <p className="mt-[var(--auth-step)] max-w-prose text-sm leading-relaxed text-espresso/80">
-        A few details for our records, then set a password to finish setting up your portal account.
-      </p>
-
-      <div className="mt-[calc(var(--auth-step)*1.6)]">
+      {/* Same two-column restructure as signup — this is the longer of the two
+          forms (five steps rather than three), so it needs it more. */}
+      <AuthWideBody
+        intro={
+          <>
+            <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">Aspire Clinic</p>
+            <h2 className="auth-heading">Activate your account</h2>
+            <p className="mt-[var(--auth-step)] max-w-prose text-sm leading-relaxed text-espresso/80">
+              A few details for our records, then set a password to finish setting up your portal account.
+            </p>
+          </>
+        }
+      >
         <RegistrationForm
           submitLabel="Activate account"
           onSubmit={async ({ password, profile, consents }) => {
@@ -65,7 +71,7 @@ export function ActivatePage() {
             setTimeout(() => navigate('/login'), 2500);
           }}
         />
-      </div>
+      </AuthWideBody>
     </AuthSplitLayout>
   );
 }

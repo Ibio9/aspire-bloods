@@ -841,7 +841,7 @@ function ParseSummaryCard({
           recorded exactly as reported rather than being assigned a status.
         </p>
       )}
-      {panelName && <p className="mt-3 text-xs text-espresso/70">Panel printed on the report: {panelName}</p>}
+      {panelName && <p className="mt-3 text-xs text-espresso/80">Panel printed on the report: {panelName}</p>}
       {extractionMethod === 'regex' && (
         <div className="mt-4 rounded-input border border-status-high bg-white p-3">
           <p className="text-sm font-medium text-espresso">Pattern-based extraction (AI extraction unavailable)</p>
@@ -849,7 +849,7 @@ function ParseSummaryCard({
         </div>
       )}
       {extractionMethod === 'llm' && (
-        <p className="mt-3 text-xs text-espresso/60">
+        <p className="mt-3 text-xs text-espresso/80">
           Extracted with AI assistance. Statuses are derived from the reference range on each result, falling back to
           the marker's stored range only where the report printed none.
         </p>
@@ -895,16 +895,16 @@ function RowTable({
                 {row.derivedStatus ? (
                   <StatusBadge status={row.derivedStatus} />
                 ) : row.unevaluableReason ? (
-                  <span className="text-xs font-medium text-espresso/70">Recorded as reported</span>
+                  <span className="text-xs font-medium text-espresso/80">Recorded as reported</span>
                 ) : (
                   <span className="text-xs font-medium text-status-high">No status yet</span>
                 )}
                 {row.rangeSource && (
-                  <p className="mt-1 text-xs text-espresso/60">Range {RANGE_SOURCE_LABEL[row.rangeSource]}</p>
+                  <p className="mt-1 text-xs text-espresso/80">Range {RANGE_SOURCE_LABEL[row.rangeSource]}</p>
                 )}
-                {row.sampleType && <p className="mt-0.5 text-xs text-espresso/60">{row.sampleType}</p>}
+                {row.sampleType && <p className="mt-0.5 text-xs text-espresso/80">{row.sampleType}</p>}
                 {row.unevaluableReason && (
-                  <p className="mt-1 max-w-[220px] text-xs leading-relaxed text-espresso/70">{row.unevaluableReason}</p>
+                  <p className="mt-1 max-w-[220px] text-xs leading-relaxed text-espresso/80">{row.unevaluableReason}</p>
                 )}
                 {row.attention.map((a, k) => (
                   <p key={k} className="mt-1 flex max-w-[220px] items-start gap-1 text-xs leading-relaxed text-status-high">
@@ -923,7 +923,7 @@ function RowTable({
                 ))}
                 {flags.length > 0 && !needsInput && (
                   <Tooltip label={flags.map((f) => FLAG_LABEL[f] ?? f).join(' · ')}>
-                    <span className="mt-1 inline-flex items-center gap-1 text-espresso/60" tabIndex={0}>
+                    <span className="mt-1 inline-flex items-center gap-1 text-espresso/80" tabIndex={0}>
                       <span className="text-xs">Extraction notes</span>
                     </span>
                   </Tooltip>

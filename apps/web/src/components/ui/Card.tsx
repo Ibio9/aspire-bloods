@@ -1,4 +1,6 @@
 import type { HTMLAttributes } from 'react';
+import type { MarkerStatus } from '@aspire-bloods/shared';
+import { statusTintClass } from '../../lib/markerCopy';
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
   /**
@@ -16,6 +18,17 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
   inert?: boolean;
   /** Roomier internal padding for the primary content surface on a page. */
   padding?: 'default' | 'roomy' | 'tight' | 'none';
+  /**
+   * A result's status, applied as a soft background wash instead of the
+   * default card surface. Surface only — the border, the text and the shadow
+   * are untouched, and the status label and its icon shape inside the card
+   * still carry the meaning on their own.
+   *
+   * Only ever set from a MEASURED marker's status. Genetic risk categories,
+   * food sensitivity and microbiome composition have no reference range, so
+   * there is no status to tint by and no tint is applied to them.
+   */
+  tint?: MarkerStatus | null;
 }
 
 const PADDING = {
@@ -25,12 +38,12 @@ const PADDING = {
   roomy: 'p-8 sm:p-12',
 };
 
-export function Card({ interactive, inert, padding = 'default', className = '', ...props }: CardProps) {
+export function Card({ interactive, inert, padding = 'default', tint, className = '', ...props }: CardProps) {
   return (
     <div
       className={`card ${PADDING[padding]} ${interactive && !inert ? 'card-interactive' : ''} ${
         inert ? 'card-inert' : ''
-      } ${className}`}
+      } ${tint ? statusTintClass(tint) : ''} ${className}`}
       {...props}
     />
   );

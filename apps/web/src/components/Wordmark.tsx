@@ -26,9 +26,9 @@ const SIZES = {
  */
 export function Wordmark({ descriptor = 'BLOODS', variant = 'dark', size = 'md', className = '' }: WordmarkProps) {
   const s = SIZES[size];
-  const markColor = variant === 'dark' ? 'text-cream' : 'text-espresso';
-  const dotColor = variant === 'dark' ? 'bg-bronze-300' : 'bg-bronze';
-  const descriptorColor = variant === 'dark' ? 'text-taupe' : 'text-espresso/60';
+  const markColor = variant === 'dark' ? 'text-oncolor' : 'text-espresso';
+  const dotColor = variant === 'dark' ? 'bg-night-accent' : 'bg-bronze';
+  const descriptorColor = variant === 'dark' ? 'text-oncolor/70' : 'text-espresso/80';
 
   return (
     <span className={`inline-flex flex-col leading-none ${className}`}>

@@ -69,7 +69,7 @@ export function UpcomingAppointments() {
           </p>
           <Link
             to="/book"
-            className="inline-flex min-h-tap shrink-0 items-center gap-2 rounded-full bg-bronze bg-btn-primary px-5 py-2.5 font-display text-sm tracking-wide text-white shadow-btn transition duration-150 ease-out hover:bg-bronze-600 hover:shadow-btn-hover motion-safe:hover:-translate-y-px"
+            className="inline-flex min-h-tap shrink-0 items-center gap-2 rounded-full bg-bronze bg-btn-primary px-5 py-2.5 font-display text-sm tracking-wide text-onaccent shadow-btn transition duration-150 ease-out hover:bg-bronze-600 hover:shadow-btn-hover motion-safe:hover:-translate-y-px"
           >
             <CalendarPlusIcon className="h-4 w-4" />
             Book a test

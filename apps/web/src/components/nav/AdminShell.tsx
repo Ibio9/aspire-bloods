@@ -58,7 +58,7 @@ function SidebarLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed
           {collapsed && (
             <span
               role="tooltip"
-              className="pointer-events-none absolute left-full ml-2 whitespace-nowrap rounded-input bg-espresso px-2.5 py-1.5 text-xs text-cream opacity-0 shadow-card transition-opacity duration-150 group-hover:opacity-100"
+              className="pointer-events-none absolute left-full ml-2 whitespace-nowrap rounded-input bg-night px-2.5 py-1.5 text-xs text-oncolor opacity-0 shadow-card transition-opacity duration-150 group-hover:opacity-100"
             >
               {item.label}
             </span>
@@ -111,11 +111,11 @@ function AdminTopBar({ onOpenSearch, onOpenDrawer }: { onOpenSearch: () => void;
         <button
           type="button"
           onClick={onOpenSearch}
-          className="hidden items-center gap-2 rounded-input border border-taupe bg-white px-3 py-1.5 text-sm text-espresso/60 transition duration-150 ease-out hover:border-bronze/60 md:flex"
+          className="hidden items-center gap-2 rounded-input border border-taupe bg-white px-3 py-1.5 text-sm text-espresso/80 transition duration-150 ease-out hover:border-bronze/60 md:flex"
         >
           <SearchIcon />
           <span>Search patients…</span>
-          <span className="ml-6 rounded border border-taupe px-1.5 py-0.5 text-xs text-espresso/50">⌘K</span>
+          <span className="ml-6 rounded border border-taupe px-1.5 py-0.5 text-xs text-espresso/80">⌘K</span>
         </button>
         <button
           type="button"
@@ -193,7 +193,7 @@ export function AdminShell({ children }: { children?: ReactNode }) {
         <button
           type="button"
           onClick={() => setCollapsed((c) => !c)}
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-taupe bg-white p-2 text-espresso/70 shadow-card transition duration-150 ease-out hover:text-bronze"
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-taupe bg-white p-2 text-espresso/80 shadow-card transition duration-150 ease-out hover:text-bronze"
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           <CollapseIcon />
@@ -203,7 +203,7 @@ export function AdminShell({ children }: { children?: ReactNode }) {
       {/* Mobile slide-over drawer */}
       {drawerOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
-          <div className="absolute inset-0 bg-espresso/50 motion-safe:animate-fadeIn" onClick={() => setDrawerOpen(false)} aria-hidden="true" />
+          <div className="absolute inset-0 bg-night/60 motion-safe:animate-fadeIn" onClick={() => setDrawerOpen(false)} aria-hidden="true" />
           <div
             ref={drawerRef}
             tabIndex={-1}

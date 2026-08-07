@@ -66,7 +66,7 @@ function ReleasedReportCard({ report }: { report: ReportSummary }) {
             ? `, ${report.attentionCount} need${report.attentionCount === 1 ? 's' : ''} attention`
             : ''}
         </p>
-        {report.sourceLabel && <p className="mt-2 text-xs text-espresso/70">{report.sourceLabel}</p>}
+        {report.sourceLabel && <p className="mt-2 text-xs text-espresso/80">{report.sourceLabel}</p>}
       </Card>
     </a>
   );
@@ -84,7 +84,7 @@ function PendingReportCard({ report }: { report: ReportSummary }) {
         Your results are with the clinical team and will be available shortly.
       </p>
       {/* Text label, not colour or opacity alone — the state has to survive greyscale. */}
-      <p className="mt-4 inline-flex items-center gap-2 text-xs font-medium uppercase tracking-eyebrow text-espresso/70">
+      <p className="mt-4 inline-flex items-center gap-2 text-xs font-medium uppercase tracking-eyebrow text-espresso/80">
         <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true" className="shrink-0">
           <circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
           <path d="M8 4.5 V8 L10.5 9.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />

@@ -60,7 +60,7 @@ export function ForgotPasswordPage() {
           If <span className="font-medium text-espresso">{email}</span> has an Aspire Bloods account, a link to set
           a new password is on its way. It can take a minute to arrive, so check your junk folder too.
         </p>
-        <p className="mt-[calc(var(--auth-step)*0.75)] text-sm leading-relaxed text-espresso/70">
+        <p className="mt-[calc(var(--auth-step)*0.75)] text-sm leading-relaxed text-espresso/80">
           The link can only be used once, and it expires. Nothing about your account has changed until you use it.
         </p>
 

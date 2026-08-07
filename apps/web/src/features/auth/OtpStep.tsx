@@ -235,7 +235,7 @@ export function OtpStep({
             // aria-live so a screen-reader user hears when it becomes
             // available, but polite + the seconds only, so it isn't a
             // once-per-second interruption.
-            <span className="tabular text-sm text-espresso/70" aria-live="polite">
+            <span className="tabular text-sm text-espresso/80" aria-live="polite">
               Available in {cooldown}s
             </span>
           )}

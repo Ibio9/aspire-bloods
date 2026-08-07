@@ -36,7 +36,7 @@ export function AppointmentStatusBadge({ status }: { status: AppointmentStatus }
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${
-        status === 'CANCELLED' ? 'border-taupe text-espresso/75' : 'border-bronze/50 bg-bronze-50 text-bronze-700'
+        status === 'CANCELLED' ? 'border-taupe text-espresso/80' : 'border-bronze/50 bg-bronze-50 text-bronze-700'
       }`}
     >
       {status === 'CANCELLED' ? <AlertIcon className="h-3.5 w-3.5" /> : <TickIcon className="h-3.5 w-3.5" />}

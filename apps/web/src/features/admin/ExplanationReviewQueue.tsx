@@ -161,7 +161,7 @@ export function ExplanationReviewQueue() {
                 onClick={() => setFilter(f)}
                 aria-pressed={filter === f}
                 className={`min-h-tap rounded-full px-4 text-sm font-medium transition duration-150 ease-out ${
-                  filter === f ? 'bg-bronze text-white shadow-btn' : 'text-espresso hover:bg-cream-200'
+                  filter === f ? 'bg-bronze text-onaccent shadow-btn' : 'text-espresso hover:bg-cream-200'
                 }`}
               >
                 {f === 'DRAFT' ? 'Awaiting review' : 'All markers'}
@@ -237,7 +237,7 @@ export function ExplanationReviewQueue() {
                           </span>
                         </div>
                         {row.reviewedAt && (
-                          <p className="mt-1.5 text-xs text-espresso/70">
+                          <p className="mt-1.5 text-xs text-espresso/80">
                             Last reviewed {formatDate(row.reviewedAt)}
                             {row.reviewedByName ? ` by ${row.reviewedByName}` : ''}
                           </p>

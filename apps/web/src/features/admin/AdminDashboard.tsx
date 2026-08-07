@@ -149,7 +149,7 @@ function DemoSeedCard() {
       <Card className="max-w-2xl">
         {missing || !run ? (
           <>
-            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-espresso/70">
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-espresso/80">
               <SeedIcon outcome="SKIPPED" />
               No demo seed recorded
             </span>
@@ -174,7 +174,7 @@ function DemoSeedCard() {
                 {run.errorMessage}
               </p>
             )}
-            <p className="mt-3 text-xs text-espresso/60">
+            <p className="mt-3 text-xs text-espresso/80">
               {timeAgo(run.ranAt)}
               {run.patientEmail ? ` · ${run.patientEmail}` : ''}
               {run.outcome === 'SUCCEEDED' && run.durationMs !== null ? ` · ${(run.durationMs / 1000).toFixed(1)}s` : ''}
@@ -190,7 +190,7 @@ function DemoSeedCard() {
           <Button variant="secondary" loading={reseeding} onClick={() => void reseed()}>
             Run the demo seed now
           </Button>
-          <p className="mt-2 text-xs leading-relaxed text-espresso/60">
+          <p className="mt-2 text-xs leading-relaxed text-espresso/80">
             Replaces the demo patient's reports with a fresh set — no redeploy needed. Touches nothing but the
             single demo account.
           </p>
@@ -277,7 +277,7 @@ export function AdminDashboard() {
               <Link key={p.id} to={`/admin/patients/${p.id}`}>
                 <Card interactive className="flex items-center justify-between py-4">
                   <span className="font-medium text-espresso">{p.name}</span>
-                  <span className="text-xs text-espresso/60">{timeAgo(p.viewedAt)}</span>
+                  <span className="text-xs text-espresso/80">{timeAgo(p.viewedAt)}</span>
                 </Card>
               </Link>
             ))}

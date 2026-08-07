@@ -215,7 +215,7 @@ export function EmailCodeStep({ email, sentTo, expiresInMinutes, cooldownSeconds
             Send a new code
           </Button>
           {cooldown > 0 && !exhausted && (
-            <span className="tabular text-sm text-espresso/70" aria-live="polite">
+            <span className="tabular text-sm text-espresso/80" aria-live="polite">
               Available in {cooldown}s
             </span>
           )}

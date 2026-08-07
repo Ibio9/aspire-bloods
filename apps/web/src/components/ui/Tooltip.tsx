@@ -40,7 +40,7 @@ export function Tooltip({ label, children }: TooltipProps) {
         <span
           id={id}
           role="tooltip"
-          className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-card bg-espresso px-2.5 py-1.5 text-xs text-white shadow-card motion-safe:animate-fadeIn"
+          className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-card bg-night px-2.5 py-1.5 text-xs text-oncolor shadow-card motion-safe:animate-fadeIn"
         >
           {label}
         </span>

@@ -21,7 +21,7 @@ function initials(name: string): string {
 export function Avatar({ name, size = 'md' }: AvatarProps) {
   return (
     <span
-      className={`inline-flex shrink-0 items-center justify-center rounded-full bg-bronze font-medium text-white ${SIZE_CLASSES[size]}`}
+      className={`inline-flex shrink-0 items-center justify-center rounded-full bg-bronze font-medium text-onaccent ${SIZE_CLASSES[size]}`}
       aria-hidden="true"
     >
       {initials(name)}

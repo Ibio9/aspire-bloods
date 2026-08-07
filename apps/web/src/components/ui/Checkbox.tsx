@@ -38,7 +38,7 @@ export function Checkbox({ label, error, id, labelHidden, className = '', ...pro
           />
           <svg
             aria-hidden="true"
-            className="pointer-events-none absolute h-2.5 w-2.5 scale-75 text-white opacity-0 transition duration-150 ease-out peer-checked:scale-100 peer-checked:opacity-100"
+            className="pointer-events-none absolute h-2.5 w-2.5 scale-75 text-onaccent opacity-0 transition duration-150 ease-out peer-checked:scale-100 peer-checked:opacity-100"
             viewBox="0 0 12 10"
             fill="none"
           >

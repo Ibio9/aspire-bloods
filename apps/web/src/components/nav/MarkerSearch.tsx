@@ -118,7 +118,7 @@ export function MarkerSearch({ onNavigate }: { onNavigate?: () => void }) {
           className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 overflow-hidden rounded-card border border-taupe bg-cream-50 py-1 shadow-card motion-safe:animate-riseIn"
         >
           {matches.length === 0 ? (
-            <li className="px-3.5 py-2.5 text-sm text-espresso/60">No marker of yours matches “{query.trim()}”.</li>
+            <li className="px-3.5 py-2.5 text-sm text-espresso/80">No marker of yours matches “{query.trim()}”.</li>
           ) : (
             // The option is the clickable element itself rather than a button
             // inside one: an option must not contain interactive descendants,
@@ -133,11 +133,11 @@ export function MarkerSearch({ onNavigate }: { onNavigate?: () => void }) {
                 onClick={() => go(m)}
                 onMouseEnter={() => setActiveIndex(i)}
                 className={`flex cursor-pointer flex-col items-start px-3.5 py-2.5 text-left transition-colors duration-100 ${
-                  i === activeIndex ? 'bg-bronze text-white' : 'text-espresso'
+                  i === activeIndex ? 'bg-bronze text-onaccent' : 'text-espresso'
                 }`}
               >
                 <span className="text-sm font-medium">{m.name}</span>
-                <span className={`tabular text-xs ${i === activeIndex ? 'text-white/85' : 'text-espresso/60'}`}>
+                <span className={`tabular text-xs ${i === activeIndex ? 'text-onaccent/85' : 'text-espresso/80'}`}>
                   {m.value} {m.unit} · {statusLabel(m.status)}
                 </span>
               </li>

@@ -131,7 +131,7 @@ export function TrendsPage() {
 
               {suggestions.length > 0 && (
                 <div className="mb-5 border-b border-taupe pb-5">
-                  <p className="mb-2.5 text-xs text-espresso/70">Common comparisons</p>
+                  <p className="mb-2.5 text-xs text-espresso/80">Common comparisons</p>
                   <div className="flex flex-wrap gap-2">
                     {suggestions.map((s) => (
                       <button
@@ -157,12 +157,12 @@ export function TrendsPage() {
                 required={false}
               />
 
-              <p className="mt-4 text-xs text-espresso/70" role="status">
+              <p className="mt-4 text-xs text-espresso/80" role="status">
                 {selected.length} of {MAX_SELECTED} selected
               </p>
 
               <div className="scroll-thin mt-3 flex max-h-96 flex-col gap-1 overflow-y-auto pr-1">
-                {matching.length === 0 && <p className="py-3 text-sm text-espresso/60">No marker matches that.</p>}
+                {matching.length === 0 && <p className="py-3 text-sm text-espresso/80">No marker matches that.</p>}
                 {matching.map((m) => {
                   const isSelected = selected.includes(m.markerId);
                   const atLimit = !isSelected && selected.length >= MAX_SELECTED;
@@ -179,7 +179,7 @@ export function TrendsPage() {
                         label={
                           <span className="block">
                             <span className="block font-medium text-espresso">{m.name}</span>
-                            <span className="tabular block text-xs text-espresso/60">
+                            <span className="tabular block text-xs text-espresso/80">
                               {m.resultCount} results · latest {m.valueText ?? m.value} {m.unit}
                             </span>
                           </span>
@@ -191,7 +191,7 @@ export function TrendsPage() {
               </div>
 
               {selected.length >= MAX_SELECTED && (
-                <p className="mt-3 text-xs text-espresso/70">
+                <p className="mt-3 text-xs text-espresso/80">
                   That's the maximum. Deselect one to swap it out. More than three lines stops being a comparison.
                 </p>
               )}
@@ -241,7 +241,7 @@ export function TrendsPage() {
                             <p className="tabular mt-2 text-sm text-espresso">
                               {first.value} → {last.value} {s.unit}
                             </p>
-                            <p className="mt-1 text-xs text-espresso/70">
+                            <p className="mt-1 text-xs text-espresso/80">
                               {formatDate(first.sampleDate)} to {formatDate(last.sampleDate)} · {statusLabel(last.status)}
                             </p>
                           </Card>

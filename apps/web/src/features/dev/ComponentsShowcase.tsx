@@ -9,6 +9,8 @@ import { DateField } from '../../components/ui/DateField';
 import { Checkbox } from '../../components/ui/Checkbox';
 import { Radio } from '../../components/ui/Radio';
 import { StatusBadge } from '../../components/ui/StatusBadge';
+import { ThemeToggle } from '../../components/ui/ThemeToggle';
+import { statusBarClass } from '../../lib/markerCopy';
 import { RangeBar } from '../../components/ui/RangeBar';
 import { TrendChart } from '../../components/ui/TrendChart';
 import { Modal } from '../../components/ui/Modal';
@@ -161,6 +163,24 @@ export function ComponentsShowcase() {
         order and rings. Not part of the patient product — this route doesn't ship in production builds.
       </p>
 
+      <Section title="Theme">
+        <p className="max-w-3xl text-sm text-espresso/80">
+          Every colour below resolves through a CSS custom property, so one class name is correct in both themes —
+          <code className="mx-1 rounded bg-cream-200 px-1 py-0.5 text-xs">text-espresso</code> is espresso in light
+          and a warm cream in dark. Flip this and audit the whole page: the derived dark values are the thing most
+          likely to be wrong, and this is the fastest way to see it.
+        </p>
+        <p className="max-w-3xl text-sm text-espresso/80">
+          Two families deliberately do not flip. <code className="mx-1 rounded bg-cream-200 px-1 py-0.5 text-xs">night</code>{' '}
+          is the atmospheric dark panel (the auth split, tooltips, the fasting notice) — dark on purpose in both
+          themes — and <code className="mx-1 rounded bg-cream-200 px-1 py-0.5 text-xs">oncolor</code> is the light
+          text that sits on it. The text on a filled accent is a third token,{' '}
+          <code className="mx-1 rounded bg-cream-200 px-1 py-0.5 text-xs">onaccent</code>, which does flip: bronze is
+          lightened in dark mode to clear AA against the page, and a light label on it measures under 2:1.
+        </p>
+        <ThemeToggle />
+      </Section>
+
       <Section title="Brand palette">
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <SwatchCard name="Bronze" hex={brand.bronze} textOn="cream" />
@@ -202,6 +222,47 @@ export function ComponentsShowcase() {
             <RangeBar value={5.8} low={0.4} high={4} status="HIGH" />
           </Card>
         </div>
+      </Section>
+
+      <Section title="Status tints — the surface wash (deliberate change, Aug 2026)">
+        <p className="max-w-3xl text-sm text-espresso/80">
+          The system's original rule was no green, amber or red anywhere. That rule has been deliberately changed:
+          patients arrive expecting traffic-light coding on a blood result and the clinic asked for it. Withholding
+          it made the page harder to scan without making it any calmer.
+        </p>
+        <p className="max-w-3xl text-sm text-espresso/80">
+          What did NOT change is everything that makes it safe. The tint is a background wash and nothing else — the
+          border, the type and the shadow are the ordinary card's, and the level mark / chevron / doubled chevron
+          plus the word still carry the status on their own. Turn every colour on this page to greyscale and not one
+          fact is lost. The hues are low-saturation and warm-leaning so a page of results still reads as this
+          product rather than a dashboard, and nothing escalates beyond the tint: no pulsing, no warning
+          iconography, no red body copy.
+        </p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {STATUS_LIST.map((s) => (
+            <Card key={s.key} tint={s.key} padding="tight">
+              <p className="eyebrow">Ferritin</p>
+              <p className="tabular mt-3 flex items-baseline gap-2 text-3xl font-semibold leading-none text-espresso">
+                18 <span className="text-sm font-normal text-espresso/80">µg/L</span>
+              </p>
+              <p className="tabular mt-2 text-xs text-espresso/80">Lab reference range 20–200 µg/L</p>
+              <div className="mt-3">
+                <StatusBadge status={s.key} />
+              </div>
+            </Card>
+          ))}
+        </div>
+        <p className="max-w-3xl text-sm text-espresso/80">
+          The stronger fills below are the category summary bars, which are a field of colour with no text on them
+          and would vanish at wash strength. Those carry a hatch as well — flat in range, open hatch out of range,
+          dense hatch significantly out — so three segments sitting edge to edge stay distinguishable in greyscale,
+          on top of the written count every bar already carries.
+        </p>
+        <div className="flex h-4 max-w-md overflow-hidden rounded-full border border-taupe">
+          <span className={`${statusBarClass('IN_RANGE')} w-1/2`} />
+          <span className={`${statusBarClass('HIGH')} w-1/4`} />
+          <span className={`${statusBarClass('SIGNIFICANT_LOW')} w-1/4`} />
+        </div>
         <div className="max-w-md">
           <p className="mb-2 text-sm font-medium text-espresso">
             Trend graph — draws once on first view only, 44px+ touch targets on points, text alternative
@@ -218,7 +279,7 @@ export function ComponentsShowcase() {
           <div className="mt-3">
             <Wordmark variant="dark" />
           </div>
-          <p className="mt-3 max-w-xs text-sm text-cream/70">Body copy in cream/70.</p>
+          <p className="mt-3 max-w-xs text-sm text-oncolor/70">Body copy in cream/70.</p>
         </div>
         <p className="text-sm text-espresso/80">
           Bronze itself on espresso: <ContrastPill ratio={contrastRatio(brand.bronze, brand.espresso)} min={WCAG_AA_LARGE_TEXT} /> —

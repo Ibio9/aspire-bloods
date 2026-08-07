@@ -128,7 +128,7 @@ function LocationOption({ location, checked, onSelect }: { location: BookingLoca
       />
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute right-4 top-4 flex h-6 w-6 scale-75 items-center justify-center rounded-full bg-bronze text-white opacity-0 transition duration-150 ease-out peer-checked:scale-100 peer-checked:opacity-100"
+        className="pointer-events-none absolute right-4 top-4 flex h-6 w-6 scale-75 items-center justify-center rounded-full bg-bronze text-onaccent opacity-0 transition duration-150 ease-out peer-checked:scale-100 peer-checked:opacity-100"
       >
         <TickIcon className="h-3.5 w-3.5" />
       </span>

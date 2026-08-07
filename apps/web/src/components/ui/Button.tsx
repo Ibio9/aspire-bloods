@@ -30,7 +30,7 @@ const VARIANTS = {
   // The ::before layer carries the top highlight / bottom edge line, so it can be
   // faded out independently on press without disturbing the drop shadow.
   primary: [
-    'bg-bronze bg-btn-primary text-white shadow-btn',
+    'bg-bronze bg-btn-primary text-onaccent shadow-btn',
     'before:pointer-events-none before:absolute before:inset-0 before:rounded-full before:content-[""]',
     'before:shadow-[inset_0_1px_0_0_rgb(255_255_255_/_0.22),inset_0_-1px_0_0_rgb(66_60_54_/_0.18)]',
     // Hover goes DARKER, not lighter. bronze-400 under white label text is
@@ -52,7 +52,7 @@ const VARIANTS = {
   ghost: 'bg-transparent text-espresso hover:bg-cream-200 active:bg-cream-300 active:shadow-btn-active',
   destructive: [
     'bg-white text-status-significantHigh border border-status-significantHigh shadow-btn',
-    'hover:bg-status-significantHigh hover:text-white hover:shadow-btn-hover motion-safe:hover:-translate-y-px',
+    'hover:bg-status-significantHigh hover:text-onaccent hover:shadow-btn-hover motion-safe:hover:-translate-y-px',
     'active:shadow-btn-active active:translate-y-0',
   ].join(' '),
   // Frosted pill for dark/hero surfaces (the auth split panel, dark cards) — translucent white
@@ -63,9 +63,9 @@ const VARIANTS = {
   // warm espresso-derived drop shadow is invisible against an espresso-to-ink
   // panel, and the frosted translucency is what does the lifting instead.
   primaryOnDark:
-    'border border-white/20 bg-white/15 text-cream backdrop-blur-md hover:bg-white/25 motion-safe:hover:-translate-y-px active:translate-y-0 active:bg-white/10',
+    'border border-oncolor/20 bg-oncolor/15 text-oncolor backdrop-blur-md hover:bg-oncolor/25 motion-safe:hover:-translate-y-px active:translate-y-0 active:bg-oncolor/10',
   secondaryOnDark:
-    'border border-cream/40 bg-transparent text-cream hover:bg-cream/10 motion-safe:hover:-translate-y-px active:translate-y-0 active:bg-cream/5',
+    'border border-oncolor/40 bg-transparent text-oncolor hover:bg-oncolor/10 motion-safe:hover:-translate-y-px active:translate-y-0 active:bg-oncolor/5',
 };
 
 function Spinner() {

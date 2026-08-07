@@ -101,7 +101,7 @@ function AgreementChip({ label, agreed }: { label: string; agreed: boolean }) {
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${
-        agreed ? 'border-bronze/40 bg-bronze-50 text-bronze-700' : 'border-taupe bg-cream-50 text-espresso/70'
+        agreed ? 'border-bronze/40 bg-bronze-50 text-bronze-700' : 'border-taupe bg-cream-50 text-espresso/80'
       }`}
     >
       {agreed ? <TickIcon /> : <CrossIcon />}
@@ -135,7 +135,7 @@ function IdentityRow({ label, value }: { label: string; value: string | null }) 
   return (
     <div>
       <dt className="eyebrow mb-1">{label}</dt>
-      <dd className={`text-sm ${value ? 'text-espresso' : 'text-espresso/50'} ${label.includes('birth') || label.includes('number') ? 'tabular' : ''}`}>
+      <dd className={`text-sm ${value ? 'text-espresso' : 'text-espresso/80'} ${label.includes('birth') || label.includes('number') ? 'tabular' : ''}`}>
         {value ?? 'Not supplied'}
       </dd>
     </div>
@@ -292,7 +292,7 @@ function UnmatchedResultCard({ result, onChanged }: { result: UnmatchedResult; o
           </p>
           <p className="font-display text-2xl leading-tight text-espresso">{claimedName || 'No name supplied'}</p>
         </div>
-        <p className="tabular text-xs text-espresso/70">
+        <p className="tabular text-xs text-espresso/80">
           {result.markerCount} marker{result.markerCount === 1 ? '' : 's'}
           {result.sampleDate ? ` · sampled ${formatDate(result.sampleDate)}` : ''}
         </p>
@@ -322,7 +322,7 @@ function UnmatchedResultCard({ result, onChanged }: { result: UnmatchedResult; o
                     <Link to={`/admin/patients/${c.patientId}`} className="font-medium text-bronze-600 underline underline-offset-2">
                       {c.displayName}
                     </Link>
-                    <p className="text-xs text-espresso/70">{c.email}</p>
+                    <p className="text-xs text-espresso/80">{c.email}</p>
                   </div>
                   <Button variant="secondary" onClick={() => setChosen(c)}>
                     Review and link
@@ -355,7 +355,7 @@ function UnmatchedResultCard({ result, onChanged }: { result: UnmatchedResult; o
                   <Link to={`/admin/patients/${c.patientId}`} className="font-medium text-bronze-600 underline underline-offset-2">
                     {c.displayName}
                   </Link>
-                  <p className="text-xs text-espresso/70">{c.email}</p>
+                  <p className="text-xs text-espresso/80">{c.email}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <AgreementChip label="Date of birth" agreed={c.agreement.dob} />
                     <AgreementChip label="Surname" agreed={c.agreement.lastName} />
@@ -422,7 +422,7 @@ function RecentLinkRow({ link, onChanged }: { link: RecentLink; onChanged: () =>
     <li className="flex flex-wrap items-center justify-between gap-3 border-t border-taupe py-3 first:border-t-0">
       <div>
         <p className="text-sm font-medium text-espresso">{link.patientName ?? 'Unknown patient'}</p>
-        <p className="tabular text-xs text-espresso/70">
+        <p className="tabular text-xs text-espresso/80">
           {link.markerCount} marker{link.markerCount === 1 ? '' : 's'}
           {link.sampleDate ? ` · sampled ${formatDate(link.sampleDate)}` : ''}
           {link.linkedAt ? ` · linked ${formatDate(link.linkedAt)}` : ''}
@@ -533,7 +533,7 @@ export function LinkingPage() {
               <h2 id="unmatched-heading" className="font-display text-3xl text-espresso">
                 Results waiting
                 {queue.unmatchedResults.length > 0 && (
-                  <span className="tabular ml-3 align-middle text-lg text-espresso/60">{queue.unmatchedResults.length}</span>
+                  <span className="tabular ml-3 align-middle text-lg text-espresso/80">{queue.unmatchedResults.length}</span>
                 )}
               </h2>
               {queue.unmatchedResults.length === 0 ? (
@@ -557,7 +557,7 @@ export function LinkingPage() {
               <h2 id="unlinked-heading" className="font-display text-3xl text-espresso">
                 Accounts with no results
                 {queue.unlinkedAccounts.length > 0 && (
-                  <span className="tabular ml-3 align-middle text-lg text-espresso/60">{queue.unlinkedAccounts.length}</span>
+                  <span className="tabular ml-3 align-middle text-lg text-espresso/80">{queue.unlinkedAccounts.length}</span>
                 )}
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-espresso/80">
@@ -593,9 +593,9 @@ export function LinkingPage() {
                         <Link to={`/admin/patients/${a.id}`} className="font-medium text-bronze-600 underline underline-offset-2">
                           {a.displayName}
                         </Link>
-                        <span className="text-xs text-espresso/70">{ACCOUNT_STATUS_LABEL[a.status] ?? a.status}</span>
+                        <span className="text-xs text-espresso/80">{ACCOUNT_STATUS_LABEL[a.status] ?? a.status}</span>
                       </div>
-                      <p className="text-xs text-espresso/70">{a.email}</p>
+                      <p className="text-xs text-espresso/80">{a.email}</p>
                       <dl className="mt-3 grid grid-cols-2 gap-3">
                         <IdentityRow label="Date of birth" value={a.dob ? formatDate(a.dob) : null} />
                         <IdentityRow label="Contact number" value={a.contactNumber} />
@@ -603,7 +603,7 @@ export function LinkingPage() {
                     </li>
                   ))}
                   {filteredAccounts.length === 0 && (
-                    <li className="text-sm text-espresso/70">No account matches that search.</li>
+                    <li className="text-sm text-espresso/80">No account matches that search.</li>
                   )}
                 </ul>
               )}

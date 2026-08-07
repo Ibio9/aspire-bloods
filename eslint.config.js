@@ -42,9 +42,14 @@ export default tseslint.config(
   },
   {
     // Hook + provider colocated in one file is the idiomatic React context
-    // pattern here (useToast/ToastProvider, useAuth/AuthProvider) — the
-    // fast-refresh tradeoff this rule warns about is accepted deliberately.
-    files: ['apps/web/src/components/ui/Toast.tsx', 'apps/web/src/lib/AuthContext.tsx'],
+    // pattern here (useToast/ToastProvider, useAuth/AuthProvider,
+    // useTheme/ThemeProvider) — the fast-refresh tradeoff this rule warns
+    // about is accepted deliberately.
+    files: [
+      'apps/web/src/components/ui/Toast.tsx',
+      'apps/web/src/lib/AuthContext.tsx',
+      'apps/web/src/lib/ThemeContext.tsx',
+    ],
     rules: {
       'react-refresh/only-export-components': 'off',
     },

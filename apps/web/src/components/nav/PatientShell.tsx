@@ -88,13 +88,13 @@ function SidebarLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed
           {!collapsed && (
             <span className="min-w-0 flex-1">
               <span className={`block truncate text-reading ${isActive ? 'font-semibold' : 'font-medium'}`}>{item.label}</span>
-              <span className="mt-0.5 block text-xs leading-snug text-espresso/60">{item.hint}</span>
+              <span className="mt-0.5 block text-xs leading-snug text-espresso/80">{item.hint}</span>
             </span>
           )}
           {collapsed && (
             <span
               role="tooltip"
-              className="pointer-events-none absolute left-full ml-2 z-50 whitespace-nowrap rounded-input bg-espresso px-2.5 py-1.5 text-xs text-cream opacity-0 shadow-card transition-opacity duration-150 group-hover:opacity-100"
+              className="pointer-events-none absolute left-full ml-2 z-50 whitespace-nowrap rounded-input bg-night px-2.5 py-1.5 text-xs text-oncolor opacity-0 shadow-card transition-opacity duration-150 group-hover:opacity-100"
             >
               {item.label}
             </span>
@@ -163,7 +163,7 @@ function SidebarContents({
             <SearchIcon />
             <span
               role="tooltip"
-              className="pointer-events-none absolute left-full ml-2 z-50 whitespace-nowrap rounded-input bg-espresso px-2.5 py-1.5 text-xs text-cream opacity-0 shadow-card transition-opacity duration-150 group-hover:opacity-100"
+              className="pointer-events-none absolute left-full ml-2 z-50 whitespace-nowrap rounded-input bg-night px-2.5 py-1.5 text-xs text-oncolor opacity-0 shadow-card transition-opacity duration-150 group-hover:opacity-100"
             >
               Search your markers
             </span>
@@ -213,7 +213,7 @@ function SidebarContents({
             <PhoneIcon />
             <span
               role="tooltip"
-              className="pointer-events-none absolute left-full ml-2 z-50 whitespace-nowrap rounded-input bg-espresso px-2.5 py-1.5 text-xs text-cream opacity-0 shadow-card transition-opacity duration-150 group-hover:opacity-100"
+              className="pointer-events-none absolute left-full ml-2 z-50 whitespace-nowrap rounded-input bg-night px-2.5 py-1.5 text-xs text-oncolor opacity-0 shadow-card transition-opacity duration-150 group-hover:opacity-100"
             >
               Contact the clinic
             </span>
@@ -304,7 +304,7 @@ export function PatientShell({ children }: { children?: ReactNode }) {
         <button
           type="button"
           onClick={() => setCollapsed((c) => !c)}
-          className="absolute -right-3 top-24 z-10 rounded-full border border-taupe bg-white p-1.5 text-espresso/70 shadow-card transition duration-150 ease-out hover:text-bronze"
+          className="absolute -right-3 top-24 z-10 rounded-full border border-taupe bg-white p-1.5 text-espresso/80 shadow-card transition duration-150 ease-out hover:text-bronze"
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           <CollapseIcon />
@@ -313,7 +313,7 @@ export function PatientShell({ children }: { children?: ReactNode }) {
 
       {drawerOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
-          <div className="absolute inset-0 bg-espresso/50 motion-safe:animate-fadeIn" onClick={() => setDrawerOpen(false)} aria-hidden="true" />
+          <div className="absolute inset-0 bg-night/60 motion-safe:animate-fadeIn" onClick={() => setDrawerOpen(false)} aria-hidden="true" />
           <div
             ref={drawerRef}
             tabIndex={-1}

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Avatar } from './ui/Avatar';
+import { ThemeToggle } from './ui/ThemeToggle';
 import { useAuth } from '../lib/AuthContext';
 
 interface AccountMenuLink {
@@ -77,7 +78,7 @@ export function AccountMenu({ links = [] }: { links?: AccountMenuLink[] }) {
         <Avatar name={user.displayName} size="sm" />
         <span className="hidden text-sm font-medium text-espresso sm:inline">{user.displayName}</span>
         <svg width="10" height="6" viewBox="0 0 10 6" aria-hidden="true" className={`transition duration-150 ${open ? 'rotate-180' : ''}`}>
-          <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" className="text-espresso/70" />
+          <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" className="text-espresso/80" />
         </svg>
       </button>
 
@@ -85,7 +86,7 @@ export function AccountMenu({ links = [] }: { links?: AccountMenuLink[] }) {
         <div
           role="menu"
           aria-label="Account menu"
-          className="absolute right-0 top-[calc(100%+8px)] z-40 w-56 origin-top-right rounded-card border border-taupe bg-cream-50 py-1.5 shadow-card motion-safe:animate-riseIn"
+          className="absolute right-0 top-[calc(100%+8px)] z-40 w-64 origin-top-right rounded-card border border-taupe bg-cream-50 py-1.5 shadow-card motion-safe:animate-riseIn"
         >
           {links.map((link, i) => (
             <Link
@@ -101,6 +102,15 @@ export function AccountMenu({ links = [] }: { links?: AccountMenuLink[] }) {
               {link.label}
             </Link>
           ))}
+          {/* Appearance sits here as well as on the account page so it is
+              reachable from the admin console, which has no account page of
+              its own. Deliberately NOT a menuitem — it's a radio group, and
+              announcing three radios as one menu item would misdescribe it. */}
+          <div className="my-1.5 border-t border-taupe" role="separator" />
+          <div className="px-3 py-2">
+            <p className="eyebrow mb-2">Appearance</p>
+            <ThemeToggle compact />
+          </div>
           <div className="my-1.5 border-t border-taupe" role="separator" />
           <button
             ref={(el) => {

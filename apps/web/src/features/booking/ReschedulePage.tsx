@@ -190,7 +190,7 @@ export function ReschedulePage() {
             <dl className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               <div>
                 <dt className="eyebrow mb-1.5">Was</dt>
-                <dd className="tabular text-reading text-espresso/75 line-through">
+                <dd className="tabular text-reading text-espresso/80 line-through">
                   {formatWeekdayDate(appointment.date)} at {formatClockTime(appointment.time)}
                 </dd>
               </div>

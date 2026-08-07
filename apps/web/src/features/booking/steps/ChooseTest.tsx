@@ -83,7 +83,7 @@ function PanelOption({ panel, checked, onSelect }: { panel: Panel; checked: bool
       />
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute right-5 top-5 flex h-6 w-6 scale-75 items-center justify-center rounded-full bg-bronze text-white opacity-0 transition duration-150 ease-out peer-checked:scale-100 peer-checked:opacity-100"
+        className="pointer-events-none absolute right-5 top-5 flex h-6 w-6 scale-75 items-center justify-center rounded-full bg-bronze text-onaccent opacity-0 transition duration-150 ease-out peer-checked:scale-100 peer-checked:opacity-100"
       >
         <TickIcon className="h-3.5 w-3.5" />
       </span>
@@ -113,7 +113,7 @@ function PanelOption({ panel, checked, onSelect }: { panel: Panel; checked: bool
             <span className="mt-1 block text-reading font-medium text-espresso">{panel.turnaround}</span>
           </span>
         </span>
-        {panel.markerCountNote && <span className="mt-2 block text-xs text-espresso/70">{panel.markerCountNote}</span>}
+        {panel.markerCountNote && <span className="mt-2 block text-xs text-espresso/80">{panel.markerCountNote}</span>}
 
         <FastingBadge panel={panel} className="mt-5" />
       </span>
@@ -136,7 +136,7 @@ function FastingBadge({ panel, className = '' }: { panel: Panel; className?: str
     );
   }
   return (
-    <span className={`inline-flex w-fit items-center gap-2 rounded-full bg-espresso px-3 py-1.5 text-xs font-medium text-cream ${className}`}>
+    <span className={`inline-flex w-fit items-center gap-2 rounded-full bg-night px-3 py-1.5 text-xs font-medium text-oncolor ${className}`}>
       <NoFoodIcon className="h-3.5 w-3.5 shrink-0" />
       Fasting required: {panel.fasting.minHours}–{panel.fasting.maxHours} hours
     </span>
@@ -173,7 +173,7 @@ function AddOnOption({ addOn, checked, onToggle }: { addOn: AddOn; checked: bool
           }`}
         >
           <TickIcon
-            className={`h-2.5 w-2.5 text-white transition duration-150 ease-out ${checked ? 'opacity-100' : 'opacity-0'}`}
+            className={`h-2.5 w-2.5 text-onaccent transition duration-150 ease-out ${checked ? 'opacity-100' : 'opacity-0'}`}
           />
         </span>
         <span className="min-w-0 flex-1">

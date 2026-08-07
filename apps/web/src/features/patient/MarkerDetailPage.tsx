@@ -158,7 +158,7 @@ export function MarkerDetailPage() {
                 <path d="M9 2 4 7l5 5" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
-            <span className="text-xs text-espresso/60">
+            <span className="text-xs text-espresso/80">
               {siblingIndex + 1} of {navState.markerIds.length}
             </span>
             <button
@@ -185,7 +185,7 @@ export function MarkerDetailPage() {
               wrap rather than push the unit and copy button out of the card. */}
           <p className="tabular flex flex-wrap items-baseline gap-2 text-6xl font-semibold leading-none text-espresso">
             {detail.latest.valueText ?? detail.latest.value}
-            <span className="text-xl font-normal text-espresso/70">{detail.latest.unit}</span>
+            <span className="text-xl font-normal text-espresso/80">{detail.latest.unit}</span>
             <CopyButton
               value={`${detail.latest.valueText ?? detail.latest.value} ${detail.latest.unit}`}
               label="Copy result value"
@@ -203,18 +203,18 @@ export function MarkerDetailPage() {
               is advisory context and says so. Where a marker has no
               established optimal, this second line simply isn't there - no
               empty band, no placeholder. */}
-          <p className="tabular mt-2 text-xs text-espresso/70">
+          <p className="tabular mt-2 text-xs text-espresso/80">
             Lab reference range {detail.latest.referenceLow}–{detail.latest.referenceHigh} {detail.latest.unit}
           </p>
           {detail.optimal && (
-            <p className="tabular mt-1 text-xs text-espresso/70">
+            <p className="tabular mt-1 text-xs text-espresso/80">
               {optimalRangeLabel(detail.optimal)}
               {optimalStatusLabel(detail.optimal) && (
                 <span> · {optimalStatusLabel(detail.optimal)!.toLowerCase()}</span>
               )}
             </p>
           )}
-          <p className="mt-1 text-xs text-espresso/70">{detail.latest.sourceLabel}</p>
+          <p className="mt-1 text-xs text-espresso/80">{detail.latest.sourceLabel}</p>
           {/* A textual result has no position on a numeric scale — the bar
               would be a guess, so it is simply not drawn. */}
           {detail.latest.value !== null && (

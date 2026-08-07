@@ -58,7 +58,16 @@ export async function getReleasedReportForPatient(patientId: string, reportId: s
     include: {
       panel: true,
       source: true,
-      results: { include: { marker: { include: { explanation: true } }, referenceRange: true } },
+      results: {
+        include: {
+          // Health areas ride along with each result so the report can group by
+          // them without a second round trip, and so the category summary bars
+          // are computed from the same rows the grid renders — two queries
+          // would eventually disagree with each other about a count.
+          marker: { include: { explanation: true, categories: { include: { category: true } } } },
+          referenceRange: true,
+        },
+      },
     },
   });
 
@@ -71,6 +80,26 @@ export async function getReleasedReportForPatient(patientId: string, reportId: s
   // and remains the sole authority for every marker's status.
   const optimalCtx = await optimalContextForPatient(patientId);
 
+  // Every health area this report actually touches, in the catalogue's own
+  // order. Derived from the results rather than from the panel: a report can
+  // be a handful of individual markers with no panel behind it at all, and a
+  // panel's full category list would then promise sections that aren't there.
+  const categoryById = new Map<
+    string,
+    { key: string; name: string; resultType: string; note: string | null; sortOrder: number }
+  >();
+  for (const r of report.results) {
+    for (const m of r.marker.categories) {
+      categoryById.set(m.category.id, {
+        key: m.category.key,
+        name: m.category.name,
+        resultType: m.category.resultType,
+        note: m.category.note,
+        sortOrder: m.category.sortOrder,
+      });
+    }
+  }
+
   return {
     reportId: report.id,
     panelName: report.panel?.name ?? null,
@@ -78,8 +107,13 @@ export async function getReleasedReportForPatient(patientId: string, reportId: s
     title: formatReportTitle(report.panel?.name, report.results.length, report.sampleDate),
     sampleDate: report.sampleDate.toISOString().slice(0, 10),
     sourceLabel: sourceLabel(report.source.key, report.source.name),
+    // Panels state a turnaround; a released report has already arrived, so this
+    // is only carried for the repeat-programme note on the page.
+    repeatIntervalMonths: report.panel?.repeatIntervalMonths ?? null,
+    categories: [...categoryById.values()].sort((a, b) => a.sortOrder - b.sortOrder),
     markers: report.results.map((r) => {
       const decoded = decodeResultValue(decryptField(r.valueEncrypted));
+      const measured = r.marker.resultType === 'MEASURED';
       return {
         markerId: r.markerId,
         name: r.marker.name,
@@ -90,9 +124,21 @@ export async function getReleasedReportForPatient(patientId: string, reportId: s
         referenceLow: r.referenceRange.low,
         referenceHigh: r.referenceRange.high,
         status: r.status,
+        // What KIND of result this is. Only MEASURED reaches the main grid, the
+        // counts strip, the category bars and Trends; the other three types get
+        // their own sections with their own framing, because a genetic risk
+        // category and a potassium are not the same kind of statement about a
+        // person and must not be laid out as though they were.
+        resultType: r.marker.resultType,
+        // Health areas, for grouping and for the category filter.
+        categoryKeys: r.marker.categories.map((m) => m.category.key),
+        // Abbreviations, so a search for "ALT" finds Alanine Aminotransferase.
+        aliases: r.marker.aliases,
         // Null for the majority of markers — most have no established optimal,
         // and those show the lab range alone with nothing said about optimal.
-        optimal: optimalFor(r.marker.key, r.unit, decoded.value, optimalCtx),
+        // Never resolved at all for a non-MEASURED marker: a genetic risk
+        // category has no units to compare a band against.
+        optimal: measured ? optimalFor(r.marker.key, r.unit, decoded.value, optimalCtx) : null,
         gloss: r.marker.explanation?.whatItIs ?? '',
         // A clinical record that silently changes is worse than no record —
         // the patient always sees the current value, but knows it changed.
