@@ -498,7 +498,7 @@ export function LinkingPage() {
     return (
       <>
         <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Result linking" />
-        <Card className="mt-8 max-w-xl">
+        <Card className="mt-10 max-w-xl">
           <p className="font-display text-2xl text-espresso">We couldn't load the linking queue</p>
           <p className="mt-2 text-sm text-espresso/80">Please refresh the page.</p>
         </Card>

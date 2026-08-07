@@ -84,11 +84,11 @@ export function PatientsListPage() {
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="mt-10">
+        <div className="mt-6">
           <EmptyState title="No patients found" description="Try a different search, or invite a new patient from the reports page." />
         </div>
       ) : (
-        <div className="mt-6 overflow-x-auto">
+        <div className="mt-6">
           <Table>
             <TableHead>
               <TableRow>

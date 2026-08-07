@@ -63,13 +63,13 @@ export function UpcomingAppointments() {
           Nothing booked
         </h2>
         <Card className="mt-7 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="max-w-xl text-[15px] leading-relaxed text-espresso">
+          <p className="max-w-xl text-reading leading-relaxed text-espresso">
             When you're ready for your next panel, you can book it here. Pick the test, choose Mortimer Street or a
             Randox clinic, and we'll tell you exactly how to prepare.
           </p>
           <Link
             to="/book"
-            className="inline-flex min-h-[44px] shrink-0 items-center gap-2 rounded-full bg-bronze bg-btn-primary px-5 py-2.5 font-display text-sm tracking-wide text-white shadow-btn transition duration-150 ease-out hover:bg-bronze-600 hover:shadow-btn-hover motion-safe:hover:-translate-y-px"
+            className="inline-flex min-h-tap shrink-0 items-center gap-2 rounded-full bg-bronze bg-btn-primary px-5 py-2.5 font-display text-sm tracking-wide text-white shadow-btn transition duration-150 ease-out hover:bg-bronze-600 hover:shadow-btn-hover motion-safe:hover:-translate-y-px"
           >
             <CalendarPlusIcon className="h-4 w-4" />
             Book a test
@@ -87,7 +87,7 @@ export function UpcomingAppointments() {
         </h2>
         <Link
           to="/appointments"
-          className="flex min-h-[44px] items-center gap-1.5 rounded-full text-sm font-medium text-bronze-700 underline-offset-4 hover:underline"
+          className="flex min-h-tap items-center gap-1.5 rounded-full text-sm font-medium text-bronze-700 underline-offset-4 hover:underline"
         >
           All appointments <ArrowRightIcon />
         </Link>

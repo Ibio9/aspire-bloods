@@ -4,8 +4,11 @@ import { Link } from 'react-router-dom';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { LinkButton } from '../../components/ui/LinkButton';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { Reveal } from '../../components/motion/Reveal';
+import { staggerDelay } from '../../components/motion/stagger';
 import { useToast } from '../../components/ui/Toast';
 import { apiFetch } from '../../lib/api';
 import { API_BASE_URL } from '../../lib/apiBase';
@@ -70,20 +73,14 @@ export function DocumentsPage() {
           <EmptyState
             title="No documents yet"
             description="When a report has been reviewed and released to you, its PDFs appear here: the laboratory's own report, and an Aspire summary written in plain English."
-            action={
-              <Link
-                to="/overview"
-                className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-taupe px-5 py-2.5 text-sm font-medium text-espresso transition duration-150 ease-out hover:border-bronze"
-              >
-                Back to overview
-              </Link>
-            }
+            action={<LinkButton to="/overview">Back to overview</LinkButton>}
           />
         </div>
       ) : (
         <ul className="mt-10 flex flex-col gap-5">
           {documents.map((doc, i) => (
-            <li key={doc.reportId} className="stagger-item motion-safe:animate-riseIn" style={{ animationDelay: `${i * 30}ms` }}>
+            <li key={doc.reportId}>
+              <Reveal delay={staggerDelay(i)}>
               <Card>
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
@@ -120,6 +117,7 @@ export function DocumentsPage() {
                   </Button>
                 </div>
               </Card>
+              </Reveal>
             </li>
           ))}
         </ul>

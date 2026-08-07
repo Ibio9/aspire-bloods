@@ -86,7 +86,7 @@ export function AccountPage() {
 
   return (
     <>
-      <TwoTierHeading eyebrow="Aspire Clinic · Patient Portal" title="Your account & privacy" />
+      <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="Your account & privacy" />
 
       {user && (
         <p className="mt-5 flex items-center gap-1 text-sm text-espresso/80">
@@ -106,10 +106,10 @@ export function AccountPage() {
           <p className="eyebrow mb-4">Consent</p>
           <div className="flex flex-col gap-4">
             {consents === null && (
-              <>
+              <div aria-busy="true" aria-label="Loading your consent records" className="flex flex-col gap-4">
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
-              </>
+              </div>
             )}
             {consents?.map((c) => (
               <div key={c.type} className="border-b border-taupe pb-4 last:border-b-0 last:pb-0">

@@ -22,6 +22,7 @@ import { filesRouter } from './modules/storage/filesRouter.js';
 import { patientsRouter } from './modules/patients/router.js';
 import { contentRouter } from './modules/content/router.js';
 import { randoxRouter } from './modules/randox/router.js';
+import { runDemoSeed } from './modules/admin/demoSeedService.js';
 
 runProductionBootChecks();
 // Fails the boot — loudly, naming every missing variable at once — if the
@@ -114,4 +115,15 @@ if (env.RANDOX_ENABLED) {
 
 app.listen(env.PORT, () => {
   console.log(`Aspire Bloods server listening on port ${env.PORT} (${env.NODE_ENV})`);
+
+  // Demo data, only after the server is up. This used to run inside the
+  // container start command, before listen — where a platform healthcheck
+  // killing a slow boot could take the seed down mid-write with nothing able
+  // to log it. Here the healthcheck passes first, the seed's outcome lands
+  // in the runtime logs and the DemoSeedRun row, and a failure degrades
+  // nothing. A no-op (recorded as SKIPPED) unless SEED_DEMO_DATA=true.
+  void runDemoSeed({ trigger: 'boot' }).catch((e) => {
+    // runDemoSeed never throws by contract; this is belt and braces.
+    console.error('[seedDemo] unexpected escape from runDemoSeed:', e);
+  });
 });

@@ -9,6 +9,7 @@ import { FileDropzone } from '../../components/ui/FileDropzone';
 import { DateField } from '../../components/ui/DateField';
 import { Tabs } from '../../components/ui/Tabs';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { Skeleton } from '../../components/ui/Skeleton';
 import { apiFetch, ApiError, extractErrorMessage } from '../../lib/api';
 import { API_BASE_URL } from '../../lib/apiBase';
 import { statusLabel, stageIndex, type ReportStatus } from '../../lib/reportStatus';
@@ -504,7 +505,11 @@ export function AdminReportsPage() {
   const [panels, setPanels] = useState<PanelOption[]>([]);
   const [sources, setSources] = useState<SourceOption[]>([]);
   const [markers, setMarkers] = useState<MarkerOption[]>([]);
-  const [reports, setReports] = useState<ReportRow[]>([]);
+  // Null until the first load resolves. Starting at [] made the very first
+  // paint render the "No reports yet" empty state (and every Select's
+  // "no patients yet" hint) for as long as the fetch took — a confidently
+  // wrong screen that then flipped to the real one.
+  const [reports, setReports] = useState<ReportRow[] | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const statusFilter = searchParams.get('status');
 
@@ -528,13 +533,13 @@ export function AdminReportsPage() {
   }, []);
 
   const visibleReports = useMemo(() => {
-    const sorted = sortReports(reports);
+    const sorted = sortReports(reports ?? []);
     return statusFilter ? sorted.filter((r) => r.status === statusFilter) : sorted;
   }, [reports, statusFilter]);
 
   return (
     <>
-      <TwoTierHeading eyebrow="Aspire Clinic · Admin" title="Reports" />
+      <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Reports" />
 
       <div className="mt-8">
         <Tabs
@@ -566,6 +571,16 @@ export function AdminReportsPage() {
           Reports still moving through the pipeline are listed first, closest to release first. Released reports
           trail behind, most recent first.
         </p>
+        {reports === null && (
+          <div className="flex flex-col gap-3" aria-busy="true" aria-label="Loading reports">
+            {[0, 1, 2, 3].map((i) => (
+              <Card key={i} padding="tight">
+                <Skeleton className="h-5 w-72" />
+                <Skeleton className="mt-2 h-4 w-56" />
+              </Card>
+            ))}
+          </div>
+        )}
         <div className="flex flex-col gap-3">
           {visibleReports.map((r, i) => (
             <Link
@@ -594,14 +609,15 @@ export function AdminReportsPage() {
               exist but none survive the current filter. They need different
               wording — telling someone to upload their first report when they
               have forty and a filter applied is just wrong. */}
-          {reports.length === 0 ? (
-            <EmptyState
-              title="No reports yet"
-              description="Upload a PDF or enter results manually above once a patient exists."
-            />
-          ) : (
-            visibleReports.length === 0 && <p className="text-espresso">No reports match.</p>
-          )}
+          {reports !== null &&
+            (reports.length === 0 ? (
+              <EmptyState
+                title="No reports yet"
+                description="Upload a PDF or enter results manually above once a patient exists."
+              />
+            ) : (
+              visibleReports.length === 0 && <p className="text-sm text-espresso/80">No reports match.</p>
+            ))}
         </div>
       </div>
     </>

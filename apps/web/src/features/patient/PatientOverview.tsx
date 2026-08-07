@@ -2,10 +2,14 @@ import { formatDate } from '@aspire-bloods/shared';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card } from '../../components/ui/Card';
+import { LinkButton } from '../../components/ui/LinkButton';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { RangeBar } from '../../components/ui/RangeBar';
 import { ClinicContactCard } from '../../components/patient/ClinicContact';
+import { AnimatedNumber } from '../../components/motion/AnimatedNumber';
+import { Reveal } from '../../components/motion/Reveal';
+import { staggerDelay } from '../../components/motion/stagger';
 import { ArrowRightIcon, LibraryIcon, MarkersIcon, TrendsIcon } from '../../components/nav/patientIcons';
 import { apiFetch } from '../../lib/api';
 import { formatRelativeDate, type ChangeItem, type PatientOverview as Overview } from '../../lib/patientPortal';
@@ -90,12 +94,16 @@ export function PatientOverview() {
 
   if (failed) {
     return (
-      <Card className="max-w-xl">
-        <p className="font-display text-2xl text-espresso">We couldn't load your overview</p>
-        <p className="mt-2 text-sm text-espresso/80">
-          Please refresh the page. If it keeps happening, get in touch and we'll sort it out.
-        </p>
-      </Card>
+      <>
+        <p className="eyebrow mb-3">Aspire Clinic · Patient portal</p>
+        <h1 className="display-heading break-words">Overview</h1>
+        <Card className="mt-10 max-w-xl">
+          <p className="font-display text-2xl text-espresso">We couldn't load your overview</p>
+          <p className="mt-2 text-sm text-espresso/80">
+            Please refresh the page. If it keeps happening, get in touch and we'll sort it out.
+          </p>
+        </Card>
+      </>
     );
   }
 
@@ -130,7 +138,7 @@ export function PatientOverview() {
     <>
       <header>
         <p className="eyebrow mb-3">Aspire Clinic · Patient portal</p>
-        <h1 className="display-heading">
+        <h1 className="display-heading break-words">
           {greeting()}
           {data.firstName ? `, ${data.firstName}` : ''}
         </h1>
@@ -177,14 +185,14 @@ export function PatientOverview() {
           <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
             <Card>
               <p className="eyebrow mb-3">Your account is ready</p>
-              <p className="text-[15px] leading-relaxed text-espresso">
+              <p className="text-reading leading-relaxed text-espresso">
                 There's nothing here yet, and nothing has gone wrong. A new account simply starts empty.
                 Results appear once you've had a sample taken and the clinic has matched it to you.
               </p>
             </Card>
             <Card>
               <p className="eyebrow mb-3">After your appointment</p>
-              <p className="text-[15px] leading-relaxed text-espresso">
+              <p className="text-reading leading-relaxed text-espresso">
                 Your sample goes to the laboratory, and the results come back to the Aspire clinical team first.
                 They check the result is yours before it reaches your account, and a clinician reviews it before
                 it's published. Nothing appears here automatically.
@@ -192,7 +200,7 @@ export function PatientOverview() {
             </Card>
             <Card>
               <p className="eyebrow mb-3">When your results are ready</p>
-              <p className="text-[15px] leading-relaxed text-espresso">
+              <p className="text-reading leading-relaxed text-espresso">
                 We'll email you. You'll find the full panel under <span className="font-medium">My results</span>,
                 every individual marker with its reference range and a plain-English explanation, and the original
                 laboratory PDF under <span className="font-medium">Documents</span>.
@@ -200,7 +208,7 @@ export function PatientOverview() {
             </Card>
             <Card>
               <p className="eyebrow mb-3">Over time</p>
-              <p className="text-[15px] leading-relaxed text-espresso">
+              <p className="text-reading leading-relaxed text-espresso">
                 From your second test onwards, <span className="font-medium">All markers</span> and{' '}
                 <span className="font-medium">Trends</span> start showing direction of travel: how each marker has
                 moved, and how markers move in relation to one another.
@@ -220,7 +228,7 @@ export function PatientOverview() {
           <h2 id="attention-heading" className="font-display text-3xl text-espresso">
             Worth a conversation
           </h2>
-          <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-espresso/90">
+          <p className="mt-3 max-w-2xl text-reading leading-relaxed text-espresso/90">
             {data.attention.length === 1 ? 'One of your results sits' : `${data.attention.length} of your results sit`} outside
             the usual reference range. That on its own is not a diagnosis. Reference ranges describe most people, not
             every person, and a single result can't be read without the rest of your history.
@@ -228,8 +236,9 @@ export function PatientOverview() {
 
           <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
             <ul className="flex flex-col gap-5 lg:col-span-2">
-              {data.attention.map((item) => (
+              {data.attention.map((item, i) => (
                 <li key={item.markerId}>
+                  <Reveal delay={staggerDelay(i)}>
                   <Link to={`/markers/${item.markerId}`} className="block rounded-card">
                     <Card interactive>
                       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -253,6 +262,7 @@ export function PatientOverview() {
                       </p>
                     </Card>
                   </Link>
+                  </Reveal>
                 </li>
               ))}
             </ul>
@@ -280,12 +290,14 @@ export function PatientOverview() {
           <h2 id="changes-heading" className="font-display text-3xl text-espresso">
             What's changed
           </h2>
-          <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-espresso/90">
+          <p className="mt-3 max-w-2xl text-reading leading-relaxed text-espresso/90">
             Markers that moved meaningfully since your previous result, in either direction.
           </p>
           <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {data.changes.map((change) => (
-              <ChangeCard key={change.markerId} change={change} />
+            {data.changes.map((change, i) => (
+              <Reveal key={change.markerId} delay={staggerDelay(i)} className="h-full">
+                <ChangeCard change={change} />
+              </Reveal>
             ))}
           </div>
         </section>
@@ -297,6 +309,7 @@ export function PatientOverview() {
           <h2 id="latest-heading" className="font-display text-3xl text-espresso">
             Your most recent panel
           </h2>
+          <Reveal>
           <Card className="mt-8">
             <div className="flex flex-wrap items-start justify-between gap-6">
               <div>
@@ -304,29 +317,35 @@ export function PatientOverview() {
                 <p className="font-display text-3xl leading-tight text-espresso">{data.latest.panelName}</p>
                 <p className="mt-2 text-xs text-espresso/70">{data.latest.sourceLabel}</p>
               </div>
-              <Link
-                to={`/reports/${data.latest.reportId}`}
-                className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-bronze px-5 py-2.5 text-sm font-medium text-white transition duration-150 ease-out hover:bg-bronze-600"
-              >
+              <LinkButton to={`/reports/${data.latest.reportId}`} variant="primary">
                 View the full panel <ArrowRightIcon />
-              </Link>
+              </LinkButton>
             </div>
 
+            {/* Counts, not clinical values — the one place a number is allowed
+                to count up as it enters (see AnimatedNumber). */}
             <dl className="mt-8 grid grid-cols-2 gap-6 border-t border-taupe pt-6 sm:grid-cols-3">
               <div>
                 <dt className="eyebrow mb-1.5">Markers</dt>
-                <dd className="tabular text-3xl text-espresso">{data.latest.markerCount}</dd>
+                <dd className="tabular text-3xl text-espresso">
+                  <AnimatedNumber value={data.latest.markerCount} />
+                </dd>
               </div>
               <div>
                 <dt className="eyebrow mb-1.5">In the usual range</dt>
-                <dd className="tabular text-3xl text-espresso">{data.latest.inRangeCount}</dd>
+                <dd className="tabular text-3xl text-espresso">
+                  <AnimatedNumber value={data.latest.inRangeCount} />
+                </dd>
               </div>
               <div>
                 <dt className="eyebrow mb-1.5">Needs attention</dt>
-                <dd className="tabular text-3xl text-espresso">{data.latest.attentionCount}</dd>
+                <dd className="tabular text-3xl text-espresso">
+                  <AnimatedNumber value={data.latest.attentionCount} />
+                </dd>
               </div>
             </dl>
           </Card>
+          </Reveal>
         </section>
       )}
 
@@ -336,11 +355,13 @@ export function PatientOverview() {
             Next steps
           </h2>
           <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
-            {data.nextSteps.map((step) => (
-              <Card key={step.kind}>
-                <p className="font-display text-2xl leading-tight text-espresso">{step.title}</p>
-                <p className="mt-3 text-[15px] leading-relaxed text-espresso/90">{step.body}</p>
-              </Card>
+            {data.nextSteps.map((step, i) => (
+              <Reveal key={step.kind} delay={staggerDelay(i)} className="h-full">
+                <Card className="h-full">
+                  <p className="font-display text-2xl leading-tight text-espresso">{step.title}</p>
+                  <p className="mt-3 text-reading leading-relaxed text-espresso/90">{step.body}</p>
+                </Card>
+              </Reveal>
             ))}
           </div>
         </section>
@@ -352,17 +373,19 @@ export function PatientOverview() {
             Go deeper
           </h2>
           <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-3">
-            {QUICK_ROUTES.map(({ to, label, body, icon: Icon }) => (
-              <Link key={to} to={to} className="rounded-card">
-                <Card interactive className="flex h-full flex-col">
-                  <Icon className="text-bronze-700" />
-                  <p className="mt-4 font-display text-2xl leading-tight text-espresso">{label}</p>
-                  <p className="mt-2 flex-1 text-sm leading-relaxed text-espresso/90">{body}</p>
-                  <p className="mt-4 flex items-center gap-1.5 text-sm font-medium text-bronze-700">
-                    Open <ArrowRightIcon />
-                  </p>
-                </Card>
-              </Link>
+            {QUICK_ROUTES.map(({ to, label, body, icon: Icon }, i) => (
+              <Reveal key={to} delay={staggerDelay(i)} className="h-full">
+                <Link to={to} className="block h-full rounded-card">
+                  <Card interactive className="flex h-full flex-col">
+                    <Icon className="text-bronze-700" />
+                    <p className="mt-4 font-display text-2xl leading-tight text-espresso">{label}</p>
+                    <p className="mt-2 flex-1 text-sm leading-relaxed text-espresso/90">{body}</p>
+                    <p className="mt-4 flex items-center gap-1.5 text-sm font-medium text-bronze-700">
+                      Open <ArrowRightIcon />
+                    </p>
+                  </Card>
+                </Link>
+              </Reveal>
             ))}
           </div>
         </section>

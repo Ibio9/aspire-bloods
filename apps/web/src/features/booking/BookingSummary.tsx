@@ -47,12 +47,12 @@ export function BookingSummary({ panel, addOns, location, date, time, durationMi
           {panel.markerCount} markers · results in {turnaround.label}
         </p>
         {drawnHere.length > 0 && (
-          <p className="mt-4 text-[15px] leading-relaxed text-espresso">
+          <p className="mt-4 text-reading leading-relaxed text-espresso">
             With <span className="font-medium">{drawnHere.map((a) => a.name).join(', ')}</span> from the same draw.
           </p>
         )}
         {kits.length > 0 && (
-          <p className="mt-3 flex items-start gap-2.5 text-[15px] leading-relaxed text-espresso">
+          <p className="mt-3 flex items-start gap-2.5 text-reading leading-relaxed text-espresso">
             <HomeKitIcon className="mt-1 shrink-0 text-bronze-700" />
             <span>
               <span className="font-medium">{kits.map((a) => a.name).join(', ')}</span>: a kit posted to you within
@@ -65,7 +65,7 @@ export function BookingSummary({ panel, addOns, location, date, time, durationMi
       {/* ── where ───────────────────────────────────────────────────────── */}
       <Section title="Where" onEdit={onEdit?.location} editLabel="the clinic">
         <p className="font-display text-2xl leading-tight text-espresso">{location.name}</p>
-        <p className="mt-3 flex items-start gap-2.5 text-[15px] text-espresso">
+        <p className="mt-3 flex items-start gap-2.5 text-reading text-espresso">
           <PinIcon className="mt-1 shrink-0 text-bronze-700" />
           <span className="not-italic">
             {location.addressLines.map((line) => (
@@ -86,7 +86,7 @@ export function BookingSummary({ panel, addOns, location, date, time, durationMi
             {formatWeekdayDate(date)}
           </span>
         </p>
-        <p className="tabular mt-3 flex items-center gap-2.5 text-[15px] text-espresso">
+        <p className="tabular mt-3 flex items-center gap-2.5 text-reading text-espresso">
           <ClockIcon className="shrink-0 text-bronze-700" />
           {formatClockTime(time)}. Allow about {durationMinutes} minutes.
         </p>
@@ -98,7 +98,7 @@ export function BookingSummary({ panel, addOns, location, date, time, durationMi
         {criticalNotes.length > 0 && (
           <ul className="mt-4 flex flex-col gap-2.5">
             {criticalNotes.map((note) => (
-              <li key={note.label} className="text-[15px] leading-relaxed text-espresso">
+              <li key={note.label} className="text-reading leading-relaxed text-espresso">
                 <span className="font-medium">{note.label}.</span> {note.detail}
               </li>
             ))}
@@ -108,7 +108,7 @@ export function BookingSummary({ panel, addOns, location, date, time, durationMi
 
       {/* ── after ───────────────────────────────────────────────────────── */}
       <Section title="Afterwards">
-        <p className="text-[15px] leading-relaxed text-espresso">
+        <p className="text-reading leading-relaxed text-espresso">
           Expect your results {expectedResultsLabel(panel, addOns, date)}. They come back to the Aspire clinical team
           first. A clinician reviews every result before it appears in your portal, and we'll email you the moment it
           does.
@@ -140,7 +140,7 @@ function Section({
           <button
             type="button"
             onClick={onEdit}
-            className="-my-2 -mr-2 min-h-[44px] rounded-full px-3 text-sm font-medium text-bronze-700 underline-offset-4 transition duration-150 ease-out hover:underline"
+            className="-my-2 -mr-2 min-h-tap rounded-full px-3 text-sm font-medium text-bronze-700 underline-offset-4 transition duration-150 ease-out hover:underline"
           >
             Change<span className="sr-only"> {editLabel}</span>
           </button>

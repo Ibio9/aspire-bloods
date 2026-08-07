@@ -87,7 +87,7 @@ function SidebarLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed
           <Icon className="mt-0.5 shrink-0" />
           {!collapsed && (
             <span className="min-w-0 flex-1">
-              <span className={`block truncate text-[15px] ${isActive ? 'font-semibold' : 'font-medium'}`}>{item.label}</span>
+              <span className={`block truncate text-reading ${isActive ? 'font-semibold' : 'font-medium'}`}>{item.label}</span>
               <span className="mt-0.5 block text-xs leading-snug text-espresso/60">{item.hint}</span>
             </span>
           )}

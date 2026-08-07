@@ -42,7 +42,7 @@ export function ChooseTest({ panels, addOns, panelId, onPanelChange, addOnIds, o
         <h2 id="add-ons-heading" className="font-display text-2xl leading-tight text-espresso sm:text-3xl">
           Add anything alongside it
         </h2>
-        <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-espresso/90">
+        <p className="mt-3 max-w-2xl text-reading leading-relaxed text-espresso/90">
           These four sit outside the standard panels and can be added to any of them. Three come from the same draw
           and add nothing to your appointment; Calprotectin is a home kit we post to you.
         </p>
@@ -90,7 +90,7 @@ function PanelOption({ panel, checked, onSelect }: { panel: Panel; checked: bool
 
       <span className="relative flex flex-col">
         <span className="font-display text-2xl leading-tight text-espresso sm:text-3xl">{panel.name}</span>
-        <span className="mt-3 text-[15px] leading-relaxed text-espresso/90">{panel.strapline}</span>
+        <span className="mt-3 text-reading leading-relaxed text-espresso/90">{panel.strapline}</span>
 
         <span className="mt-6 block">
           <span className="eyebrow">What it covers</span>
@@ -110,7 +110,7 @@ function PanelOption({ panel, checked, onSelect }: { panel: Panel; checked: bool
           </span>
           <span className="block">
             <span className="eyebrow">Results in</span>
-            <span className="mt-1 block text-[15px] font-medium text-espresso">{panel.turnaround}</span>
+            <span className="mt-1 block text-reading font-medium text-espresso">{panel.turnaround}</span>
           </span>
         </span>
         {panel.markerCountNote && <span className="mt-2 block text-xs text-espresso/70">{panel.markerCountNote}</span>}

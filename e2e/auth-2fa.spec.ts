@@ -42,7 +42,9 @@ test('invite -> activate -> login -> 2FA -> session', async ({ page, request }) 
   await page.goto(`/activate?token=${inviteToken}`);
   await page.fill('input[name=firstName]', 'E2E');
   await page.fill('input[name=lastName]', 'Tester');
-  await page.fill('input[name=dob]', '1992-02-02');
+  // DateField is a custom control: its `name` sits on a hidden input, and
+  // the visible field wants DD/MM/YYYY typed — fill by label, not by name.
+  await page.getByLabel('Date of birth').fill('02/02/1992');
   await page.fill('input[name=contactNumber]', '+44 7000 000000');
   await page.fill('input[name=address]', '1 Test Street, London');
   await page.fill('input[name=postcode]', 'E1 6AN');

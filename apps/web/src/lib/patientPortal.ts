@@ -84,7 +84,10 @@ export interface MarkerRow {
   markerId: string;
   name: string;
   unit: string;
-  value: number;
+  // Null when the latest result is textual ("< 0.6", "Not detected") —
+  // valueText then carries the lab's wording verbatim.
+  value: number | null;
+  valueText?: string | null;
   status: MarkerStatus;
   referenceLow: number;
   referenceHigh: number;

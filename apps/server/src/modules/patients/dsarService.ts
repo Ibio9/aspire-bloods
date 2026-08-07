@@ -84,7 +84,8 @@ export async function buildDsarExport(patientId: string): Promise<NodeJS.Readabl
     releasedAt: r.releasedAt,
     results: r.results.map((res) => ({
       marker: res.marker.name,
-      value: Number(decryptField(res.valueEncrypted)),
+      // Numeric or textual ("< 0.6") — export the stored form verbatim.
+      value: decryptField(res.valueEncrypted).trim(),
       unit: res.unit,
       referenceLow: res.referenceRange.low,
       referenceHigh: res.referenceRange.high,

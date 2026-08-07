@@ -1,5 +1,6 @@
 import { prisma } from '../../db/client.js';
 import { decryptField } from '../../lib/crypto.js';
+import { decodeResultValue } from '../../lib/resultValue.js';
 import { sourceLabel } from '../../lib/sourceLabel.js';
 import { convertToDisplayUnit, hasKnownConversion } from '../../lib/unitConversion.js';
 import { classifyMovement, isMeaningfulChange, movementMagnitude } from './markerMovement.js';
@@ -33,10 +34,13 @@ interface NormalisedPoint {
   panelName: string | null;
   reportTitle: string;
   sampleDate: string;
-  value: number;
+  /** Null when the lab reported text rather than a number — see valueText. */
+  value: number | null;
+  /** The verbatim lab text ("< 0.6", "Not detected"); null for numeric results. */
+  valueText: string | null;
   unit: string;
   converted: boolean;
-  originalValue: number;
+  originalValue: number | null;
   originalUnit: string;
   status: MarkerStatus;
   referenceLow: number;
@@ -65,12 +69,15 @@ async function loadReleasedPoints(patientId: string): Promise<NormalisedPoint[]>
 
   return results.map((r) => {
     const displayUnit = r.marker.defaultUnit;
-    const rawValue = Number(decryptField(r.valueEncrypted));
-    const valueConversion = convertToDisplayUnit(r.marker.key, rawValue, r.unit, displayUnit);
+    const decoded = decodeResultValue(decryptField(r.valueEncrypted));
+    // Textual results ("< 0.6", "Not detected") have nothing to convert;
+    // they carry their text through and never join a numeric comparison.
+    const valueConversion =
+      decoded.value !== null ? convertToDisplayUnit(r.marker.key, decoded.value, r.unit, displayUnit) : null;
     const low = convertToDisplayUnit(r.marker.key, r.referenceRange.low, r.referenceRange.unit, displayUnit);
     const high = convertToDisplayUnit(r.marker.key, r.referenceRange.high, r.referenceRange.unit, displayUnit);
 
-    const valueOk = r.unit === displayUnit || valueConversion.converted;
+    const valueOk = decoded.value === null || r.unit === displayUnit || valueConversion!.converted;
     const rangeOk = r.referenceRange.unit === displayUnit || hasKnownConversion(r.marker.key, r.referenceRange.unit, displayUnit);
 
     return {
@@ -83,11 +90,12 @@ async function loadReleasedPoints(patientId: string): Promise<NormalisedPoint[]>
       // A report needn't come from a catalogue panel; fall back to what it contains.
       reportTitle: formatReportTitle(r.report.panel?.name, null, r.report.sampleDate),
       sampleDate: r.report.sampleDate.toISOString().slice(0, 10),
-      value: round(valueConversion.value),
-      unit: valueConversion.unit,
-      converted: valueConversion.converted,
-      originalValue: valueConversion.originalValue,
-      originalUnit: valueConversion.originalUnit,
+      value: valueConversion ? round(valueConversion.value) : null,
+      valueText: decoded.valueText,
+      unit: valueConversion ? valueConversion.unit : r.unit,
+      converted: valueConversion?.converted ?? false,
+      originalValue: valueConversion ? valueConversion.originalValue : null,
+      originalUnit: valueConversion ? valueConversion.originalUnit : r.unit,
       status: r.status,
       referenceLow: round(low.value),
       referenceHigh: round(high.value),
@@ -161,14 +169,18 @@ export async function getPatientOverview(patientId: string) {
       const previous = history[history.length - 1];
       if (!previous) return null;
       if (!current.convertible || !previous.convertible) return null; // never compare across units we can't relate
-      if (!isMeaningfulChange(current, previous)) return null;
+      // A textual result ("< 0.6") has no magnitude — nothing to compare.
+      if (current.value === null || previous.value === null) return null;
+      const cur = { value: current.value, status: current.status, referenceLow: current.referenceLow, referenceHigh: current.referenceHigh };
+      const prev = { value: previous.value, status: previous.status, referenceLow: previous.referenceLow, referenceHigh: previous.referenceHigh };
+      if (!isMeaningfulChange(cur, prev)) return null;
 
       const delta = current.value - previous.value;
 
       // Magnitude rides alongside rather than inside the payload — it exists
       // only to order the list and means nothing to the client.
       return {
-        magnitude: movementMagnitude(current, previous),
+        magnitude: movementMagnitude(cur, prev),
         change: {
           markerId: current.markerId,
           name: current.markerName,
@@ -181,7 +193,7 @@ export async function getPatientOverview(patientId: string) {
           previousDate: previous.sampleDate,
           delta: round(delta),
           direction: delta > 0 ? ('UP' as const) : ('DOWN' as const),
-          movement: classifyMovement(current, previous),
+          movement: classifyMovement(cur, prev),
         },
       };
     })
@@ -278,13 +290,17 @@ export async function listAllMarkersForPatient(patientId: string) {
       // A sparkline across values we can't relate to each other would be a
       // lie in chart form — those render as a value with no line at all.
       const comparable = series.every((p) => p.convertible);
-      const delta = previous && comparable ? latest.value - previous.value : null;
+      const delta =
+        previous && comparable && latest.value !== null && previous.value !== null
+          ? latest.value - previous.value
+          : null;
 
       return {
         markerId: latest.markerId,
         name: latest.markerName,
         unit: latest.unit,
         value: latest.value,
+        valueText: latest.valueText,
         status: latest.status,
         referenceLow: latest.referenceLow,
         referenceHigh: latest.referenceHigh,
@@ -297,7 +313,11 @@ export async function listAllMarkersForPatient(patientId: string) {
         comparable,
         delta: delta === null ? null : round(delta),
         direction: delta === null || delta === 0 ? null : delta > 0 ? ('UP' as const) : ('DOWN' as const),
-        spark: comparable ? series.map((p) => ({ sampleDate: p.sampleDate, value: p.value, status: p.status })) : [],
+        // Textual results can't be a point on a line — the spark simply
+        // skips them, same as the full trend chart does.
+        spark: comparable
+          ? series.filter((p) => p.value !== null).map((p) => ({ sampleDate: p.sampleDate, value: p.value, status: p.status }))
+          : [],
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -324,15 +344,17 @@ export async function getMultiMarkerTrends(patientId: string, markerIds: string[
         name: series[0].markerName,
         unit: series[0].displayUnit,
         comparable,
-        points: series.map((p) => ({
-          sampleDate: p.sampleDate,
-          value: p.value,
-          status: p.status,
-          referenceLow: p.referenceLow,
-          referenceHigh: p.referenceHigh,
-          sourceLabel: p.sourceLabel,
-          reportId: p.reportId,
-        })),
+        points: series
+          .filter((p) => p.value !== null)
+          .map((p) => ({
+            sampleDate: p.sampleDate,
+            value: p.value,
+            status: p.status,
+            referenceLow: p.referenceLow,
+            referenceHigh: p.referenceHigh,
+            sourceLabel: p.sourceLabel,
+            reportId: p.reportId,
+          })),
       };
     })
     .filter((s): s is NonNullable<typeof s> => s !== null);

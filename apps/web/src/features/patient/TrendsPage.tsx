@@ -7,7 +7,10 @@ import { Checkbox } from '../../components/ui/Checkbox';
 import { Input } from '../../components/ui/Input';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { LinkButton } from '../../components/ui/LinkButton';
 import { MultiTrendChart } from '../../components/ui/MultiTrendChart';
+import { Reveal } from '../../components/motion/Reveal';
+import { staggerDelay } from '../../components/motion/stagger';
 import { apiFetch } from '../../lib/api';
 import { statusLabel } from '../../lib/markerCopy';
 import { type MarkerRow, type TrendSeries } from '../../lib/patientPortal';
@@ -90,16 +93,6 @@ export function TrendsPage() {
     }).filter((p) => p.ids.length >= 2);
   }, [plottable]);
 
-  if (markers === null) {
-    return (
-      <div aria-busy="true" aria-label="Loading your markers">
-        <Skeleton className="h-4 w-40" />
-        <Skeleton className="mt-4 h-12 w-72" />
-        <Skeleton className="mt-10 h-80 w-full" />
-      </div>
-    );
-  }
-
   return (
     <>
       <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="Trends" />
@@ -107,25 +100,33 @@ export function TrendsPage() {
         Put up to {MAX_SELECTED} markers on one timeline to see how they've moved in relation to each other.
       </p>
 
-      {plottable.length === 0 ? (
+      {markers === null ? (
+        // The header stays put while this loads — only the content arrives.
+        // Shaped like what replaces it: the picker column and the chart panel.
+        <div className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-10" aria-busy="true" aria-label="Loading your markers">
+          <Card padding="tight">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="mt-5 h-10 w-full" />
+            <Skeleton className="mt-3 h-10 w-full" />
+            <Skeleton className="mt-3 h-10 w-3/4" />
+          </Card>
+          <Card>
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="mt-5 h-80 w-full" />
+          </Card>
+        </div>
+      ) : plottable.length === 0 ? (
         <div className="mt-10 max-w-2xl">
           <EmptyState
             title="Not enough history yet"
             description="A trend needs at least two results for the same marker. Once you've had a second test, everything measured on both will be plottable here."
-            action={
-              <Link
-                to="/markers"
-                className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-taupe px-5 py-2.5 text-sm font-medium text-espresso transition duration-150 ease-out hover:border-bronze"
-              >
-                See all markers
-              </Link>
-            }
+            action={<LinkButton to="/markers">See all markers</LinkButton>}
           />
         </div>
       ) : (
         <div className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-10">
           <div className="lg:sticky lg:top-8 lg:self-start">
-            <Card className="!p-5 sm:!p-6">
+            <Card padding="tight">
               <p className="eyebrow mb-4">Choose markers</p>
 
               {suggestions.length > 0 && (
@@ -160,7 +161,7 @@ export function TrendsPage() {
                 {selected.length} of {MAX_SELECTED} selected
               </p>
 
-              <div className="scroll-thin mt-3 flex max-h-[360px] flex-col gap-1 overflow-y-auto pr-1">
+              <div className="scroll-thin mt-3 flex max-h-96 flex-col gap-1 overflow-y-auto pr-1">
                 {matching.length === 0 && <p className="py-3 text-sm text-espresso/60">No marker matches that.</p>}
                 {matching.map((m) => {
                   const isSelected = selected.includes(m.markerId);
@@ -179,7 +180,7 @@ export function TrendsPage() {
                           <span className="block">
                             <span className="block font-medium text-espresso">{m.name}</span>
                             <span className="tabular block text-xs text-espresso/60">
-                              {m.resultCount} results · latest {m.value} {m.unit}
+                              {m.resultCount} results · latest {m.valueText ?? m.value} {m.unit}
                             </span>
                           </span>
                         }
@@ -199,22 +200,24 @@ export function TrendsPage() {
 
           <div>
             {selected.length === 0 ? (
-              <Card className="flex min-h-[340px] flex-col items-center justify-center text-center">
+              // Same min-height as the loading and chart panels beside it, so
+              // choosing a first marker never jumps the layout.
+              <Card className="flex min-h-96 flex-col items-center justify-center text-center">
                 <p className="font-display text-3xl text-espresso">Pick a marker to begin</p>
-                <p className="mt-3 max-w-md text-[15px] leading-relaxed text-espresso/80">
+                <p className="mt-3 max-w-md text-reading leading-relaxed text-espresso/80">
                   Choose two or three from the list, or start with one of the common comparisons. Each marker is
                   plotted against its own reference range, so markers measured in different units can share one chart.
                 </p>
               </Card>
             ) : loadingSeries || series === null ? (
-              <Card aria-busy="true" aria-label="Loading chart">
-                <Skeleton className="h-[300px] w-full" />
+              <Card aria-busy="true" aria-label="Loading chart" className="min-h-96">
+                <Skeleton className="h-80 w-full" />
               </Card>
             ) : series.length === 0 ? (
-              <Card>
-                <p className="font-display text-2xl text-espresso">Nothing to plot</p>
-                <p className="mt-2 text-sm text-espresso/80">We couldn't find released results for that selection.</p>
-              </Card>
+              <EmptyState
+                title="Nothing to plot"
+                description="We couldn't find released results for that selection. Try a different marker, or clear the selection and start again."
+              />
             ) : (
               <>
                 <Card>
@@ -227,21 +230,23 @@ export function TrendsPage() {
                 </Card>
 
                 <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2">
-                  {series.map((s) => {
+                  {series.map((s, i) => {
                     const last = s.points[s.points.length - 1];
                     const first = s.points[0];
                     return (
-                      <Link key={s.markerId} to={`/markers/${s.markerId}`} className="rounded-card">
-                        <Card interactive className="h-full !p-5 sm:!p-6">
-                          <p className="font-display text-xl leading-tight text-espresso">{s.name}</p>
-                          <p className="tabular mt-2 text-sm text-espresso">
-                            {first.value} → {last.value} {s.unit}
-                          </p>
-                          <p className="mt-1 text-xs text-espresso/70">
-                            {formatDate(first.sampleDate)} to {formatDate(last.sampleDate)} · {statusLabel(last.status)}
-                          </p>
-                        </Card>
-                      </Link>
+                      <Reveal key={s.markerId} delay={staggerDelay(i)} className="h-full">
+                        <Link to={`/markers/${s.markerId}`} className="block h-full rounded-card">
+                          <Card interactive padding="tight" className="h-full">
+                            <p className="font-display text-xl leading-tight text-espresso">{s.name}</p>
+                            <p className="tabular mt-2 text-sm text-espresso">
+                              {first.value} → {last.value} {s.unit}
+                            </p>
+                            <p className="mt-1 text-xs text-espresso/70">
+                              {formatDate(first.sampleDate)} to {formatDate(last.sampleDate)} · {statusLabel(last.status)}
+                            </p>
+                          </Card>
+                        </Link>
+                      </Reveal>
                     );
                   })}
                 </div>

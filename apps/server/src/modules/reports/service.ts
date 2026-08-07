@@ -1,5 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import { prisma } from '../../db/client.js';
 import { encryptField, decryptField } from '../../lib/crypto.js';
+import { decodeResultValue } from '../../lib/resultValue.js';
 import { computeMarkerStatus } from '../../lib/markerStatus.js';
 import { recordAuditLog } from '../../lib/auditLog.js';
 import { sourceLabel } from '../../lib/sourceLabel.js';
@@ -194,57 +196,82 @@ export async function verifyReport(
   const markerById = new Map(markers.map((m) => [m.id, m]));
   const patientSex = report.patient.patientProfile?.sex ?? 'ANY';
 
-  await prisma.$transaction(async (tx) => {
-    await tx.reportResult.deleteMany({ where: { reportId } });
+  // Rows are computed up front and written with two createMany calls (ids
+  // generated here so results can reference their ranges without a round
+  // trip in between). The previous shape — two creates per marker inside one
+  // interactive transaction — was ~85 sequential round trips for a 40-marker
+  // report, which a managed database on the other side of a network can push
+  // past Prisma's 5s interactive-transaction default (P2028) on an ordinary
+  // bad-latency day. Same rows, same statuses, a handful of round trips.
+  const verifiedAt = new Date();
+  const rangeRows: {
+    id: string;
+    markerId: string;
+    sex: typeof patientSex;
+    unit: string;
+    low: number;
+    high: number;
+    source: string;
+  }[] = [];
+  const resultRows: {
+    reportId: string;
+    markerId: string;
+    valueEncrypted: string;
+    unit: string;
+    referenceRangeId: string;
+    status: ReturnType<typeof computeMarkerStatus>;
+  }[] = [];
 
-    for (const row of input.results) {
-      const marker = markerById.get(row.markerId);
-      if (!marker) throw new ReportError(`Unknown marker ${row.markerId}`, 400);
+  for (const row of input.results) {
+    const marker = markerById.get(row.markerId);
+    if (!marker) throw new ReportError(`Unknown marker ${row.markerId}`, 400);
 
-      // Phase 2 §2.3: the range is sourced from THIS report/source, never
-      // assumed from the marker's fallback — recorded per verification,
-      // every time, even on re-verify after changes are requested.
-      const referenceRange = await tx.referenceRange.create({
-        data: {
-          markerId: marker.id,
-          sex: patientSex,
-          unit: row.unit,
-          low: row.referenceLow,
-          high: row.referenceHigh,
-          source: `${report.source.name}, verified ${new Date().toISOString().slice(0, 10)} (report ${reportId})`,
-        },
-      });
+    // Phase 2 §2.3: the range is sourced from THIS report/source, never
+    // assumed from the marker's fallback — recorded per verification,
+    // every time, even on re-verify after changes are requested.
+    const rangeId = randomUUID();
+    rangeRows.push({
+      id: rangeId,
+      markerId: marker.id,
+      sex: patientSex,
+      unit: row.unit,
+      low: row.referenceLow,
+      high: row.referenceHigh,
+      source: `${report.source.name}, verified ${verifiedAt.toISOString().slice(0, 10)} (report ${reportId})`,
+    });
 
-      const status = computeMarkerStatus(
-        row.value,
-        row.referenceLow,
-        row.referenceHigh,
-        marker.severityMultiplier,
-        marker.severityAbsoluteDelta,
-      );
+    // A textual result ("< 0.6", "Not detected") has no position against the
+    // numeric range, so it is never flagged — IN_RANGE here means "not
+    // flagged", and anything that needs flagging must be entered as a number.
+    const status =
+      typeof row.value === 'number'
+        ? computeMarkerStatus(row.value, row.referenceLow, row.referenceHigh, marker.severityMultiplier, marker.severityAbsoluteDelta)
+        : 'IN_RANGE';
 
-      await tx.reportResult.create({
-        data: {
-          reportId,
-          markerId: marker.id,
-          valueEncrypted: encryptField(String(row.value)),
-          unit: row.unit,
-          referenceRangeId: referenceRange.id,
-          status,
-        },
-      });
-    }
+    resultRows.push({
+      reportId,
+      markerId: marker.id,
+      valueEncrypted: encryptField(String(row.value)),
+      unit: row.unit,
+      referenceRangeId: rangeId,
+      status,
+    });
+  }
 
-    await tx.report.update({
+  await prisma.$transaction([
+    prisma.reportResult.deleteMany({ where: { reportId } }),
+    prisma.referenceRange.createMany({ data: rangeRows }),
+    prisma.reportResult.createMany({ data: resultRows }),
+    prisma.report.update({
       where: { id: reportId },
       data: {
         status: 'ADMIN_VERIFIED',
         sampleDate: new Date(input.sampleDate),
         verifiedById: actorUserId,
-        verifiedAt: new Date(),
+        verifiedAt,
       },
-    });
-  });
+    }),
+  ]);
 
   await recordAuditLog({
     actorUserId,
@@ -468,7 +495,7 @@ export async function getReportDetail(reportId: string) {
     })),
     results: report.results.map((r) => ({
       ...r,
-      value: Number(decryptField(r.valueEncrypted)),
+      ...decodeResultValue(decryptField(r.valueEncrypted)),
       edits: r.edits.map((e) => ({
         id: e.id,
         previousValue: Number(decryptField(e.previousValueEncrypted)),

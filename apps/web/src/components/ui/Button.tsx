@@ -113,7 +113,7 @@ export function Button({
   const button = (
     <button
       type={type}
-      className={`relative inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full px-6 py-2.5 font-display text-sm tracking-wide transition duration-150 ease-out active:scale-[0.98] active:duration-0 disabled:cursor-not-allowed disabled:opacity-50 ${
+      className={`relative inline-flex min-h-tap items-center justify-center gap-2 rounded-full px-6 py-2.5 font-display text-sm tracking-wide transition duration-150 ease-out active:scale-[0.98] active:duration-0 disabled:cursor-not-allowed disabled:opacity-50 ${
         explainDisabled ? 'cursor-not-allowed opacity-50' : ''
       } ${VARIANTS[variant]} ${className}`}
       disabled={explainDisabled ? undefined : disabled || loading}

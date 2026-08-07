@@ -5,6 +5,9 @@ import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Skeleton } from '../../components/ui/Skeleton';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { Reveal } from '../../components/motion/Reveal';
+import { staggerDelay } from '../../components/motion/stagger';
 import { ArrowRightIcon } from '../../components/nav/patientIcons';
 import { apiFetch } from '../../lib/api';
 import type { LibraryEntry } from '../../lib/patientPortal';
@@ -47,7 +50,7 @@ function LibraryCard({ entry }: { entry: LibraryEntry }) {
   const panelId = useId();
 
   return (
-    <Card className="!p-0">
+    <Card padding="none">
       <h3>
         <button
           type="button"
@@ -73,9 +76,9 @@ function LibraryCard({ entry }: { entry: LibraryEntry }) {
       {open && (
         <div id={panelId} className="border-t border-taupe px-5 pb-6 pt-5 sm:px-6">
           {entry.explanation.pending ? (
-            <p className="text-[15px] leading-relaxed text-espresso/80">{entry.explanation.whatItIs}</p>
+            <p className="text-reading leading-relaxed text-espresso/80">{entry.explanation.whatItIs}</p>
           ) : (
-            <div className="flex max-w-2xl flex-col gap-5 text-[15px] leading-relaxed text-espresso">
+            <div className="flex max-w-2xl flex-col gap-5 text-reading leading-relaxed text-espresso">
               <p>{entry.explanation.whatItIs}</p>
               {entry.explanation.highMeans && (
                 <div>
@@ -144,7 +147,7 @@ export function MarkerLibraryPage() {
       {entries === null ? (
         <div className="mt-10 flex flex-col gap-4" aria-busy="true" aria-label="Loading the marker library">
           {[0, 1, 2, 3, 4, 5].map((i) => (
-            <Card key={i} className="!p-5 sm:!p-6">
+            <Card key={i} padding="tight">
               <Skeleton className="h-5 w-56" />
               <Skeleton className="mt-3 h-3 w-40" />
             </Card>
@@ -176,16 +179,18 @@ export function MarkerLibraryPage() {
           </p>
 
           {visible.length === 0 ? (
-            <Card className="mt-4 max-w-2xl">
-              <p className="font-display text-2xl text-espresso">Nothing matches</p>
-              <p className="mt-2 text-sm text-espresso/80">
-                Try a different spelling, or switch “Show” back to every marker.
-              </p>
-            </Card>
+            <div className="mt-4 max-w-2xl">
+              <EmptyState
+                title="Nothing matches"
+                description="Try a different spelling, or switch “Show” back to every marker."
+              />
+            </div>
           ) : (
             <div className="mt-4 flex flex-col gap-4">
-              {visible.map((entry) => (
-                <LibraryCard key={entry.markerId} entry={entry} />
+              {visible.map((entry, i) => (
+                <Reveal key={entry.markerId} delay={staggerDelay(i)}>
+                  <LibraryCard entry={entry} />
+                </Reveal>
               ))}
             </div>
           )}

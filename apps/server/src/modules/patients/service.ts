@@ -1,5 +1,6 @@
 import { prisma } from '../../db/client.js';
 import { decryptField } from '../../lib/crypto.js';
+import { decodeResultValue } from '../../lib/resultValue.js';
 import { recordAuditLog } from '../../lib/auditLog.js';
 import { sourceLabel } from '../../lib/sourceLabel.js';
 import { convertToDisplayUnit, hasKnownConversion } from '../../lib/unitConversion.js';
@@ -74,7 +75,9 @@ export async function getReleasedReportForPatient(patientId: string, reportId: s
     markers: report.results.map((r) => ({
       markerId: r.markerId,
       name: r.marker.name,
-      value: Number(decryptField(r.valueEncrypted)),
+      // value/valueText — exactly one is set; textual lab results ("< 0.6",
+      // "Not detected") are shown verbatim rather than coerced to NaN.
+      ...decodeResultValue(decryptField(r.valueEncrypted)),
       unit: r.unit,
       referenceLow: r.referenceRange.low,
       referenceHigh: r.referenceRange.high,
@@ -110,11 +113,14 @@ export async function getMarkerTrendForPatient(patientId: string, markerId: stri
   const displayUnit = marker.defaultUnit;
   let allConvertible = true;
 
-  const trend = results.map((r) => {
-    const rawValue = Number(decryptField(r.valueEncrypted));
-    const valueConversion = convertToDisplayUnit(marker.key, rawValue, r.unit, displayUnit);
+  const allPoints = results.map((r) => {
+    const decoded = decodeResultValue(decryptField(r.valueEncrypted));
+    // A textual result has nothing to convert and nothing to plot — it is
+    // carried through verbatim and excluded from the chart series below.
+    const valueConversion =
+      decoded.value !== null ? convertToDisplayUnit(marker.key, decoded.value, r.unit, displayUnit) : null;
     const rangeConvertible = hasKnownConversion(marker.key, r.referenceRange.unit, displayUnit);
-    if (r.unit !== displayUnit && !valueConversion.converted) allConvertible = false;
+    if (valueConversion && r.unit !== displayUnit && !valueConversion.converted) allConvertible = false;
     if (r.referenceRange.unit !== displayUnit && !rangeConvertible) allConvertible = false;
 
     const lowConversion = convertToDisplayUnit(marker.key, r.referenceRange.low, r.referenceRange.unit, displayUnit);
@@ -123,11 +129,12 @@ export async function getMarkerTrendForPatient(patientId: string, markerId: stri
     return {
       reportId: r.reportId,
       sampleDate: r.report.sampleDate.toISOString().slice(0, 10),
-      value: valueConversion.value,
-      unit: valueConversion.unit,
-      converted: valueConversion.converted,
-      originalValue: valueConversion.originalValue,
-      originalUnit: valueConversion.originalUnit,
+      value: valueConversion ? valueConversion.value : null,
+      valueText: decoded.valueText,
+      unit: valueConversion ? valueConversion.unit : r.unit,
+      converted: valueConversion?.converted ?? false,
+      originalValue: valueConversion ? valueConversion.originalValue : null,
+      originalUnit: valueConversion ? valueConversion.originalUnit : r.unit,
       status: r.status,
       referenceLow: lowConversion.value,
       referenceHigh: highConversion.value,
@@ -137,13 +144,17 @@ export async function getMarkerTrendForPatient(patientId: string, markerId: stri
     };
   });
 
+  // The chart plots numbers; textual results stay visible on the report page
+  // and in `latest` below but can't be a point on a line.
+  const trend = allPoints.filter((p) => p.value !== null);
+
   // Final flag: the admin/marker-config setting AND actual convertibility
   // both have to hold. A marker can be flagged comparable in principle but
   // still fail here if a specific pair of units has no registered rule —
   // we never draw a line across values we can't honestly relate.
   const crossSourceComparable = marker.crossSourceComparable && allConvertible;
 
-  const latest = trend[trend.length - 1];
+  const latest = allPoints[allPoints.length - 1];
 
   let outOfRangeNotice: string | null = null;
   if (latest.status !== 'IN_RANGE') {
@@ -160,6 +171,7 @@ export async function getMarkerTrendForPatient(patientId: string, markerId: stri
       markerId: marker.id,
       name: marker.name,
       value: latest.value,
+      valueText: latest.valueText,
       unit: latest.unit,
       referenceLow: latest.referenceLow,
       referenceHigh: latest.referenceHigh,

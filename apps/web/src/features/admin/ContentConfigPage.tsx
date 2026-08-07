@@ -191,7 +191,19 @@ function PanelsAndMarkersTab() {
     }
   }
 
-  if (!panels || !markers) return <Skeleton className="h-64 w-full" />;
+  if (!panels || !markers) {
+    return (
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2" aria-busy="true" aria-label="Loading panels">
+        {[0, 1].map((i) => (
+          <Card key={i}>
+            <Skeleton className="h-5 w-48" />
+            <Skeleton className="mt-4 h-4 w-full" />
+            <Skeleton className="mt-2 h-4 w-3/4" />
+          </Card>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -400,7 +412,14 @@ function ExplanationsTab() {
     }
   }
 
-  if (!markers) return <Skeleton className="h-64 w-full" />;
+  if (!markers) {
+    return (
+      <Card className="max-w-md" aria-busy="true" aria-label="Loading markers">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="mt-3 h-11 w-full" />
+      </Card>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -517,7 +536,18 @@ function CopyBlocksTab() {
     }
   }
 
-  if (!blocks) return <Skeleton className="h-64 w-full" />;
+  if (!blocks) {
+    return (
+      <div className="flex flex-col gap-6" aria-busy="true" aria-label="Loading copy blocks">
+        {[0, 1].map((i) => (
+          <Card key={i}>
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="mt-4 h-32 w-full" />
+          </Card>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">

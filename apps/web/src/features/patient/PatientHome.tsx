@@ -5,6 +5,9 @@ import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { LinkButton } from '../../components/ui/LinkButton';
+import { Reveal } from '../../components/motion/Reveal';
+import { staggerDelay } from '../../components/motion/stagger';
 import { apiFetch } from '../../lib/api';
 
 interface ReportSummary {
@@ -28,7 +31,7 @@ interface ReportSummary {
  * Space is added on top, because a card reads as a button-sized target and
  * users press Space on it; an anchor alone would scroll the page instead.
  */
-function ReleasedReportCard({ report, index }: { report: ReportSummary; index: number }) {
+function ReleasedReportCard({ report }: { report: ReportSummary }) {
   const navigate = useNavigate();
   const to = `/reports/${report.reportId}`;
   const title = report.title;
@@ -52,8 +55,7 @@ function ReleasedReportCard({ report, index }: { report: ReportSummary; index: n
       }}
       onKeyDown={handleKeyDown}
       aria-label={`${title}, sample taken ${formatDate(report.sampleDate)}`}
-      className="stagger-item block rounded-card motion-safe:animate-riseIn focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
-      style={{ animationDelay: `${index * 30}ms` }}
+      className="block h-full rounded-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
     >
       <Card interactive className="flex h-full flex-col">
         <p className="eyebrow mb-2">{formatDate(report.sampleDate)}</p>
@@ -71,13 +73,9 @@ function ReleasedReportCard({ report, index }: { report: ReportSummary; index: n
 }
 
 /** Not released yet: says so plainly and looks inert, rather than looking clickable and doing nothing. */
-function PendingReportCard({ report, index }: { report: ReportSummary; index: number }) {
+function PendingReportCard({ report }: { report: ReportSummary }) {
   return (
-    <Card
-      inert
-      className="stagger-item flex h-full flex-col motion-safe:animate-riseIn"
-      style={{ animationDelay: `${index * 30}ms` }}
-    >
+    <Card inert className="flex h-full flex-col">
       <p className="eyebrow mb-2">{formatDate(report.sampleDate)}</p>
       <p className="font-display text-3xl leading-tight text-espresso">
         {report.title}
@@ -157,25 +155,16 @@ export function PatientHome() {
           <EmptyState
             title="Nothing here yet, and that's exactly right"
             description="Your account is set up and waiting. Once you've had a sample taken, the clinic matches the result to you and a clinician reviews it. Then your first panel appears here."
-            action={
-              <Link
-                to="/overview"
-                className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-taupe px-5 py-2.5 text-sm font-medium text-espresso transition duration-150 ease-out hover:border-bronze"
-              >
-                What happens next
-              </Link>
-            }
+            action={<LinkButton to="/overview">What happens next</LinkButton>}
           />
         </div>
       ) : (
         <div className="mt-10 grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3">
-          {reports.map((r, i) =>
-            r.patientStatus === 'RELEASED' ? (
-              <ReleasedReportCard key={r.reportId} report={r} index={i} />
-            ) : (
-              <PendingReportCard key={r.reportId} report={r} index={i} />
-            ),
-          )}
+          {reports.map((r, i) => (
+            <Reveal key={r.reportId} delay={staggerDelay(i)} className="h-full">
+              {r.patientStatus === 'RELEASED' ? <ReleasedReportCard report={r} /> : <PendingReportCard report={r} />}
+            </Reveal>
+          ))}
         </div>
       )}
     </>

@@ -113,7 +113,9 @@ export async function generateAspireSummaryPdf(reportId: string): Promise<Buffer
   for (const r of report.results) {
     const cells = [
       r.marker.name,
-      String(Number(decryptField(r.valueEncrypted))),
+      // Numeric or textual ("< 0.6") — the decrypted string is already the
+      // display form for both.
+      decryptField(r.valueEncrypted).trim(),
       r.unit,
       `${r.referenceRange.low}–${r.referenceRange.high}`,
       STATUS_LABEL[r.status] ?? r.status,

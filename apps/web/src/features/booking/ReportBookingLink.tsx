@@ -41,7 +41,7 @@ export function ReportBookingLink({ reportId }: { reportId: string }) {
   return (
     <Link
       to={`/appointments/${appointment.id}`}
-      className="mt-4 inline-flex min-h-[44px] items-center gap-2 rounded-full border border-taupe bg-white px-4 py-2 text-sm text-espresso transition duration-150 ease-out hover:border-bronze"
+      className="mt-4 inline-flex min-h-tap items-center gap-2 rounded-full border border-taupe bg-white px-4 py-2 text-sm text-espresso transition duration-150 ease-out hover:border-bronze"
     >
       <CalendarIcon className="shrink-0 text-bronze-700" />
       <span className="tabular">

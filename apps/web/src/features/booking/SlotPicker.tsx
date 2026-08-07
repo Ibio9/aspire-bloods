@@ -126,7 +126,7 @@ export function SlotPicker({
           }
           disabled={!canGoBack}
           aria-label="Show the previous week"
-          className="inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-full border border-taupe bg-white px-4 text-sm font-medium text-espresso transition duration-150 ease-out hover:border-bronze disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-taupe"
+          className="inline-flex min-h-tap shrink-0 items-center gap-1.5 rounded-full border border-taupe bg-white px-4 text-sm font-medium text-espresso transition duration-150 ease-out hover:border-bronze disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-taupe"
         >
           <ChevronLeftIcon />
           <span className="hidden sm:inline">Earlier</span>
@@ -139,7 +139,7 @@ export function SlotPicker({
           type="button"
           onClick={() => setWeekStart((w) => addDays(w, WINDOW_DAYS))}
           aria-label="Show the next week"
-          className="inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-full border border-taupe bg-white px-4 text-sm font-medium text-espresso transition duration-150 ease-out hover:border-bronze"
+          className="inline-flex min-h-tap shrink-0 items-center gap-1.5 rounded-full border border-taupe bg-white px-4 text-sm font-medium text-espresso transition duration-150 ease-out hover:border-bronze"
         >
           <span className="hidden sm:inline">Later</span>
           <ChevronRightIcon />
@@ -336,7 +336,7 @@ function SlotChip({
         className="pointer-events-none absolute inset-0 rounded-input border border-taupe bg-white transition duration-150 ease-out peer-hover:border-bronze/60 peer-checked:border-2 peer-checked:border-bronze peer-checked:bg-bronze-50 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-bronze peer-disabled:border-taupe peer-disabled:bg-cream-200"
       />
       <span
-        className={`tabular relative text-[15px] ${
+        className={`tabular relative text-reading ${
           blocked ? 'text-espresso/55' : checked ? 'font-semibold text-bronze-700' : 'font-medium text-espresso'
         }`}
       >

@@ -139,11 +139,11 @@ export function ClinicContactCard({ className = '' }: { className?: string }) {
   return (
     <div className={`card p-6 sm:p-8 ${className}`}>
       <p className="eyebrow mb-3">Talk to someone</p>
-      <p className="text-[15px] leading-relaxed text-espresso">
+      <p className="text-reading leading-relaxed text-espresso">
         Your GP knows your full history and is the right first call about any result. The Aspire clinical team can
         also talk you through what you're looking at.
       </p>
-      <ul className="mt-5 flex flex-col gap-3 text-[15px] text-espresso">
+      <ul className="mt-5 flex flex-col gap-3 text-reading text-espresso">
         {contact.phone && (
           <li className="flex items-center gap-2.5">
             <PhoneIcon className="shrink-0 text-bronze-700" />

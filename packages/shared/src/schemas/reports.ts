@@ -3,7 +3,12 @@ import { z } from 'zod';
 export const verifiedResultRowSchema = z
   .object({
     markerId: z.string().uuid(),
-    value: z.number(),
+    // Usually a number. A string is a textual lab result — a censored value
+    // ("< 0.6", below the assay's detection limit) or a qualitative outcome
+    // ("Not detected"). Textual results carry no position against the numeric
+    // range, so they are never flagged; anything that needs flagging must be
+    // entered as a number.
+    value: z.union([z.number(), z.string().trim().min(1)]),
     unit: z.string().min(1),
     referenceLow: z.number(),
     referenceHigh: z.number(),

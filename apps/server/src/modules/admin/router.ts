@@ -30,6 +30,7 @@ import {
   unlinkResult,
   dismissUnmatchedResult,
 } from './linkingService.js';
+import { runDemoSeed } from './demoSeedService.js';
 
 export const adminRouter = Router();
 
@@ -128,6 +129,28 @@ adminRouter.get(
   '/demo-seed',
   asyncHandler(async (_req, res) => {
     res.json(await getLastDemoSeedRun());
+  }),
+);
+
+// One-shot re-run of the demo seed against this deployment — the break-glass
+// path when demo data has gone missing and nobody wants to redeploy to find
+// out why. Synthetic data only ever lands on the single demo account, the
+// run is idempotent (it replaces the demo reports, never stacks them), and
+// its outcome is recorded to the same DemoSeedRun row the dashboard shows.
+adminRouter.post(
+  '/demo-seed/run',
+  roleGuard('ADMIN'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    await recordAuditLog({
+      actorUserId: req.user!.id,
+      action: 'DEMO_SEED_TRIGGERED',
+      targetType: 'DemoSeedRun',
+      targetId: 'last',
+      ipAddress: req.ip ?? null,
+    });
+    const summary = await runDemoSeed({ trigger: 'admin' });
+    res.status(summary.outcome === 'FAILED' ? 500 : 200).json(summary);
   }),
 );
 

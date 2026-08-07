@@ -88,7 +88,9 @@ interface VerifiedResult {
   id: string;
   markerId: string;
   marker: { name: string };
-  value: number;
+  // Null when the stored result is textual — valueText carries it verbatim.
+  value: number | null;
+  valueText?: string | null;
   unit: string;
   status: 'IN_RANGE' | 'HIGH' | 'LOW' | 'SIGNIFICANT_HIGH' | 'SIGNIFICANT_LOW';
   referenceRange: { low: number; high: number };
@@ -315,7 +317,7 @@ export function ReportDetailPage() {
       {/* Negative margin has to track the shell's own padding scale (px-5 / sm:px-8 /
           md:px-14), or the bar hangs past the viewport edge — it was -mx-6 against
           20px of mobile padding, which scrolled the page 4px sideways. */}
-      <div className="sticky top-[61px] z-20 -mx-5 mb-4 border-b border-taupe bg-cream/95 px-5 py-2.5 backdrop-blur sm:-mx-8 sm:px-8 md:-mx-10 md:px-10">
+      <div className="sticky top-topbar z-20 -mx-5 mb-4 border-b border-taupe bg-cream/95 px-5 py-2.5 backdrop-blur sm:-mx-8 sm:px-8 md:-mx-14 md:px-14">
         <p className="truncate text-sm font-medium text-espresso">
           {patientName} <span className="text-espresso/50">·</span> {report.title}{' '}
           <span className="text-espresso/50">·</span> <span className="tabular">{sampleDateLabel}</span>
@@ -582,7 +584,7 @@ export function ReportDetailPage() {
               <Card key={r.markerId}>
                 <p className="font-medium text-espresso">{r.marker.name}</p>
                 <p className="tabular text-lg text-espresso">
-                  {r.value} {r.unit}
+                  {r.valueText ?? r.value} {r.unit}
                 </p>
                 <p className="tabular text-sm text-espresso/80">
                   Range: {r.referenceRange.low}–{r.referenceRange.high}
@@ -599,7 +601,7 @@ export function ReportDetailPage() {
                     className="mt-2"
                     onClick={() => {
                       setEditingResult(r);
-                      setEditValue(String(r.value));
+                      setEditValue(r.value === null ? '' : String(r.value));
                       setEditUnit(r.unit);
                     }}
                   >
@@ -676,7 +678,7 @@ export function ReportDetailPage() {
             <div className="mt-4 grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
                 <label htmlFor="edit-value" className="text-sm font-medium text-espresso">
-                  New value (currently {editingResult.value} {editingResult.unit})
+                  New value (currently {editingResult.valueText ?? editingResult.value} {editingResult.unit})
                 </label>
                 <input
                   id="edit-value"

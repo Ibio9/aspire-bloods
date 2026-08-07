@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { formatDateTime } from '@aspire-bloods/shared';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Button } from '../../components/ui/Button';
 import { Skeleton } from '../../components/ui/Skeleton';
@@ -57,7 +58,7 @@ export function IngestionLogPage() {
   return (
     <>
       <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Ingestion log" />
-      <p className="mt-3 max-w-prose text-sm text-espresso/80">
+      <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
         Every attempt to pull a result in automatically from Randox's API, successful or not. Ingestion only ever
         reaches admin-verified; a clinician still has to review and release before a patient sees anything.
       </p>
@@ -69,12 +70,12 @@ export function IngestionLogPage() {
           ))}
         </div>
       ) : rows.length === 0 ? (
-        <div className="mt-10">
+        <div className="mt-6">
           <EmptyState title="No ingestion attempts yet" description="Entries appear here once automated ingestion is active." />
         </div>
       ) : (
         <>
-          <div className="mt-6 overflow-x-auto">
+          <div className="mt-6">
             <Table>
               <TableHead>
                 <TableRow>
@@ -88,7 +89,7 @@ export function IngestionLogPage() {
               <TableBody>
                 {rows.map((r) => (
                   <TableRow key={r.id}>
-                    <TableCell className="tabular whitespace-nowrap">{new Date(r.createdAt).toLocaleString('en-GB')}</TableCell>
+                    <TableCell className="tabular whitespace-nowrap">{formatDateTime(r.createdAt)}</TableCell>
                     <TableCell>
                       <span className={r.outcome === 'INGESTED' ? 'text-espresso' : 'font-medium text-status-high'}>
                         {OUTCOME_LABEL[r.outcome]}

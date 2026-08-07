@@ -43,7 +43,11 @@ export interface PanelCardDTO {
 export interface MarkerCardDTO {
   markerId: string;
   name: string;
-  value: number;
+  // Null when the lab reported text rather than a number — valueText then
+  // carries the verbatim result ("< 0.6", "Not detected"). Exactly one of
+  // the two is set.
+  value: number | null;
+  valueText?: string | null;
   unit: string;
   referenceLow: number;
   referenceHigh: number;

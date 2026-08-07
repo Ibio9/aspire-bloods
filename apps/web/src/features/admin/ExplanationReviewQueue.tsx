@@ -115,7 +115,18 @@ export function ExplanationReviewQueue() {
     }
   }
 
-  if (!rows) return <Skeleton className="h-64 w-full" />;
+  if (!rows) {
+    return (
+      <div className="flex flex-col gap-4" aria-busy="true" aria-label="Loading review queue">
+        {[0, 1, 2].map((i) => (
+          <Card key={i} padding="tight">
+            <Skeleton className="h-5 w-56" />
+            <Skeleton className="mt-3 h-4 w-full" />
+          </Card>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-7">
@@ -149,7 +160,7 @@ export function ExplanationReviewQueue() {
                 type="button"
                 onClick={() => setFilter(f)}
                 aria-pressed={filter === f}
-                className={`min-h-[36px] rounded-full px-4 text-sm font-medium transition duration-150 ease-out ${
+                className={`min-h-tap rounded-full px-4 text-sm font-medium transition duration-150 ease-out ${
                   filter === f ? 'bg-bronze text-white shadow-btn' : 'text-espresso hover:bg-cream-200'
                 }`}
               >
@@ -173,7 +184,7 @@ export function ExplanationReviewQueue() {
         <>
           {/* Sticky action bar: with 60 markers on screen the controls have to
               stay reachable without scrolling back to the top. */}
-          <div className="sticky top-[61px] z-10 flex flex-wrap items-center gap-4 rounded-card border border-taupe bg-cream-50/95 px-5 py-4 shadow-card backdrop-blur">
+          <div className="sticky top-topbar z-10 flex flex-wrap items-center gap-4 rounded-card border border-taupe bg-cream-50/95 px-5 py-4 shadow-card backdrop-blur">
             <Checkbox
               name="select-all"
               checked={allOnPageSelected}

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { formatDate, type MarkerReviewStatus, type MarkerStatus } from '@aspire-bloods/shared';
 import { Breadcrumbs } from '../../components/nav/Breadcrumbs';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
+import { LinkButton } from '../../components/ui/LinkButton';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { RangeBar } from '../../components/ui/RangeBar';
 import { TrendChart } from '../../components/ui/TrendChart';
@@ -34,7 +35,9 @@ interface MarkerDetail {
   unit: string;
   crossSourceComparable: boolean;
   latest: {
-    value: number;
+    // Null when the latest result is textual — valueText carries it verbatim.
+    value: number | null;
+    valueText?: string | null;
     unit: string;
     referenceLow: number;
     referenceHigh: number;
@@ -78,17 +81,14 @@ export function MarkerDetailPage() {
       <>
         <Breadcrumbs items={[{ label: 'Overview', to: '/overview' }, { label: 'All markers', to: '/markers' }, { label: 'Not available' }]} />
         <TwoTierHeading eyebrow="Marker detail" title="We couldn't open that marker" />
-        <Card className="mt-8 max-w-xl">
+        <Card className="mt-10 max-w-xl">
           <p className="text-sm leading-relaxed text-espresso/90">
             You may not have a released result for this marker yet, or the link may be out of date. Everything you
             have had tested is listed under All markers.
           </p>
-          <Link
-            to="/markers"
-            className="mt-6 inline-flex min-h-[44px] items-center rounded-full border border-taupe px-5 py-2.5 text-sm font-medium text-espresso transition duration-150 ease-out hover:border-bronze"
-          >
+          <LinkButton to="/markers" className="mt-6">
             See all markers
-          </Link>
+          </LinkButton>
         </Card>
       </>
     );
@@ -98,8 +98,8 @@ export function MarkerDetailPage() {
     return (
       <div aria-busy="true" aria-label="Loading marker detail">
         <Skeleton className="h-4 w-28" />
-        <Skeleton className="mt-3 h-9 w-64" />
-        <div className="mt-12 grid grid-cols-1 gap-7 lg:grid-cols-2">
+        <Skeleton className="mt-3 h-12 w-64" />
+        <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
           <Card>
             <Skeleton className="h-4 w-24" />
             <Skeleton className="mt-3 h-10 w-32" />
@@ -177,10 +177,16 @@ export function MarkerDetailPage() {
           <p className="eyebrow mb-5">Latest result</p>
           {/* The value is the loudest thing on the card by a clear step —
               large, tabular, unit smaller beside it. */}
-          <p className="tabular flex items-baseline gap-2 text-6xl font-semibold leading-none text-espresso">
-            {detail.latest.value}
+          {/* flex-wrap: a textual result ("Not detected") at display size must
+              wrap rather than push the unit and copy button out of the card. */}
+          <p className="tabular flex flex-wrap items-baseline gap-2 text-6xl font-semibold leading-none text-espresso">
+            {detail.latest.valueText ?? detail.latest.value}
             <span className="text-xl font-normal text-espresso/70">{detail.latest.unit}</span>
-            <CopyButton value={`${detail.latest.value} ${detail.latest.unit}`} label="Copy result value" className="ml-1" />
+            <CopyButton
+              value={`${detail.latest.valueText ?? detail.latest.value} ${detail.latest.unit}`}
+              label="Copy result value"
+              className="ml-1"
+            />
           </p>
           <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <StatusBadge status={detail.latest.status} />
@@ -192,14 +198,18 @@ export function MarkerDetailPage() {
             Reference range {detail.latest.referenceLow}–{detail.latest.referenceHigh} {detail.latest.unit}
           </p>
           <p className="mt-1 text-xs text-espresso/70">{detail.latest.sourceLabel}</p>
-          <div className="mt-8">
-            <RangeBar
-              value={detail.latest.value}
-              low={detail.latest.referenceLow}
-              high={detail.latest.referenceHigh}
-              status={detail.latest.status}
-            />
-          </div>
+          {/* A textual result has no position on a numeric scale — the bar
+              would be a guess, so it is simply not drawn. */}
+          {detail.latest.value !== null && (
+            <div className="mt-8">
+              <RangeBar
+                value={detail.latest.value}
+                low={detail.latest.referenceLow}
+                high={detail.latest.referenceHigh}
+                status={detail.latest.status}
+              />
+            </div>
+          )}
         </Card>
 
         <Card>

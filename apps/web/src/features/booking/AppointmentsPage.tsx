@@ -5,6 +5,8 @@ import { Card } from '../../components/ui/Card';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
+import { Reveal } from '../../components/motion/Reveal';
+import { staggerDelay } from '../../components/motion/stagger';
 import { bookingService } from '../../lib/booking/bookingService';
 import type { Appointment } from '../../lib/booking/types';
 import { AppointmentCard } from './AppointmentCard';
@@ -48,12 +50,12 @@ export function AppointmentsPage() {
         beforehand, or to move or cancel it.
       </p>
 
-      <div className="mt-8">
+      <div className="mt-10">
         <BookLink />
       </div>
 
       {failed && (
-        <Card className="mt-12 max-w-xl">
+        <Card className="mt-10 max-w-xl">
           <p className="font-display text-2xl text-espresso">We couldn't load your appointments</p>
           <p className="mt-2 text-sm leading-relaxed text-espresso/80">
             Please refresh the page. If it keeps happening, call the clinic. We can always tell you what's in the
@@ -63,15 +65,19 @@ export function AppointmentsPage() {
       )}
 
       {appointments === null && !failed && (
-        <div className="mt-14 grid grid-cols-1 gap-7 lg:grid-cols-2" aria-busy="true" aria-label="Loading your appointments">
-          {[0, 1].map((i) => (
-            <Card key={i}>
-              <Skeleton className="h-3 w-24" />
-              <Skeleton className="mt-3 h-8 w-48" />
-              <Skeleton className="mt-6 h-4 w-56" />
-              <Skeleton className="mt-3 h-4 w-40" />
-            </Card>
-          ))}
+        <div className="mt-14" aria-busy="true" aria-label="Loading your appointments">
+          {/* Shaped like what arrives: a section heading, then a card grid. */}
+          <Skeleton className="h-8 w-44" />
+          <div className="mt-7 grid grid-cols-1 gap-7 lg:grid-cols-2">
+            {[0, 1].map((i) => (
+              <Card key={i}>
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="mt-3 h-8 w-48" />
+                <Skeleton className="mt-6 h-4 w-56" />
+                <Skeleton className="mt-3 h-4 w-40" />
+              </Card>
+            ))}
+          </div>
         </div>
       )}
 
@@ -80,15 +86,7 @@ export function AppointmentsPage() {
           <EmptyState
             title="Nothing booked yet"
             description="When you book a blood test it will appear here, with everything you need to do beforehand and a way to move or cancel it."
-            action={
-              <Link
-                to="/book"
-                className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-bronze px-5 py-2.5 text-sm font-medium text-white transition duration-150 ease-out hover:bg-bronze-600"
-              >
-                <CalendarPlusIcon className="h-4 w-4" />
-                Book a test
-              </Link>
-            }
+            action={<BookLink />}
           />
         </div>
       )}
@@ -128,12 +126,14 @@ function Group({
       </h2>
       {items.length === 0 ? (
         empty ? (
-          <p className="mt-4 text-[15px] leading-relaxed text-espresso/85">{empty}</p>
+          <p className="mt-4 text-reading leading-relaxed text-espresso/85">{empty}</p>
         ) : null
       ) : (
         <div className="mt-7 grid grid-cols-1 gap-7 lg:grid-cols-2">
-          {items.map((a) => (
-            <AppointmentCard key={a.id} appointment={a} catalogue={catalogue} />
+          {items.map((a, i) => (
+            <Reveal key={a.id} delay={staggerDelay(i)} className="h-full">
+              <AppointmentCard appointment={a} catalogue={catalogue} />
+            </Reveal>
           ))}
         </div>
       )}
@@ -145,7 +145,7 @@ function BookLink() {
   return (
     <Link
       to="/book"
-      className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-bronze bg-btn-primary px-5 py-2.5 font-display text-sm tracking-wide text-white shadow-btn transition duration-150 ease-out hover:bg-bronze-600 hover:shadow-btn-hover motion-safe:hover:-translate-y-px"
+      className="inline-flex min-h-tap items-center gap-2 rounded-full bg-bronze bg-btn-primary px-5 py-2.5 font-display text-sm tracking-wide text-white shadow-btn transition duration-150 ease-out hover:bg-bronze-600 hover:shadow-btn-hover motion-safe:hover:-translate-y-px"
     >
       <CalendarPlusIcon className="h-4 w-4" />
       Book a test

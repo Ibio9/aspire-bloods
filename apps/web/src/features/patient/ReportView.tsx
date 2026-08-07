@@ -6,8 +6,11 @@ import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import type { MarkerNavState } from './markerNavState';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { LinkButton } from '../../components/ui/LinkButton';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { Skeleton } from '../../components/ui/Skeleton';
+import { Reveal } from '../../components/motion/Reveal';
+import { staggerDelay } from '../../components/motion/stagger';
 import { useToast } from '../../components/ui/Toast';
 import { apiFetch } from '../../lib/api';
 import { API_BASE_URL } from '../../lib/apiBase';
@@ -16,7 +19,10 @@ import { ReportBookingLink } from '../booking/ReportBookingLink';
 interface MarkerCard {
   markerId: string;
   name: string;
-  value: number;
+  // Exactly one of value/valueText is set — valueText carries a textual lab
+  // result ("< 0.6", "Not detected") verbatim.
+  value: number | null;
+  valueText?: string | null;
   unit: string;
   referenceLow: number;
   referenceHigh: number;
@@ -71,17 +77,14 @@ export function ReportView() {
       <>
         <Breadcrumbs items={[{ label: 'Overview', to: '/overview' }, { label: 'My results', to: '/my-results' }, { label: 'Not available' }]} />
         <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="We couldn't open that panel" />
-        <Card className="mt-8 max-w-xl">
+        <Card className="mt-10 max-w-xl">
           <p className="text-sm leading-relaxed text-espresso/90">
             This report may no longer be available, or the link may be out of date. Everything currently released to
             you is listed under My results.
           </p>
-          <Link
-            to="/my-results"
-            className="mt-6 inline-flex min-h-[44px] items-center rounded-full border border-taupe px-5 py-2.5 text-sm font-medium text-espresso transition duration-150 ease-out hover:border-bronze"
-          >
+          <LinkButton to="/my-results" className="mt-6">
             Back to my results
-          </Link>
+          </LinkButton>
         </Card>
       </>
     );
@@ -147,17 +150,18 @@ export function ReportView() {
           table row where everything competes at the same weight. */}
       <div className="mt-14 grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3">
         {report.markers.map((m, i) => (
+          <Reveal key={m.markerId} delay={staggerDelay(i, 30)} className="h-full">
           <Link
-            key={m.markerId}
             to={`/markers/${m.markerId}`}
             state={{ reportId: report.reportId, title: report.title, markerIds: report.markers.map((mk) => mk.markerId) } satisfies MarkerNavState}
-            className="stagger-item block rounded-card motion-safe:animate-riseIn focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
-            style={{ animationDelay: `${i * 30}ms` }}
+            className="block h-full rounded-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
           >
             <Card interactive className="flex h-full flex-col">
               <p className="eyebrow">{m.name}</p>
-              <p className="tabular mt-4 flex items-baseline gap-2 text-[2.75rem] font-semibold leading-none text-espresso">
-                {m.value}
+              {/* flex-wrap: a textual result ("Not detected") at display size
+                  must wrap under itself, not push the unit out of the card. */}
+              <p className="tabular mt-4 flex flex-wrap items-baseline gap-2 text-stat font-semibold leading-none text-espresso">
+                {m.valueText ?? m.value}
                 <span className="text-base font-normal text-espresso/70">{m.unit}</span>
               </p>
               <p className="tabular mt-3 text-xs text-espresso/70">
@@ -170,6 +174,7 @@ export function ReportView() {
               {m.gloss && <p className="mt-5 text-sm leading-relaxed text-espresso/90">{m.gloss}</p>}
             </Card>
           </Link>
+          </Reveal>
         ))}
       </div>
     </>

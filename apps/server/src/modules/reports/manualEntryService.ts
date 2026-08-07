@@ -27,6 +27,8 @@ function findImplausibleRows(
 ): ImplausibleFlag[] {
   const flags: ImplausibleFlag[] = [];
   for (const r of results) {
+    // A textual result ("< 0.6", "Not detected") has no magnitude to check.
+    if (typeof r.value !== 'number') continue;
     const width = r.referenceHigh - r.referenceLow || 1;
     const farBelow = r.value < r.referenceLow - width * 10;
     const farAbove = r.value > r.referenceHigh + width * 10;

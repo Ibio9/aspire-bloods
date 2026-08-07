@@ -108,14 +108,14 @@ export function BiologicalSexCard({ variant, onSaved }: Props) {
     <Card className={blocking ? 'border-bronze/60' : undefined}>
       <p className="eyebrow mb-3">{blocking ? HEADING.blocking : HEADING.account}</p>
 
-      <p className="text-[15px] leading-relaxed text-espresso">
+      <p className="text-reading leading-relaxed text-espresso">
         {editing
           ? 'Update the biological sex recorded on your account.'
           : blocking
             ? "We don't have your biological sex on file, and the laboratory can't accept an order without it."
             : "We don't have your biological sex on file. It's optional when you register, but it's worth adding."}
       </p>
-      <p className="mt-2 text-[15px] leading-relaxed text-espresso/80">{BIOLOGICAL_SEX_PURPOSE}</p>
+      <p className="mt-2 text-reading leading-relaxed text-espresso/80">{BIOLOGICAL_SEX_PURPOSE}</p>
       {!editing && !blocking && (
         <p className="mt-2 text-sm leading-relaxed text-espresso/70">
           Without it, any result whose range differs by sex will show its range as unavailable rather than showing

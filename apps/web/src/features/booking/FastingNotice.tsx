@@ -105,7 +105,7 @@ function FastingRequired({
             <h2 id={headingId} className="mt-4 font-display text-4xl leading-[1.08] sm:text-5xl">
               Nothing to eat after <span className="tabular">{deadlinePhrase(window.closeBy)}</span>
             </h2>
-            <p className="mt-5 max-w-2xl text-[15px] leading-relaxed text-cream/90">
+            <p className="mt-5 max-w-2xl text-reading leading-relaxed text-cream/90">
               {panelName} needs {rule.minHours} to {rule.maxHours} hours without food, and your appointment is at{' '}
               <span className="tabular font-medium text-cream">{formatClockTime(appointmentTime ?? '00:00')}</span>.{' '}
               {fastingInstruction(window)} Fasting for longer than {rule.maxHours} hours skews the results as surely
@@ -120,7 +120,7 @@ function FastingRequired({
                 {rule.minHours}–{rule.maxHours} hours
               </span>
             </h2>
-            <p className="mt-5 max-w-2xl text-[15px] leading-relaxed text-cream/90">
+            <p className="mt-5 max-w-2xl text-reading leading-relaxed text-cream/90">
               {panelName} measures things that food moves within minutes: blood sugar and triglycerides most of all.
               Once you've picked a time we'll tell you the exact hour to stop eating, so there is nothing for you to
               work out.
@@ -144,7 +144,7 @@ function FastingRequired({
                 {item.allowed ? <TickIcon className="h-3 w-3" /> : <CrossIcon className="h-3 w-3" />}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-[15px] font-medium text-cream">
+                <span className="block text-reading font-medium text-cream">
                   <span className="sr-only">{item.allowed ? 'Allowed: ' : 'Not allowed: '}</span>
                   {item.label}
                 </span>
@@ -160,7 +160,7 @@ function FastingRequired({
           rather than a fourth paragraph. */}
       <div className="flex items-start gap-3 border-t border-cream/20 bg-ink p-6 sm:px-9">
         <AlertIcon className="mt-0.5 shrink-0 text-cream" />
-        <p className="text-[15px] leading-relaxed text-cream">
+        <p className="text-reading leading-relaxed text-cream">
           <span className="font-medium">If you eat, we can't use the sample.</span> The draw would go ahead and the
           results would be misleading, so we'd have to ask you back for a second appointment. If you slip up, tell the
           phlebotomist when you arrive. Rebooking on the day costs you nothing.
@@ -185,7 +185,7 @@ function NoFastingNeeded({ headingId, panelName, className }: { headingId: strin
       <h2 id={headingId} className="mt-4 font-display text-3xl leading-tight text-espresso sm:text-4xl">
         No fasting needed
       </h2>
-      <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-espresso/90">
+      <p className="mt-4 max-w-2xl text-reading leading-relaxed text-espresso/90">
         Eat and drink as you normally would before your appointment. Nothing in {panelName} is moved by a meal, so
         there is no window to plan around. Come as you are. Being well hydrated makes the draw itself quicker and
         more comfortable, so a glass of water beforehand is worth it.

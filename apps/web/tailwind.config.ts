@@ -28,6 +28,27 @@ export default {
       letterSpacing: {
         eyebrow: typography.eyebrow.letterSpacing,
       },
+      fontSize: {
+        // The portal's long-form body size — between text-sm and text-base.
+        // Tokenised so it can't drift: every paragraph a patient actually
+        // reads at length uses this, text-sm is for secondary/metadata.
+        reading: ['0.9375rem', { lineHeight: '1.625' }],
+        // The hero number on a result card — between text-4xl and text-5xl,
+        // sized so a 5-digit value with unit still fits a third-width card.
+        stat: ['2.75rem', { lineHeight: '1' }],
+      },
+      minHeight: {
+        // WCAG 2.5.8 minimum touch target. One token, not forty copies of
+        // min-h-[44px].
+        tap: '2.75rem',
+      },
+      spacing: {
+        // The admin console's sticky top bar height — the two sticky
+        // elements that sit beneath it (report context bar, review-queue
+        // action bar) offset by exactly this. One token instead of a magic
+        // number that silently breaks when the bar's padding changes.
+        topbar: '3.8125rem',
+      },
       borderRadius: {
         // Soft, generous radii (brief §3: "soft radius" on dropdowns/cards) — card and input are
         // deliberately different values so a dropdown panel or date popover sitting on top of an

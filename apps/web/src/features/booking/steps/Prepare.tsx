@@ -66,7 +66,7 @@ export function Prepare({
                   {note.label}
                 </p>
                 {note.critical && <p className="eyebrow mt-2">Important</p>}
-                <p className="mt-3 text-[15px] leading-relaxed text-espresso/90">{note.detail}</p>
+                <p className="mt-3 text-reading leading-relaxed text-espresso/90">{note.detail}</p>
               </Card>
             ))}
           </div>
@@ -83,7 +83,7 @@ export function Prepare({
               <HomeKitIcon className="shrink-0 text-bronze-700" />
               {kits.map((k) => k.name).join(' and ')}
             </p>
-            <p className="mt-3 text-[15px] leading-relaxed text-espresso/90">
+            <p className="mt-3 text-reading leading-relaxed text-espresso/90">
               This one is not taken at your appointment. We'll post the kit within two working days, with a prepaid
               return envelope. Complete it whenever suits you. There is no window to hit, and your blood draw on{' '}
               {formatWeekdayDate(slot.date)} is unaffected either way.
@@ -118,7 +118,7 @@ export function Prepare({
             <li key={item.title}>
               <Card className="flex h-full flex-col">
                 <p className="font-display text-xl leading-tight text-espresso">{item.title}</p>
-                <p className="mt-2.5 text-[15px] leading-relaxed text-espresso/90">{item.body}</p>
+                <p className="mt-2.5 text-reading leading-relaxed text-espresso/90">{item.body}</p>
               </Card>
             </li>
           ))}
@@ -160,7 +160,7 @@ export function Prepare({
             {/* The label names the actual time. "I have read the instructions"
                 is not something anyone can be held to; "I will not eat after
                 10:30pm on Monday" is. */}
-            <span className="relative min-w-0 flex-1 text-[15px] leading-relaxed text-espresso">
+            <span className="relative min-w-0 flex-1 text-reading leading-relaxed text-espresso">
               {window ? (
                 <>
                   I understand I must not eat after{' '}

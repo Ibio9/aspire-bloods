@@ -9,6 +9,9 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { Sparkline } from '../../components/ui/Sparkline';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { LinkButton } from '../../components/ui/LinkButton';
+import { Reveal } from '../../components/motion/Reveal';
+import { staggerDelay } from '../../components/motion/stagger';
 import { ArrowRightIcon } from '../../components/nav/patientIcons';
 import { apiFetch } from '../../lib/api';
 import { type MarkerRow } from '../../lib/patientPortal';
@@ -46,15 +49,18 @@ const ATTENTION_RANK: Record<string, number> = {
 /** Change measured relative to the marker's own reference band, so markers on different scales sort against each other. */
 function relativeMovement(m: MarkerRow): number {
   if (m.delta === null) return -1;
-  const band = m.referenceHigh - m.referenceLow || Math.abs(m.value) || 1;
+  const band = m.referenceHigh - m.referenceLow || Math.abs(m.value ?? 0) || 1;
   return Math.abs(m.delta) / band;
 }
 
 function MarkerListRow({ marker }: { marker: MarkerRow }) {
   return (
     <Link to={`/markers/${marker.markerId}`} className="block rounded-card">
-      <Card interactive className="!p-5 sm:!p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+      <Card interactive padding="tight">
+        {/* Stacked until lg: the four fixed columns total ~630px, which fits
+            beside the sidebar only from lg up — at tablet widths the row was
+            quietly crushing the marker name to nothing. */}
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-6">
           <div className="min-w-0 flex-1">
             <p className="font-display text-xl leading-tight text-espresso sm:text-2xl">{marker.name}</p>
             <p className="mt-1 text-xs text-espresso/70">
@@ -63,24 +69,24 @@ function MarkerListRow({ marker }: { marker: MarkerRow }) {
             </p>
           </div>
 
-          <p className="tabular flex shrink-0 items-baseline gap-1.5 text-2xl font-semibold text-espresso sm:w-40 sm:justify-end">
-            {marker.value} <span className="text-sm font-normal text-espresso/70">{marker.unit}</span>
+          <p className="tabular flex shrink-0 items-baseline gap-1.5 text-2xl font-semibold text-espresso lg:w-40 lg:justify-end">
+            {marker.valueText ?? marker.value} <span className="text-sm font-normal text-espresso/70">{marker.unit}</span>
           </p>
 
-          <div className="shrink-0 sm:w-52">
+          <div className="shrink-0 lg:w-52">
             <StatusBadge status={marker.status} />
             <p className="tabular mt-1 text-xs text-espresso/60">
               Usual range {marker.referenceLow}–{marker.referenceHigh}
             </p>
           </div>
 
-          <div className="flex shrink-0 items-center gap-3 sm:w-36 sm:justify-end">
+          <div className="flex shrink-0 items-center gap-3 lg:w-36 lg:justify-end">
             {marker.spark.length > 1 ? (
               <Sparkline points={marker.spark} referenceLow={marker.referenceLow} referenceHigh={marker.referenceHigh} />
             ) : (
               <span className="text-xs text-espresso/50">{marker.comparable ? 'First result' : 'Not comparable'}</span>
             )}
-            <ArrowRightIcon className="hidden shrink-0 text-bronze-700 sm:block" />
+            <ArrowRightIcon className="hidden shrink-0 text-bronze-700 lg:block" />
           </div>
         </div>
       </Card>
@@ -127,7 +133,7 @@ export function AllMarkersPage() {
       {markers === null ? (
         <div className="mt-10 flex flex-col gap-4" aria-busy="true" aria-label="Loading your markers">
           {[0, 1, 2, 3, 4].map((i) => (
-            <Card key={i} className="!p-5 sm:!p-6">
+            <Card key={i} padding="tight">
               <Skeleton className="h-5 w-48" />
               <Skeleton className="mt-3 h-4 w-64" />
             </Card>
@@ -138,14 +144,7 @@ export function AllMarkersPage() {
           <EmptyState
             title="Nothing tested yet"
             description="Once your first results have been reviewed and released, every marker in them will be listed here. From your second test onwards, each one will show which way it's heading."
-            action={
-              <Link
-                to="/overview"
-                className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-taupe px-5 py-2.5 text-sm font-medium text-espresso transition duration-150 ease-out hover:border-bronze"
-              >
-                Back to overview
-              </Link>
-            }
+            action={<LinkButton to="/overview">Back to overview</LinkButton>}
           />
         </div>
       ) : (
@@ -183,19 +182,19 @@ export function AllMarkersPage() {
           </p>
 
           {visible.length === 0 ? (
-            <Card className="mt-4 max-w-2xl">
-              <p className="font-display text-2xl text-espresso">Nothing matches those filters</p>
-              <p className="mt-2 text-sm text-espresso/80">Try clearing the search box or switching “Show” back to all markers.</p>
-            </Card>
+            <div className="mt-4 max-w-2xl">
+              <EmptyState
+                title="Nothing matches those filters"
+                description="Try clearing the search box or switching “Show” back to all markers."
+              />
+            </div>
           ) : (
             <ul className="mt-4 flex flex-col gap-4">
               {visible.map((marker, i) => (
-                <li
-                  key={marker.markerId}
-                  className="stagger-item motion-safe:animate-riseIn"
-                  style={{ animationDelay: `${Math.min(i, 12) * 25}ms` }}
-                >
-                  <MarkerListRow marker={marker} />
+                <li key={marker.markerId}>
+                  <Reveal delay={staggerDelay(i)}>
+                    <MarkerListRow marker={marker} />
+                  </Reveal>
                 </li>
               ))}
             </ul>

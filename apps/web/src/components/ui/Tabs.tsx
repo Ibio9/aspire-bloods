@@ -52,7 +52,7 @@ export function Tabs({ items, defaultTab }: { items: TabItem[]; defaultTab?: str
               aria-controls={`tabpanel-${item.id}`}
               tabIndex={isActive ? 0 : -1}
               onClick={() => activate(item.id)}
-              className={`relative min-h-[44px] shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-medium transition duration-150 ease-out ${
+              className={`relative min-h-tap shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-medium transition duration-150 ease-out ${
                 isActive ? 'text-espresso' : 'text-espresso/80 hover:text-espresso'
               }`}
             >

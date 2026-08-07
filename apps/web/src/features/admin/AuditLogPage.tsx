@@ -62,7 +62,7 @@ export function AuditLogPage() {
   return (
     <>
       <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Audit log" />
-      <p className="mt-3 max-w-prose text-sm text-espresso/80">
+      <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
         Every admin and clinician action, and every view of patient data, including other admins' own activity.
         Nothing here is filtered out for anyone.
       </p>
@@ -87,12 +87,12 @@ export function AuditLogPage() {
           ))}
         </div>
       ) : rows.length === 0 ? (
-        <div className="mt-10">
+        <div className="mt-6">
           <EmptyState title="No matching entries" description="Try clearing the filters above." />
         </div>
       ) : (
         <>
-          <div className="mt-6 overflow-x-auto">
+          <div className="mt-6">
             <Table>
               <TableHead>
                 <TableRow>

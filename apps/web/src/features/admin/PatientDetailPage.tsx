@@ -270,7 +270,7 @@ export function PatientDetailPage() {
         ) : reports.length === 0 ? (
           <p className="text-sm text-espresso/80">No reports for this patient yet.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div>
             <Table>
               <TableHead>
                 <TableRow>
@@ -304,7 +304,7 @@ export function PatientDetailPage() {
         ) : auditTrail.length === 0 ? (
           <p className="text-sm text-espresso/80">No activity recorded yet.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div>
             <Table>
               <TableHead>
                 <TableRow>

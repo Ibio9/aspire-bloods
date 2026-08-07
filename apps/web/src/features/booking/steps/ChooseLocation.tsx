@@ -34,7 +34,7 @@ export function ChooseLocation({ locations, selectedAddOns, locationId, onChange
 
   return (
     <div className="flex flex-col gap-12 md:gap-14">
-      <p className="max-w-2xl rounded-card border border-taupe bg-cream-100 p-5 text-[15px] leading-relaxed text-espresso sm:p-6">
+      <p className="max-w-2xl rounded-card border border-taupe bg-cream-100 p-5 text-reading leading-relaxed text-espresso sm:p-6">
         {SHARED_LOCATION_TRUTH}
       </p>
 
@@ -100,7 +100,7 @@ function FactColumn({ location, heading, icon }: { location: BookingLocation; he
         {location.facts.map((fact) => (
           <div key={fact.label} className="py-3 first:pt-0 last:pb-0">
             <dt className="eyebrow mb-1">{fact.label}</dt>
-            <dd className="text-[15px] leading-relaxed text-espresso">{fact.value}</dd>
+            <dd className="text-reading leading-relaxed text-espresso">{fact.value}</dd>
           </div>
         ))}
       </dl>

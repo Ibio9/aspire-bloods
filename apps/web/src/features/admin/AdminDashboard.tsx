@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { apiFetch } from '../../lib/api';
 import { useAuth } from '../../lib/AuthContext';
 import { readRecentPatients, type RecentPatient } from '../../lib/recentPatients';
@@ -96,6 +98,8 @@ const SEED_LABEL: Record<DemoSeedOutcome, string> = {
 function DemoSeedCard() {
   const [run, setRun] = useState<DemoSeedRun | null | undefined>(undefined);
   const [missing, setMissing] = useState(false);
+  const [reseeding, setReseeding] = useState(false);
+  const [reseedError, setReseedError] = useState<string | null>(null);
 
   useEffect(() => {
     void apiFetch<DemoSeedRun | null>('/admin/demo-seed')
@@ -103,7 +107,41 @@ function DemoSeedCard() {
       .catch(() => setMissing(true));
   }, []);
 
-  if (run === undefined && !missing) return null;
+  // The break-glass path: re-run the seed against this deployment without a
+  // redeploy. Synthetic data only ever lands on the single demo account, and
+  // the run replaces the demo reports rather than stacking them.
+  async function reseed() {
+    setReseeding(true);
+    setReseedError(null);
+    try {
+      await apiFetch('/admin/demo-seed/run', { method: 'POST' });
+    } catch (e) {
+      setReseedError(e instanceof Error ? e.message : 'The seed run failed.');
+    } finally {
+      // Whatever happened, the recorded row is the truth — re-read it.
+      await apiFetch<DemoSeedRun | null>('/admin/demo-seed')
+        .then((r) => {
+          if (r) {
+            setRun(r);
+            setMissing(false);
+          }
+        })
+        .catch(() => undefined);
+      setReseeding(false);
+    }
+  }
+
+  if (run === undefined && !missing) {
+    return (
+      <div className="mt-14" aria-busy="true" aria-label="Loading demo data status">
+        <p className="eyebrow mb-4">Demo data</p>
+        <Card className="max-w-2xl">
+          <Skeleton className="h-5 w-44" />
+          <Skeleton className="mt-3 h-4 w-72" />
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="mt-14">
@@ -143,6 +181,20 @@ function DemoSeedCard() {
             </p>
           </>
         )}
+        {reseedError && (
+          <p role="alert" className="mt-3 text-sm text-status-significantHigh">
+            {reseedError}
+          </p>
+        )}
+        <div className="mt-5 border-t border-taupe pt-4">
+          <Button variant="secondary" loading={reseeding} onClick={() => void reseed()}>
+            Run the demo seed now
+          </Button>
+          <p className="mt-2 text-xs leading-relaxed text-espresso/60">
+            Replaces the demo patient's reports with a fresh set — no redeploy needed. Touches nothing but the
+            single demo account.
+          </p>
+        </div>
       </Card>
     </div>
   );
@@ -162,8 +214,7 @@ export function AdminDashboard() {
 
   return (
     <>
-      <p className="eyebrow">Aspire Clinic · Admin console</p>
-      <h1 className="display-heading mt-2 leading-[1.05]">Welcome, {user?.displayName ?? ''}</h1>
+      <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title={`Welcome, ${user?.displayName ?? ''}`} />
 
       {/* This is the admin's actual job, so it leads the page (brief §1) —
           counted and sorted by what's blocking each report, most

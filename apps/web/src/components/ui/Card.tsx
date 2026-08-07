@@ -15,10 +15,11 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
    */
   inert?: boolean;
   /** Roomier internal padding for the primary content surface on a page. */
-  padding?: 'default' | 'roomy' | 'tight';
+  padding?: 'default' | 'roomy' | 'tight' | 'none';
 }
 
 const PADDING = {
+  none: 'p-0',
   tight: 'p-5 sm:p-6',
   default: 'p-7 sm:p-9',
   roomy: 'p-8 sm:p-12',

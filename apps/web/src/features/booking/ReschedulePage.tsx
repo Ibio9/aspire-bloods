@@ -79,7 +79,7 @@ export function ReschedulePage() {
           </p>
           <Link
             to="/appointments"
-            className="mt-6 inline-flex min-h-[44px] items-center rounded-full border border-taupe px-5 py-2.5 text-sm font-medium text-espresso transition duration-150 ease-out hover:border-bronze"
+            className="mt-6 inline-flex min-h-tap items-center rounded-full border border-taupe px-5 py-2.5 text-sm font-medium text-espresso transition duration-150 ease-out hover:border-bronze"
           >
             Back to my appointments
           </Link>
@@ -124,7 +124,7 @@ export function ReschedulePage() {
                   ? 'This appointment has already happened'
                   : 'Too close to change online'}
             </p>
-            <p className="mt-3 text-[15px] leading-relaxed text-espresso/90">
+            <p className="mt-3 text-reading leading-relaxed text-espresso/90">
               {appointment.status === 'CONFIRMED'
                 ? `Appointments can be moved here up to ${bookingService.changeCutoffHours} hours beforehand, and yours is inside that window. Please call the clinic. We would much rather rearrange it than have you not turn up.`
                 : 'Book a new appointment whenever you are ready, or call us if you would rather do it with someone.'}
@@ -156,7 +156,7 @@ export function ReschedulePage() {
 
       {error && (
         <div role="alert" className="mt-8 rounded-card border border-status-significantHigh bg-cream-50 p-5 sm:p-6">
-          <p className="flex items-start gap-2.5 text-[15px] leading-relaxed text-espresso">
+          <p className="flex items-start gap-2.5 text-reading leading-relaxed text-espresso">
             <AlertIcon className="mt-0.5 shrink-0 text-status-significantHigh" />
             <span>
               <span className="font-medium">Your original appointment is untouched.</span> {error}
@@ -190,13 +190,13 @@ export function ReschedulePage() {
             <dl className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               <div>
                 <dt className="eyebrow mb-1.5">Was</dt>
-                <dd className="tabular text-[15px] text-espresso/75 line-through">
+                <dd className="tabular text-reading text-espresso/75 line-through">
                   {formatWeekdayDate(appointment.date)} at {formatClockTime(appointment.time)}
                 </dd>
               </div>
               <div>
                 <dt className="eyebrow mb-1.5">Now</dt>
-                <dd className="tabular text-[15px] font-medium text-espresso">
+                <dd className="tabular text-reading font-medium text-espresso">
                   {formatWeekdayDate(slot.date)} at {formatClockTime(slot.time)}
                 </dd>
               </div>

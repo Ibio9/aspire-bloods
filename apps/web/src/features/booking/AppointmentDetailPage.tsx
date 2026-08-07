@@ -77,13 +77,13 @@ export function AppointmentDetailPage() {
       <>
         <Breadcrumbs items={[{ label: 'Overview', to: '/overview' }, { label: 'Appointments', to: '/appointments' }, { label: 'Not found' }]} />
         <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="We couldn't find that appointment" />
-        <Card className="mt-8 max-w-xl">
+        <Card className="mt-10 max-w-xl">
           <p className="text-sm leading-relaxed text-espresso/90">
             The link may be out of date. Everything currently in your diary is listed under your appointments.
           </p>
           <Link
             to="/appointments"
-            className="mt-6 inline-flex min-h-[44px] items-center rounded-full border border-taupe px-5 py-2.5 text-sm font-medium text-espresso transition duration-150 ease-out hover:border-bronze"
+            className="mt-6 inline-flex min-h-tap items-center rounded-full border border-taupe px-5 py-2.5 text-sm font-medium text-espresso transition duration-150 ease-out hover:border-bronze"
           >
             Back to my appointments
           </Link>
@@ -129,7 +129,7 @@ export function AppointmentDetailPage() {
             </span>
             You're booked in
           </p>
-          <p className="mt-4 text-[15px] leading-relaxed text-espresso">
+          <p className="mt-4 text-reading leading-relaxed text-espresso">
             We've emailed you a confirmation. Your reference is{' '}
             <span className="tabular font-semibold">{appointment.reference}</span>. Quote it if you call us. Read the
             preparation below before the day; it's the part that matters.
@@ -156,7 +156,7 @@ export function AppointmentDetailPage() {
             <AlertIcon className="shrink-0 text-espresso/75" />
             This appointment was cancelled
           </p>
-          <p className="mt-3 text-[15px] leading-relaxed text-espresso/90">
+          <p className="mt-3 text-reading leading-relaxed text-espresso/90">
             Nothing was taken and nothing is owed. The record stays here so your history is complete. Book again
             whenever you're ready.
           </p>
@@ -190,7 +190,7 @@ export function AppointmentDetailPage() {
             <Link to={`/reports/${appointment.reportId}`} className="mt-6 block rounded-card">
               <Card interactive>
                 <p className="font-display text-2xl leading-tight text-espresso">{panel?.name ?? 'Your panel'}</p>
-                <p className="mt-3 text-[15px] leading-relaxed text-espresso/90">
+                <p className="mt-3 text-reading leading-relaxed text-espresso/90">
                   The panel from this appointment has been reviewed and released to you.
                 </p>
                 <p className="mt-5 flex items-center gap-1.5 text-sm font-medium text-bronze-700">
@@ -200,7 +200,7 @@ export function AppointmentDetailPage() {
             </Link>
           ) : (
             <Card className="mt-6">
-              <p className="text-[15px] leading-relaxed text-espresso/90">
+              <p className="text-reading leading-relaxed text-espresso/90">
                 Your sample is with the laboratory. Results for {panel?.name ?? 'this panel'} usually take{' '}
                 {combinedTurnaround(panel, addOns).label}, {expectedResultsLabel(panel, addOns, appointment.date)}.
                 They come back to the Aspire clinical team first, and nothing is published to you until a clinician
@@ -220,7 +220,7 @@ export function AppointmentDetailPage() {
 
           {changeable ? (
             <>
-              <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-espresso/90">
+              <p className="mt-4 max-w-2xl text-reading leading-relaxed text-espresso/90">
                 You can move or cancel this appointment yourself up to {bookingService.changeCutoffHours} hours
                 beforehand. After that, give us a call and we'll sort it out with you.
               </p>
@@ -240,7 +240,7 @@ export function AppointmentDetailPage() {
                   <AlertIcon className="shrink-0 text-bronze-700" />
                   Too close to change online
                 </p>
-                <p className="mt-3 text-[15px] leading-relaxed text-espresso/90">
+                <p className="mt-3 text-reading leading-relaxed text-espresso/90">
                   Appointments can be moved or cancelled here up to {bookingService.changeCutoffHours} hours
                   beforehand, and yours is inside that window. Please call the clinic. We would much rather rearrange
                   it than have you not turn up.

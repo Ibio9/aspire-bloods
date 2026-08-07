@@ -117,8 +117,8 @@ export function RandoxCataloguePage() {
 
   return (
     <>
-      <TwoTierHeading eyebrow="Aspire Clinic: Admin console" title="Randox catalogue" />
-      <p className="mt-3 max-w-prose text-sm text-espresso/80">
+      <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Randox catalogue" />
+      <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
         What Randox actually offer, against what our own catalogue lists. Ours was built from a pricing email rather
         than a spec sheet, so expect them to differ. A panel or test with no mapping cannot be ordered. The order is
         refused rather than sent with a guessed identifier.
@@ -142,7 +142,7 @@ export function RandoxCataloguePage() {
         // Inline rather than the full-page ErrorState: the rest of the
         // screen is still usable when a refresh fails, and the cached
         // catalogue below is exactly what an admin wants to see when it does.
-        <div role="alert" className="mt-4 rounded-lg border border-bronze/50 bg-bronze/5 p-4 text-sm text-espresso">
+        <div role="alert" className="mt-4 rounded-input border border-bronze/50 bg-bronze/5 p-4 text-sm text-espresso">
           {error}
         </div>
       )}
@@ -154,8 +154,8 @@ export function RandoxCataloguePage() {
             role="tab"
             aria-selected={tab === t}
             onClick={() => setTab(t)}
-            className={`rounded-full px-4 py-1.5 text-sm transition ${
-              tab === t ? 'bg-bronze text-cream' : 'bg-taupe/30 text-espresso hover:bg-taupe/50'
+            className={`min-h-tap rounded-full px-4 py-1.5 text-sm transition duration-150 ease-out ${
+              tab === t ? 'bg-bronze text-white shadow-btn' : 'bg-taupe/30 text-espresso hover:bg-taupe/50'
             }`}
           >
             {t === 'PANEL' ? 'Panels' : 'Tests'}
@@ -167,7 +167,7 @@ export function RandoxCataloguePage() {
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
           <Card>
             <p className="text-sm text-espresso/70">Mapped</p>
-            <p className="font-inter text-2xl tabular-nums text-espresso">
+            <p className="text-2xl tabular text-espresso">
               {side.mapped}
               <span className="text-base text-espresso/60"> / {side.randoxTotal}</span>
             </p>
@@ -175,19 +175,19 @@ export function RandoxCataloguePage() {
           </Card>
           <Card>
             <p className="text-sm text-espresso/70">Not mapped</p>
-            <p className="font-inter text-2xl tabular-nums text-espresso">{side.unmappedRandox.length}</p>
+            <p className="text-2xl tabular text-espresso">{side.unmappedRandox.length}</p>
             <p className="mt-1 text-xs text-espresso/60">Randox offer these; we can't order them yet.</p>
           </Card>
           <Card>
             <p className="text-sm text-espresso/70">Only in our catalogue</p>
-            <p className="font-inter text-2xl tabular-nums text-espresso">{side.unmappedOurs.length}</p>
+            <p className="text-2xl tabular text-espresso">{side.unmappedOurs.length}</p>
             <p className="mt-1 text-xs text-espresso/60">Aspire in-house, or not actually sold by Randox.</p>
           </Card>
         </div>
       )}
 
       {side && side.retired.length > 0 && (
-        <div className="mt-4 rounded-lg border border-bronze/40 bg-bronze/5 p-4">
+        <div className="mt-4 rounded-input border border-bronze/50 bg-bronze/5 p-4">
           <p className="text-sm font-medium text-espresso">
             Withdrawn by Randox: {side.retired.length} mapped {side.retired.length === 1 ? 'entry' : 'entries'}
           </p>
@@ -211,14 +211,14 @@ export function RandoxCataloguePage() {
           ))}
         </div>
       ) : entries.length === 0 ? (
-        <div className="mt-10">
+        <div className="mt-6">
           <EmptyState
             title="Nothing cached yet"
             description="Refresh from Randox to pull their current panel and test list. This needs the API credentials to be configured."
           />
         </div>
       ) : (
-        <div className="mt-6 overflow-x-auto">
+        <div className="mt-6">
           <Table>
             <TableHead>
               <TableRow>
@@ -233,7 +233,7 @@ export function RandoxCataloguePage() {
               {entries.map((entry) => (
                 <TableRow key={entry.id}>
                   <TableCell>{entry.name}</TableCell>
-                  <TableCell className="font-inter tabular-nums">{entry.randoxId}</TableCell>
+                  <TableCell className="tabular">{entry.randoxId}</TableCell>
                   <TableCell>{entry.code ?? '—'}</TableCell>
                   <TableCell>
                     {/* Text label first, never colour alone — house rule. */}

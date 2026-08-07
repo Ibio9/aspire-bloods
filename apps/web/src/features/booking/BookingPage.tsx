@@ -225,7 +225,7 @@ export function BookingPage() {
       {step === 0 && (
         <Link
           to="/appointments"
-          className="mt-5 inline-flex min-h-[44px] items-center gap-1.5 rounded-full text-sm font-medium text-bronze-700 underline-offset-4 hover:underline"
+          className="mt-5 inline-flex min-h-tap items-center gap-1.5 rounded-full text-sm font-medium text-bronze-700 underline-offset-4 hover:underline"
         >
           Already booked? See your appointments <ArrowRightIcon />
         </Link>
@@ -233,7 +233,7 @@ export function BookingPage() {
 
       {submitError && (
         <div role="alert" className="mt-8 rounded-card border border-status-significantHigh bg-cream-50 p-5 sm:p-6">
-          <p className="flex items-start gap-2.5 text-[15px] leading-relaxed text-espresso">
+          <p className="flex items-start gap-2.5 text-reading leading-relaxed text-espresso">
             <AlertIcon className="mt-0.5 shrink-0 text-status-significantHigh" />
             <span>
               <span className="font-medium">Nothing has been booked.</span> {submitError}
@@ -453,7 +453,7 @@ function StepProgress({ step, furthest, onJump }: { step: number; furthest: numb
                 <button
                   type="button"
                   onClick={() => onJump(i)}
-                  className="flex min-h-[44px] items-center gap-2 rounded-full px-1 text-sm transition duration-150 ease-out hover:text-bronze-700"
+                  className="flex min-h-tap items-center gap-2 rounded-full px-1 text-sm transition duration-150 ease-out hover:text-bronze-700"
                 >
                   {content}
                   <span className="sr-only">, go back to {s.title}</span>
@@ -461,7 +461,7 @@ function StepProgress({ step, furthest, onJump }: { step: number; furthest: numb
               ) : (
                 <span
                   aria-current={currentStep ? 'step' : undefined}
-                  className="flex min-h-[44px] items-center gap-2 px-1 text-sm"
+                  className="flex min-h-tap items-center gap-2 px-1 text-sm"
                 >
                   {content}
                 </span>

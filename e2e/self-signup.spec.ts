@@ -79,7 +79,9 @@ test('self-signup -> email verification -> 2FA -> empty portal', async ({ page, 
   ]);
   expect(resendResponse.status()).toBe(202);
 
-  await expect(page.getByRole('heading', { name: 'Confirm your email' })).toBeVisible();
+  // Level-scoped: the auth split layout renders a display h1 ("Confirm your
+  // email.") beside the form's h2, and an unscoped name matches both.
+  await expect(page.getByRole('heading', { level: 2, name: 'Confirm your email' })).toBeVisible();
   const [verifyResponse] = await Promise.all([
     page.waitForResponse(
       (res) => res.url().includes('/api/auth/verify-email') && !res.url().includes('resend') && res.request().method() === 'POST',

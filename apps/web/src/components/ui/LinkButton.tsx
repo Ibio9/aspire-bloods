@@ -33,7 +33,7 @@ export function LinkButton({
   return (
     <Link
       to={to}
-      className={`relative inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium transition duration-150 ease-out active:scale-[0.98] active:duration-0 ${skin} ${className}`}
+      className={`relative inline-flex min-h-tap items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium transition duration-150 ease-out active:scale-[0.98] active:duration-0 ${skin} ${className}`}
     >
       {children}
     </Link>

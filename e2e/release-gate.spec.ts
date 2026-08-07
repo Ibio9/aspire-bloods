@@ -135,7 +135,10 @@ test('nothing patient-visible until a report is RELEASED', async ({ page, browse
   await expect(patientPage.getByText('in range')).not.toBeVisible();
 
   // Same on the panel list itself
-  await patientPage.getByRole('link', { name: 'My results' }).first().click();
+  // Scoped to the nav: the sidebar wordmark's accessible name ("Aspire
+  // Bloods, my results") also matches, sits earlier in the DOM, and links to
+  // /overview — .first() was clicking that and never leaving the page.
+  await patientPage.getByRole('navigation', { name: 'Patient portal' }).getByRole('link', { name: 'My results' }).click();
   await expect(patientPage.getByText('Your results are with the clinical team')).toBeVisible();
   await expect(patientPage.getByText('in range')).not.toBeVisible();
 
