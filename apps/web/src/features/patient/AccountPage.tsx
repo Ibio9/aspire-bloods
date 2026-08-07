@@ -89,7 +89,7 @@ export function AccountPage() {
       <TwoTierHeading eyebrow="Aspire Clinic · Patient Portal" title="Your account & privacy" />
 
       {user && (
-        <p className="mt-4 flex items-center gap-1 text-sm text-espresso/80">
+        <p className="mt-5 flex items-center gap-1 text-sm text-espresso/80">
           Signed in as <span className="font-medium text-espresso">{user.email}</span>
           <CopyButton value={user.email} label="Copy email address" />
         </p>

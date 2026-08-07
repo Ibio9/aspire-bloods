@@ -181,6 +181,18 @@
     height: 100dvh;
   }
 
+  /* The floor version of the same measurement, for the shells: the page is
+     at least one viewport tall so a short page still fills the window, and
+     grows past it when the content genuinely does. Same two-declaration
+     fallback as .h-viewport, and used in place of Tailwind's min-h-screen
+     wherever a .h-viewport child has to line up with it exactly — mixing
+     100vh and 100dvh on a parent/child pair is what leaves a phantom sliver
+     of scroll on any browser with retracting chrome. */
+  .min-h-viewport {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
   /* ── Auth screens: viewport-fit scale ──────────────────────────────────
      The four auth screens (sign in, registration, activation, 2FA) are
      exactly one screen tall at md+ and the page itself never scrolls. That

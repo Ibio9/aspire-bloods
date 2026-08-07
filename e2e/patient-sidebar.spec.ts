@@ -86,6 +86,45 @@ test('the patient sidebar gives navigation the room, and keeps contact one row a
   await page.setViewportSize({ width: 1280, height: 768 });
   await registerAndSignIn(page, request);
 
+  // --- The panel's background reaches the bottom of the window, at the top of
+  // the page and again at the bottom of it ---
+  //
+  // The disclaimer footer used to render as a sibling of the shell rather than
+  // inside it, and the shell is the box this panel is sticky within. A sticky
+  // element cannot outlast its containing block, so scrolling to the bottom of
+  // a page left the panel ending a footer's height above the window edge with
+  // page cream below it — and every page carried exactly that much scroll
+  // whether or not it had anything to scroll to.
+  {
+    const geometry = await page.evaluate(() => {
+      const panel = document.querySelector('aside')!.getBoundingClientRect();
+      const footer = document.querySelector('footer')!.getBoundingClientRect();
+      return {
+        panelBottom: Math.round(panel.bottom),
+        footerBottom: Math.round(footer.bottom + window.scrollY),
+        docHeight: document.documentElement.scrollHeight,
+        viewport: window.innerHeight,
+      };
+    });
+    expect(geometry.panelBottom, 'the panel reaches the bottom of the window').toBeGreaterThanOrEqual(
+      geometry.viewport - 1,
+    );
+    // The footer is the last thing on the page, so its bottom edge *is* the
+    // bottom of the document: no band of page cream underneath it, and no
+    // scroll that leads nowhere.
+    expect(geometry.footerBottom, 'nothing is rendered below the footer').toBe(geometry.docHeight);
+
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    const afterScroll = await page.evaluate(() => {
+      const panel = document.querySelector('aside')!.getBoundingClientRect();
+      return { top: Math.round(panel.top), bottom: Math.round(panel.bottom) };
+    });
+    expect(afterScroll.top, 'and still starts at the top once scrolled').toBeLessThanOrEqual(0);
+    expect(afterScroll.bottom, 'and still reaches the bottom once scrolled').toBeGreaterThanOrEqual(
+      geometry.viewport - 1,
+    );
+  }
+
   // --- The panel is one viewport tall, with the footer flush to its bottom ---
   const aside = page.locator('aside').first();
   const asideBox = (await aside.boundingBox())!;

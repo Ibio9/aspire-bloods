@@ -125,7 +125,7 @@ export function AllMarkersPage() {
       </p>
 
       {markers === null ? (
-        <div className="mt-12 flex flex-col gap-4" aria-busy="true" aria-label="Loading your markers">
+        <div className="mt-10 flex flex-col gap-4" aria-busy="true" aria-label="Loading your markers">
           {[0, 1, 2, 3, 4].map((i) => (
             <Card key={i} className="!p-5 sm:!p-6">
               <Skeleton className="h-5 w-48" />
@@ -134,7 +134,7 @@ export function AllMarkersPage() {
           ))}
         </div>
       ) : markers.length === 0 ? (
-        <div className="mt-12 max-w-2xl">
+        <div className="mt-10 max-w-2xl">
           <EmptyState
             title="Nothing tested yet"
             description="Once your first results have been reviewed and released, every marker in them will be listed here. From your second test onwards, each one will show which way it's heading."
@@ -150,7 +150,7 @@ export function AllMarkersPage() {
         </div>
       ) : (
         <>
-          <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Input
               label="Find a marker"
               name="marker-filter"

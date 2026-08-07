@@ -111,7 +111,7 @@ export function PatientHome() {
     return (
       <>
         <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="My results" />
-        <Card className="mt-8 max-w-xl">
+        <Card className="mt-10 max-w-xl">
           <p className="font-display text-2xl text-espresso">We couldn't load your results</p>
           <p className="mt-2 text-sm text-espresso/80">
             Please refresh the page. If it keeps happening, get in touch and we'll sort it out.
@@ -134,7 +134,7 @@ export function PatientHome() {
 
       {reports === null ? (
         <div
-          className="mt-14 grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3"
+          className="mt-10 grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3"
           aria-busy="true"
           aria-label="Loading your results"
         >
@@ -147,7 +147,7 @@ export function PatientHome() {
           ))}
         </div>
       ) : reports.length === 0 ? (
-        <div className="mt-14 max-w-2xl">
+        <div className="mt-10 max-w-2xl">
           {/* A brand-new self-registered account is empty by design, and this
               is where that becomes visible. Said warmly and completely:
               nothing is missing, nothing has gone wrong, and the sentence
@@ -168,7 +168,7 @@ export function PatientHome() {
           />
         </div>
       ) : (
-        <div className="mt-14 grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-10 grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3">
           {reports.map((r, i) =>
             r.patientStatus === 'RELEASED' ? (
               <ReleasedReportCard key={r.reportId} report={r} index={i} />

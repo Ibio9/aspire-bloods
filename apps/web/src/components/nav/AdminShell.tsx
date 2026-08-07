@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { AccountMenu } from '../AccountMenu';
+import { Footer } from '../Footer';
 import { CommandPalette } from './CommandPalette';
 import { PageTransition } from '../PageTransition';
 import { useAuth } from '../../lib/AuthContext';
@@ -177,10 +178,14 @@ export function AdminShell({ children }: { children?: ReactNode }) {
   }, []);
 
   return (
-    <div className="flex min-h-screen bg-cream">
+    // Same construction as PatientShell, and for the same reason: this box is
+    // the sidebar's containing block, so the disclaimer footer belongs inside
+    // it. h-viewport rather than h-screen so the panel is measured against the
+    // same 100dvh the shell is.
+    <div className="min-h-viewport flex bg-cream">
       {/* Desktop persistent sidebar */}
       <aside
-        className={`sticky top-0 hidden h-screen shrink-0 border-r border-taupe bg-cream-50 transition-[width] duration-200 ease-out md:block ${
+        className={`h-viewport sticky top-0 hidden shrink-0 border-r border-taupe bg-cream-50 transition-[width] duration-200 ease-out md:block ${
           collapsed ? 'w-[76px]' : 'w-64'
         }`}
       >
@@ -226,13 +231,15 @@ export function AdminShell({ children }: { children?: ReactNode }) {
           pushed wider than the viewport by its own content — and every overflow-x-auto
           inside (the reports/patients/audit tables) then never engages. Matches
           PatientShell. */}
-      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+      <div className="min-h-viewport flex min-w-0 flex-1 flex-col">
         <AdminTopBar onOpenSearch={() => setSearchOpen(true)} onOpenDrawer={() => setDrawerOpen(true)} />
         <main className="flex-1 px-5 py-14 sm:px-8 md:px-14 md:py-24">
           <div className="mx-auto max-w-6xl">
             <PageTransition>{children ?? <Outlet />}</PageTransition>
           </div>
         </main>
+
+        <Footer className="px-5 sm:px-8 md:px-14" inset="max-w-6xl" />
       </div>
 
       <CommandPalette open={searchOpen} onClose={() => setSearchOpen(false)} />

@@ -78,13 +78,19 @@ export function ClinicContactPanel() {
   if (!contact) return null;
 
   return (
-    <div>
+    // A flex column so the details below can be the one thing in the whole
+    // sidebar that ever takes a scrollbar. On any ordinary window it doesn't:
+    // there is room for the card and the account row under it both. On a
+    // genuinely short one the card scrolls inside its own border and the row
+    // stays put — which is the right thing to give up, because the row is a
+    // name and a sign-out and the card is four lines of reference detail.
+    <div className="flex min-h-0 flex-col">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-controls="clinic-contact-details"
-        className="flex w-full items-center gap-2.5 rounded-input px-2.5 py-2 text-left text-[13px] font-medium text-espresso/85 transition-colors duration-150 ease-out hover:bg-cream-200 hover:text-espresso"
+        className="flex w-full shrink-0 items-center gap-2.5 rounded-input px-2.5 py-2 text-left text-[13px] font-medium text-espresso/85 transition-colors duration-150 ease-out hover:bg-cream-200 hover:text-espresso"
       >
         <PhoneIcon className="shrink-0 text-bronze-700" />
         <span className="min-w-0 flex-1 truncate">Contact the clinic</span>
@@ -94,7 +100,7 @@ export function ClinicContactPanel() {
       {open && (
         <div
           id="clinic-contact-details"
-          className="mt-2 rounded-card border border-taupe bg-cream-100 p-3.5 motion-safe:animate-riseIn"
+          className="scroll-thin mt-2 min-h-0 overflow-y-auto rounded-card border border-taupe bg-cream-100 p-3.5 motion-safe:animate-riseIn"
         >
           <ul className="flex flex-col gap-2 text-[13px] leading-relaxed text-espresso">
             {contact.phone && (

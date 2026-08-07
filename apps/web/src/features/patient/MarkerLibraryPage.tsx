@@ -142,7 +142,7 @@ export function MarkerLibraryPage() {
       </p>
 
       {entries === null ? (
-        <div className="mt-12 flex flex-col gap-4" aria-busy="true" aria-label="Loading the marker library">
+        <div className="mt-10 flex flex-col gap-4" aria-busy="true" aria-label="Loading the marker library">
           {[0, 1, 2, 3, 4, 5].map((i) => (
             <Card key={i} className="!p-5 sm:!p-6">
               <Skeleton className="h-5 w-56" />
@@ -152,7 +152,7 @@ export function MarkerLibraryPage() {
         </div>
       ) : (
         <>
-          <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input
               label="Find a marker"
               name="library-filter"

@@ -36,7 +36,6 @@ import { AppointmentDetailPage } from './features/booking/AppointmentDetailPage'
 import { ReschedulePage } from './features/booking/ReschedulePage';
 import { AdminShell } from './components/nav/AdminShell';
 import { PatientShell } from './components/nav/PatientShell';
-import { Footer } from './components/Footer';
 import { SessionGuard } from './components/SessionGuard';
 import { ComponentsShowcase } from './features/dev/ComponentsShowcase';
 
@@ -56,6 +55,14 @@ export default function App() {
           <a href="#main-content" className="skip-link">
             Skip to content
           </a>
+          {/* The disclaimer footer is *inside* each shell (see PatientShell /
+              AdminShell), not a sibling of this div. As a sibling it sat below
+              the shell's own box, which is the sticky sidebar's containing
+              block — so the panel stopped short of the window bottom by
+              exactly the footer's height, and every page had that much scroll
+              in it with nothing to scroll to. The only routes not covered by a
+              shell are the auth screens, which are viewport-fit and were never
+              meant to carry it anyway. */}
           <div id="main-content">
             <Routes>
               <Route path="/login" element={<PageTransition><LoginPage /></PageTransition>} />
@@ -145,7 +152,6 @@ export default function App() {
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </div>
-          <Footer />
         </ToastProvider>
       </AuthProvider>
     </BrowserRouter>

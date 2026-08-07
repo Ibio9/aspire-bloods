@@ -95,7 +95,7 @@ export function TrendsPage() {
       <div aria-busy="true" aria-label="Loading your markers">
         <Skeleton className="h-4 w-40" />
         <Skeleton className="mt-4 h-12 w-72" />
-        <Skeleton className="mt-12 h-80 w-full" />
+        <Skeleton className="mt-10 h-80 w-full" />
       </div>
     );
   }
@@ -108,7 +108,7 @@ export function TrendsPage() {
       </p>
 
       {plottable.length === 0 ? (
-        <div className="mt-12 max-w-2xl">
+        <div className="mt-10 max-w-2xl">
           <EmptyState
             title="Not enough history yet"
             description="A trend needs at least two results for the same marker. Once you've had a second test, everything measured on both will be plottable here."
@@ -123,7 +123,7 @@ export function TrendsPage() {
           />
         </div>
       ) : (
-        <div className="mt-12 grid grid-cols-1 gap-8 lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-10">
+        <div className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-10">
           <div className="lg:sticky lg:top-8 lg:self-start">
             <Card className="!p-5 sm:!p-6">
               <p className="eyebrow mb-4">Choose markers</p>

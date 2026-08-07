@@ -197,7 +197,7 @@ export function BookingPage() {
       <>
         <Breadcrumbs items={[{ label: 'Overview', to: '/overview' }, { label: 'Book a test' }]} />
         <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="We couldn't load the booking page" />
-        <Card className="mt-8 max-w-xl">
+        <Card className="mt-10 max-w-xl">
           <p className="text-sm leading-relaxed text-espresso/90">
             Please refresh and try again. If it keeps happening, call the clinic and we'll book you in over the phone.
             Nothing you do here is ever the only way to get an appointment.
@@ -242,7 +242,7 @@ export function BookingPage() {
         </div>
       )}
 
-      <div className="mt-12">
+      <div className="mt-10">
         {!catalogue ? (
           <div aria-busy="true" aria-label="Loading the booking options" className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             {[0, 1, 2, 3].map((i) => (

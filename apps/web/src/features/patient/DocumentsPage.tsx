@@ -56,7 +56,7 @@ export function DocumentsPage() {
       </p>
 
       {documents === null ? (
-        <div className="mt-12 flex flex-col gap-5" aria-busy="true" aria-label="Loading your documents">
+        <div className="mt-10 flex flex-col gap-5" aria-busy="true" aria-label="Loading your documents">
           {[0, 1, 2].map((i) => (
             <Card key={i}>
               <Skeleton className="h-5 w-56" />
@@ -66,7 +66,7 @@ export function DocumentsPage() {
           ))}
         </div>
       ) : documents.length === 0 ? (
-        <div className="mt-12 max-w-2xl">
+        <div className="mt-10 max-w-2xl">
           <EmptyState
             title="No documents yet"
             description="When a report has been reviewed and released to you, its PDFs appear here: the laboratory's own report, and an Aspire summary written in plain English."
@@ -81,7 +81,7 @@ export function DocumentsPage() {
           />
         </div>
       ) : (
-        <ul className="mt-12 flex flex-col gap-5">
+        <ul className="mt-10 flex flex-col gap-5">
           {documents.map((doc, i) => (
             <li key={doc.reportId} className="stagger-item motion-safe:animate-riseIn" style={{ animationDelay: `${i * 30}ms` }}>
               <Card>

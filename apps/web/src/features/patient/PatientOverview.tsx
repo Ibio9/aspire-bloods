@@ -105,7 +105,7 @@ export function PatientOverview() {
         <Skeleton className="h-4 w-40" />
         <Skeleton className="mt-4 h-12 w-80" />
         <Skeleton className="mt-4 h-4 w-64" />
-        <div className="mt-12 grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-3">
           {[0, 1, 2].map((i) => (
             <Card key={i}>
               <Skeleton className="h-3 w-24" />
@@ -121,7 +121,13 @@ export function PatientOverview() {
   const hasAnything = data.releasedReportCount > 0 || data.pendingReportCount > 0;
 
   return (
-    <div className="flex flex-col gap-14 md:gap-20">
+    // The header sits outside the section column on purpose. Inside it, the
+    // gap that separates one whole section from the next — deliberately large,
+    // these are separate subjects — was also doing duty as the gap between the
+    // H1 and the first card, which is not the same relationship and made this
+    // page read differently from every other one. Out here it takes the same
+    // mt-10 the rest of the portal uses, and the sections keep their rhythm.
+    <>
       <header>
         <p className="eyebrow mb-3">Aspire Clinic · Patient portal</p>
         <h1 className="display-heading">
@@ -149,6 +155,7 @@ export function PatientOverview() {
         )}
       </header>
 
+      <div className="mt-10 flex flex-col gap-14 md:gap-20">
       {/* ---------------------------------------------------------------
           Anything booked comes first. It is the only thing on this screen
           with a deadline attached — a fast has to be started the night
@@ -360,6 +367,7 @@ export function PatientOverview() {
           </div>
         </section>
       )}
-    </div>
+      </div>
+    </>
   );
 }

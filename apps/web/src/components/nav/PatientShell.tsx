@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Footer } from '../Footer';
 import { PageTransition } from '../PageTransition';
 import { Wordmark } from '../Wordmark';
 import { Avatar } from '../ui/Avatar';
@@ -124,12 +125,13 @@ function SidebarContents({
   }
 
   return (
-    // The column is the only scroll container in the sidebar, and at any
-    // ordinary desktop height it never scrolls: the nav below is sized to fit
-    // whole. It exists for the window that genuinely is shorter than the
-    // sidebar's content, where the alternative is items nobody can reach. It
-    // sits here rather than on the <aside> so the collapse toggle, which
-    // hangs outside the panel's right edge, is not clipped by it.
+    // The panel is exactly one viewport tall and its four bands — mark,
+    // search, navigation, footer — are laid out to fit inside that, so at any
+    // ordinary window height nothing here scrolls at all. Two escapes exist,
+    // in this order, and the order is the point: the contact card gives first
+    // and scrolls inside its own border (see ClinicContactPanel), and only a
+    // window genuinely shorter than the panel's own minimum falls through to
+    // this column scrolling as one piece. Neither of them is ever the nav.
     <div className="scroll-thin flex h-full flex-col overflow-y-auto">
       <div className={`shrink-0 ${collapsed ? 'px-2 pt-4' : 'px-4 pt-5'}`}>
         {/* Same mark, same collapsed 'a', same accessible name shape as
@@ -172,11 +174,17 @@ function SidebarContents({
       </div>
 
       {/* Navigation is the sidebar's job, so it gets the room — the whole
-          room. flex-1 with no min-h-0 and no overflow of its own: it takes the
-          space left over and grows past it rather than shrinking into a
-          scrolling strip, so every item is always whole and always visible. If
-          the window is short enough that the space runs out, the column above
-          scrolls as one piece instead. */}
+          room. flex-1 and nothing else, which is doing two things at once.
+          It grows to take everything left between the search field and the
+          footer, so the footer block sits on the bottom edge of the panel
+          rather than partway up it. And, because there is no min-h-0 here and
+          no overflow of its own, its automatic minimum size is its own content
+          height: it can hand back the space it *grew* into when the contact
+          card opens, but it can never be squeezed below the eight whole rows.
+          That floor is what stops it becoming a scrolling strip with a row
+          cut through the middle — and shrink-0 would have been the wrong way
+          to spell it, since it would also refuse to give back space it isn't
+          using, leaving the open card with nowhere to go. */}
       <nav
         aria-label="Patient portal"
         className={`mt-4 flex flex-1 flex-col gap-1 pb-1 ${collapsed ? 'px-2' : 'px-4'}`}
@@ -186,7 +194,15 @@ function SidebarContents({
         ))}
       </nav>
 
-      <div className={`shrink-0 border-t border-taupe ${collapsed ? 'px-2 py-2.5' : 'px-3 py-2'}`}>
+      {/* Pinned to the bottom of the panel, and — deliberately — the only band
+          here that can give. No shrink-0, so an open contact card yields
+          before anything else does; min-h-0, because without it this band's
+          min-content height includes the open card in full and it refuses to
+          shrink at all, which is what put the account row 145px below the
+          bottom of the panel at 1280x720. What gives inside it is the card,
+          which scrolls in its own border (see ClinicContactPanel); the account
+          row under it is shrink-0 and stays exactly where it is. */}
+      <div className={`flex min-h-0 flex-col border-t border-taupe ${collapsed ? 'px-2 py-2.5' : 'px-3 py-2'}`}>
         {collapsed ? (
           <button
             type="button"
@@ -207,7 +223,7 @@ function SidebarContents({
         )}
 
         {user && !collapsed && (
-          <div className="mt-2 flex items-center gap-2.5 px-0.5">
+          <div className="mt-2 flex shrink-0 items-center gap-2.5 px-0.5">
             <Avatar name={user.displayName} size="sm" />
             <span className="min-w-0 flex-1 truncate text-sm font-medium text-espresso">{user.displayName}</span>
             <button
@@ -269,7 +285,13 @@ export function PatientShell({ children }: { children?: ReactNode }) {
   }, [location.pathname]);
 
   return (
-    <div className="flex min-h-screen bg-cream">
+    // This box is the sidebar's containing block, so everything on the page —
+    // including the disclaimer footer, which used to sit outside it — has to
+    // be inside it. A sticky element cannot outlast its containing block: with
+    // the footer outside, scrolling to the bottom of any page left the panel's
+    // background ending a footer's height above the window edge, with page
+    // cream below it.
+    <div className="min-h-viewport flex bg-cream">
       {/* Sticky and exactly one viewport tall, so the panel's background runs
           edge to edge however long the page behind it is (see .h-viewport —
           100dvh with a 100vh fallback). */}
@@ -313,7 +335,12 @@ export function PatientShell({ children }: { children?: ReactNode }) {
         </div>
       )}
 
-      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+      {/* One viewport tall as a floor, then as tall as its content. main is
+          the only part that grows, so a page whose content fits ends exactly
+          at the window edge with the disclaimer on it — no scroll, and no
+          band of page cream underneath the last card pretending there is
+          more to come. */}
+      <div className="min-h-viewport flex min-w-0 flex-1 flex-col">
         {/* Mobile only — the desktop layout is sidebar-and-content, no header. */}
         <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-taupe bg-cream/90 px-4 py-3 backdrop-blur md:hidden">
           <button
@@ -334,6 +361,8 @@ export function PatientShell({ children }: { children?: ReactNode }) {
             <PageTransition>{children ?? <Outlet />}</PageTransition>
           </div>
         </main>
+
+        <Footer className="px-5 sm:px-8 md:px-14 lg:px-20" />
       </div>
     </div>
   );
