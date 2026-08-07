@@ -168,6 +168,19 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* Exactly one viewport tall, dvh where it is understood.
+     `h-screen h-dvh` cannot express this: Tailwind emits its height
+     utilities in alphabetical order, so .h-screen lands after .h-dvh and
+     100vh silently wins everywhere. Two declarations in one rule is the
+     fallback that actually works — a browser that cannot parse 100dvh keeps
+     the 100vh above it, and one that can overwrites it. Worth the distinction
+     because 100vh is measured against the *largest* viewport, so a panel sized
+     that way runs under the address bar on any browser whose chrome retracts. */
+  .h-viewport {
+    height: 100vh;
+    height: 100dvh;
+  }
+
   /* ── Auth screens: viewport-fit scale ──────────────────────────────────
      The four auth screens (sign in, registration, activation, 2FA) are
      exactly one screen tall at md+ and the page itself never scrolls. That

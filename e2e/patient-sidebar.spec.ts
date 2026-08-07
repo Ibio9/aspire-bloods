@@ -5,9 +5,16 @@ import { test, expect } from '@playwright/test';
  *
  * The contact block used to sit permanently expanded at the bottom and took
  * roughly half the column at a normal window height, which pushed the eight
- * nav items into a short scrolling strip that cut rows in half. Both halves of
- * that are pinned here: every item fully visible at 768px, and the contact
- * details one compact row that opens in place and stays how it was left.
+ * nav items into a short scrolling strip that cut rows in half. Trimming the
+ * contact block back to one row bought the space; the nav then kept a scroll
+ * container of its own, which put a scrollbar down the side of the panel and
+ * still clipped rows once the window dipped under ~750px.
+ *
+ * So the nav has no scroll container at all now, and this pins what replaced
+ * it: a panel exactly one viewport tall with the footer flush to its bottom,
+ * eight nav items whole at 700px, and — when a window is genuinely shorter
+ * than the sidebar's content — the whole column scrolling as one piece rather
+ * than the nav scrolling inside a fixed box.
  *
  * Requires EXPOSE_DEV_OTP_CODE=true in the server's env (see README).
  */
@@ -47,21 +54,18 @@ async function registerAndSignIn(page: import('@playwright/test').Page, request:
 // One registration for all three checks. Each of these is a layout question
 // about the same signed-in sidebar, and registering three times in a row trips
 // the signup and OTP rate limiters — which are process-wide on purpose.
-test('the patient sidebar gives navigation the room, and keeps contact one row away', async ({ page, request }) => {
-  await page.setViewportSize({ width: 1280, height: 768 });
-  await registerAndSignIn(page, request);
-
-  // --- Every item fully visible at 768px ---
+/** Every nav row whole, and none of them inside a scroll container. */
+async function expectNavFitsWhole(page: import('@playwright/test').Page, at: string) {
   const nav = page.getByRole('navigation', { name: 'Patient portal' });
   await expect(nav).toBeVisible();
 
-  // Not overflowing at all — the whole point. scrollHeight only exceeds
-  // clientHeight once there is something out of view.
+  // The nav owns no scrollbar of its own at any height. scrollHeight only
+  // exceeds clientHeight once there is something out of view.
   const { scrollHeight, clientHeight } = await nav.evaluate((el) => ({
     scrollHeight: el.scrollHeight,
     clientHeight: el.clientHeight,
   }));
-  expect(scrollHeight, 'the nav must not need to scroll at 768px').toBeLessThanOrEqual(clientHeight + 1);
+  expect(scrollHeight, `the nav must never scroll (${at})`).toBeLessThanOrEqual(clientHeight + 1);
 
   // And every row is inside the box, not merely in the DOM: a half-clipped
   // item is what this is really guarding against.
@@ -71,9 +75,37 @@ test('the patient sidebar gives navigation the room, and keeps contact one row a
   for (const link of links) {
     const box = (await link.boundingBox())!;
     const label = (await link.textContent())?.trim().slice(0, 24);
-    expect(box.y, `"${label}" is clipped at the top`).toBeGreaterThanOrEqual(navBox.y - 1);
-    expect(box.y + box.height, `"${label}" is clipped at the bottom`).toBeLessThanOrEqual(navBox.y + navBox.height + 1);
+    expect(box.y, `"${label}" is clipped at the top (${at})`).toBeGreaterThanOrEqual(navBox.y - 1);
+    expect(box.y + box.height, `"${label}" is clipped at the bottom (${at})`).toBeLessThanOrEqual(
+      navBox.y + navBox.height + 1,
+    );
   }
+}
+
+test('the patient sidebar gives navigation the room, and keeps contact one row away', async ({ page, request }) => {
+  await page.setViewportSize({ width: 1280, height: 768 });
+  await registerAndSignIn(page, request);
+
+  // --- The panel is one viewport tall, with the footer flush to its bottom ---
+  const aside = page.locator('aside').first();
+  const asideBox = (await aside.boundingBox())!;
+  expect(asideBox.y, 'the panel starts at the top of the viewport').toBeLessThanOrEqual(1);
+  expect(asideBox.height, 'the panel is a full viewport tall').toBeGreaterThanOrEqual(767);
+
+  const contactRow = page.getByRole('button', { name: 'Contact the clinic' });
+  const signOut = page.getByRole('button', { name: 'Sign out' });
+  const signOutBox = (await signOut.boundingBox())!;
+  expect(
+    asideBox.y + asideBox.height - (signOutBox.y + signOutBox.height),
+    'the account row sits at the bottom of the panel, not partway down it',
+  ).toBeLessThan(24);
+  expect((await contactRow.boundingBox())!.y, 'contact sits above the account row').toBeLessThan(signOutBox.y);
+
+  // --- Every item fully visible at 768px, and again at a short-laptop 700px ---
+  await expectNavFitsWhole(page, '768px');
+  await page.setViewportSize({ width: 1280, height: 700 });
+  await expectNavFitsWhole(page, '700px');
+  await page.setViewportSize({ width: 1280, height: 768 });
 
   // The contact block is one row until asked otherwise.
   const contact = page.getByRole('button', { name: 'Contact the clinic' });
@@ -98,20 +130,25 @@ test('the patient sidebar gives navigation the room, and keeps contact one row a
   await page.reload();
   await expect(page.getByRole('button', { name: 'Contact the clinic' })).toHaveAttribute('aria-expanded', 'false');
 
-  // --- A window genuinely too short scrolls to a soft edge, not a cut row ---
+  // --- A window genuinely too short scrolls the column, never the nav ---
   await page.setViewportSize({ width: 1280, height: 560 });
-  const shortNav = page.getByRole('navigation', { name: 'Patient portal' });
-  const short = await shortNav.evaluate((el) => ({ scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }));
+
+  // The nav is still not a scrolling box and still has no clipped rows — the
+  // difference at this height is only that the panel as a whole outgrows the
+  // viewport, so the column above the nav takes the scroll instead.
+  await expectNavFitsWhole(page, '560px');
+
+  const column = page.locator('aside').first().locator('> div').first();
+  const short = await column.evaluate((el) => ({ scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }));
   expect(short.scrollHeight, 'this height is meant to be too short — otherwise the check proves nothing').toBeGreaterThan(
     short.clientHeight,
   );
 
-  // The fade is rendered only while there is more below.
-  await expect(page.locator('nav[aria-label="Patient portal"] ~ div[aria-hidden="true"]').first()).toBeAttached();
-
-  // The last item is still reachable, and lands fully inside the box.
-  await shortNav.evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
-  const shortNavBox = (await shortNav.boundingBox())!;
-  const lastBox = (await shortNav.getByRole('link').last().boundingBox())!;
-  expect(lastBox.y + lastBox.height).toBeLessThanOrEqual(shortNavBox.y + shortNavBox.height + 1);
+  // Nothing is stranded: scrolling the column brings the last row, and the
+  // account footer under it, back inside the panel.
+  await column.evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
+  const panelBox = (await page.locator('aside').first().boundingBox())!;
+  const lastBox = (await page.getByRole('navigation', { name: 'Patient portal' }).getByRole('link').last().boundingBox())!;
+  expect(lastBox.y + lastBox.height).toBeLessThanOrEqual(panelBox.y + panelBox.height + 1);
+  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
 });

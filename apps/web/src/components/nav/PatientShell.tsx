@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { PageTransition } from '../PageTransition';
 import { Wordmark } from '../Wordmark';
@@ -53,43 +53,6 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/account', label: 'Account & privacy', hint: 'Profile, consents, your data', icon: AccountIcon },
 ];
 
-/**
- * Whether a scrollable element has content out of view above or below it.
- *
- * The nav is sized to fit every item down to 768px, so this normally reports
- * nothing at all. It exists for the window that genuinely is too short: an
- * item cut in half at a hard edge reads as a broken layout, whereas the same
- * item fading under a soft edge reads as "there is more, keep going".
- */
-function useScrollEdges<T extends HTMLElement>() {
-  const ref = useRef<T>(null);
-  const [edges, setEdges] = useState({ top: false, bottom: false });
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-
-    const update = () => {
-      const overflowing = el.scrollHeight - el.clientHeight > 1;
-      setEdges({
-        top: overflowing && el.scrollTop > 1,
-        bottom: overflowing && Math.ceil(el.scrollTop + el.clientHeight) < el.scrollHeight - 1,
-      });
-    };
-
-    update();
-    el.addEventListener('scroll', update, { passive: true });
-    const observer = new ResizeObserver(update);
-    observer.observe(el);
-    return () => {
-      el.removeEventListener('scroll', update);
-      observer.disconnect();
-    };
-  }, []);
-
-  return { ref, ...edges };
-}
-
 function SidebarLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed: boolean; onNavigate?: () => void }) {
   const Icon = item.icon;
   const { pathname } = useLocation();
@@ -101,7 +64,9 @@ function SidebarLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed
       onClick={onNavigate}
       className={({ isActive: routeActive }) => {
         const isActive = routeActive || ownsPath;
-        return `group relative flex items-start gap-3 rounded-input px-3 py-2 transition-colors duration-150 ease-out ${
+        // py-1 rather than py-2: four pixels a row is what buys the eighth
+        // item its place at ~700px without touching the two-line pattern.
+        return `group relative flex items-start gap-3 rounded-input px-3 py-1 transition-colors duration-150 ease-out ${
           collapsed ? 'justify-center' : ''
         } ${isActive ? 'bg-bronze-50 text-bronze-700' : 'text-espresso/85 hover:bg-cream-200 hover:text-espresso'}`;
       }}
@@ -151,7 +116,6 @@ function SidebarContents({
 }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const nav = useScrollEdges<HTMLElement>();
 
   async function handleLogout() {
     onNavigate?.();
@@ -160,7 +124,13 @@ function SidebarContents({
   }
 
   return (
-    <div className="flex h-full flex-col">
+    // The column is the only scroll container in the sidebar, and at any
+    // ordinary desktop height it never scrolls: the nav below is sized to fit
+    // whole. It exists for the window that genuinely is shorter than the
+    // sidebar's content, where the alternative is items nobody can reach. It
+    // sits here rather than on the <aside> so the collapse toggle, which
+    // hangs outside the panel's right edge, is not clipped by it.
+    <div className="scroll-thin flex h-full flex-col overflow-y-auto">
       <div className={`shrink-0 ${collapsed ? 'px-2 pt-4' : 'px-4 pt-5'}`}>
         {/* Same mark, same collapsed 'a', same accessible name shape as
             AdminShell — the two sidebars are one system, so they must not
@@ -201,28 +171,20 @@ function SidebarContents({
         )}
       </div>
 
-      {/* Navigation is the sidebar's job, so it gets the room: every item is
-          reachable without scrolling from 768px up, and the contact and
-          account rows below are single lines rather than blocks. The nav still
-          scrolls if a window is genuinely shorter than that — with a soft edge
-          rather than a row sliced in half. */}
-      <div className="relative mt-4 flex min-h-0 flex-1 flex-col">
-        <nav
-          ref={nav.ref}
-          aria-label="Patient portal"
-          className={`scroll-thin flex flex-1 flex-col gap-1 overflow-y-auto pb-1 ${collapsed ? 'px-2' : 'px-4'}`}
-        >
-          {NAV_ITEMS.map((item) => (
-            <SidebarLink key={item.to} item={item} collapsed={collapsed} onNavigate={onNavigate} />
-          ))}
-        </nav>
-        {nav.top && (
-          <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-5 bg-gradient-to-b from-cream-50 to-transparent" />
-        )}
-        {nav.bottom && (
-          <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-cream-50 to-transparent" />
-        )}
-      </div>
+      {/* Navigation is the sidebar's job, so it gets the room — the whole
+          room. flex-1 with no min-h-0 and no overflow of its own: it takes the
+          space left over and grows past it rather than shrinking into a
+          scrolling strip, so every item is always whole and always visible. If
+          the window is short enough that the space runs out, the column above
+          scrolls as one piece instead. */}
+      <nav
+        aria-label="Patient portal"
+        className={`mt-4 flex flex-1 flex-col gap-1 pb-1 ${collapsed ? 'px-2' : 'px-4'}`}
+      >
+        {NAV_ITEMS.map((item) => (
+          <SidebarLink key={item.to} item={item} collapsed={collapsed} onNavigate={onNavigate} />
+        ))}
+      </nav>
 
       <div className={`shrink-0 border-t border-taupe ${collapsed ? 'px-2 py-2.5' : 'px-3 py-2'}`}>
         {collapsed ? (
@@ -308,8 +270,11 @@ export function PatientShell({ children }: { children?: ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-cream">
+      {/* Sticky and exactly one viewport tall, so the panel's background runs
+          edge to edge however long the page behind it is (see .h-viewport —
+          100dvh with a 100vh fallback). */}
       <aside
-        className={`sticky top-0 hidden h-screen shrink-0 border-r border-taupe bg-cream-50 transition-[width] duration-200 ease-out md:block ${
+        className={`h-viewport sticky top-0 hidden shrink-0 border-r border-taupe bg-cream-50 transition-[width] duration-200 ease-out md:block ${
           collapsed ? 'w-[84px]' : 'w-[288px]'
         }`}
       >
