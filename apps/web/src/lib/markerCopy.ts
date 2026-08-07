@@ -1,4 +1,4 @@
-import { status as statusTokens, type MarkerStatus } from '@aspire-bloods/shared';
+import { status as statusTokens, formatOptimalRange, type MarkerStatus, type OptimalRangeDTO } from '@aspire-bloods/shared';
 import type { MarkerMovement } from './patientPortal';
 
 /**
@@ -42,6 +42,29 @@ export function statusLabel(status: MarkerStatus): string {
 
 export function statusHex(status: MarkerStatus): string {
   return statusTokens[STATUS_KEY[status]].hex;
+}
+
+/**
+ * The optimal-range vocabulary, and the whole of it.
+ *
+ * Two words, deliberately: "within optimal" and "outside optimal". They sit
+ * beside the lab range's own verdict (in range / high / low / significantly
+ * out) and never merge with it — a result can be in range and outside optimal
+ * at the same time, and that combination is ordinary rather than a problem.
+ *
+ * Nothing here says good, bad, healthy, unhealthy, concerning, or "you
+ * should". An optimal range is context, not an instruction.
+ */
+export function optimalStatusLabel(optimal: OptimalRangeDTO | null | undefined): string | null {
+  if (!optimal || optimal.within === null) return null;
+  return optimal.within ? 'Within optimal' : 'Outside optimal';
+}
+
+/** "Optimal 50–125 nmol/L" — the band itself, always labelled so it can't be read as the lab's. */
+export function optimalRangeLabel(optimal: OptimalRangeDTO | null | undefined): string | null {
+  if (!optimal) return null;
+  const band = formatOptimalRange(optimal.low, optimal.high, optimal.unit);
+  return band ? `Optimal ${band}` : null;
 }
 
 /** Filter groups for the All markers screen — five statuses is too fine a grain to filter by. */

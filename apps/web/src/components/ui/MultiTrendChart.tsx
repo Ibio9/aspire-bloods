@@ -1,5 +1,5 @@
 import { CartesianGrid, ComposedChart, Line, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { formatDate, brand, scales, type MarkerStatus } from '@aspire-bloods/shared';
+import { formatDate, brand, scales, chart as chartTokens, type MarkerStatus } from '@aspire-bloods/shared';
 import { statusLabel } from '../../lib/markerCopy';
 import { formatAxisDate, type TrendSeries } from '../../lib/patientPortal';
 
@@ -99,6 +99,10 @@ export function MultiTrendChart({ series }: { series: TrendSeries[] }) {
   const max = Math.max(1, ...positions);
   const pad = (max - min) * 0.15 || 0.15;
 
+  // Which explanatory note applies is a property of the data, not a constant.
+  const singleResultNames = series.filter((s) => s.points.length === 1).map((s) => s.name);
+  const incomparableNames = series.filter((s) => !s.comparable && s.points.length >= 2).map((s) => s.name);
+
   const summary = series
     .map((s) => {
       const first = s.points[0];
@@ -110,45 +114,59 @@ export function MultiTrendChart({ series }: { series: TrendSeries[] }) {
   return (
     <div>
       <div
-        className="h-[340px] w-full"
+        className="tabular h-[340px] w-full"
         role="img"
         aria-label={`Comparison chart. Each marker is plotted against its own reference range, where the shaded band is that marker's usual range. ${summary}`}
       >
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={rows} margin={{ top: 12, right: 16, left: 4, bottom: 0 }}>
-            <CartesianGrid stroke={brand.taupe} strokeOpacity={0} />
+            <CartesianGrid stroke={chartTokens.gridline} strokeOpacity={0} />
             <XAxis
               dataKey="sampleDate"
               tickFormatter={formatAxisDate}
-              tick={{ fontSize: 12, fill: brand.espresso }}
-              axisLine={{ stroke: brand.taupe }}
+              // Inter; the tabular figures are inherited from the `tabular`
+              // class on the wrapper, since Recharts' tick prop type has no
+              // fontVariantNumeric.
+              tick={{ fontSize: 12, fill: chartTokens.axisText, fontFamily: 'Inter, sans-serif' }}
+              axisLine={{ stroke: chartTokens.axisLine }}
               tickLine={false}
             />
             <YAxis
               domain={[min - pad, max + pad]}
               ticks={[0, 1]}
               tickFormatter={(v: number) => (v === 0 ? 'Range low' : 'Range high')}
-              tick={{ fontSize: 11, fill: brand.espresso }}
+              tick={{ fontSize: 11, fill: chartTokens.axisText, fontFamily: 'Inter, sans-serif' }}
               axisLine={false}
               tickLine={false}
               width={74}
             />
-            <ReferenceArea y1={0} y2={1} fill={brand.taupe} fillOpacity={0.35} strokeOpacity={0} />
-            <ReferenceLine y={0} stroke={brand.taupe} />
-            <ReferenceLine y={1} stroke={brand.taupe} />
-            <Tooltip content={<ChartTooltip series={series} />} cursor={{ stroke: brand.taupe, strokeWidth: 1 }} />
+            <ReferenceArea
+              y1={0}
+              y2={1}
+              fill={chartTokens.referenceBand}
+              fillOpacity={chartTokens.referenceBandOpacity}
+              strokeOpacity={0}
+            />
+            <ReferenceLine y={0} stroke={chartTokens.referenceEdge} />
+            <ReferenceLine y={1} stroke={chartTokens.referenceEdge} />
+            <Tooltip content={<ChartTooltip series={series} />} cursor={{ stroke: chartTokens.cursor, strokeWidth: 1 }} />
             {series.map((s, i) => {
               const style = SERIES_STYLES[i % SERIES_STYLES.length];
+              // Per series, not per chart: comparing a marker with four
+              // results against one with a single result is legitimate, and
+              // the single one must still render as a lone point rather than
+              // borrowing a line from its neighbours.
+              const connected = s.points.length >= 2 && s.comparable;
               return (
                 <Line
                   key={s.markerId}
                   type="monotone"
                   dataKey={s.markerId}
                   name={s.name}
-                  stroke={style.color}
+                  stroke={connected ? style.color : 'none'}
                   strokeWidth={2}
                   strokeDasharray={style.dash}
-                  connectNulls
+                  connectNulls={connected}
                   dot={<SeriesDot shape={style.shape} color={style.color} />}
                   activeDot={false}
                   isAnimationActive={false}
@@ -185,10 +203,21 @@ export function MultiTrendChart({ series }: { series: TrendSeries[] }) {
         })}
       </ul>
 
-      {series.some((s) => !s.comparable) && (
+      {/* One sentence per state that actually applies. A marker with a single
+          result and a marker with incomparable sources are different facts and
+          used to share one note; neither is shown when neither is true. */}
+      {singleResultNames.length > 0 && (
         <p className="mt-4 text-sm leading-relaxed text-espresso/80">
-          One or more of these markers has results from sources we can't directly convert between. Those points are
-          still shown against their own reference range, but treat small differences between them with care.
+          {singleResultNames.length === 1
+            ? `${singleResultNames[0]} has one result so far, so it is shown as a single point with no line.`
+            : `${singleResultNames.join(' and ')} each have one result so far, so they are shown as single points with no line.`}
+        </p>
+      )}
+      {incomparableNames.length > 0 && (
+        <p className="mt-3 text-sm leading-relaxed text-espresso/80">
+          {incomparableNames.length === 1 ? `${incomparableNames[0]} has` : `${incomparableNames.join(' and ')} have`} results
+          from sources we can't directly convert between, so those points are shown separately rather than joined into a
+          line. They are still plotted against their own reference range.
         </p>
       )}
     </div>

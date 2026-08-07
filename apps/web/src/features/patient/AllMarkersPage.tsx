@@ -15,7 +15,7 @@ import { staggerDelay } from '../../components/motion/stagger';
 import { ArrowRightIcon } from '../../components/nav/patientIcons';
 import { apiFetch } from '../../lib/api';
 import { type MarkerRow } from '../../lib/patientPortal';
-import { STATUS_FILTERS, matchesStatusFilter, type StatusFilter } from '../../lib/markerCopy';
+import { STATUS_FILTERS, matchesStatusFilter, optimalRangeLabel, optimalStatusLabel, type StatusFilter } from '../../lib/markerCopy';
 
 /**
  * Every marker the patient has ever had tested, in one list, independent of
@@ -78,11 +78,26 @@ function MarkerListRow({ marker }: { marker: MarkerRow }) {
             <p className="tabular mt-1 text-xs text-espresso/60">
               Usual range {marker.referenceLow}–{marker.referenceHigh}
             </p>
+            {/* Advisory, and clearly the second of two ranges. Absent
+                entirely for a marker with no established optimal. */}
+            {marker.optimal && (
+              <p className="tabular mt-0.5 text-xs text-espresso/60">
+                {optimalRangeLabel(marker.optimal)}
+                {optimalStatusLabel(marker.optimal) && (
+                  <span> · {optimalStatusLabel(marker.optimal)!.toLowerCase()}</span>
+                )}
+              </p>
+            )}
           </div>
 
           <div className="flex shrink-0 items-center gap-3 lg:w-36 lg:justify-end">
             {marker.spark.length > 1 ? (
-              <Sparkline points={marker.spark} referenceLow={marker.referenceLow} referenceHigh={marker.referenceHigh} />
+              <Sparkline
+                points={marker.spark}
+                referenceLow={marker.referenceLow}
+                referenceHigh={marker.referenceHigh}
+                optimal={marker.optimal}
+              />
             ) : (
               <span className="text-xs text-espresso/50">{marker.comparable ? 'First result' : 'Not comparable'}</span>
             )}

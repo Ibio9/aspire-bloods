@@ -1010,6 +1010,14 @@ model ReportMeasurements {
   isSmoker                    Boolean?
   knownVascularDisease        Boolean?
   onMedicationForHypertension Boolean?
+  // Biological sex as the LAB recorded it against this sample, captured at
+  // order time and echoed back on the result payload. Deliberately not a
+  // duplicate of PatientProfile.sex: that is the account holder's own answer
+  // and is optional at registration. The optimal-range resolver prefers the
+  // account value and falls back to this one (see lib/optimalRange.ts), so a
+  // patient who never filled the field in still gets a sex-specific band.
+  // Null for every source that doesn't report it — PDF upload, manual entry.
+  biologicalSex               Sex?
   // Free text as Randox report it, not our Sex/Ethnicity enum — this is
   // their vocabulary (see GetEthnicity) and mapping it into one of ours
   // would lose the distinction between "not asked" and "not recorded".

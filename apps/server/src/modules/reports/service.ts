@@ -9,7 +9,19 @@ import { storageAdapter } from '../storage/LocalDiskStorageAdapter.js';
 import { resultSourceAdapter } from '../result-sources/index.js';
 import { findBestMarkerMatch } from './matchMarker.js';
 import { canPerform } from '../../lib/reportTransitions.js';
-import type { VerifyReportRequest } from '@aspire-bloods/shared';
+import {
+  resolveReferenceRange,
+  ageFromDob,
+  RANGE_UNAVAILABLE_MESSAGE,
+} from '../../lib/resolveReferenceRange.js';
+import {
+  classifyValue,
+  resolveResultRange,
+  deriveStatus,
+  disagreesWithLabIndicator,
+  type ClassifiedValue,
+} from '../../lib/deriveResultStatus.js';
+import type { MarkerStatus, PublishReportRequest, VerifyReportRequest } from '@aspire-bloods/shared';
 import { formatReportTitle } from '@aspire-bloods/shared';
 
 export class ReportError extends Error {
@@ -83,13 +95,86 @@ export async function uploadReport(input: {
     metadata: { sourceKey: source.key },
   });
 
-  return report;
+  // Parse straight away rather than making the admin ask for it. Extraction is
+  // the slow, entirely mechanical part of publishing a report and there is no
+  // decision in it — waiting for a human to press a button before starting it
+  // only ever cost an interaction.
+  //
+  // A parse failure is not an upload failure. The PDF is stored, the report
+  // exists at UPLOADED, and the admin can parse it explicitly (or void it) —
+  // losing an uploaded file because an extraction call timed out would be a
+  // far worse outcome than an extra click.
+  let parse: Awaited<ReturnType<typeof parseReport>> | null = null;
+  let parseError: string | null = null;
+  try {
+    parse = await parseReport(report.id, input.uploadedById, input.ip);
+  } catch (e) {
+    parseError = e instanceof Error ? e.message : 'Extraction failed';
+    console.error('[reports] auto-parse after upload failed', { reportId: report.id, error: parseError });
+  }
+
+  // Re-read rather than returning the row we created: parseReport moves the
+  // report to PARSED, and handing back the pre-parse copy would tell the
+  // client UPLOADED for a report that is no longer in that state.
+  const current = await prisma.report.findUniqueOrThrow({ where: { id: report.id } });
+  return { report: current, parse, parseError };
+}
+
+/**
+ * Extraction flags that mean "a human should look at this row before it goes
+ * anywhere". Deliberately a subset: the flags left out are ones the parse can
+ * now answer for itself.
+ *
+ * `non_numeric_result`, `comparator_result` and `one_sided_reference_range`
+ * used to force a row into the admin's attention. They no longer do, because
+ * a censored value is now placed against the range where that can be done
+ * with certainty (lib/deriveResultStatus.ts) and a one-sided range now falls
+ * through to the marker's stored fallback. What's left here is the set of
+ * things no rule can settle: the extractor read something implausible, or read
+ * it two different ways.
+ */
+const ATTENTION_FLAGS = new Set([
+  'implausible_unit',
+  'value_order_of_magnitude',
+  'two_pass_disagreement',
+  'duplicate_printing_disagreement',
+]);
+
+const FLAG_ATTENTION_REASON: Record<string, string> = {
+  implausible_unit: 'The unit read from the report is not one this marker is usually reported in.',
+  value_order_of_magnitude: 'The value sits an order of magnitude away from the reference range, which usually means a misread decimal point.',
+  two_pass_disagreement: 'A second read of the report disagreed with the first on this row.',
+  duplicate_printing_disagreement: 'This marker is printed more than once on the report with different values.',
+};
+
+export type ParseAttentionKind = 'unmatched_marker' | 'no_usable_range' | 'lab_status_disagreement' | 'extraction_flag';
+
+export interface ParseSummary {
+  /** Every row the extractor produced. */
+  total: number;
+  /** Rows matched to a marker, with a usable range, and nothing needing a human. */
+  clean: number;
+  /** Rows an admin has to look at before this can be published. */
+  needingAttention: number;
+  /** Rows whose marker name matched nothing in the catalogue. */
+  unmatched: number;
+  /** Rows whose status could not be derived (qualitative or straddling limit). Recorded as reported; not blocking. */
+  unevaluable: number;
+  /**
+   * True when every row is clean. The one thing the publish confirmation
+   * needs to know: can this go out as parsed, or does it need a look first.
+   */
+  readyToPublish: boolean;
 }
 
 export async function parseReport(reportId: string, actorUserId: string, ip: string | null) {
   const report = await prisma.report.findUnique({
     where: { id: reportId },
-    include: { originalPdfFile: true, panel: { include: { markers: { include: { marker: true } } } } },
+    include: {
+      originalPdfFile: true,
+      panel: { include: { markers: { include: { marker: true } } } },
+      patient: { include: { patientProfile: true } },
+    },
   });
   if (!report || !report.originalPdfFile) throw new ReportError('Report not found', 404);
   if (report.voidedAt) throw new ReportError('This report has been voided and cannot be progressed', 409);
@@ -103,7 +188,14 @@ export async function parseReport(reportId: string, actorUserId: string, ip: str
   // No panel is legitimate (ad-hoc report) — matching then falls straight
   // through to the full marker catalogue rather than narrowing first.
   const panelMarkers = report.panel?.markers.map((pm) => pm.marker) ?? [];
-  const allMarkers = await prisma.marker.findMany();
+  // referenceRanges come along because they are the SECOND source of truth for
+  // a range, used only where the lab printed none on the result itself.
+  const allMarkers = await prisma.marker.findMany({ include: { referenceRanges: true } });
+
+  const patientSex = report.patient.patientProfile?.sex ?? null;
+  const patientAge = report.patient.patientProfile?.dobEncrypted
+    ? ageFromDob(decryptField(report.patient.patientProfile.dobEncrypted))
+    : null;
 
   // findBestMarkerMatch's fuzzy fallback is substring-based, so a shorter
   // marker name can match rows that actually belong to a longer, more
@@ -114,34 +206,115 @@ export async function parseReport(reportId: string, actorUserId: string, ip: str
   // once a marker is claimed here, later rows fall back to unmatched
   // rather than silently colliding on the same marker.
   const claimedMarkerIds = new Set<string>();
+
   const rows = parsed.rows.map((row) => {
     // Narrow to the panel's own markers first where there is a panel at all;
     // an ad-hoc report has none, so matching falls straight through to the
     // full catalogue rather than searching an empty list.
     let match =
-      (panelMarkers.length > 0 ? findBestMarkerMatch(row.rawName, panelMarkers) : null) ??
-      findBestMarkerMatch(row.rawName, allMarkers);
+      (panelMarkers.length > 0
+        ? findBestMarkerMatch(
+            row.rawName,
+            allMarkers.filter((m) => panelMarkers.some((pm) => pm.id === m.id)),
+          )
+        : null) ?? findBestMarkerMatch(row.rawName, allMarkers);
     if (match && claimedMarkerIds.has(match.id)) {
       match = null;
     }
     if (match) claimedMarkerIds.add(match.id);
+
+    const classified: ClassifiedValue = classifyValue(row.value, row.resultText);
+
+    // --- Which range applies. Result first, marker fallback second, nothing third.
+    let fallback: { low: number; high: number; unit: string } | null = null;
+    let fallbackUnavailableReason: string | null = null;
+    if (match) {
+      const resolved = resolveReferenceRange(match.referenceRanges, patientSex, patientAge);
+      if (resolved.status === 'resolved') {
+        fallback = { low: resolved.range.low, high: resolved.range.high, unit: resolved.range.unit };
+      } else {
+        fallbackUnavailableReason = RANGE_UNAVAILABLE_MESSAGE[resolved.reason];
+      }
+    }
+    const range = resolveResultRange(
+      { low: row.referenceLow, high: row.referenceHigh, unit: row.unit ?? null },
+      fallback,
+      fallbackUnavailableReason,
+    );
+
+    // --- Status, derived from whichever range won.
+    const derived =
+      range.status === 'resolved' && match
+        ? deriveStatus(classified, range.low, range.high, match)
+        : null;
+
+    const labDisagrees =
+      derived?.status === 'derived' && disagreesWithLabIndicator(row.labStatusIndicator, derived.value);
+
+    // --- What, if anything, a human has to deal with.
+    const attention: { kind: ParseAttentionKind; message: string }[] = [];
+    if (!match) {
+      attention.push({
+        kind: 'unmatched_marker',
+        message: `“${row.rawName}” doesn't match any marker in the catalogue. Pick the right one, or leave it unmatched to skip this row.`,
+      });
+    }
+    if (range.status === 'missing') {
+      attention.push({ kind: 'no_usable_range', message: range.reason });
+    }
+    if (labDisagrees) {
+      attention.push({
+        kind: 'lab_status_disagreement',
+        message: `The lab flagged this result “${row.labStatusIndicator}”, which disagrees with the status derived from the range on the result. That usually means the range read here isn't the range the lab applied.`,
+      });
+    }
+    for (const flag of row.flags ?? []) {
+      if (ATTENTION_FLAGS.has(flag)) {
+        attention.push({ kind: 'extraction_flag', message: FLAG_ATTENTION_REASON[flag] ?? flag });
+      }
+    }
+
     return {
       rawLine: row.rawLine,
       rawName: row.rawName,
       matchedMarkerId: match?.id ?? null,
       matchedMarkerName: match?.name ?? null,
       value: row.value,
-      unit: row.unit ?? match?.defaultUnit ?? null,
-      referenceLow: row.referenceLow,
-      referenceHigh: row.referenceHigh,
+      // The verbatim lab text for a non-numeric result, carried through so it
+      // is saved as reported rather than coerced into a number.
       resultText: row.resultText,
+      unit: row.unit ?? (range.status === 'resolved' ? range.unit : null) ?? match?.defaultUnit ?? null,
+      referenceLow: range.status === 'resolved' ? range.low : null,
+      referenceHigh: range.status === 'resolved' ? range.high : null,
+      /** Which of the two sources the range above came from. Null when there is none. */
+      rangeSource: range.status === 'resolved' ? range.source : null,
+      rangeNotice: range.status === 'missing' ? range.reason : null,
+      sampleType: row.sampleType ?? null,
+      /** Derived here so the admin never types a status in. Null when no range could be resolved. */
+      derivedStatus: derived?.status === 'derived' ? derived.value : null,
+      /** Set when the value has no position on the range — a real answer, not a failure. */
+      unevaluableReason: derived?.status === 'unevaluable' ? derived.reason : null,
+      labStatusIndicator: row.labStatusIndicator ?? null,
+      labStatusDisagrees: !!labDisagrees,
       needsReview: row.needsReview,
       reviewReason: row.reviewReason,
       sourceText: row.sourceText ?? row.rawLine,
       confidence: row.confidence ?? null,
       flags: row.flags ?? [],
+      attention,
     };
   });
+
+  const unmatched = rows.filter((r) => !r.matchedMarkerId).length;
+  const needingAttention = rows.filter((r) => r.attention.length > 0).length;
+  const summary: ParseSummary = {
+    total: rows.length,
+    clean: rows.length - needingAttention,
+    needingAttention,
+    unmatched,
+    unevaluable: rows.filter((r) => r.unevaluableReason !== null).length,
+    readyToPublish: rows.length > 0 && needingAttention === 0,
+  };
 
   if (report.status === 'UPLOADED') {
     await prisma.report.update({ where: { id: reportId }, data: { status: 'PARSED' } });
@@ -153,7 +326,15 @@ export async function parseReport(reportId: string, actorUserId: string, ip: str
     targetType: 'Report',
     targetId: reportId,
     ipAddress: ip,
-    metadata: { rowCount: rows.length, extractionMethod: parsed.extractionMethod },
+    metadata: {
+      rowCount: rows.length,
+      extractionMethod: parsed.extractionMethod,
+      needingAttention,
+      unmatched,
+      // Voided markers never become rows — recorded here so the count an
+      // admin sees on screen is reconcilable against the audit trail.
+      excluded: parsed.exclusions?.length ?? 0,
+    },
   });
 
   return {
@@ -161,6 +342,7 @@ export async function parseReport(reportId: string, actorUserId: string, ip: str
     panelName: parsed.panelName ?? null,
     extractionMethod: parsed.extractionMethod,
     fallbackReason: parsed.fallbackReason ?? null,
+    summary,
     rows,
   };
 }
@@ -240,13 +422,17 @@ export async function verifyReport(
       source: `${report.source.name}, verified ${verifiedAt.toISOString().slice(0, 10)} (report ${reportId})`,
     });
 
-    // A textual result ("< 0.6", "Not detected") has no position against the
-    // numeric range, so it is never flagged — IN_RANGE here means "not
-    // flagged", and anything that needs flagging must be entered as a number.
-    const status =
-      typeof row.value === 'number'
-        ? computeMarkerStatus(row.value, row.referenceLow, row.referenceHigh, marker.severityMultiplier, marker.severityAbsoluteDelta)
-        : 'IN_RANGE';
+    // A textual result ("< 0.6", "Not detected") arrives through the same
+    // field as a number. Where it CAN be placed against the range with
+    // certainty — "< 5.0" against a 0–5.0 range is unambiguously in range —
+    // it now is, rather than every non-number defaulting to unflagged.
+    // Where it can't, IN_RANGE still means "not flagged", exactly as before:
+    // a value with no position on the range is not evidence of a problem, and
+    // inventing one from a limit is the failure this deliberately avoids.
+    const classified: ClassifiedValue =
+      typeof row.value === 'number' ? { kind: 'numeric', value: row.value } : classifyValue(null, row.value);
+    const derived = deriveStatus(classified, row.referenceLow, row.referenceHigh, marker);
+    const status: MarkerStatus = derived.status === 'derived' ? derived.value : 'IN_RANGE';
 
     resultRows.push({
       reportId,
@@ -336,6 +522,49 @@ export async function releaseReport(reportId: string, actorUserId: string, ip: s
   });
 
   return prisma.report.findUniqueOrThrow({ where: { id: reportId } });
+}
+
+/**
+ * Publish — one admin action, the whole pipeline.
+ *
+ * The interaction cost of releasing a routine report was the problem: upload,
+ * parse, scroll a forty-row table correcting statuses by hand, save, approve,
+ * release. This collapses the last four into one click and a confirmation.
+ *
+ * What it deliberately does NOT do is collapse the state machine. Each
+ * transition still runs through its own function above, which means each one
+ * still checks canPerform() against reportTransitions.ts, still writes its own
+ * audit entry, and still refuses from a status it isn't allowed to run from.
+ * Nothing here writes RELEASED directly, nothing skips ADMIN_VERIFIED or
+ * CLINICIAN_REVIEWED, and a report that fails halfway is left in whatever
+ * legitimate intermediate state it reached rather than being forced onward.
+ *
+ * So the pipeline is unchanged and the saving is entirely in interactions —
+ * which is the only place the saving was ever wanted.
+ */
+export async function publishReport(
+  reportId: string,
+  input: PublishReportRequest,
+  actorUserId: string,
+  ip: string | null,
+) {
+  await verifyReport(reportId, { sampleDate: input.sampleDate, results: input.results }, actorUserId, ip);
+  await reviewReport(reportId, true, input.note, actorUserId, ip);
+  const report = await releaseReport(reportId, actorUserId, ip);
+
+  // One extra entry on top of the three each transition already wrote, so the
+  // audit trail records that these three happened as a single deliberate
+  // action rather than reading as three separate decisions taken minutes apart.
+  await recordAuditLog({
+    actorUserId,
+    action: 'REPORT_PUBLISHED',
+    targetType: 'Report',
+    targetId: reportId,
+    ipAddress: ip,
+    metadata: { resultCount: input.results.length, viaSingleStepPublish: true },
+  });
+
+  return report;
 }
 
 /**

@@ -240,6 +240,16 @@ export interface GetOrderResultDetailResponse {
   patientKnownVascularDisease: boolean | null;
   patientOnMedicationforHypertension: boolean | null;
   patientEthnicity: string | null;
+  /**
+   * Biological sex as recorded against the order and echoed back on the
+   * result. Optional and loosely typed on purpose: Randox's own examples
+   * return biological sex as a STRING id on some endpoints and a name on
+   * others (see RandoxLookupItem's comment), and the result-detail schema
+   * doesn't pin it down. Read defensively and normalised in
+   * ingestionService.ts — an unrecognised value becomes null rather than a
+   * guessed sex.
+   */
+  patientBiologicalSex?: string | number | null;
 }
 
 /**

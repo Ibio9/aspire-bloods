@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { formatDate } from '@aspire-bloods/shared';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
@@ -122,6 +122,7 @@ function PdfUploadForm({
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const navigate = useNavigate();
 
   async function handleUpload(e: FormEvent) {
     e.preventDefault();
@@ -149,12 +150,18 @@ function PdfUploadForm({
         const body = await res.json().catch(() => null);
         throw new ApiError(extractErrorMessage(body), res.status, body);
       }
+      const created = (await res.json()) as { id: string; parse?: unknown };
       setFile(null);
       setPatientId('');
       setPanelId('none');
       setSourceId('');
       setSampleDate('');
       onDone();
+      // The server already parsed this on upload. Going straight to the
+      // report with that parse in hand is what collapses "upload, come back,
+      // find it in the list, open it, press parse" into one step — and it
+      // carries the extraction across so the same PDF isn't read twice.
+      navigate(`/admin/reports/${created.id}`, { state: { parse: created.parse ?? undefined } });
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Upload failed');
     } finally {

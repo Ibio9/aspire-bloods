@@ -46,7 +46,8 @@ function parseLooseDate(raw: string): string | null {
   return Number.isNaN(Date.parse(iso)) ? null : iso;
 }
 
-function extractSampleDate(text: string): string | null {
+/** Exported for the sample-report test, which exercises the pattern path against the real PDF. */
+export function extractSampleDate(text: string): string | null {
   for (const pattern of DATE_PATTERNS) {
     const match = text.match(pattern);
     if (match) {
@@ -158,7 +159,12 @@ function qualitativeMatch(line: string): RegExpMatchArray | null {
   return null;
 }
 
-function extractRows(text: string): ParsedMarkerRow[] {
+/**
+ * Exported so the real Randox sample report can be parsed in a test without
+ * a database or an API key behind it — the pattern path is the one that runs
+ * whenever LLM extraction is unavailable, so it is the one worth pinning.
+ */
+export function extractRows(text: string): ParsedMarkerRow[] {
   const rows: ParsedMarkerRow[] = [];
   let pendingNamePrefix = '';
   let inDoctorSection = false;

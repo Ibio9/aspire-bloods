@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { formatDate, type MarkerReviewStatus, type MarkerStatus } from '@aspire-bloods/shared';
+import { formatDate, type MarkerReviewStatus, type MarkerStatus, type OptimalRangeDTO } from '@aspire-bloods/shared';
 import { Breadcrumbs } from '../../components/nav/Breadcrumbs';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
@@ -11,6 +11,7 @@ import { TrendChart } from '../../components/ui/TrendChart';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { CopyButton } from '../../components/ui/CopyButton';
 import { apiFetch } from '../../lib/api';
+import { optimalRangeLabel, optimalStatusLabel } from '../../lib/markerCopy';
 import type { MarkerNavState } from './markerNavState';
 
 interface TrendPoint {
@@ -34,6 +35,8 @@ interface MarkerDetail {
   name: string;
   unit: string;
   crossSourceComparable: boolean;
+  /** Null for the majority of markers - those have no established optimal range and nothing is said about one. */
+  optimal: OptimalRangeDTO | null;
   latest: {
     // Null when the latest result is textual — valueText carries it verbatim.
     value: number | null;
@@ -42,6 +45,7 @@ interface MarkerDetail {
     referenceLow: number;
     referenceHigh: number;
     status: MarkerStatus;
+    optimal?: OptimalRangeDTO | null;
     sourceLabel: string;
     amendedAt?: string | null;
   };
@@ -194,9 +198,22 @@ export function MarkerDetailPage() {
               <span className="text-xs text-espresso/80">Amended {formatDate(detail.latest.amendedAt)}</span>
             )}
           </div>
+          {/* Two ranges, always labelled by whose they are. The lab's is the
+              one the status above was decided by; the optimal band underneath
+              is advisory context and says so. Where a marker has no
+              established optimal, this second line simply isn't there - no
+              empty band, no placeholder. */}
           <p className="tabular mt-2 text-xs text-espresso/70">
-            Reference range {detail.latest.referenceLow}–{detail.latest.referenceHigh} {detail.latest.unit}
+            Lab reference range {detail.latest.referenceLow}–{detail.latest.referenceHigh} {detail.latest.unit}
           </p>
+          {detail.optimal && (
+            <p className="tabular mt-1 text-xs text-espresso/70">
+              {optimalRangeLabel(detail.optimal)}
+              {optimalStatusLabel(detail.optimal) && (
+                <span> · {optimalStatusLabel(detail.optimal)!.toLowerCase()}</span>
+              )}
+            </p>
+          )}
           <p className="mt-1 text-xs text-espresso/70">{detail.latest.sourceLabel}</p>
           {/* A textual result has no position on a numeric scale — the bar
               would be a guess, so it is simply not drawn. */}
@@ -207,6 +224,7 @@ export function MarkerDetailPage() {
                 low={detail.latest.referenceLow}
                 high={detail.latest.referenceHigh}
                 status={detail.latest.status}
+                optimal={detail.optimal}
               />
             </div>
           )}
@@ -214,9 +232,29 @@ export function MarkerDetailPage() {
 
         <Card>
           <p className="eyebrow mb-4">Trend over time</p>
-          <TrendChart data={detail.trend} crossSourceComparable={detail.crossSourceComparable} />
+          <TrendChart data={detail.trend} crossSourceComparable={detail.crossSourceComparable} optimal={detail.optimal} />
         </Card>
       </div>
+
+      {/* Where a value sits inside the lab range but outside the optimal band,
+          say so plainly and once. It is not an out-of-range result and must not
+          borrow that treatment - no alert card, no status colour, no advice. */}
+      {detail.optimal && detail.optimal.within === false && detail.latest.status === 'IN_RANGE' && (
+        <Card className="mt-7 max-w-3xl">
+          <p className="text-sm leading-relaxed text-espresso/90">
+            This result is in range against the lab's reference range, and outside the optimal range of{' '}
+            <span className="tabular">
+              {detail.optimal.low != null && detail.optimal.high != null
+                ? `${detail.optimal.low}–${detail.optimal.high} ${detail.optimal.unit}`
+                : detail.optimal.high != null
+                  ? `below ${detail.optimal.high} ${detail.optimal.unit}`
+                  : `${detail.optimal.low} ${detail.optimal.unit} or above`}
+            </span>
+            . The optimal range is separate context from published clinical guidance, not part of how this result was
+            classified. Source: {detail.optimal.source}
+          </p>
+        </Card>
+      )}
 
       {detail.outOfRangeNotice && (
         <Card className="mt-7 border-status-significantHigh bg-white">

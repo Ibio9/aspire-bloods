@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { useLocation, useParams } from 'react-router-dom';
 import { Breadcrumbs } from '../../components/nav/Breadcrumbs';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
@@ -12,13 +12,14 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { ReportProgress } from '../../components/ui/ReportProgress';
 import { CopyButton } from '../../components/ui/CopyButton';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
+import { Modal } from '../../components/ui/Modal';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { useToast } from '../../components/ui/Toast';
 import { apiFetch, ApiError } from '../../lib/api';
 import { API_BASE_URL } from '../../lib/apiBase';
 import { useAuth } from '../../lib/AuthContext';
 import type { ReportStatus } from '../../lib/reportStatus';
-import { formatDate, formatDateTime } from '@aspire-bloods/shared';
+import { formatDate, formatDateTime, type MarkerStatus } from '@aspire-bloods/shared';
 
 interface MarkerOption {
   id: string;
@@ -33,7 +34,12 @@ const FLAG_LABEL: Record<string, string> = {
   two_pass_disagreement: 'A second AI read disagreed, so check closely',
   non_numeric_result: 'Non-numeric result (e.g. "Not detected")',
   duplicate_printing_disagreement: 'Printed twice with different values, so check closely',
+  comparator_result: 'Result is a limit ("< 5.0") rather than a measurement',
+  one_sided_reference_range: 'The lab gave only one side of the reference range',
+  lab_status_disagreement: "Our derived status disagrees with the lab's own flag",
 };
+
+type ParseAttentionKind = 'unmatched_marker' | 'no_usable_range' | 'lab_status_disagreement' | 'extraction_flag';
 
 interface ParsedRow {
   rawLine: string;
@@ -41,23 +47,45 @@ interface ParsedRow {
   matchedMarkerId: string | null;
   matchedMarkerName: string | null;
   value: number | null;
+  resultText: string | null;
   unit: string | null;
   referenceLow: number | null;
   referenceHigh: number | null;
-  resultText: string | null;
+  /** Which of the two sources the range came from — the result itself, or the marker's stored fallback. */
+  rangeSource: 'result' | 'marker_fallback' | null;
+  /** Why no range could be resolved, when none could. Never a silently blank field. */
+  rangeNotice: string | null;
+  sampleType: string | null;
+  /** Derived server-side from the range above. The admin never types a status. */
+  derivedStatus: MarkerStatus | null;
+  /** Set when the value has no position on the range (qualitative, or a limit that straddles it). Not a failure. */
+  unevaluableReason: string | null;
+  labStatusIndicator: string | null;
+  labStatusDisagrees: boolean;
   needsReview: boolean;
   reviewReason: string | null;
   sourceText?: string;
   confidence?: number | null;
   flags?: string[];
-  /**
-   * Why no range could be suggested for this row. Client-side only — never
-   * sent back on verify. Set when the catalogue lookup declines to answer
-   * (most often: the patient has no biological sex on file and this marker's
-   * range depends on it), so the empty range fields have a stated reason
-   * rather than reading as "nothing happened".
-   */
-  rangeNotice?: string | null;
+  attention: { kind: ParseAttentionKind; message: string }[];
+}
+
+interface ParseSummary {
+  total: number;
+  clean: number;
+  needingAttention: number;
+  unmatched: number;
+  unevaluable: number;
+  readyToPublish: boolean;
+}
+
+interface ParseResponse {
+  sampleDate: string;
+  panelName: string | null;
+  extractionMethod: 'llm' | 'regex';
+  fallbackReason: string | null;
+  summary: ParseSummary;
+  rows: ParsedRow[];
 }
 
 /**
@@ -92,7 +120,7 @@ interface VerifiedResult {
   value: number | null;
   valueText?: string | null;
   unit: string;
-  status: 'IN_RANGE' | 'HIGH' | 'LOW' | 'SIGNIFICANT_HIGH' | 'SIGNIFICANT_LOW';
+  status: MarkerStatus;
   referenceRange: { low: number; high: number };
   amendedAt: string | null;
   edits: ResultEdit[];
@@ -113,65 +141,105 @@ interface ReportDetail {
   results: VerifiedResult[];
 }
 
+/** Statuses a parse can still be worked on from. Outside these the verify table has nothing to do. */
+const PARSEABLE = ['UPLOADED', 'PARSED', 'CHANGES_REQUESTED'];
+
+const RANGE_SOURCE_LABEL: Record<'result' | 'marker_fallback', string> = {
+  result: 'from the report',
+  marker_fallback: "marker's stored range",
+};
+
 export function ReportDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
   const { user } = useAuth();
   const { show } = useToast();
   const [report, setReport] = useState<ReportDetail | null>(null);
   const [markers, setMarkers] = useState<MarkerOption[]>([]);
   const [rows, setRows] = useState<ParsedRow[]>([]);
+  const [summary, setSummary] = useState<ParseSummary | null>(null);
   const [extractionMethod, setExtractionMethod] = useState<'llm' | 'regex' | null>(null);
   const [fallbackReason, setFallbackReason] = useState<string | null>(null);
   const [parsedPanelName, setParsedPanelName] = useState<string | null>(null);
   const [sampleDate, setSampleDate] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [parsing, setParsing] = useState(false);
   const [note, setNote] = useState('');
   const [voidOpen, setVoidOpen] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  /** Clean rows stay collapsed until asked for. "Review first" is what opens them. */
+  const [showAllRows, setShowAllRows] = useState(false);
   const [editingResult, setEditingResult] = useState<VerifiedResult | null>(null);
   const [editValue, setEditValue] = useState('');
   const [editUnit, setEditUnit] = useState('');
 
+  // Auto-parse fires at most once per mount. Without this, a parse that
+  // legitimately returns zero rows would retrigger on every render.
+  const autoParsed = useRef(false);
   const canActAsClinician = user?.role === 'ADMIN' || user?.role === 'CLINICIAN';
 
-  async function load() {
-    if (!id) return;
+  function applyParse(result: ParseResponse) {
+    setRows(result.rows);
+    setSummary(result.summary);
+    setSampleDate(result.sampleDate);
+    setExtractionMethod(result.extractionMethod);
+    setFallbackReason(result.fallbackReason);
+    setParsedPanelName(result.panelName);
+    // Always collapsed on arrival. Rows needing input are never inside this
+    // collapse — they render above it — so there is nothing to open for.
+    setShowAllRows(false);
+  }
+
+  async function load(): Promise<ReportDetail | null> {
+    if (!id) return null;
     const [r, m] = await Promise.all([
       apiFetch<ReportDetail>(`/reports/${id}`),
       apiFetch<MarkerOption[]>('/panels/markers'),
     ]);
     setReport(r);
     setMarkers(m);
-    setSampleDate(r.sampleDate.slice(0, 10));
+    setSampleDate((prev) => prev || r.sampleDate.slice(0, 10));
+    return r;
   }
 
   useEffect(() => {
-    void load();
+    void (async () => {
+      const loaded = await load();
+      if (!loaded || autoParsed.current) return;
+      autoParsed.current = true;
+
+      // The upload already parsed this report server-side and handed the
+      // result over in navigation state — using it saves a second extraction
+      // of a document that hasn't changed.
+      const handedOver = (location.state as { parse?: ParseResponse } | null)?.parse;
+      if (handedOver?.rows) {
+        applyParse(handedOver);
+        return;
+      }
+      // Reached directly (a link, a bookmark, a refresh): parse on arrival
+      // rather than making the admin ask for the extraction that is the only
+      // reason to be on this page.
+      if (user?.role === 'ADMIN' && !loaded.voidedAt && PARSEABLE.includes(loaded.status)) {
+        await handleParse();
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   async function handleParse() {
     if (!id) return;
     setError(null);
-    setBusy(true);
+    setParsing(true);
     try {
-      const result = await apiFetch<{
-        sampleDate: string;
-        panelName: string | null;
-        extractionMethod: 'llm' | 'regex';
-        fallbackReason: string | null;
-        rows: ParsedRow[];
-      }>(`/reports/${id}/parse`, { method: 'POST' });
-      setRows(result.rows);
-      setSampleDate(result.sampleDate);
-      setExtractionMethod(result.extractionMethod);
-      setFallbackReason(result.fallbackReason);
-      setParsedPanelName(result.panelName);
+      const result = await apiFetch<ParseResponse>(`/reports/${id}/parse`, { method: 'POST' });
+      applyParse(result);
       await load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Parse failed');
     } finally {
-      setBusy(false);
+      setParsing(false);
     }
   }
 
@@ -203,6 +271,7 @@ export function ReportDetailPage() {
               referenceLow: resolved.low,
               referenceHigh: resolved.high,
               unit: row.unit ?? resolved.unit,
+              rangeSource: 'marker_fallback',
               rangeNotice: null,
             }
           : {},
@@ -210,40 +279,90 @@ export function ReportDetailPage() {
     });
   }
 
+  /**
+   * The rows that will actually be written, in the shape the API takes.
+   *
+   * A non-numeric result travels as its verbatim text ("< 5.0", "Not
+   * detected") — the request schema accepts a string for exactly this, and
+   * coercing it to a number here is the one thing that must never happen.
+   */
+  function buildResults() {
+    return rows
+      .filter((r) => r.matchedMarkerId && r.referenceLow != null && r.referenceHigh != null)
+      .filter((r) => r.value != null || r.resultText)
+      .map((r) => ({
+        markerId: r.matchedMarkerId!,
+        value: r.value != null ? Number(r.value) : r.resultText!,
+        unit: r.unit ?? '',
+        referenceLow: Number(r.referenceLow),
+        referenceHigh: Number(r.referenceHigh),
+      }));
+  }
+
+  function incompleteMatchedRows() {
+    return rows.filter(
+      (r) => r.matchedMarkerId && ((r.value == null && !r.resultText) || !r.unit || r.referenceLow == null || r.referenceHigh == null),
+    );
+  }
+
   async function handleVerify() {
     if (!id) return;
     setError(null);
 
-    const included = rows.filter((r) => r.matchedMarkerId);
-    const incomplete = included.filter(
-      (r) => r.value == null || !r.unit || r.referenceLow == null || r.referenceHigh == null,
-    );
+    const incomplete = incompleteMatchedRows();
     if (incomplete.length > 0) {
       setError(
-        `${incomplete.length} matched row${incomplete.length === 1 ? '' : 's'} ${incomplete.length === 1 ? 'is' : 'are'} missing a value, unit, or reference range. The parser flagged ${incomplete.length === 1 ? 'it' : 'them'} for manual entry (see "Needs review" below). Fill every field in before saving, or unmatch the row to skip it.`,
+        `${incomplete.length} matched row${incomplete.length === 1 ? '' : 's'} ${incomplete.length === 1 ? 'is' : 'are'} missing a value, unit, or reference range. Fill every field in before saving, or unmatch the row to skip it.`,
       );
       return;
     }
 
     setBusy(true);
     try {
-      const results = included.map((r) => ({
-        markerId: r.matchedMarkerId!,
-        value: Number(r.value),
-        unit: r.unit ?? '',
-        referenceLow: Number(r.referenceLow),
-        referenceHigh: Number(r.referenceHigh),
-      }));
       await apiFetch(`/reports/${id}/verify`, {
         method: 'POST',
-        body: JSON.stringify({ sampleDate: new Date(sampleDate).toISOString(), results }),
+        body: JSON.stringify({ sampleDate: new Date(sampleDate).toISOString(), results: buildResults() }),
       });
       setRows([]);
+      setSummary(null);
       await load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Verify failed');
     } finally {
       setBusy(false);
+    }
+  }
+
+  /**
+   * Publish — verify, review and release, in one request.
+   *
+   * The server still walks each transition through its own guard; this just
+   * stops the admin making three round trips to say one thing.
+   */
+  async function handlePublish() {
+    if (!id) return;
+    setError(null);
+    setPublishing(true);
+    try {
+      await apiFetch(`/reports/${id}/publish`, {
+        method: 'POST',
+        body: JSON.stringify({
+          sampleDate: new Date(sampleDate).toISOString(),
+          results: buildResults(),
+          note: note || undefined,
+          confirm: true,
+        }),
+      });
+      setPublishOpen(false);
+      setRows([]);
+      setSummary(null);
+      show('Report published and released to the patient.', 'success');
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Publish failed');
+      setPublishOpen(false);
+    } finally {
+      setPublishing(false);
     }
   }
 
@@ -301,6 +420,9 @@ export function ReportDetailPage() {
     : null;
 
   const sampleDateLabel = formatDate(report.sampleDate);
+  const attentionRows = rows.map((r, i) => ({ row: r, i })).filter(({ row }) => row.attention.length > 0);
+  const cleanRows = rows.map((r, i) => ({ row: r, i })).filter(({ row }) => row.attention.length === 0);
+  const publishable = rows.length > 0 && buildResults().length > 0 && attentionRows.length === 0 && incompleteMatchedRows().length === 0;
 
   return (
     <>
@@ -356,13 +478,21 @@ export function ReportDetailPage() {
       )}
 
       <div className="mt-8 flex flex-wrap gap-3">
+        {/* Publish leads. It is the action on a routine report, and putting it
+            behind the parse table was most of why publishing took so long. */}
+        {user?.role === 'ADMIN' && rows.length > 0 && !report.voidedAt && (
+          <Button onClick={() => setPublishOpen(true)} disabled={parsing || busy}>
+            Publish
+          </Button>
+        )}
+
         <Button variant="secondary" onClick={handleDownload}>
           Download original PDF
         </Button>
 
-        {user?.role === 'ADMIN' && ['UPLOADED', 'CHANGES_REQUESTED'].includes(report.status) && (
-          <Button onClick={handleParse} loading={busy}>
-            Parse PDF
+        {user?.role === 'ADMIN' && !report.voidedAt && PARSEABLE.includes(report.status) && (
+          <Button variant="secondary" onClick={handleParse} loading={parsing}>
+            {rows.length > 0 ? 'Parse again' : 'Parse PDF'}
           </Button>
         )}
 
@@ -405,173 +535,88 @@ export function ReportDetailPage() {
         </Card>
       )}
 
-      {rows.length > 0 && (
+      {parsing && rows.length === 0 && (
+        <Card className="mt-8 max-w-2xl" aria-busy="true">
+          <p className="text-sm font-medium text-espresso">Reading the report…</p>
+          <p className="mt-1 text-sm text-espresso/80">
+            Extracting every marker, its value, units and the reference range printed alongside it, then working out
+            each one's status from that range.
+          </p>
+          <Skeleton className="mt-4 h-4 w-full" />
+          <Skeleton className="mt-2 h-4 w-3/4" />
+        </Card>
+      )}
+
+      {summary && rows.length > 0 && (
         <div className="mt-8">
-          <p className="eyebrow mb-1">Verify extracted results: correct anything before saving</p>
-          {parsedPanelName && <p className="mb-3 text-sm text-espresso/80">Panel printed on the report: {parsedPanelName}</p>}
-          {extractionMethod === 'regex' && (
-            <Card className="mb-4 max-w-2xl border-status-high bg-white">
-              <p className="text-sm font-medium text-espresso">Pattern-based extraction (AI extraction unavailable)</p>
-              <p className="mt-1 text-sm text-espresso/80">{fallbackReason}</p>
-            </Card>
-          )}
-          {extractionMethod === 'llm' && (
-            <p className="mb-4 text-xs text-espresso/60">
-              Extracted with AI assistance. Every row still needs your confirmation. Rows flagged below had a low-confidence
-              read or failed a sanity check; check them against the source text before saving.
-            </p>
-          )}
-          <div className="mb-4 max-w-xs">
+          <ParseSummaryCard
+            summary={summary}
+            extractionMethod={extractionMethod}
+            fallbackReason={fallbackReason}
+            panelName={parsedPanelName}
+          />
+
+          <div className="mt-5 max-w-xs">
             <DateField label="Sample date" name="sampleDate" preset="recent-past" value={sampleDate} onChange={setSampleDate} />
           </div>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableHeaderCell>Status</TableHeaderCell>
-                <TableHeaderCell>Source text</TableHeaderCell>
-                <TableHeaderCell>Marker</TableHeaderCell>
-                <TableHeaderCell>Value</TableHeaderCell>
-                <TableHeaderCell>Unit</TableHeaderCell>
-                <TableHeaderCell>Low</TableHeaderCell>
-                <TableHeaderCell>High</TableHeaderCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {rows.map((row, i) => {
-                // Two independent reasons a row deserves a second look, and an
-                // admin needs both: the parser itself was unsure (needsReview —
-                // no range found, qualitative result, row split across a page),
-                // or a sanity check on the extracted values failed (flags —
-                // unknown marker, implausible unit, two-pass disagreement).
-                // Neither subsumes the other, so neither replaces the other.
-                const flags = row.flags ?? [];
-                const flagged = flags.length > 0;
-                return (
-                <TableRow key={i} className={row.needsReview || flagged ? 'bg-status-high/5' : undefined}>
-                  <TableCell>
-                    {row.needsReview ? (
-                      <span
-                        className="inline-flex items-center gap-1.5 text-xs font-medium text-status-high"
-                        title={row.reviewReason ?? 'Needs review'}
-                      >
-                        <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
-                          <path
-                            d="M8 1.5 L15 14 H1 Z M8 6.5 V9.5 M8 11.5 h.01"
-                            stroke="currentColor"
-                            strokeWidth="1.4"
-                            fill="none"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                        Needs review
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-status-inRange">
-                        <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
-                          <path d="M2 8.5 L6 12.5 L14 3.5" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                        Extracted
-                      </span>
-                    )}
-                    {flagged && (
-                      <Tooltip label={flags.map((f) => FLAG_LABEL[f] ?? f).join(' · ')}>
-                        <span className="mt-1 inline-flex items-center gap-1 text-status-high" tabIndex={0}>
-                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                            <path
-                              d="M7 1 13 12H1L7 1Z"
-                              stroke="currentColor"
-                              strokeWidth="1.3"
-                              strokeLinejoin="round"
-                              fill="none"
-                            />
-                            <path d="M7 5.5v3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-                            <circle cx="7" cy="10.3" r="0.7" fill="currentColor" />
-                          </svg>
-                          <span className="text-xs font-medium">Check</span>
-                        </span>
-                      </Tooltip>
-                    )}
-                    {row.resultText && (
-                      <p className="mt-1 text-xs text-espresso/80">Reported as: “{row.resultText}”</p>
-                    )}
-                  </TableCell>
-                  <TableCell className="max-w-[240px] truncate" title={row.sourceText ?? row.rawLine}>
-                    {row.sourceText ?? row.rawLine}
-                    {row.confidence != null && (
-                      <span className="ml-1.5 text-xs text-espresso/50">({Math.round(row.confidence * 100)}%)</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Select
-                      label={`Matched marker for "${row.rawName}"`}
-                      hideLabel
-                      searchable
-                      emptyMessage={<>No markers configured yet. Add one under the Panels &amp; markers tab.</>}
-                      name={`matched-marker-${i}`}
-                      value={row.matchedMarkerId ?? ''}
-                      onChange={(e) => {
-                        const markerId = e.target.value || null;
-                        updateRow(i, { matchedMarkerId: markerId });
-                        if (markerId) fillMissingRange(i, markerId);
-                      }}
-                    >
-                      <option value="">Unmatched, skip this row</option>
-                      {markers.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.name}
-                        </option>
-                      ))}
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    <input
-                      type="number"
-                      step="any"
-                      className="input-base tabular w-24 py-1.5"
-                      value={row.value ?? ''}
-                      onChange={(e) => updateRow(i, { value: Number(e.target.value) })}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <input
-                      className="input-base w-20 py-1.5"
-                      value={row.unit ?? ''}
-                      onChange={(e) => updateRow(i, { unit: e.target.value })}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <input
-                      type="number"
-                      step="any"
-                      className="input-base tabular w-20 py-1.5"
-                      value={row.referenceLow ?? ''}
-                      onChange={(e) => updateRow(i, { referenceLow: Number(e.target.value) })}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <input
-                      type="number"
-                      step="any"
-                      className="input-base tabular w-20 py-1.5"
-                      value={row.referenceHigh ?? ''}
-                      onChange={(e) => updateRow(i, { referenceHigh: Number(e.target.value) })}
-                    />
-                    {/* The catalogue declined to suggest a range and said
-                        why. Blank fields with no explanation read as a
-                        lookup that didn't run; this says it ran and
-                        deliberately refused to guess. */}
-                    {row.rangeNotice && (
-                      <p className="mt-1.5 max-w-xs text-xs leading-relaxed text-espresso/80">{row.rangeNotice}</p>
-                    )}
-                  </TableCell>
-                </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-          <Button onClick={handleVerify} loading={busy} className="mt-6">
-            Save &amp; mark as verified
+
+          {attentionRows.length > 0 && (
+            <div className="mt-7">
+              <p className="eyebrow mb-1">
+                Needs your input · {attentionRows.length} of {rows.length}
+              </p>
+              <p className="mb-3 max-w-2xl text-sm text-espresso/80">
+                Everything else parsed cleanly and is collapsed below. These are the rows nothing could settle
+                automatically: an unrecognised marker, a result with no usable range, or a status that disagrees with
+                the lab's own flag.
+              </p>
+              <RowTable
+                entries={attentionRows}
+                markers={markers}
+                updateRow={updateRow}
+                fillMissingRange={fillMissingRange}
+              />
+            </div>
+          )}
+
+          {cleanRows.length > 0 && (
+            <div className="mt-7">
+              <button
+                type="button"
+                onClick={() => setShowAllRows((v) => !v)}
+                aria-expanded={showAllRows}
+                className="flex min-h-tap items-center gap-2 text-sm font-medium text-bronze underline underline-offset-4"
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 12 12"
+                  aria-hidden="true"
+                  className={`transition-transform duration-150 ${showAllRows ? 'rotate-90' : ''}`}
+                >
+                  <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                {showAllRows ? 'Hide' : 'Review'} the {cleanRows.length} row{cleanRows.length === 1 ? '' : 's'} that
+                parsed cleanly
+              </button>
+              {showAllRows && (
+                <div className="mt-4">
+                  <RowTable
+                    entries={cleanRows}
+                    markers={markers}
+                    updateRow={updateRow}
+                    fillMissingRange={fillMissingRange}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Still available, still not mandatory: an admin who wants the
+              report verified now and reviewed by someone else later takes
+              this route instead of Publish. */}
+          <Button variant="secondary" onClick={handleVerify} loading={busy} className="mt-7">
+            Save &amp; mark as verified, review later
           </Button>
         </div>
       )}
@@ -626,6 +671,54 @@ export function ReportDetailPage() {
           </div>
         </div>
       )}
+
+      {/* One confirmation, two ways out. Not a wizard: there is no second
+          screen behind either button. */}
+      <Modal
+        open={publishOpen}
+        onClose={() => setPublishOpen(false)}
+        title="Publish this report?"
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              disabled={publishing}
+              onClick={() => {
+                setPublishOpen(false);
+                setShowAllRows(true);
+              }}
+            >
+              Review first
+            </Button>
+            <Button variant="primary" loading={publishing} disabled={!publishable} onClick={handlePublish}>
+              {publishing ? 'Publishing…' : 'Publish now'}
+            </Button>
+          </>
+        }
+      >
+        <p>
+          <strong>{patientName}</strong> will be able to see {buildResults().length} result
+          {buildResults().length === 1 ? '' : 's'} from {sampleDateLabel} immediately, and will be notified. The
+          report is verified, reviewed and released in one step; each stage is still recorded separately in the audit
+          log.
+        </p>
+        {summary && (
+          <ul className="mt-3 flex flex-col gap-1 text-sm text-espresso/80">
+            <li className="tabular">{summary.total} markers read from the PDF</li>
+            {summary.unmatched > 0 && <li className="tabular">{summary.unmatched} not matched to a marker, and will be skipped</li>}
+            {summary.unevaluable > 0 && (
+              <li className="tabular">{summary.unevaluable} recorded as reported, with no position on a numeric range</li>
+            )}
+          </ul>
+        )}
+        {!publishable && (
+          <p className="mt-3 text-sm text-status-significantHigh">
+            {attentionRows.length > 0
+              ? `${attentionRows.length} row${attentionRows.length === 1 ? '' : 's'} still need${attentionRows.length === 1 ? 's' : ''} your input, so this can't go out as parsed. Choose “Review first”.`
+              : 'There is nothing complete enough to publish yet. Choose “Review first”.'}
+          </p>
+        )}
+      </Modal>
 
       <ConfirmModal
         open={voidOpen}
@@ -700,5 +793,232 @@ export function ReportDetailPage() {
         )}
       </ConfirmModal>
     </>
+  );
+}
+
+/**
+ * The whole report at a glance, so the decision to publish is made from a
+ * summary rather than from scrolling forty rows. Three numbers, because three
+ * numbers is what the decision actually turns on.
+ */
+function ParseSummaryCard({
+  summary,
+  extractionMethod,
+  fallbackReason,
+  panelName,
+}: {
+  summary: ParseSummary;
+  extractionMethod: 'llm' | 'regex' | null;
+  fallbackReason: string | null;
+  panelName: string | null;
+}) {
+  return (
+    <Card className="max-w-2xl">
+      <p className="eyebrow">Parse summary</p>
+      <div className="mt-4 grid grid-cols-3 gap-4">
+        <div>
+          <p className="tabular font-display text-3xl leading-none text-espresso">{summary.clean}</p>
+          <p className="mt-1 text-xs text-espresso/80">parsed cleanly</p>
+        </div>
+        <div>
+          <p className="tabular font-display text-3xl leading-none text-espresso">{summary.needingAttention}</p>
+          <p className="mt-1 text-xs text-espresso/80">need attention</p>
+        </div>
+        <div>
+          <p className="tabular font-display text-3xl leading-none text-espresso">{summary.unmatched}</p>
+          <p className="mt-1 text-xs text-espresso/80">unmatched markers</p>
+        </div>
+      </div>
+      <p className="mt-4 text-sm leading-relaxed text-espresso/85">
+        {summary.readyToPublish
+          ? `All ${summary.total} markers were matched, given a reference range, and had their status derived from it. Nothing needs correcting.`
+          : `${summary.total} markers read. ${summary.needingAttention} could not be settled automatically and ${summary.needingAttention === 1 ? 'is' : 'are'} listed below.`}
+      </p>
+      {summary.unevaluable > 0 && (
+        <p className="mt-2 text-sm leading-relaxed text-espresso/80">
+          {summary.unevaluable} result{summary.unevaluable === 1 ? ' has' : 's have'} no position on a numeric range
+          (a qualitative result, or a limit that straddles the range). {summary.unevaluable === 1 ? 'It is' : 'They are'}{' '}
+          recorded exactly as reported rather than being assigned a status.
+        </p>
+      )}
+      {panelName && <p className="mt-3 text-xs text-espresso/70">Panel printed on the report: {panelName}</p>}
+      {extractionMethod === 'regex' && (
+        <div className="mt-4 rounded-input border border-status-high bg-white p-3">
+          <p className="text-sm font-medium text-espresso">Pattern-based extraction (AI extraction unavailable)</p>
+          <p className="mt-1 text-sm text-espresso/80">{fallbackReason}</p>
+        </div>
+      )}
+      {extractionMethod === 'llm' && (
+        <p className="mt-3 text-xs text-espresso/60">
+          Extracted with AI assistance. Statuses are derived from the reference range on each result, falling back to
+          the marker's stored range only where the report printed none.
+        </p>
+      )}
+    </Card>
+  );
+}
+
+function RowTable({
+  entries,
+  markers,
+  updateRow,
+  fillMissingRange,
+}: {
+  entries: { row: ParsedRow; i: number }[];
+  markers: MarkerOption[];
+  updateRow: (index: number, patch: Partial<ParsedRow> | ((row: ParsedRow) => Partial<ParsedRow>)) => void;
+  fillMissingRange: (index: number, markerId: string) => void;
+}) {
+  return (
+    <Table>
+      <TableHead>
+        <TableRow>
+          <TableHeaderCell>Status</TableHeaderCell>
+          <TableHeaderCell>Source text</TableHeaderCell>
+          <TableHeaderCell>Marker</TableHeaderCell>
+          <TableHeaderCell>Value</TableHeaderCell>
+          <TableHeaderCell>Unit</TableHeaderCell>
+          <TableHeaderCell>Low</TableHeaderCell>
+          <TableHeaderCell>High</TableHeaderCell>
+        </TableRow>
+      </TableHead>
+      <TableBody>
+        {entries.map(({ row, i }) => {
+          const flags = row.flags ?? [];
+          const needsInput = row.attention.length > 0;
+          return (
+            <TableRow key={i} className={needsInput ? 'bg-status-high/5' : undefined}>
+              <TableCell>
+                {/* The derived status, not a badge the admin has to set. Where
+                    it could not be derived, that is stated in words rather
+                    than left as an empty cell. */}
+                {row.derivedStatus ? (
+                  <StatusBadge status={row.derivedStatus} />
+                ) : row.unevaluableReason ? (
+                  <span className="text-xs font-medium text-espresso/70">Recorded as reported</span>
+                ) : (
+                  <span className="text-xs font-medium text-status-high">No status yet</span>
+                )}
+                {row.rangeSource && (
+                  <p className="mt-1 text-xs text-espresso/60">Range {RANGE_SOURCE_LABEL[row.rangeSource]}</p>
+                )}
+                {row.sampleType && <p className="mt-0.5 text-xs text-espresso/60">{row.sampleType}</p>}
+                {row.unevaluableReason && (
+                  <p className="mt-1 max-w-[220px] text-xs leading-relaxed text-espresso/70">{row.unevaluableReason}</p>
+                )}
+                {row.attention.map((a, k) => (
+                  <p key={k} className="mt-1 flex max-w-[220px] items-start gap-1 text-xs leading-relaxed text-status-high">
+                    <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true" className="mt-0.5 shrink-0">
+                      <path
+                        d="M8 1.5 L15 14 H1 Z M8 6.5 V9.5 M8 11.5 h.01"
+                        stroke="currentColor"
+                        strokeWidth="1.4"
+                        fill="none"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    {a.message}
+                  </p>
+                ))}
+                {flags.length > 0 && !needsInput && (
+                  <Tooltip label={flags.map((f) => FLAG_LABEL[f] ?? f).join(' · ')}>
+                    <span className="mt-1 inline-flex items-center gap-1 text-espresso/60" tabIndex={0}>
+                      <span className="text-xs">Extraction notes</span>
+                    </span>
+                  </Tooltip>
+                )}
+                {row.resultText && <p className="mt-1 text-xs text-espresso/80">Reported as: “{row.resultText}”</p>}
+              </TableCell>
+              <TableCell className="max-w-[240px] truncate" title={row.sourceText ?? row.rawLine}>
+                {row.sourceText ?? row.rawLine}
+                {row.confidence != null && (
+                  <span className="ml-1.5 text-xs text-espresso/50">({Math.round(row.confidence * 100)}%)</span>
+                )}
+              </TableCell>
+              <TableCell>
+                <Select
+                  label={`Matched marker for "${row.rawName}"`}
+                  hideLabel
+                  searchable
+                  emptyMessage={<>No markers configured yet. Add one under the Panels &amp; markers tab.</>}
+                  name={`matched-marker-${i}`}
+                  value={row.matchedMarkerId ?? ''}
+                  onChange={(e) => {
+                    const markerId = e.target.value || null;
+                    updateRow(i, { matchedMarkerId: markerId });
+                    if (markerId) fillMissingRange(i, markerId);
+                  }}
+                >
+                  <option value="">Unmatched, skip this row</option>
+                  {markers.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                </Select>
+              </TableCell>
+              <TableCell>
+                {/* A non-numeric result stays text. Typing it into a number
+                    field would silently coerce "< 5.0" to 5, which is the one
+                    transformation that must never happen to a lab value. */}
+                {row.value == null && row.resultText ? (
+                  <input
+                    className="input-base w-24 py-1.5"
+                    aria-label={`Result for ${row.rawName}`}
+                    value={row.resultText}
+                    onChange={(e) => updateRow(i, { resultText: e.target.value })}
+                  />
+                ) : (
+                  <input
+                    type="number"
+                    step="any"
+                    aria-label={`Value for ${row.rawName}`}
+                    className="input-base tabular w-24 py-1.5"
+                    value={row.value ?? ''}
+                    onChange={(e) => updateRow(i, { value: e.target.value === '' ? null : Number(e.target.value) })}
+                  />
+                )}
+              </TableCell>
+              <TableCell>
+                <input
+                  className="input-base w-20 py-1.5"
+                  aria-label={`Unit for ${row.rawName}`}
+                  value={row.unit ?? ''}
+                  onChange={(e) => updateRow(i, { unit: e.target.value })}
+                />
+              </TableCell>
+              <TableCell>
+                <input
+                  type="number"
+                  step="any"
+                  aria-label={`Reference low for ${row.rawName}`}
+                  className="input-base tabular w-20 py-1.5"
+                  value={row.referenceLow ?? ''}
+                  onChange={(e) => updateRow(i, { referenceLow: e.target.value === '' ? null : Number(e.target.value) })}
+                />
+              </TableCell>
+              <TableCell>
+                <input
+                  type="number"
+                  step="any"
+                  aria-label={`Reference high for ${row.rawName}`}
+                  className="input-base tabular w-20 py-1.5"
+                  value={row.referenceHigh ?? ''}
+                  onChange={(e) => updateRow(i, { referenceHigh: e.target.value === '' ? null : Number(e.target.value) })}
+                />
+                {/* The catalogue declined to suggest a range and said
+                    why. Blank fields with no explanation read as a
+                    lookup that didn't run; this says it ran and
+                    deliberately refused to guess. */}
+                {row.rangeNotice && (
+                  <p className="mt-1.5 max-w-xs text-xs leading-relaxed text-espresso/80">{row.rangeNotice}</p>
+                )}
+              </TableCell>
+            </TableRow>
+          );
+        })}
+      </TableBody>
+    </Table>
   );
 }

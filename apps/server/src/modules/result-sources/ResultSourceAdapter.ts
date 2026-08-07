@@ -147,6 +147,14 @@ export interface ParsedMeasurements {
   knownVascularDisease?: boolean | null;
   onMedicationForHypertension?: boolean | null;
   ethnicity?: string | null;
+  /**
+   * Biological sex as the LAB recorded it against this sample. Normalised to
+   * our own enum, or null when the source didn't report one — never guessed.
+   * Used only as a fallback for resolving optimal ranges where the patient's
+   * account carries no sex (see lib/optimalRange.ts); it never overrides the
+   * account value and it never affects a marker's status.
+   */
+  biologicalSex?: 'MALE' | 'FEMALE' | null;
 }
 
 /**

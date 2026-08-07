@@ -239,9 +239,27 @@ export async function normaliseResultDetail(
         knownVascularDisease: detail.patientKnownVascularDisease,
         onMedicationForHypertension: detail.patientOnMedicationforHypertension,
         ethnicity: detail.patientEthnicity,
+        biologicalSex: normaliseBiologicalSex(detail.patientBiologicalSex),
       },
     },
   };
+}
+
+/**
+ * Randox's biological sex, as one of ours — or null.
+ *
+ * The wire value is a name on some endpoints and a numeric/string id on
+ * others (GetBiologicalSex returns `{id: "1", name: "Male"}`), so both shapes
+ * are accepted. Anything else is null: this feeds an advisory optimal range
+ * and nothing else, and a guessed sex there would silently hand a patient the
+ * other cohort's band.
+ */
+function normaliseBiologicalSex(raw: string | number | null | undefined): 'MALE' | 'FEMALE' | null {
+  if (raw == null) return null;
+  const s = String(raw).trim().toLowerCase();
+  if (s === 'male' || s === 'm' || s === '1') return 'MALE';
+  if (s === 'female' || s === 'f' || s === '2') return 'FEMALE';
+  return null;
 }
 
 /**

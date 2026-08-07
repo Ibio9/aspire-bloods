@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { formatDate, type MarkerStatus } from '@aspire-bloods/shared';
+import { formatDate, type MarkerStatus, type OptimalRangeDTO } from '@aspire-bloods/shared';
 import { Breadcrumbs } from '../../components/nav/Breadcrumbs';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import type { MarkerNavState } from './markerNavState';
@@ -13,6 +13,7 @@ import { Reveal } from '../../components/motion/Reveal';
 import { staggerDelay } from '../../components/motion/stagger';
 import { useToast } from '../../components/ui/Toast';
 import { apiFetch } from '../../lib/api';
+import { optimalRangeLabel, optimalStatusLabel } from '../../lib/markerCopy';
 import { API_BASE_URL } from '../../lib/apiBase';
 import { ReportBookingLink } from '../booking/ReportBookingLink';
 
@@ -27,6 +28,8 @@ interface MarkerCard {
   referenceLow: number;
   referenceHigh: number;
   status: MarkerStatus;
+  /** Null for the majority of markers; nothing about optimal is shown for those. */
+  optimal?: OptimalRangeDTO | null;
   gloss: string;
   amendedAt?: string | null;
 }
@@ -164,9 +167,20 @@ export function ReportView() {
                 {m.valueText ?? m.value}
                 <span className="text-base font-normal text-espresso/70">{m.unit}</span>
               </p>
+              {/* The lab's range and the optimal band are two different
+                  things and are labelled as two different things. Only the
+                  first decides the status badge below. */}
               <p className="tabular mt-3 text-xs text-espresso/70">
-                Reference range {m.referenceLow}–{m.referenceHigh} {m.unit}
+                Lab reference range {m.referenceLow}–{m.referenceHigh} {m.unit}
               </p>
+              {m.optimal && (
+                <p className="tabular mt-1 text-xs text-espresso/70">
+                  {optimalRangeLabel(m.optimal)}
+                  {optimalStatusLabel(m.optimal) && (
+                    <span> · {optimalStatusLabel(m.optimal)!.toLowerCase()}</span>
+                  )}
+                </p>
+              )}
               <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
                 <StatusBadge status={m.status} />
                 {m.amendedAt && <span className="text-xs text-espresso/80">Amended {formatDate(m.amendedAt)}</span>}

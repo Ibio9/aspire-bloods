@@ -29,6 +29,26 @@ export const releaseReportRequestSchema = z.object({
 });
 export type ReleaseReportRequest = z.infer<typeof releaseReportRequestSchema>;
 
+/**
+ * Publish — one admin action that carries a report the whole way from PARSED
+ * to RELEASED.
+ *
+ * Deliberately the same body as verify, because that is exactly what it is:
+ * the verified rows, plus a flag saying "and take it all the way". The server
+ * still walks every state in turn (verify → review → release), each through
+ * its own guard, so nothing here skips a state or writes the terminal one
+ * directly. The saving is in interactions, not in checks.
+ */
+export const publishReportRequestSchema = z.object({
+  sampleDate: z.string().datetime(),
+  results: z.array(verifiedResultRowSchema).min(1),
+  /** Optional reviewer note, recorded on the review transition exactly as the two-step path records it. */
+  note: z.string().max(2000).optional(),
+  /** Must be true. The single confirmation the admin gives, restated in the request. */
+  confirm: z.literal(true),
+});
+export type PublishReportRequest = z.infer<typeof publishReportRequestSchema>;
+
 // Phase 2 §2.5 — manual entry route.
 // A panel is an equal choice, not a required fallback — '' (no panel
 // selected in the dropdown) and null both mean "no panel", not an invalid uuid.

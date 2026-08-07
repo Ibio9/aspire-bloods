@@ -238,6 +238,7 @@ export async function materialiseParsedReport(input: {
         knownVascularDisease: m.knownVascularDisease ?? null,
         onMedicationForHypertension: m.onMedicationForHypertension ?? null,
         ethnicity: m.ethnicity ?? null,
+        biologicalSex: m.biologicalSex ?? null,
       };
       await tx.reportMeasurements.upsert({
         where: { reportId: report.id },

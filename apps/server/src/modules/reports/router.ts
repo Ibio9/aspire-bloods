@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
-import { verifyReportRequestSchema, manualEntryRequestSchema } from '@aspire-bloods/shared';
+import { verifyReportRequestSchema, publishReportRequestSchema, manualEntryRequestSchema } from '@aspire-bloods/shared';
 import { authGuard } from '../../middleware/authGuard.js';
 import { roleGuard } from '../../middleware/roleGuard.js';
 import { verifyCsrf } from '../../middleware/csrf.js';
@@ -11,6 +11,7 @@ import {
   uploadReport,
   parseReport,
   verifyReport,
+  publishReport,
   reviewReport,
   releaseReport,
   voidReport,
@@ -104,7 +105,7 @@ reportsRouter.post(
     if (!req.file) return res.status(400).json({ error: 'A PDF file is required' });
 
     try {
-      const report = await uploadReport({
+      const { report, parse, parseError } = await uploadReport({
         ...parsed.data,
         panelId: parsed.data.panelId ?? null,
         fileBuffer: req.file.buffer,
@@ -113,7 +114,11 @@ reportsRouter.post(
         uploadedById: req.user!.id,
         ip: req.ip ?? null,
       });
-      res.status(201).json(report);
+      // The report's own fields stay at the top level — every existing caller
+      // reads `id` straight off this response. The parse rides alongside so
+      // the admin console can go straight to a populated verify table instead
+      // of asking for the extraction it was always going to ask for.
+      res.status(201).json({ ...report, parse, parseError });
     } catch (e) {
       if (!handleReportError(e, res)) throw e;
     }
@@ -228,6 +233,37 @@ reportsRouter.post(
   }),
 );
 
+/**
+ * Release has already committed by the time this runs — a notification-side
+ * failure (email/SMS provider down) must not surface as a release failure to
+ * the admin, who would otherwise retry a release that already succeeded and
+ * get a confusing 409. Escalation itself is still exactly-once: releaseReport()
+ * can only ever succeed once per report (see its status guard), so each call
+ * site here runs at most once per report.
+ *
+ * Shared by the two routes that can release: the explicit release step, and
+ * one-step publish. Both must escalate identically — a report published in one
+ * click and the same report released in three has the same clinical urgency.
+ */
+async function escalateAfterRelease(reportId: string, actorUserId: string, ip: string | null) {
+  try {
+    await checkAndEscalate(reportId);
+  } catch (escalationError) {
+    console.error('[escalation] failed after successful release', {
+      reportId,
+      error: escalationError instanceof Error ? escalationError.message : escalationError,
+    });
+    await recordAuditLog({
+      actorUserId,
+      action: 'ESCALATION_FAILED',
+      targetType: 'Report',
+      targetId: reportId,
+      ipAddress: ip,
+      metadata: { error: escalationError instanceof Error ? escalationError.message : String(escalationError) },
+    });
+  }
+}
+
 reportsRouter.post(
   '/:id/release',
   roleGuard('ADMIN', 'CLINICIAN'),
@@ -235,29 +271,35 @@ reportsRouter.post(
   asyncHandler(async (req, res) => {
     try {
       const report = await releaseReport(req.params.id, req.user!.id, req.ip ?? null);
-      // Release has already committed at this point — a notification-side
-      // failure (email/SMS provider down) must not surface as a release
-      // failure to the admin, who would otherwise retry a release that
-      // already succeeded and get a confusing 409. Escalation itself is
-      // still exactly-once: releaseReport() can only ever succeed once per
-      // report (see the status guard above), so this call site runs once.
-      try {
-        await checkAndEscalate(report.id);
-      } catch (escalationError) {
-        console.error('[escalation] failed after successful release', {
-          reportId: report.id,
-          error: escalationError instanceof Error ? escalationError.message : escalationError,
-        });
-        await recordAuditLog({
-          actorUserId: req.user!.id,
-          action: 'ESCALATION_FAILED',
-          targetType: 'Report',
-          targetId: report.id,
-          ipAddress: req.ip ?? null,
-          metadata: { error: escalationError instanceof Error ? escalationError.message : String(escalationError) },
-        });
-      }
+      await escalateAfterRelease(report.id, req.user!.id, req.ip ?? null);
       res.json({ ok: true });
+    } catch (e) {
+      if (!handleReportError(e, res)) throw e;
+    }
+  }),
+);
+
+/**
+ * Verify, review and release in one request.
+ *
+ * ADMIN only, and deliberately not looser than the three steps it replaces:
+ * verify is already ADMIN-only, so an admin is the only role that could have
+ * driven this sequence by hand anyway. The service walks each transition
+ * through its own guard, so this route weakens nothing — it just stops the
+ * admin making three round trips to say one thing.
+ */
+reportsRouter.post(
+  '/:id/publish',
+  roleGuard('ADMIN'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const parsed = publishReportRequestSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+    try {
+      const report = await publishReport(req.params.id, parsed.data, req.user!.id, req.ip ?? null);
+      await escalateAfterRelease(report.id, req.user!.id, req.ip ?? null);
+      res.json({ ok: true, status: report.status });
     } catch (e) {
       if (!handleReportError(e, res)) throw e;
     }

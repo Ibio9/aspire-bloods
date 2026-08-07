@@ -40,6 +40,32 @@ export interface PanelCardDTO {
   status: ReportStatus;
 }
 
+/**
+ * The advisory optimal band that rides alongside the lab reference range.
+ * Absent (null on the DTO) whenever there is no established optimal for this
+ * marker, or none that applies to this patient — never sent as an empty or
+ * placeholder band, because a blank "optimal" reads as a missing value rather
+ * than as a marker that genuinely has none.
+ *
+ * `low`/`high` may individually be null where the guidance bounds one side
+ * only ("below 5.0 mmol/L"). Never both.
+ */
+export interface OptimalRangeDTO {
+  low: number | null;
+  high: number | null;
+  unit: string;
+  /** The guideline this came from, named. Shown to the patient so the band isn't an unattributed claim. */
+  source: string;
+  /**
+   * Whether the value sits inside the band. Null when it can't be said —
+   * a textual result has no position on a numeric band.
+   *
+   * This is NOT a status. Status comes from the lab reference range and
+   * nothing else; this is a separate, calmer statement alongside it.
+   */
+  within: boolean | null;
+}
+
 export interface MarkerCardDTO {
   markerId: string;
   name: string;
@@ -52,6 +78,8 @@ export interface MarkerCardDTO {
   referenceLow: number;
   referenceHigh: number;
   status: MarkerStatus;
+  /** Null when this marker has no established optimal range. See OptimalRangeDTO. */
+  optimal?: OptimalRangeDTO | null;
   gloss: string; // one-line plain-English summary
 }
 

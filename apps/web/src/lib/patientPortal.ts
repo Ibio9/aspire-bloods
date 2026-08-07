@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { MarkerStatus } from '@aspire-bloods/shared';
+import type { MarkerStatus, OptimalRangeDTO } from '@aspire-bloods/shared';
 import { apiFetch } from './api';
 
 /**
@@ -91,6 +91,8 @@ export interface MarkerRow {
   status: MarkerStatus;
   referenceLow: number;
   referenceHigh: number;
+  /** Advisory optimal band; null when this marker has no established one. Never folded into `status`. */
+  optimal?: OptimalRangeDTO | null;
   sampleDate: string;
   reportId: string;
   panelName: string;

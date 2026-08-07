@@ -1,0 +1,12 @@
+-- Biological sex exactly as the laboratory recorded it against this sample.
+--
+-- Not a duplicate of PatientProfile.sex: that is the account holder's own
+-- answer and is optional at registration, whereas this is what the clinic
+-- captured at order time and the lab echoed back on the result. The optimal
+-- range resolver prefers the account value and falls back to this one, so a
+-- patient who never filled the field in still gets a sex-specific band where
+-- the lab knows the answer.
+--
+-- Nullable, and left null for every source that doesn't report it (PDF
+-- upload, manual entry). Reuses the existing "Sex" enum.
+ALTER TABLE "ReportMeasurements" ADD COLUMN "biologicalSex" "Sex";

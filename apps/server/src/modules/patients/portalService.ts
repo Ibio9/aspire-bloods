@@ -3,6 +3,7 @@ import { decryptField } from '../../lib/crypto.js';
 import { decodeResultValue } from '../../lib/resultValue.js';
 import { sourceLabel } from '../../lib/sourceLabel.js';
 import { convertToDisplayUnit, hasKnownConversion } from '../../lib/unitConversion.js';
+import { optimalContextForPatient, optimalFor } from '../../lib/optimalRange.js';
 import { classifyMovement, isMeaningfulChange, movementMagnitude } from './markerMovement.js';
 import { formatReportTitle, type MarkerStatus } from '@aspire-bloods/shared';
 
@@ -77,8 +78,10 @@ async function loadReleasedPoints(patientId: string): Promise<NormalisedPoint[]>
     const low = convertToDisplayUnit(r.marker.key, r.referenceRange.low, r.referenceRange.unit, displayUnit);
     const high = convertToDisplayUnit(r.marker.key, r.referenceRange.high, r.referenceRange.unit, displayUnit);
 
-    const valueOk = decoded.value === null || r.unit === displayUnit || valueConversion!.converted;
-    const rangeOk = r.referenceRange.unit === displayUnit || hasKnownConversion(r.marker.key, r.referenceRange.unit, displayUnit);
+    // Asked of the conversion registry, not of a raw string compare — see the
+    // same note in ./service.ts. "mmol/l" and "mmol/L" are one unit.
+    const valueOk = decoded.value === null || hasKnownConversion(r.marker.key, r.unit, displayUnit);
+    const rangeOk = hasKnownConversion(r.marker.key, r.referenceRange.unit, displayUnit);
 
     return {
       markerId: r.markerId,
@@ -274,7 +277,10 @@ export async function getPatientOverview(patientId: string) {
  * has no idea which report it was on.
  */
 export async function listAllMarkersForPatient(patientId: string) {
-  const points = await loadReleasedPoints(patientId);
+  const [points, optimalCtx] = await Promise.all([
+    loadReleasedPoints(patientId),
+    optimalContextForPatient(patientId),
+  ]);
 
   const byMarker = new Map<string, NormalisedPoint[]>();
   for (const p of points) {
@@ -304,6 +310,9 @@ export async function listAllMarkersForPatient(patientId: string) {
         status: latest.status,
         referenceLow: latest.referenceLow,
         referenceHigh: latest.referenceHigh,
+        // Advisory only, and null for most markers. Never folded into
+        // `status` above — that stays the lab reference range's answer alone.
+        optimal: optimalFor(latest.markerKey, latest.unit, latest.value, optimalCtx),
         sampleDate: latest.sampleDate,
         reportId: latest.reportId,
         panelName: latest.panelName,

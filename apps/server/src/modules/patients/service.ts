@@ -4,6 +4,7 @@ import { decodeResultValue } from '../../lib/resultValue.js';
 import { recordAuditLog } from '../../lib/auditLog.js';
 import { sourceLabel } from '../../lib/sourceLabel.js';
 import { convertToDisplayUnit, hasKnownConversion } from '../../lib/unitConversion.js';
+import { optimalContextForPatient, optimalFor } from '../../lib/optimalRange.js';
 import type { ConsentType } from '@aspire-bloods/shared';
 import { formatReportTitle } from '@aspire-bloods/shared';
 
@@ -65,6 +66,11 @@ export async function getReleasedReportForPatient(patientId: string, reportId: s
     throw new PatientAccessError();
   }
 
+  // Age and sex, once, for the whole report. Personalises the advisory optimal
+  // band only — the lab's reference range on each result is untouched by it
+  // and remains the sole authority for every marker's status.
+  const optimalCtx = await optimalContextForPatient(patientId);
+
   return {
     reportId: report.id,
     panelName: report.panel?.name ?? null,
@@ -72,21 +78,27 @@ export async function getReleasedReportForPatient(patientId: string, reportId: s
     title: formatReportTitle(report.panel?.name, report.results.length, report.sampleDate),
     sampleDate: report.sampleDate.toISOString().slice(0, 10),
     sourceLabel: sourceLabel(report.source.key, report.source.name),
-    markers: report.results.map((r) => ({
-      markerId: r.markerId,
-      name: r.marker.name,
-      // value/valueText — exactly one is set; textual lab results ("< 0.6",
-      // "Not detected") are shown verbatim rather than coerced to NaN.
-      ...decodeResultValue(decryptField(r.valueEncrypted)),
-      unit: r.unit,
-      referenceLow: r.referenceRange.low,
-      referenceHigh: r.referenceRange.high,
-      status: r.status,
-      gloss: r.marker.explanation?.whatItIs ?? '',
-      // A clinical record that silently changes is worse than no record —
-      // the patient always sees the current value, but knows it changed.
-      amendedAt: r.amendedAt,
-    })),
+    markers: report.results.map((r) => {
+      const decoded = decodeResultValue(decryptField(r.valueEncrypted));
+      return {
+        markerId: r.markerId,
+        name: r.marker.name,
+        // value/valueText — exactly one is set; textual lab results ("< 0.6",
+        // "Not detected") are shown verbatim rather than coerced to NaN.
+        ...decoded,
+        unit: r.unit,
+        referenceLow: r.referenceRange.low,
+        referenceHigh: r.referenceRange.high,
+        status: r.status,
+        // Null for the majority of markers — most have no established optimal,
+        // and those show the lab range alone with nothing said about optimal.
+        optimal: optimalFor(r.marker.key, r.unit, decoded.value, optimalCtx),
+        gloss: r.marker.explanation?.whatItIs ?? '',
+        // A clinical record that silently changes is worse than no record —
+        // the patient always sees the current value, but knows it changed.
+        amendedAt: r.amendedAt,
+      };
+    }),
   };
 }
 
@@ -119,9 +131,15 @@ export async function getMarkerTrendForPatient(patientId: string, markerId: stri
     // carried through verbatim and excluded from the chart series below.
     const valueConversion =
       decoded.value !== null ? convertToDisplayUnit(marker.key, decoded.value, r.unit, displayUnit) : null;
+    // Convertibility is asked of the registry rather than tested with a raw
+    // string compare: the lab prints "mmol/l" where the catalogue holds
+    // "mmol/L", and treating those as two units with no rule between them
+    // marked ordinary same-source series as not comparable — which showed the
+    // patient unconnected points and a note about sources, for a series where
+    // every value came from one source and nothing was converted at all.
+    const valueConvertible = decoded.value === null || hasKnownConversion(marker.key, r.unit, displayUnit);
     const rangeConvertible = hasKnownConversion(marker.key, r.referenceRange.unit, displayUnit);
-    if (valueConversion && r.unit !== displayUnit && !valueConversion.converted) allConvertible = false;
-    if (r.referenceRange.unit !== displayUnit && !rangeConvertible) allConvertible = false;
+    if (!valueConvertible || !rangeConvertible) allConvertible = false;
 
     const lowConversion = convertToDisplayUnit(marker.key, r.referenceRange.low, r.referenceRange.unit, displayUnit);
     const highConversion = convertToDisplayUnit(marker.key, r.referenceRange.high, r.referenceRange.unit, displayUnit);
@@ -156,6 +174,12 @@ export async function getMarkerTrendForPatient(patientId: string, markerId: stri
 
   const latest = allPoints[allPoints.length - 1];
 
+  // One band for the whole marker: it depends on age and sex, not on the
+  // report a given point came from, so it is resolved once and applies to the
+  // latest result, the range bar and every point on the chart alike.
+  const optimalCtx = await optimalContextForPatient(patientId);
+  const optimal = optimalFor(marker.key, displayUnit, latest.value, optimalCtx);
+
   let outOfRangeNotice: string | null = null;
   if (latest.status !== 'IN_RANGE') {
     const copy = await prisma.copyBlock.findUnique({ where: { slug: 'out_of_range_prompt' } });
@@ -167,6 +191,8 @@ export async function getMarkerTrendForPatient(patientId: string, markerId: stri
     name: marker.name,
     unit: displayUnit,
     crossSourceComparable,
+    /** Null when this marker has no established optimal range. Nothing is then said about optimal anywhere on the page. */
+    optimal,
     latest: {
       markerId: marker.id,
       name: marker.name,
@@ -176,6 +202,7 @@ export async function getMarkerTrendForPatient(patientId: string, markerId: stri
       referenceLow: latest.referenceLow,
       referenceHigh: latest.referenceHigh,
       status: latest.status,
+      optimal,
       sourceLabel: latest.sourceLabel,
       gloss: marker.explanation?.whatItIs ?? '',
       amendedAt: latest.amendedAt,

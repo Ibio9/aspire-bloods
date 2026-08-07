@@ -129,6 +129,52 @@ export const status = {
 export type StatusKey = keyof typeof status;
 
 // ---------------------------------------------------------------------------
+// Charts — palette only, no exceptions.
+//
+// The status triad above is deliberately NOT used in charts. Its sage/ochre/
+// terracotta hues are hand-picked outside the four brand hues, which is
+// defensible for a small inline badge sitting next to its own text label but
+// reads as an off-palette green/amber/red the moment it's a field of colour in
+// a plot. So everything a chart draws — reference band, optimal band, axes,
+// gridlines, point fills, hover — derives from bronze/espresso/cream/taupe,
+// their tints and shades, plus `ink` for the deepest warm near-black.
+//
+// Status in a chart is therefore carried by SHAPE and by the text label in the
+// tooltip and legend, never by hue. That is the same rule the rest of the
+// product follows (status badges lead with an icon shape and a word); charts
+// were the one place still leaning on colour to say it.
+// ---------------------------------------------------------------------------
+
+export const chart = {
+  /** The trend line itself, and the fill of an in-range point. */
+  line: brand.bronze,
+  point: brand.bronze,
+  /** Ring around every point so it stays legible against a band. */
+  pointRing: brand.white,
+  /** An out-of-range point. Darker, so the emphasis survives greyscale — the shape still carries which direction. */
+  pointOut: scales.bronze[800],
+  /** A significantly out-of-range point: the deepest warm tone available. */
+  pointFarOut: ink,
+  /** The lab reference range: a calm background region, not a block. */
+  referenceBand: brand.taupe,
+  referenceBandOpacity: 0.22,
+  /** Hairline top/bottom edge on the reference band, so it reads as bounded without weight. */
+  referenceEdge: scales.taupe[600],
+  /** The optimal band, drawn inside/overlapping the reference band. Distinguished by a hatch, not by hue alone. */
+  optimalBand: scales.bronze[300],
+  optimalBandOpacity: 0.34,
+  optimalEdge: scales.bronze[600],
+  /** Axis rule and ticks. */
+  axisLine: brand.taupe,
+  axisText: scales.espresso[400],
+  gridline: scales.taupe[200],
+  /** Cursor/crosshair on hover. */
+  cursor: scales.taupe[600],
+  /** Warm off-white for chart card surfaces — never pure white, never grey. */
+  surface: mix(brand.white, brand.cream, 0.35),
+} as const;
+
+// ---------------------------------------------------------------------------
 // WCAG contrast utilities — used by the status colors above (verified at
 // authoring time) and available at runtime/in tests to guard future changes.
 // ---------------------------------------------------------------------------

@@ -1,3 +1,5 @@
+import { canonicalUnit } from '@aspire-bloods/shared';
+
 /**
  * Phase 2 §2.3/§2.4: explicit, named conversions only — never silently
  * coerce a value from one unit to another. Only markers with a genuinely
@@ -48,12 +50,28 @@ export interface ConversionResult {
   originalUnit: string;
 }
 
-/** Returns the value unchanged (converted: false) if no conversion is needed or none is known. */
+/**
+ * Returns the value unchanged (converted: false) if no conversion is needed or
+ * none is known.
+ *
+ * Units are compared after canonicalisation (shared/optimalRanges.ts) so that
+ * two spellings of ONE unit — Randox print "mmol/l" and "10⁹/L" where our
+ * catalogue holds "mmol/L" and "10^9/L" — aren't mistaken for two different
+ * units with no conversion between them. That mistake was silently marking
+ * ordinary same-source trends as not cross-source-comparable, which showed the
+ * patient two unconnected points and a note about sources that don't compare,
+ * for a series where nothing had been converted at all.
+ *
+ * Canonicalisation is a named alias list, never a case-insensitive compare:
+ * mIU/L and MIU/L differ by a factor of a billion.
+ */
 export function convertToDisplayUnit(markerKey: string, value: number, fromUnit: string, toUnit: string): ConversionResult {
-  if (fromUnit === toUnit) {
+  const from = canonicalUnit(fromUnit);
+  const to = canonicalUnit(toUnit);
+  if (from === to) {
     return { value, unit: toUnit, converted: false, originalValue: value, originalUnit: fromUnit };
   }
-  const rule = CONVERSIONS[`${markerKey}:${fromUnit}->${toUnit}`];
+  const rule = CONVERSIONS[`${markerKey}:${from}->${to}`];
   if (!rule) {
     // No known conversion — caller is responsible for treating this series
     // as not cross-source-comparable rather than mixing incompatible units.
@@ -64,5 +82,7 @@ export function convertToDisplayUnit(markerKey: string, value: number, fromUnit:
 }
 
 export function hasKnownConversion(markerKey: string, fromUnit: string, toUnit: string): boolean {
-  return fromUnit === toUnit || `${markerKey}:${fromUnit}->${toUnit}` in CONVERSIONS;
+  const from = canonicalUnit(fromUnit);
+  const to = canonicalUnit(toUnit);
+  return from === to || `${markerKey}:${from}->${to}` in CONVERSIONS;
 }

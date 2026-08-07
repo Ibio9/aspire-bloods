@@ -22,6 +22,7 @@ interface LlmRow {
   unit: string | null;
   referenceLow: number | null;
   referenceHigh: number | null;
+  sampleType: string | null;
   confidence: number;
 }
 
@@ -41,9 +42,10 @@ const rowItemSchema = {
     unit: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     referenceLow: { anyOf: [{ type: 'number' }, { type: 'null' }] },
     referenceHigh: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+    sampleType: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     confidence: { type: 'number' },
   },
-  required: ['rawName', 'sourceText', 'value', 'valueText', 'unit', 'referenceLow', 'referenceHigh', 'confidence'],
+  required: ['rawName', 'sourceText', 'value', 'valueText', 'unit', 'referenceLow', 'referenceHigh', 'sampleType', 'confidence'],
   additionalProperties: false,
 };
 
@@ -72,6 +74,7 @@ For every marker/result row in the text, extract:
 - valueText: if the result is NOT purely numeric (e.g. "Not detected", "Positive", "Trace"), put the full text here and leave value null. If a bound like "< 5.0" or "> 40" has a clear numeric reading, put the number in value AND the original text in valueText.
 - unit: the unit as printed (e.g. mmol/L, µg/L, %) — null if none is printed.
 - referenceLow / referenceHigh: the reference range printed alongside THIS result, if any — null if not present. For a one-sided range like "< 5.0" use referenceHigh only; for "> 40" use referenceLow only.
+- sampleType: the specimen this analyte was measured on, if the report names one (e.g. "Serum", "Whole blood", "Plasma", "Stool"). Null if the report doesn't say — do not infer it from the marker name.
 - confidence: your own confidence (0 to 1) that you read this row correctly — lower it for anything blurry, ambiguous, wrapped across lines, or where the layout is unclear.
 
 Also extract:
@@ -233,6 +236,7 @@ export async function extractWithLlm(pdfText: string): Promise<LlmExtractionOutc
       unit: r.unit,
       referenceLow: r.referenceLow,
       referenceHigh: r.referenceHigh,
+      sampleType: r.sampleType ?? null,
       rawLine: r.sourceText,
       sourceText: r.sourceText,
       confidence: r.confidence,
