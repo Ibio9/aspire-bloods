@@ -33,8 +33,11 @@ describe('combineFasting', () => {
     expect(rule.maxHours).toBe(12);
   });
 
+  // All three test levels the clinic offers require a fast, so the
+  // nothing-required case is now reached the way it is actually reached in the
+  // product: no panel (a panel is optional) and add-ons that need no fast.
   it('stays un-required when nothing in the selection requires it', () => {
-    const rule = combineFasting(panel('nutritional-health-hsc15'), [addOn('amh'), addOn('calprotectin')]);
+    const rule = combineFasting(null, [addOn('amh'), addOn('calprotectin')]);
     expect(rule.required).toBe(false);
     expect(rule.summary).toMatch(/no fasting/i);
   });
@@ -42,8 +45,8 @@ describe('combineFasting', () => {
 
 describe('fastingWindow', () => {
   it('closes the eating window minHours before the appointment', () => {
-    // Signature: 8–12 hours, appointment at 10:30 on a Tuesday.
-    const w = fastingWindow(combineFasting(panel('signature'), []), '2026-08-11', '10:30')!;
+    // Core: 8–12 hours, appointment at 10:30 on a Tuesday.
+    const w = fastingWindow(combineFasting(panel('core'), []), '2026-08-11', '10:30')!;
     expect(w.closeBy.getHours()).toBe(2);
     expect(w.closeBy.getMinutes()).toBe(30);
     expect(w.openFrom.getHours()).toBe(22);
@@ -52,14 +55,14 @@ describe('fastingWindow', () => {
   });
 
   it('returns null when no fasting is required, rather than an empty window', () => {
-    expect(fastingWindow(combineFasting(panel('nutritional-health-hsc15'), []), '2026-08-11', '10:30')).toBeNull();
+    expect(fastingWindow(combineFasting(null, [addOn('amh')]), '2026-08-11', '10:30')).toBeNull();
   });
 });
 
 describe('deadlinePhrase', () => {
   it('names midnight, and attributes it to the end of the day before', () => {
     // 8am appointment, 8-hour minimum — the deadline is exactly midnight.
-    const w = fastingWindow(combineFasting(panel('signature'), []), '2026-08-11', '08:00')!;
+    const w = fastingWindow(combineFasting(panel('core'), []), '2026-08-11', '08:00')!;
     const phrase = deadlinePhrase(w.closeBy);
     expect(phrase).toContain('midnight');
     expect(phrase).not.toContain('12:00am');
@@ -68,7 +71,7 @@ describe('deadlinePhrase', () => {
   });
 
   it('names midday rather than printing 12:00pm', () => {
-    const w = fastingWindow(combineFasting(panel('signature'), []), '2026-08-11', '20:00')!;
+    const w = fastingWindow(combineFasting(panel('core'), []), '2026-08-11', '20:00')!;
     expect(deadlinePhrase(w.closeBy)).toBe('midday on Tuesday 11 August 2026');
   });
 
@@ -80,7 +83,7 @@ describe('deadlinePhrase', () => {
 
 describe('fastingInstruction', () => {
   it('names both days when the window crosses midnight', () => {
-    const w = fastingWindow(combineFasting(panel('signature'), []), '2026-08-11', '08:00')!;
+    const w = fastingWindow(combineFasting(panel('core'), []), '2026-08-11', '08:00')!;
     const sentence = fastingInstruction(w);
     expect(sentence).toContain('Monday 10 August 2026');
     expect(sentence).toContain('midnight');
@@ -109,8 +112,10 @@ describe('slot timing rules', () => {
 
 describe('turnaround', () => {
   it('adds the slowest add-on to the panel, not the sum of them', () => {
-    const { days } = combinedTurnaround(panel('signature'), [addOn('omega-3-index'), addOn('calprotectin')]);
-    expect(days).toEqual([6, 7]);
+    // Core is 5 working days; Omega-3 adds 2 and Calprotectin adds 4. The
+    // slowest wins — 5 + 4, never 5 + 2 + 4.
+    const { days } = combinedTurnaround(panel('core'), [addOn('omega-3-index'), addOn('calprotectin')]);
+    expect(days).toEqual([9, 9]);
   });
 
   it('skips weekends when projecting a results date', () => {

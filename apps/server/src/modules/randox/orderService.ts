@@ -198,7 +198,7 @@ export async function placeOrder(input: PlaceOrderInput) {
   // billed for tests that were never actually ordered.
   if (unmapped.length > 0) {
     throw new RandoxOrderError(
-      `No Randox identifier is mapped for ${unmapped.join(', ')}. Map them on the Randox catalogue screen (or in RANDOX_ID_MAP_FILE) before ordering. The order was not placed.`,
+      `No Randox identifier is mapped for ${unmapped.join(', ')}. Add them to RANDOX_ID_MAP_FILE (config/randox/id-map.json) before ordering. The order was not placed.`,
       409,
     );
   }

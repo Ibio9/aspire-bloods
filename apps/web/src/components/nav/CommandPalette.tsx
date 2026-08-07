@@ -20,8 +20,11 @@ interface StaticDestination {
 const DESTINATIONS: StaticDestination[] = [
   { label: 'Reports & entry', to: '/admin', hint: 'Upload PDFs, enter results, verify and release' },
   { label: 'Patients', to: '/admin/patients', hint: 'Search and manage patient accounts' },
-  { label: 'Panels & content', to: '/admin/content', hint: 'Panels, markers, reference ranges, wording' },
+  { label: 'Result linking', to: '/admin/linking', hint: 'Match an unlinked result to a patient' },
+  { label: 'Panels', to: '/admin/panels', hint: 'The test levels and what each contains' },
+  { label: 'Marker library', to: '/admin/markers', hint: 'Analytes, explanations, patient-facing wording' },
   { label: 'Audit log', to: '/admin/audit-log', hint: 'Full system-wide activity' },
+  { label: 'Ingestion log', to: '/admin/ingestion-log', hint: 'Results arriving from Randox' },
 ];
 
 /**

@@ -148,6 +148,14 @@ const markers: MarkerSeed[] = [
  * `signature` is absent from this list on purpose — the new catalogue reuses
  * that exact key, so the panel is upgraded in place rather than retired.
  */
+/**
+ * The three test levels the clinic offers. Anything else still active after a
+ * seed run is reported at the end of it (see below) rather than deactivated —
+ * an admin is free to add custom panels, and the seed has no way to tell one of
+ * those from a leftover guess.
+ */
+const CLINIC_PANEL_KEYS = ['core', 'insight-360', 'signature'];
+
 const SUPERSEDED_PANEL_KEYS = [
   'ran-chip-insight-360',
   'advanced-gp3-male',
@@ -308,6 +316,22 @@ async function main() {
   console.log('Importing the Randox catalogue (Core, Insight 360, Signature)...');
   const catalogueReport = await seedRandoxCatalogue();
   console.log(formatCatalogueReport(catalogueReport));
+
+  // Anything else still active is either an older seed's guess that predates
+  // SUPERSEDED_PANEL_KEYS, or a panel an admin deliberately created. Those two
+  // are indistinguishable from here and only one of them should be retired, so
+  // this reports rather than acts: deactivating an admin's own custom panel on
+  // every deploy would be a seed quietly overruling a person.
+  const strays = await prisma.panel.findMany({
+    where: { isActive: true, key: { notIn: CLINIC_PANEL_KEYS } },
+    select: { key: true, name: true },
+    orderBy: { name: 'asc' },
+  });
+  if (strays.length > 0) {
+    console.log(`\n${strays.length} active panel(s) outside the three the clinic offers:`);
+    for (const p of strays) console.log(`  - ${p.key} ("${p.name}")`);
+    console.log('  Deactivate any of these that are no longer sold, on the admin Panels screen.\n');
+  }
 
   console.log('Attaching cross-panel add-on markers (Omega-3 Index, AMH, Free Testosterone, Calprotectin)...');
   const activePanels = await prisma.panel.findMany({

@@ -8,7 +8,7 @@ import { useAuth } from '../../lib/AuthContext';
 import { useDialogFocus } from '../../lib/useDialogFocus';
 import { ClinicContactPanel } from '../patient/ClinicContact';
 import { MarkerSearch } from './MarkerSearch';
-import { CloseIcon, CollapseIcon, MenuIcon, SearchIcon } from './icons';
+import { AdminConsoleIcon, CloseIcon, CollapseIcon, MenuIcon, SearchIcon } from './icons';
 import {
   AccountIcon,
   BookTestIcon,
@@ -106,6 +106,51 @@ function SidebarLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed
   );
 }
 
+/**
+ * The way back to the admin console, for a member of staff who has crossed
+ * into the patient portal.
+ *
+ * The crossing was one-way: AdminShell offers "My results" to an admin who is
+ * also a patient of the practice, and once through it there was no route back
+ * short of typing /admin. This is that route, pinned above the account row so
+ * it is on every patient screen rather than only the one they landed on.
+ *
+ * It is a link and nothing more. `user.role` is whatever /auth/me said on the
+ * last request, and /auth/me derives it from ADMIN_EMAILS server-side, per
+ * request — this neither caches nor confers anything. Someone who is no longer
+ * an admin gets a link that renders and then bounces off RoleProtectedRoute
+ * and off every API call behind it, exactly as an unauthorised /admin URL
+ * typed by hand already does. CLINICIAN is included because the admin shell
+ * admits clinicians too, so the same dead end existed for them.
+ */
+function StaffReturnLink({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
+  const { user } = useAuth();
+  if (user?.role !== 'ADMIN' && user?.role !== 'CLINICIAN') return null;
+
+  const label = 'Back to the admin console';
+  return (
+    <Link
+      to="/admin"
+      onClick={onNavigate}
+      aria-label={collapsed ? label : undefined}
+      className={`group relative mb-1 flex items-center gap-2.5 rounded-input py-2 text-[13px] font-medium text-bronze-700 transition-colors duration-150 ease-out hover:bg-cream-200 ${
+        collapsed ? 'mx-auto h-10 w-10 justify-center px-0' : 'px-2.5'
+      }`}
+    >
+      <AdminConsoleIcon className="h-4 w-4 shrink-0" />
+      {!collapsed && <span className="min-w-0 flex-1 truncate">{label}</span>}
+      {collapsed && (
+        <span
+          role="tooltip"
+          className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-input bg-night px-2.5 py-1.5 text-xs text-oncolor opacity-0 shadow-card transition-opacity duration-150 group-hover:opacity-100"
+        >
+          {label}
+        </span>
+      )}
+    </Link>
+  );
+}
+
 function SidebarContents({
   collapsed,
   onNavigate,
@@ -127,13 +172,12 @@ function SidebarContents({
   return (
     // The panel is exactly one viewport tall and its four bands — mark,
     // search, navigation, footer — are laid out to fit inside that, so at any
-    // ordinary window height nothing here scrolls at all. Two escapes exist,
-    // in this order, and the order is the point: the contact card gives first
-    // and scrolls inside its own border (see ClinicContactPanel), and only a
-    // window genuinely shorter than the panel's own minimum falls through to
-    // this column scrolling as one piece. Neither of them is ever the nav.
-    <div className="scroll-thin flex h-full flex-col overflow-y-auto">
-      <div className={`shrink-0 ${collapsed ? 'px-2 pt-4' : 'px-4 pt-5'}`}>
+    // ordinary window height nothing here scrolls at all. When something has
+    // to give (a genuinely short window, or the contact card opened on one)
+    // it is this column, scrolling as one piece. Never the nav, and never by
+    // squeezing a band below its own content, which spills rather than fits.
+    <div className="scroll-thin flex h-full min-h-0 flex-col overflow-y-auto">
+      <div className={`shrink-0 ${collapsed ? 'px-2 pt-4' : 'px-4 pt-4'}`}>
         {/* Same mark, same collapsed 'a', same accessible name shape as
             AdminShell — the two sidebars are one system, so they must not
             wear two different wordmarks. */}
@@ -187,22 +231,24 @@ function SidebarContents({
           using, leaving the open card with nowhere to go. */}
       <nav
         aria-label="Patient portal"
-        className={`mt-4 flex flex-1 flex-col gap-1 pb-1 ${collapsed ? 'px-2' : 'px-4'}`}
+        className={`mt-3 flex flex-1 flex-col gap-0.5 pb-1 ${collapsed ? 'px-2' : 'px-4'}`}
       >
         {NAV_ITEMS.map((item) => (
           <SidebarLink key={item.to} item={item} collapsed={collapsed} onNavigate={onNavigate} />
         ))}
       </nav>
 
-      {/* Pinned to the bottom of the panel, and — deliberately — the only band
-          here that can give. No shrink-0, so an open contact card yields
-          before anything else does; min-h-0, because without it this band's
-          min-content height includes the open card in full and it refuses to
-          shrink at all, which is what put the account row 145px below the
-          bottom of the panel at 1280x720. What gives inside it is the card,
-          which scrolls in its own border (see ClinicContactPanel); the account
-          row under it is shrink-0 and stays exactly where it is. */}
-      <div className={`flex min-h-0 flex-col border-t border-taupe ${collapsed ? 'px-2 py-2.5' : 'px-3 py-2'}`}>
+      {/* Pinned to the bottom of the panel, and never squeezed.
+          It used to be `min-h-0` with no `shrink-0`, on the theory that this
+          band should be the one to give when the contact card is open. Flexbox
+          does not honour that theory: shrinking the band below its content
+          height does not shorten the content, it spills it — which is why
+          "Contact the clinic" and the account row rendered on top of each
+          other. Now the band is exactly as tall as what's in it, and the one
+          thing that gives on a genuinely short window is the column above,
+          which scrolls as one piece. */}
+      <div className={`flex shrink-0 flex-col border-t border-taupe ${collapsed ? 'px-2 py-2.5' : 'px-3 py-2'}`}>
+        <StaffReturnLink collapsed={collapsed} onNavigate={onNavigate} />
         {collapsed ? (
           <button
             type="button"
@@ -296,7 +342,7 @@ export function PatientShell({ children }: { children?: ReactNode }) {
           edge to edge however long the page behind it is (see .h-viewport —
           100dvh with a 100vh fallback). */}
       <aside
-        className={`h-viewport sticky top-0 hidden shrink-0 border-r border-taupe bg-cream-50 transition-[width] duration-200 ease-out md:block ${
+        className={`h-viewport sticky top-0 hidden shrink-0 flex-col border-r border-taupe bg-cream-50 transition-[width] duration-200 ease-out md:flex ${
           collapsed ? 'w-[84px]' : 'w-[288px]'
         }`}
       >

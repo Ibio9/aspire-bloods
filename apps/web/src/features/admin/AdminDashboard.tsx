@@ -20,7 +20,8 @@ interface NavCard {
 const CARDS: NavCard[] = [
   { to: '/admin', title: 'Reports', description: 'Upload PDFs, enter results manually, verify, review and release.' },
   { to: '/admin/patients', title: 'Patients', description: 'Search patients, open full profiles, manage invites, 2FA, access and erasure.' },
-  { to: '/admin/content', title: 'Content & configuration', description: 'Panels, markers, reference ranges, marker explanations, patient-facing wording.' },
+  { to: '/admin/panels', title: 'Panels', description: 'The three test levels the clinic offers, what each contains, and any custom panels.' },
+  { to: '/admin/markers', title: 'Marker library', description: 'Every analyte, the explanation copy patients read, and the review queue that releases it.' },
   { to: '/admin/audit-log', title: 'Audit log', description: 'Full system-wide activity: every action and every view, by every admin.', adminOnly: true },
 ];
 
@@ -251,7 +252,7 @@ export function AdminDashboard() {
         )}
       </div>
 
-      <div className="mt-14 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-14 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {CARDS.filter((c) => !c.adminOnly || user?.role === 'ADMIN').map((card, i) => (
           <Link
             key={card.to}

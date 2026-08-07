@@ -7,27 +7,43 @@ import { PageTransition } from '../PageTransition';
 import { useAuth } from '../../lib/AuthContext';
 import { Wordmark } from '../Wordmark';
 import { useDialogFocus } from '../../lib/useDialogFocus';
-import { ReportsIcon, PatientsIcon, ContentIcon, AuditIcon, SearchIcon, MenuIcon, CollapseIcon, CloseIcon } from './icons';
+import {
+  ReportsIcon,
+  PatientsIcon,
+  PanelsIcon,
+  MarkerLibraryIcon,
+  LinkingIcon,
+  AuditIcon,
+  IngestionIcon,
+  SearchIcon,
+  MenuIcon,
+  CollapseIcon,
+  CloseIcon,
+} from './icons';
 
 const COLLAPSE_KEY = 'aspire_admin_sidebar_collapsed';
 
 interface NavItem {
   to: string;
   label: string;
+  /** One line under the label. The admin sidebar carried bare labels and three
+   * identical shield icons; "Ingestion log" and "Audit log" are not
+   * self-explanatory names, and the sublabel is what tells them apart. */
+  hint: string;
   icon: (props: React.SVGProps<SVGSVGElement>) => JSX.Element;
   adminOnly?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { to: '/admin', label: 'Reports & entry', icon: ReportsIcon },
-  { to: '/admin/patients', label: 'Patients', icon: PatientsIcon },
+  { to: '/admin', label: 'Reports & entry', hint: 'Upload, verify, review, release', icon: ReportsIcon },
+  { to: '/admin/patients', label: 'Patients', hint: 'Profiles, invites, access, erasure', icon: PatientsIcon },
   // Sits directly under Patients: it's the same subject (who is who) at the
   // moment it matters most, not a reporting screen.
-  { to: '/admin/linking', label: 'Result linking', icon: PatientsIcon, adminOnly: true },
-  { to: '/admin/content', label: 'Panels & content', icon: ContentIcon },
-  { to: '/admin/audit-log', label: 'Audit log', icon: AuditIcon, adminOnly: true },
-  { to: '/admin/ingestion-log', label: 'Ingestion log', icon: AuditIcon, adminOnly: true },
-  { to: '/admin/randox-catalogue', label: 'Randox catalogue', icon: AuditIcon, adminOnly: true },
+  { to: '/admin/linking', label: 'Result linking', hint: 'Match a result to a patient', icon: LinkingIcon, adminOnly: true },
+  { to: '/admin/panels', label: 'Panels', hint: 'Test levels and their contents', icon: PanelsIcon },
+  { to: '/admin/markers', label: 'Marker library', hint: 'Analytes and explanation copy', icon: MarkerLibraryIcon },
+  { to: '/admin/audit-log', label: 'Audit log', hint: 'Every action and view, by whom', icon: AuditIcon, adminOnly: true },
+  { to: '/admin/ingestion-log', label: 'Ingestion log', hint: 'Results arriving from Randox', icon: IngestionIcon, adminOnly: true },
 ];
 
 function SidebarLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed: boolean; onNavigate?: () => void }) {
@@ -38,9 +54,9 @@ function SidebarLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed
       end={item.to === '/admin'}
       onClick={onNavigate}
       className={({ isActive }) =>
-        `group relative flex items-center gap-3 rounded-input px-3 py-2.5 text-sm transition-colors duration-150 ease-out ${
-          isActive ? 'bg-bronze-50 font-semibold text-bronze-700' : 'font-medium text-espresso/80 hover:bg-cream-200 hover:text-espresso'
-        }`
+        `group relative flex items-start gap-3 rounded-input px-3 py-1.5 transition-colors duration-150 ease-out ${
+          collapsed ? 'justify-center' : ''
+        } ${isActive ? 'bg-bronze-50 text-bronze-700' : 'text-espresso/85 hover:bg-cream-200 hover:text-espresso'}`
       }
     >
       {({ isActive }) => (
@@ -49,16 +65,21 @@ function SidebarLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed
               never colour alone (brief). */}
           <span
             aria-hidden="true"
-            className={`absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-bronze transition-opacity duration-150 ${
+            className={`absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-full bg-bronze transition-opacity duration-150 ${
               isActive ? 'opacity-100' : 'opacity-0'
             }`}
           />
-          <Icon className="shrink-0" />
-          {!collapsed && <span className="truncate">{item.label}</span>}
+          <Icon className="mt-0.5 shrink-0" />
+          {!collapsed && (
+            <span className="min-w-0 flex-1">
+              <span className={`block truncate text-sm ${isActive ? 'font-semibold' : 'font-medium'}`}>{item.label}</span>
+              <span className="mt-px block truncate text-xs leading-snug text-espresso/80">{item.hint}</span>
+            </span>
+          )}
           {collapsed && (
             <span
               role="tooltip"
-              className="pointer-events-none absolute left-full ml-2 whitespace-nowrap rounded-input bg-night px-2.5 py-1.5 text-xs text-oncolor opacity-0 shadow-card transition-opacity duration-150 group-hover:opacity-100"
+              className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-input bg-night px-2.5 py-1.5 text-xs text-oncolor opacity-0 shadow-card transition-opacity duration-150 group-hover:opacity-100"
             >
               {item.label}
             </span>
@@ -69,30 +90,94 @@ function SidebarLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed
   );
 }
 
-function SidebarContents({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
+/**
+ * The panel's three bands — mark, navigation, footer — as one flex column that
+ * is exactly as tall as the panel.
+ *
+ * The footer used to be an absolutely-positioned collapse button pinned to
+ * `bottom-4` of the aside, which is not part of the layout at all: it floated
+ * over whatever the nav's last row happened to be, and with the "My results"
+ * link at the end of the list that was text over text. It is an ordinary
+ * flex child now, so it cannot overlap anything by construction.
+ *
+ * `shrink-0` on the footer is the other half of that: a footer allowed to
+ * shrink below its own content height doesn't get shorter, it spills its
+ * children out of the bottom of its box and over the row beneath.
+ */
+function SidebarContents({
+  collapsed,
+  onNavigate,
+  onToggleCollapse,
+}: {
+  collapsed: boolean;
+  onNavigate?: () => void;
+  onToggleCollapse?: () => void;
+}) {
   const { user } = useAuth();
   const items = NAV_ITEMS.filter((item) => !item.adminOnly || user?.role === 'ADMIN');
 
   return (
-    <nav aria-label="Admin navigation" className="flex h-full flex-col gap-1 p-3">
-      <Link to="/" className={`mb-4 flex items-center px-2 py-2 ${collapsed ? 'justify-center' : ''}`} aria-label="Aspire Bloods, admin">
-        {collapsed ? (
-          <span className="font-display text-xl lowercase text-bronze">a</span>
-        ) : (
-          <Wordmark variant="light" size="sm" />
+    // Only this column ever scrolls, and only on a window genuinely shorter
+    // than the panel's own content. The nav inside it never does.
+    <div className="scroll-thin flex h-full min-h-0 flex-col overflow-y-auto">
+      <div className={`shrink-0 ${collapsed ? 'px-2 pt-4' : 'px-4 pt-5'}`}>
+        <Link
+          to="/"
+          onClick={onNavigate}
+          className={`flex items-center rounded-sm ${collapsed ? 'justify-center' : ''}`}
+          aria-label="Aspire Bloods, admin"
+        >
+          {collapsed ? (
+            <span className="font-display text-xl lowercase text-bronze">a</span>
+          ) : (
+            <Wordmark variant="light" size="sm" />
+          )}
+        </Link>
+        {!collapsed && <p className="eyebrow mt-2">Admin console</p>}
+      </div>
+
+      <nav
+        aria-label="Admin navigation"
+        className={`mt-4 flex flex-1 flex-col gap-0.5 pb-1 ${collapsed ? 'px-2' : 'px-3'}`}
+      >
+        {items.map((item) => (
+          <SidebarLink key={item.to} item={item} collapsed={collapsed} onNavigate={onNavigate} />
+        ))}
+      </nav>
+
+      <div className={`flex shrink-0 flex-col gap-1 border-t border-taupe ${collapsed ? 'px-2 py-2.5' : 'px-3 py-2.5'}`}>
+        {user?.hasPatientProfile && (
+          // Crosses into the patient shell — lands on its Overview, same as any
+          // patient's home. The patient shell carries the matching way back.
+          <SidebarLink
+            item={{ to: '/overview', label: 'My results', hint: 'Your own patient portal', icon: ReportsIcon }}
+            collapsed={collapsed}
+            onNavigate={onNavigate}
+          />
         )}
-      </Link>
-      {items.map((item) => (
-        <SidebarLink key={item.to} item={item} collapsed={collapsed} onNavigate={onNavigate} />
-      ))}
-      {user?.hasPatientProfile && (
-        <>
-          <div className="my-2 border-t border-taupe" />
-          {/* Crosses into the patient shell — lands on its Overview, same as any patient's home. */}
-          <SidebarLink item={{ to: '/overview', label: 'My results', icon: ReportsIcon }} collapsed={collapsed} onNavigate={onNavigate} />
-        </>
-      )}
-    </nav>
+        {onToggleCollapse && (
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            className={`group relative flex items-center gap-3 rounded-input px-3 py-2 text-sm font-medium text-espresso/85 transition-colors duration-150 ease-out hover:bg-cream-200 hover:text-espresso ${
+              collapsed ? 'justify-center' : ''
+            }`}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <CollapseIcon className="shrink-0" />
+            {!collapsed && <span className="truncate">Collapse</span>}
+            {collapsed && (
+              <span
+                role="tooltip"
+                className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-input bg-night px-2.5 py-1.5 text-xs text-oncolor opacity-0 shadow-card transition-opacity duration-150 group-hover:opacity-100"
+              >
+                Expand sidebar
+              </span>
+            )}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -183,21 +268,15 @@ export function AdminShell({ children }: { children?: ReactNode }) {
     // it. h-viewport rather than h-screen so the panel is measured against the
     // same 100dvh the shell is.
     <div className="min-h-viewport flex bg-cream">
-      {/* Desktop persistent sidebar */}
+      {/* Desktop persistent sidebar. `md:flex` rather than `md:block`: the
+          panel is the flex column itself, so its bands measure against the
+          panel's own height and the footer sits on its bottom edge. */}
       <aside
-        className={`h-viewport sticky top-0 hidden shrink-0 border-r border-taupe bg-cream-50 transition-[width] duration-200 ease-out md:block ${
-          collapsed ? 'w-[76px]' : 'w-64'
+        className={`h-viewport sticky top-0 hidden shrink-0 flex-col border-r border-taupe bg-cream-50 transition-[width] duration-200 ease-out md:flex ${
+          collapsed ? 'w-[76px]' : 'w-[272px]'
         }`}
       >
-        <SidebarContents collapsed={collapsed} />
-        <button
-          type="button"
-          onClick={() => setCollapsed((c) => !c)}
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-taupe bg-white p-2 text-espresso/80 shadow-card transition duration-150 ease-out hover:text-bronze"
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          <CollapseIcon />
-        </button>
+        <SidebarContents collapsed={collapsed} onToggleCollapse={() => setCollapsed((c) => !c)} />
       </aside>
 
       {/* Mobile slide-over drawer */}
@@ -210,7 +289,7 @@ export function AdminShell({ children }: { children?: ReactNode }) {
             role="dialog"
             aria-modal="true"
             aria-label="Admin navigation"
-            className="absolute left-0 top-0 h-full w-72 bg-cream-50 shadow-card outline-none motion-safe:animate-riseIn"
+            className="absolute left-0 top-0 flex h-full w-72 flex-col bg-cream-50 shadow-card outline-none motion-safe:animate-riseIn"
           >
             {/* Tapping the scrim closes it, but a scrim is not a discoverable
                 control — and on a phone the drawer covers most of the screen. */}

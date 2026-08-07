@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './lib/AuthContext';
 import { ThemeProvider } from './lib/ThemeContext';
 import { ToastProvider } from './components/ui/Toast';
@@ -20,8 +20,8 @@ import { LinkingPage } from './features/admin/LinkingPage';
 import { PatientDetailPage } from './features/admin/PatientDetailPage';
 import { AuditLogPage } from './features/admin/AuditLogPage';
 import { IngestionLogPage } from './features/admin/IngestionLogPage';
-import { RandoxCataloguePage } from './features/admin/RandoxCataloguePage';
-import { ContentConfigPage } from './features/admin/ContentConfigPage';
+import { PanelsPage } from './features/admin/PanelsPage';
+import { AdminMarkerLibraryPage } from './features/admin/AdminMarkerLibraryPage';
 import { PatientOverview } from './features/patient/PatientOverview';
 import { PatientHome } from './features/patient/PatientHome';
 import { AllMarkersPage } from './features/patient/AllMarkersPage';
@@ -129,7 +129,15 @@ export default function App() {
                 <Route path="/admin/reports/:id" element={<ReportDetailPage />} />
                 <Route path="/admin/patients" element={<PatientsListPage />} />
                 <Route path="/admin/patients/:id" element={<PatientDetailPage />} />
-                <Route path="/admin/content" element={<ContentConfigPage />} />
+                <Route path="/admin/panels" element={<PanelsPage />} />
+                <Route path="/admin/markers" element={<AdminMarkerLibraryPage />} />
+                {/* "Panels & content" split in two: panel configuration, and
+                    the marker library that holds the analyte catalogue, the
+                    explanation review queue, the explanation editor and the
+                    patient-facing copy blocks. The old path is kept as a
+                    redirect rather than a 404 — it is in browser histories and
+                    in at least one server-side error message. */}
+                <Route path="/admin/content" element={<Navigate to="/admin/panels" replace />} />
               </Route>
               {/* Audit log is ADMIN-only (not CLINICIAN) — kept as its own guarded route rather
                   than loosening the shell group above. */}
@@ -142,7 +150,6 @@ export default function App() {
               >
                 <Route path="/admin/audit-log" element={<AuditLogPage />} />
                 <Route path="/admin/ingestion-log" element={<IngestionLogPage />} />
-                <Route path="/admin/randox-catalogue" element={<RandoxCataloguePage />} />
                 {/* Deciding whose results these are is a records action, and
                     the one the practice most wants a single accountable
                     identity attached to — ADMIN only, like the audit log. */}

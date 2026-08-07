@@ -1,6 +1,6 @@
 /**
  * Resolves the best-matching reference range from a marker's catalogue
- * (ReferenceRange rows, admin-managed under Content & configuration) for a
+ * (ReferenceRange rows, seeded and managed over the panels API) for a
  * given patient's sex and age. Pure convenience for pre-filling the verify /
  * manual-entry forms — the admin can always override it, and the value that
  * actually gets saved on a report always comes from what they confirm at

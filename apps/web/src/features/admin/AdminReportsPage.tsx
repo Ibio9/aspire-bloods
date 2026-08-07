@@ -29,7 +29,7 @@ interface PanelOption {
 }
 
 // A "panel" is a test package — a bundle of markers run on one sample
-// (Insight 360, Signature, Advanced GP3...). Nobody outside the lab knows
+// (Core, Insight 360, Signature). Nobody outside the lab knows
 // that word, so every picker that offers one spells it out: how many
 // markers, and a few by name, right under the field the moment one's picked.
 function PanelSummary({ panel }: { panel: PanelOption }) {
@@ -49,11 +49,14 @@ function PanelSummary({ panel }: { panel: PanelOption }) {
 // data that might not exist yet, it says which data is missing and links
 // straight to the page that creates it — a dead end otherwise.
 function ConfigureLink({ what }: { what: 'panels' | 'markers' | 'sources' }) {
+  // Sources have no screen of their own (they are seeded, and added over the
+  // API); panels and markers each land on the page that actually creates them.
+  const destination = what === 'panels' ? { to: '/admin/panels', label: 'add one under Panels' } : { to: '/admin/markers', label: 'add one in the Marker library' };
   return (
     <>
       No {what} configured yet.{' '}
-      <Link to="/admin/content" className="font-medium text-bronze underline underline-offset-2">
-        add one under Content &amp; configuration
+      <Link to={destination.to} className="font-medium text-bronze underline underline-offset-2">
+        {destination.label}
       </Link>
       .
     </>
@@ -190,7 +193,7 @@ function PdfUploadForm({
         <div className="flex flex-col gap-1.5">
           <Select
             label="Which test package?"
-            hint="A panel is a bundle of markers run on one sample, such as Insight 360, Signature or Advanced GP3. Leave it on individual markers for a one-off or repeat test that isn't part of a package."
+            hint="A panel is a bundle of markers run on one sample, such as Core, Insight 360 or Signature. Leave it on individual markers for a one-off or repeat test that isn't part of a package."
             name="panelId"
             emptyMessage={<ConfigureLink what="panels" />}
             value={panelId}
@@ -354,7 +357,7 @@ function ManualEntryForm({
         <div className="flex flex-col gap-1.5">
           <Select
             label="Which test package?"
-            hint="A panel is a bundle of markers run on one sample, such as Insight 360, Signature or Advanced GP3. Leave it on individual markers for a one-off or repeat test that isn't part of a package."
+            hint="A panel is a bundle of markers run on one sample, such as Core, Insight 360 or Signature. Leave it on individual markers for a one-off or repeat test that isn't part of a package."
             name="manualPanelId"
             emptyMessage={<ConfigureLink what="panels" />}
             value={panelId}
@@ -375,7 +378,7 @@ function ManualEntryForm({
         {markers.length === 0 && (
           <p className="text-sm text-espresso/80">
             No markers configured yet.{' '}
-            <Link to="/admin/content" className="underline underline-offset-2">add one</Link> on the content page before entering results.
+            <Link to="/admin/markers" className="underline underline-offset-2">add one</Link> in the Marker library before entering results.
           </p>
         )}
 

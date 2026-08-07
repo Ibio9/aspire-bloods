@@ -134,6 +134,8 @@ interface ReportDetail {
   voidedAt: string | null;
   voidReason: string | null;
   voidedBy: { email: string; staffProfile: { firstName: string; lastName: string } | null } | null;
+  /** Null for a manually-entered report — there is no source document to download or re-parse. */
+  originalPdfFileId: string | null;
   /** Null for an ad-hoc report with no catalogue panel behind it. */
   panel: { name: string } | null;
   title: string;
@@ -396,8 +398,14 @@ export function ReportDetailPage() {
 
   async function handleDownload() {
     if (!id) return;
-    const { url } = await apiFetch<{ url: string }>(`/reports/${id}/download-link`);
-    window.open(`${API_BASE_URL}${url}`, '_blank');
+    try {
+      const { url } = await apiFetch<{ url: string }>(`/reports/${id}/download-link`);
+      window.open(`${API_BASE_URL}${url}`, '_blank');
+    } catch (e) {
+      // A file that has aged out of storage, or a signing failure. Either way
+      // this used to reject into nothing at all.
+      show(e instanceof ApiError ? e.message : 'Could not open the original PDF.', 'error');
+    }
   }
 
   if (!report) {
@@ -486,11 +494,17 @@ export function ReportDetailPage() {
           </Button>
         )}
 
-        <Button variant="secondary" onClick={handleDownload}>
-          Download original PDF
-        </Button>
+        {/* Only where there is a document. A manually-entered report has no
+            source PDF, and both of these used to be offered on one anyway:
+            Download threw an unhandled 404 with nothing shown to the user, and
+            Parse offered to re-read a file that does not exist. */}
+        {report.originalPdfFileId && (
+          <Button variant="secondary" onClick={handleDownload}>
+            Download original PDF
+          </Button>
+        )}
 
-        {user?.role === 'ADMIN' && !report.voidedAt && PARSEABLE.includes(report.status) && (
+        {user?.role === 'ADMIN' && report.originalPdfFileId && !report.voidedAt && PARSEABLE.includes(report.status) && (
           <Button variant="secondary" onClick={handleParse} loading={parsing}>
             {rows.length > 0 ? 'Parse again' : 'Parse PDF'}
           </Button>

@@ -23,68 +23,30 @@ const NO_FASTING = {
   summary: 'No fasting needed. Eat and drink normally beforehand.',
 } as const;
 
+/**
+ * The clinic offers exactly three test levels, and these are they. They are the
+ * same three the server seeds as Panel rows (prisma/seedCatalogue.ts,
+ * shared/markerCatalogue.ts) under the keys `core`, `insight-360` and
+ * `signature`, and the ids here match those keys deliberately: a booking and
+ * the report it produces should name the same product.
+ *
+ * The four earlier entries here (a differently-scoped Insight 360 and
+ * Signature, plus Advanced GP3 and Nutritional Health HSC15 as standalone
+ * panels) were built from a pricing email before the real catalogue existed.
+ * Advanced GP3 is not a product in its own right — it is what Core contains —
+ * and HSC15 is not sold. Their Panel rows are deactivated rather than deleted
+ * server-side, so any report already filed against one keeps its title.
+ *
+ * Turnarounds follow the catalogue's own figures. Where Randox publish two
+ * (Insight 360) the longer one is used here for the same reason it is used in
+ * the seed: under-promising costs a patient nothing.
+ */
 export const PANELS: Panel[] = [
   {
-    id: 'insight-360',
-    name: 'Insight 360',
-    strapline: 'The most complete picture we offer: a full sweep across every major system in one draw.',
-    covers: [
-      'Full blood count',
-      'Liver function',
-      'Kidney function',
-      'Cholesterol and lipids',
-      'Blood sugar and HbA1c',
-      'Thyroid',
-      'Vitamins and minerals',
-      'Inflammation',
-    ],
-    markerCount: 40,
-    turnaround: '5–7 working days',
-    turnaroundDays: [5, 7],
-    fasting: {
-      required: true,
-      minHours: 10,
-      maxHours: 12,
-      summary: 'Fast for 10 to 12 hours. Water only.',
-    },
-    timingNotes: [
-      {
-        label: 'Morning appointment recommended',
-        detail:
-          'The overnight fast is far easier to complete if the draw is early, and several markers in this panel are steadiest first thing.',
-        critical: false,
-      },
-    ],
-    appointmentMinutes: 20,
-  },
-  {
-    id: 'signature',
-    name: 'Signature',
-    strapline: 'A focused general health check: blood count, the key organ functions, and cardiovascular markers.',
-    covers: [
-      'Full blood count',
-      'Liver function',
-      'Kidney function',
-      'Cholesterol and lipids',
-      'Blood sugar',
-      'Thyroid',
-    ],
-    markerCount: 12,
-    turnaround: '2–3 working days',
-    turnaroundDays: [2, 3],
-    fasting: {
-      required: true,
-      minHours: 8,
-      maxHours: 12,
-      summary: 'Fast for 8 to 12 hours. Water only.',
-    },
-    timingNotes: [],
-    appointmentMinutes: 15,
-  },
-  {
-    id: 'advanced-gp3',
-    name: 'Advanced GP3',
-    strapline: 'A comprehensive check spanning organ function, cardiovascular and metabolic health, and sex hormones.',
+    id: 'core',
+    name: 'Core',
+    strapline:
+      'Our standard health check: organ function, cardiovascular and metabolic health, and sex hormones, with three additions we include as standard.',
     covers: [
       'Liver function',
       'Kidney function',
@@ -92,12 +54,14 @@ export const PANELS: Panel[] = [
       'Blood sugar and HbA1c',
       'Thyroid',
       'Sex hormones',
-      'Vitamins',
+      'Vitamins and minerals',
+      'Omega-3 Index',
     ],
-    markerCount: 22,
-    markerCountNote: '23 for women. The hormone markers in this panel are matched to your sex.',
-    turnaround: '3–5 working days',
-    turnaroundDays: [3, 5],
+    markerCount: 45,
+    markerCountNote:
+      'Randox Advanced GP3 in full, plus Free Testosterone, the Omega-3 Index and AMH. The hormone markers are matched to your sex.',
+    turnaround: '5 working days',
+    turnaroundDays: [5, 5],
     fasting: {
       required: true,
       minHours: 8,
@@ -121,31 +85,76 @@ export const PANELS: Panel[] = [
     appointmentMinutes: 20,
   },
   {
-    id: 'nutritional-health-hsc15',
-    name: 'Nutritional Health HSC15',
-    strapline: 'Vitamin, mineral and nutritional status: what your diet and absorption are actually delivering.',
+    id: 'insight-360',
+    name: 'Insight 360',
+    strapline:
+      'Around 250 data points across roughly 150 conditions: blood, urine, and measurements taken at your appointment.',
     covers: [
-      'Vitamin D',
-      'B12 and folate',
-      'Iron and ferritin',
-      'Calcium and magnesium',
-      'Zinc',
-      'Protein status',
-      'Long-term blood sugar',
+      'Full blood count',
+      'Liver function',
+      'Kidney function',
+      'Cholesterol and lipids',
+      'Blood sugar and HbA1c',
+      'Thyroid',
+      'Vitamins and minerals',
+      'Inflammation',
+      'Urine',
     ],
-    markerCount: 15,
-    turnaround: '5–7 working days',
-    turnaroundDays: [5, 7],
-    fasting: { ...NO_FASTING },
+    markerCount: 250,
+    markerCountNote:
+      'Includes an at-home bowel health kit, which we post to you and which you return separately from your appointment.',
+    turnaround: '10 working days',
+    turnaroundDays: [10, 10],
+    fasting: {
+      required: true,
+      minHours: 10,
+      maxHours: 12,
+      summary: 'Fast for 10 to 12 hours. Water only.',
+    },
     timingNotes: [
       {
-        label: 'Pause supplements for 48 hours',
+        label: 'Morning appointment recommended',
         detail:
-          'Biotin, high-dose B12 and iron supplements can all read back as your supplement rather than your body. Stop them two days before, unless a clinician has told you otherwise. Never stop a prescribed medicine on our say-so.',
-        critical: true,
+          'The overnight fast is far easier to complete if the draw is early, and several markers in this panel are steadiest first thing.',
+        critical: false,
       },
     ],
-    appointmentMinutes: 15,
+    appointmentMinutes: 30,
+  },
+  {
+    id: 'signature',
+    name: 'Signature',
+    strapline:
+      'Everything in Insight 360, plus a resting ECG, full body composition, gut microbiome, food sensitivity, DNA and a remote GP consultation.',
+    covers: [
+      'Everything in Insight 360',
+      'Resting ECG',
+      'Body composition',
+      'Gut microbiome',
+      'Food sensitivity',
+      'Nutritional and lifestyle DNA',
+      'Remote GP consultation',
+    ],
+    markerCount: 350,
+    markerCountNote:
+      'The DNA, food sensitivity and body composition results are reported differently from a blood marker: they carry no reference range and no in-or-out-of-range status.',
+    turnaround: '10 working days',
+    turnaroundDays: [10, 10],
+    fasting: {
+      required: true,
+      minHours: 10,
+      maxHours: 12,
+      summary: 'Fast for 10 to 12 hours. Water only.',
+    },
+    timingNotes: [
+      {
+        label: 'Allow longer at the clinic',
+        detail:
+          'The ECG and body composition measurements are taken at your appointment alongside the blood draw, so this one takes about three quarters of an hour rather than twenty minutes.',
+        critical: false,
+      },
+    ],
+    appointmentMinutes: 45,
   },
 ];
 
