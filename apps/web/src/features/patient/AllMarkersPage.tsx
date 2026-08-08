@@ -26,6 +26,7 @@ import {
   matchesStatusFilter,
   optimalRangeLabel,
   optimalStatusLabel,
+  statusFilterCounts,
   type StatusFilter,
 } from '../../lib/markerCopy';
 import { Button } from '../../components/ui/Button';
@@ -163,6 +164,10 @@ export function AllMarkersPage() {
     [markers],
   );
 
+  // Counts for the status-filter options, one pass rather than one filter per
+  // option per render.
+  const statusCounts = useMemo(() => statusFilterCounts(measured), [measured]);
+
   const visible = useMemo(() => {
     const filtered = measured.filter(
       (m) =>
@@ -251,14 +256,11 @@ export function AllMarkersPage() {
               required={false}
             />
             <Select label="Show" name="status-filter" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}>
-              {STATUS_FILTERS.map((f) => {
-                const n = measured.filter((m) => matchesStatusFilter(m.status, f.value)).length;
-                return (
-                  <option key={f.value} value={f.value}>
-                    {f.value === 'ALL' ? f.label : `${f.label} (${n})`}
-                  </option>
-                );
-              })}
+              {STATUS_FILTERS.map((f) => (
+                <option key={f.value} value={f.value}>
+                  {f.value === 'ALL' ? f.label : `${f.label} (${statusCounts[f.value]})`}
+                </option>
+              ))}
             </Select>
             <Select
               label="Health area"

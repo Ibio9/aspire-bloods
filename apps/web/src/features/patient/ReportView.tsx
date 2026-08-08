@@ -26,6 +26,7 @@ import {
   matchesStatusFilter,
   optimalRangeLabel,
   optimalStatusLabel,
+  statusFilterCounts,
   type ResultSort,
   type StatusFilter,
 } from '../../lib/markerCopy';
@@ -166,6 +167,10 @@ export function ReportView() {
       composition: all.filter((m) => resultTypeOf(m) === 'COMPOSITION'),
     };
   }, [report]);
+
+  // The count beside each status-filter option, in one pass rather than one
+  // filter per option per render.
+  const statusCounts = useMemo(() => statusFilterCounts(byType.measured), [byType.measured]);
 
   // Filter first, sort second. Nothing here changes what was FETCHED — the
   // report is whatever it is, and a marker the report doesn't contain has no
@@ -345,14 +350,11 @@ export function ReportView() {
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
           >
-            {STATUS_FILTERS.map((f) => {
-              const n = byType.measured.filter((m) => matchesStatusFilter(m.status, f.value)).length;
-              return (
-                <option key={f.value} value={f.value}>
-                  {f.value === 'ALL' ? f.label : `${f.label} (${n})`}
-                </option>
-              );
-            })}
+            {STATUS_FILTERS.map((f) => (
+              <option key={f.value} value={f.value}>
+                {f.value === 'ALL' ? f.label : `${f.label} (${statusCounts[f.value]})`}
+              </option>
+            ))}
           </Select>
           <Select
             label="Health area"

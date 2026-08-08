@@ -153,6 +153,34 @@ export function matchesStatusFilter(status: MarkerStatus, filter: StatusFilter):
 }
 
 /**
+ * The count beside each option in the status filter, all seven in a single
+ * pass over the markers.
+ *
+ * The report and All-markers pickers used to recompute this inline —
+ * `markers.filter(matchesStatusFilter).length` for every one of the seven
+ * options, on every render, so a 350-marker report re-ran ~2,450 predicate
+ * calls on each keystroke in the search box. One pass, memoised by the caller.
+ */
+export function statusFilterCounts(markers: { status: MarkerStatus }[]): Record<StatusFilter, number> {
+  const counts: Record<StatusFilter, number> = {
+    ALL: markers.length,
+    IN_RANGE: 0,
+    ATTENTION: 0,
+    HIGH: 0,
+    LOW: 0,
+    SIGNIFICANT_HIGH: 0,
+    SIGNIFICANT_LOW: 0,
+  };
+  for (const { status } of markers) {
+    if (status === 'IN_RANGE') counts.IN_RANGE += 1;
+    else counts.ATTENTION += 1;
+    // Every non-ALL/IN_RANGE/ATTENTION filter value is itself a MarkerStatus.
+    counts[status] += 1;
+  }
+  return counts;
+}
+
+/**
  * Name search that also matches abbreviations.
  *
  * "ALT" has to find Alanine Aminotransferase and "TSH" has to find Thyroid
