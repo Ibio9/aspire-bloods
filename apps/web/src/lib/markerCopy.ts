@@ -172,10 +172,15 @@ export function statusFilterCounts(markers: { status: MarkerStatus }[]): Record<
     SIGNIFICANT_LOW: 0,
   };
   for (const { status } of markers) {
-    if (status === 'IN_RANGE') counts.IN_RANGE += 1;
-    else counts.ATTENTION += 1;
-    // Every non-ALL/IN_RANGE/ATTENTION filter value is itself a MarkerStatus.
-    counts[status] += 1;
+    if (status === 'IN_RANGE') {
+      counts.IN_RANGE += 1;
+    } else {
+      // Everything not in range counts toward the broad ATTENTION group, and
+      // toward its own specific filter — each of HIGH / LOW / SIGNIFICANT_HIGH /
+      // SIGNIFICANT_LOW is itself a StatusFilter value.
+      counts.ATTENTION += 1;
+      counts[status] += 1;
+    }
   }
   return counts;
 }
