@@ -52,6 +52,13 @@ interface NormalisedPoint {
   status: MarkerStatus;
   referenceLow: number;
   referenceHigh: number;
+  /**
+   * How far past a reference bound this marker has to sit before it counts as
+   * significantly out, in display units. Sent because the portal draws it —
+   * the sparkline's and trend chart's yellow bands end and their red bands
+   * begin exactly here. See severityThreshold in ./service.ts.
+   */
+  severityThreshold: number;
   sourceLabel: string;
   amendedAt: Date | null;
   /** False when this point needed a conversion the registry doesn't define. */
@@ -111,6 +118,9 @@ async function loadReleasedPoints(patientId: string): Promise<NormalisedPoint[]>
       status: r.status,
       referenceLow: round(low.value),
       referenceHigh: round(high.value),
+      severityThreshold: round(
+        r.marker.severityAbsoluteDelta ?? (high.value - low.value) * r.marker.severityMultiplier,
+      ),
       sourceLabel: sourceLabel(r.report.source.key, r.report.source.name),
       amendedAt: r.amendedAt,
       convertible: valueOk && rangeOk,
@@ -165,6 +175,7 @@ export async function getPatientOverview(patientId: string) {
       status: p.status,
       referenceLow: p.referenceLow,
       referenceHigh: p.referenceHigh,
+      severityThreshold: p.severityThreshold,
       reportId: p.reportId,
       panelName: p.panelName,
       sampleDate: p.sampleDate,
@@ -324,6 +335,7 @@ export async function listAllMarkersForPatient(patientId: string) {
         status: latest.status,
         referenceLow: latest.referenceLow,
         referenceHigh: latest.referenceHigh,
+        severityThreshold: latest.severityThreshold,
         // Advisory only, and null for most markers. Never folded into
         // `status` above — that stays the lab reference range's answer alone.
         optimal: optimalFor(latest.markerKey, latest.unit, latest.value, optimalCtx),
@@ -339,7 +351,9 @@ export async function listAllMarkersForPatient(patientId: string) {
         // Textual results can't be a point on a line — the spark simply
         // skips them, same as the full trend chart does.
         spark: comparable
-          ? series.filter((p) => p.value !== null).map((p) => ({ sampleDate: p.sampleDate, value: p.value, status: p.status }))
+          ? series
+              .filter((p) => p.value !== null)
+              .map((p) => ({ sampleDate: p.sampleDate, value: p.value, status: p.status }))
           : [],
       };
     })
@@ -380,6 +394,7 @@ export async function getMultiMarkerTrends(patientId: string, markerIds: string[
             status: p.status,
             referenceLow: p.referenceLow,
             referenceHigh: p.referenceHigh,
+            severityThreshold: p.severityThreshold,
             sourceLabel: p.sourceLabel,
             reportId: p.reportId,
           })),

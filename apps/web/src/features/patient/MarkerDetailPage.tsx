@@ -25,6 +25,8 @@ interface TrendPoint {
   status: MarkerStatus;
   referenceLow: number;
   referenceHigh: number;
+  /** Where significantly-out begins for this marker — the chart's band edges sit here. */
+  severityThreshold?: number;
   sourceKey: string;
   sourceLabel: string;
   amendedAt?: string | null;
@@ -44,6 +46,7 @@ interface MarkerDetail {
     unit: string;
     referenceLow: number;
     referenceHigh: number;
+    severityThreshold?: number;
     status: MarkerStatus;
     optimal?: OptimalRangeDTO | null;
     sourceLabel: string;
@@ -224,6 +227,7 @@ export function MarkerDetailPage() {
                 low={detail.latest.referenceLow}
                 high={detail.latest.referenceHigh}
                 status={detail.latest.status}
+                severityThreshold={detail.latest.severityThreshold}
                 optimal={detail.optimal}
               />
             </div>

@@ -5,6 +5,9 @@ import {
   WCAG_AA_TEXT,
   WCAG_AA_LARGE_TEXT,
   status,
+  statusTint,
+  hueTint,
+  chart,
   type StatusKey,
 } from '@aspire-bloods/shared';
 
@@ -135,14 +138,119 @@ describe.each(MODES)('%s theme', (mode) => {
     // a hatch and a text label, so this is a legibility floor, not the sole
     // means of telling them apart.
     const green = tone(mode, '--c-tint-in-range-bar');
-    const orange = tone(mode, '--c-tint-high-bar');
+    const yellow = tone(mode, '--c-tint-high-bar');
     const red = tone(mode, '--c-tint-significant-high-bar');
     for (const [a, b, names] of [
-      [green, orange, 'in range vs high'],
-      [orange, red, 'high vs significantly out'],
+      [green, yellow, 'in range vs high'],
+      [yellow, red, 'high vs significantly out'],
       [green, red, 'in range vs significantly out'],
     ] as const) {
       expect(a, names).not.toBe(b);
+    }
+  });
+
+  it('emits every role of every hue, orange included', () => {
+    // Orange is never a status, so it has no `--c-tint-*` alias and would be
+    // silently missing if the emitter only walked the five states. It is the
+    // transition stop in the range bar's gradient and in the shoulder of a
+    // chart band; without it those gradients fall back to a hard yellow-to-red
+    // step with nothing between them.
+    for (const hue of ['green', 'yellow', 'orange', 'red']) {
+      for (const role of ['wash', 'band', 'track', 'edge', 'mark']) {
+        expect(themeTokens[mode][`--c-hue-${hue}-${role}`], `--c-hue-${hue}-${role}`).toBeTruthy();
+      }
+    }
+  });
+
+  it('gives every status a wash, bar, band, edge and mark', () => {
+    for (const key of Object.keys(status) as StatusKey[]) {
+      for (const suffix of ['', '-bar', '-band', '-edge', '-mark']) {
+        expect(themeTokens[mode][`--c-tint-${kebab(key)}${suffix}`], `${key}${suffix}`).toBeTruthy();
+      }
+    }
+  });
+
+  it('makes each wash a visible step off the card, not a rounding error', () => {
+    // The failure this catches is the one the tints actually had: a wash so
+    // faint that yellow read as the cream card and red read as the cream card,
+    // i.e. colour-coding nobody can see. 1.06:1 is roughly the point at which
+    // a large flat field stops being distinguishable side by side.
+    for (const key of Object.keys(status) as StatusKey[]) {
+      const ratio = contrastRatio(tone(mode, `--c-tint-${kebab(key)}`), s.card);
+      expect(ratio, `${key} wash against the card is ${ratio.toFixed(3)}:1`).toBeGreaterThan(1.06);
+    }
+  });
+
+  it('separates the three hues from each other at every strength that sits side by side', () => {
+    // Green, yellow and red have to be told apart as bands in a chart and as
+    // segments in a bar. Not an accessibility threshold — shape, hatch and the
+    // written label carry those — but a wash where all three measure the same
+    // is a wash doing no work at all.
+    for (const role of ['wash', 'band', 'track'] as const) {
+      const seen = new Map<string, string>();
+      for (const hue of ['green', 'yellow', 'red']) {
+        const v = tone(mode, `--c-hue-${hue}-${role}`);
+        expect(seen.has(v), `${hue} ${role} duplicates ${seen.get(v)}`).toBe(false);
+        seen.set(v, hue);
+      }
+    }
+  });
+
+  it('keeps a plotted point readable against the band it lands on', () => {
+    // A point takes its own state's colour and sits on a band of that same
+    // colour. If the two matched, the mark would vanish into the band and the
+    // chart would lose the shape layer that carries the status.
+    for (const hue of ['green', 'yellow', 'orange', 'red']) {
+      const ratio = contrastRatio(tone(mode, `--c-hue-${hue}-mark`), tone(mode, `--c-hue-${hue}-band`));
+      expect(ratio, `${hue} mark on its own band is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+        WCAG_AA_LARGE_TEXT,
+      );
+    }
+  });
+});
+
+/**
+ * The bug that made the entire status colour layer invisible, and the guard
+ * that stops it coming back.
+ *
+ * The custom properties hold bare channels ("205 218 193") so Tailwind can
+ * composite an opacity into them. A token handed to a `style` prop, an SVG
+ * `fill` or a gradient stop as a bare `var(--x)` therefore resolves to a
+ * string that is not a colour — the browser silently drops the declaration and
+ * the element renders in inherited text colour or black. Nothing throws,
+ * nothing logs, and a status badge, a chart band and a range bar all quietly
+ * turn grey. Every runtime token must be wrapped in `rgb()`.
+ */
+describe('runtime colour tokens', () => {
+  const runtime: [string, string][] = [
+    ...Object.entries(status).map(([k, v]) => [`status.${k}.cssVar`, v.cssVar] as [string, string]),
+    ...Object.entries(statusTint).flatMap(([k, roles]) =>
+      Object.entries(roles).map(([r, v]) => [`statusTint.${k}.${r}`, v] as [string, string]),
+    ),
+    ...Object.entries(hueTint).flatMap(([k, roles]) =>
+      Object.entries(roles).map(([r, v]) => [`hueTint.${k}.${r}`, v] as [string, string]),
+    ),
+    ...Object.entries(chart)
+      .filter(([, v]) => typeof v === 'string')
+      .map(([k, v]) => [`chart.${k}`, v as string] as [string, string]),
+  ];
+
+  it('wraps every one in rgb(), so it is a colour rather than three numbers', () => {
+    for (const [name, value] of runtime) {
+      expect(value, `${name} = "${value}" is not a usable colour value`).toMatch(
+        /^rgb\(var\(--c-[a-z0-9-]+\)\)$/,
+      );
+    }
+  });
+
+  it('points every one at a variable the theme actually emits', () => {
+    // A typo in a variable name fails exactly the same way — silently, in
+    // black — so the reference is checked as well as the shape.
+    for (const [name, value] of runtime) {
+      const varName = value.replace(/^rgb\(var\(/, '').replace(/\)\)$/, '');
+      for (const mode of MODES) {
+        expect(themeTokens[mode][varName], `${name} points at ${varName}, which ${mode} does not emit`).toBeTruthy();
+      }
     }
   });
 });

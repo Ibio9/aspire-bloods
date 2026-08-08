@@ -1,5 +1,12 @@
 import { useId } from 'react';
-import { chart as chartTokens, type MarkerStatus, type OptimalRangeDTO } from '@aspire-bloods/shared';
+import {
+  chart as chartTokens,
+  statusBands,
+  statusPaint,
+  bandGradientStops,
+  type MarkerStatus,
+  type OptimalRangeDTO,
+} from '@aspire-bloods/shared';
 import { statusLabel } from '../../lib/markerCopy';
 
 interface SparkPoint {
@@ -12,6 +19,8 @@ interface SparklineProps {
   points: SparkPoint[];
   referenceLow: number;
   referenceHigh: number;
+  /** Where significantly-out begins for this marker. Absent, the shared default multiplier applies. */
+  severityThreshold?: number | null;
   /** The advisory optimal band, drawn as a hatch inside the reference band. Omitted when the marker has no established one. */
   optimal?: OptimalRangeDTO | null;
   width?: number;
@@ -31,10 +40,9 @@ function markPath(cx: number, cy: number, status: MarkerStatus, r: number): { sh
   };
 }
 
+/** The mark takes its own state's colour, matching the full trend chart's vocabulary. */
 function markFill(status: MarkerStatus): string {
-  if (status === 'IN_RANGE') return chartTokens.point;
-  if (status === 'SIGNIFICANT_HIGH' || status === 'SIGNIFICANT_LOW') return chartTokens.pointFarOut;
-  return chartTokens.pointOut;
+  return statusPaint(status).mark;
 }
 
 /**
@@ -43,20 +51,25 @@ function markFill(status: MarkerStatus): string {
  * with their own resize observers is a lot of machinery to say "this line
  * goes up".
  *
- * Same three rules as the full trend chart, at a twelfth the size: no line
- * through fewer than two points, palette colours only, and status carried by
- * the final mark's shape rather than by a hue.
+ * Same rules as the full trend chart, at a twelfth the size: no line through
+ * fewer than two points, the same five bands derived from this marker's own
+ * reference range and severity threshold, and status carried by the final
+ * mark's SHAPE first — the row it sits in carries the status word beside it,
+ * so nothing here depends on telling green from red.
  */
 export function Sparkline({
   points,
   referenceLow,
   referenceHigh,
+  severityThreshold = null,
   optimal = null,
   width = 96,
   height = 32,
   className = '',
 }: SparklineProps) {
-  const hatchId = `spark-hatch-${useId().replace(/:/g, '')}`;
+  const uid = useId().replace(/:/g, '');
+  const hatchId = `spark-hatch-${uid}`;
+  const gradId = `spark-band-${uid}`;
   if (points.length === 0) return null;
 
   const values = points.map((p) => p.value);
@@ -70,8 +83,22 @@ export function Sparkline({
   const y = (v: number) => height - ((v - domainMin) / domain) * height;
   const x = (i: number) => (points.length === 1 ? width / 2 : (i / (points.length - 1)) * width);
 
-  const bandTop = y(referenceHigh);
-  const bandHeight = Math.max(1, y(referenceLow) - y(referenceHigh));
+  // The same five regions the full chart draws, clipped to the sparkline's own
+  // domain. Derived from this marker's reference range and severity threshold,
+  // never a fixed scale — so a 96px-wide sparkline and a full-size trend chart
+  // for the same marker put their boundaries in exactly the same places.
+  const bands = statusBands(referenceLow, referenceHigh, severityThreshold)
+    .map((b) => {
+      const top = Math.max(0, y(b.to ?? domainMax));
+      const bottom = Math.min(height, y(b.from ?? domainMin));
+      return { status: b.status, top, height: bottom - top };
+    })
+    .filter((b) => b.height > 0.25);
+
+  // The reference bounds, marked. At this size a hairline is all there is
+  // room for, and the row's own status word carries the meaning regardless.
+  const boundaries = [y(referenceHigh), y(referenceLow)].filter((v) => v >= 0 && v <= height);
+
   const last = points[points.length - 1];
   const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ');
 
@@ -103,22 +130,31 @@ export function Sparkline({
       role="img"
       aria-label={`${points.length} result${points.length === 1 ? '' : 's'}, ${direction}, latest ${last.value}, ${statusLabel(last.status).toLowerCase()}`}
     >
-      {optimal && (
-        <defs>
+      <defs>
+        {optimal && (
           <pattern id={hatchId} width="5" height="5" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
             <rect width="5" height="5" fill={chartTokens.optimalBand} fillOpacity={chartTokens.optimalBandOpacity} />
             <line x1="0" y1="0" x2="0" y2="5" stroke={chartTokens.optimalEdge} strokeWidth="1.2" strokeOpacity="0.5" />
           </pattern>
-        </defs>
-      )}
-      <rect
-        x="0"
-        y={bandTop}
-        width={width}
-        height={bandHeight}
-        fill={chartTokens.referenceBand}
-        fillOpacity={chartTokens.referenceBandOpacity}
-      />
+        )}
+        {/* Top-to-bottom on screen is high-value-to-low-value, so the stops are
+            the reverse of the value-order pair. In range is flat. */}
+        {bands.map((b) => {
+          const [atLowEnd, atHighEnd] = bandGradientStops(b.status);
+          return (
+            <linearGradient key={b.status} id={`${gradId}-${b.status}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={atHighEnd} />
+              <stop offset="100%" stopColor={atLowEnd} />
+            </linearGradient>
+          );
+        })}
+      </defs>
+      {bands.map((b) => (
+        <rect key={b.status} x="0" y={b.top} width={width} height={b.height} fill={`url(#${gradId}-${b.status})`} />
+      ))}
+      {boundaries.map((yPos, i) => (
+        <line key={i} x1="0" y1={yPos} x2={width} y2={yPos} stroke={chartTokens.referenceEdge} strokeWidth="0.75" strokeOpacity="0.85" />
+      ))}
       {optimal && <rect x="0" y={optimalTop} width={width} height={optimalHeight} fill={`url(#${hatchId})`} />}
       {/* Never a path through fewer than two points. */}
       {points.length > 1 && (

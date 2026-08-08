@@ -12,13 +12,18 @@ import {
 } from 'recharts';
 import {
   chart as chartTokens,
+  statusBands,
+  statusPaint,
+  bandGradientStops,
+  severityThresholdFor,
+  BAND_LABEL,
   formatOptimalRange,
   formatDate,
   type MarkerStatus,
   type OptimalRangeDTO,
 } from '@aspire-bloods/shared';
 import { formatAxisDate } from '../../lib/patientPortal';
-import { statusLabel } from '../../lib/markerCopy';
+import { statusColor, statusLabel } from '../../lib/markerCopy';
 
 /**
  * One marker over time.
@@ -31,10 +36,25 @@ import { statusLabel } from '../../lib/markerCopy';
  *  - Draw a line between results that aren't comparable. Two values that
  *    needed a unit conversion we don't hold are two separate facts, not a
  *    trajectory, so they render as unconnected points.
- *  - Carry status in colour. Everything drawn here comes from the four brand
- *    hues and their tints; status is carried by the POINT'S SHAPE and by the
- *    word in the tooltip and the legend. There is no red, amber or green in
- *    this file and there is no grey either.
+ *  - Say anything evaluative. The bands show where the lab's reference range
+ *    sits and nothing more. None of them is labelled good, healthy, bad,
+ *    concerning or danger, and none ever will be.
+ *
+ * WHAT THE BANDS ARE. The reference range renders as a soft green band.
+ * Immediately above and below it, yellow. Beyond the point where the status
+ * itself changes to significantly out, red — with orange as the transition
+ * between the two, which is the whole of orange's job here and is never a
+ * state a result can be in. Every one of those boundaries is derived from THAT
+ * point's own reference range and severity threshold: a marker whose range is
+ * 20–42 gets bands sized for 20–42, and the band a value falls in is always
+ * the band its own status says it is in. Nothing here is a fixed scale.
+ *
+ * WHY THAT IS SAFE. Colour is the last thing carrying status, never the first.
+ * The point's SHAPE still says it (level dot, triangle, doubled triangle), the
+ * tooltip still says it in words, every band carries a visible boundary line,
+ * and the key below the chart names every band and every mark in text. Turn
+ * the whole thing greyscale and nothing is lost — which matters most for
+ * exactly this pair, since red and green are the commonest confusion there is.
  *
  * The explanatory line above the chart matches whichever of the three data
  * states actually applies, rather than showing the incomparable-sources note
@@ -62,6 +82,12 @@ interface TrendPoint {
   status: MarkerStatus;
   referenceLow: number;
   referenceHigh: number;
+  /**
+   * Where significantly-out begins for this marker, in the value's own units.
+   * Absent on an older payload, in which case the shared default multiplier is
+   * applied to the range width — see severityThresholdFor.
+   */
+  severityThreshold?: number;
   sourceLabel?: string;
   converted?: boolean;
   originalValue?: number;
@@ -84,11 +110,13 @@ const STATUS_SHAPE: Record<MarkerStatus, 'circle' | 'up' | 'down' | 'double-up' 
   SIGNIFICANT_LOW: 'double-down',
 };
 
-/** Tone follows severity, within the palette. It reinforces the shape; it never replaces it. */
+/**
+ * A point takes its own state's colour — the same green/yellow/red the band
+ * under it uses, a step stronger so it reads as a mark on the band rather than
+ * disappearing into it. It reinforces the shape; it never replaces it.
+ */
 function markFill(status: MarkerStatus): string {
-  if (status === 'IN_RANGE') return chartTokens.point;
-  if (status === 'SIGNIFICANT_HIGH' || status === 'SIGNIFICANT_LOW') return chartTokens.pointFarOut;
-  return chartTokens.pointOut;
+  return statusPaint(status).mark;
 }
 
 function StatusMark({ cx, cy, status, size = 1 }: { cx: number; cy: number; status: MarkerStatus; size?: number }) {
@@ -153,7 +181,10 @@ function ChartTooltip({
         {point.unit && <span className="ml-1 text-xs font-normal text-espresso/80">{point.unit}</span>}
       </p>
       <p className="mt-1.5 text-espresso/80">{formatDate(point.sampleDate)}</p>
-      <p className="mt-1.5 flex items-center gap-1.5 font-medium text-espresso">
+      {/* The status word takes its own state's colour. It is a label FOR that
+          colour rather than content sitting in it, and it still leads with the
+          mark's shape — so it reads identically with the colour removed. */}
+      <p className="mt-1.5 flex items-center gap-1.5 font-medium" style={{ color: statusColor(point.status) }}>
         <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
           <StatusMark cx={6} cy={6} status={point.status} size={0.9} />
         </svg>
@@ -192,7 +223,9 @@ export function TrendChart({
   const reducedMotion = useReducedMotion();
   // Pattern ids are document-global; two marker charts on one page sharing an
   // id would make the second one's band reference the first one's pattern.
-  const hatchId = `optimal-hatch-${useId().replace(/:/g, '')}`;
+  const uid = useId().replace(/:/g, '');
+  const hatchId = `optimal-hatch-${uid}`;
+  const gradId = `band-${uid}`;
 
   const singlePoint = data.length === 1;
   // Connecting a line means asserting these points belong on one trajectory.
@@ -238,19 +271,42 @@ export function TrendChart({
   // collapsing the domain to a zero-height line.
   const referenceSpan = bandSpan || valueSpan || Math.abs(values[0] || 1);
   const domainPad = referenceSpan * 0.3;
-  const domainMin = Math.min(...allLows, ...values) - domainPad;
+  const rawMin = Math.min(...allLows, ...values) - domainPad;
+  // Never below zero for a marker that cannot be negative. Padding used to
+  // push a ferritin axis down to -96, which was a harmless empty gutter when
+  // the plot area was blank and is not harmless now that the area is shaded:
+  // it would draw a "significantly below range" band across a region no
+  // result can ever occupy.
+  const nonNegative = Math.min(...allLows, ...values) >= 0;
+  const domainMin = nonNegative ? Math.max(0, rawMin) : rawMin;
   const domainMax = Math.max(...allHighs, ...values) + domainPad;
 
-  // Phase 2 §2.4: stepped/segmented reference band — each point's own
-  // range is drawn from its position up to the next point, so a range
-  // change between sources is visible as a step, never smoothed into one
-  // region that would misrepresent which range actually applied when.
-  const bandSegments = data.map((point, i) => ({
-    x1: point.sampleDate,
-    x2: data[i + 1]?.sampleDate ?? point.sampleDate,
-    low: point.referenceLow,
-    high: point.referenceHigh,
-  }));
+  // Phase 2 §2.4: stepped/segmented bands — each point's own range is drawn
+  // from its position up to the next point, so a range change between sources
+  // is visible as a step, never smoothed into one region that would
+  // misrepresent which range actually applied when. The five status bands are
+  // built per segment for the same reason: they are derived from that point's
+  // range, so they step with it.
+  const bandSegments = data.map((point, i) => {
+    const threshold = severityThresholdFor(point.referenceLow, point.referenceHigh, point.severityThreshold);
+    return {
+      x1: point.sampleDate,
+      x2: data[i + 1]?.sampleDate ?? point.sampleDate,
+      low: point.referenceLow,
+      high: point.referenceHigh,
+      threshold,
+      bands: statusBands(point.referenceLow, point.referenceHigh, point.severityThreshold),
+      // The boundaries that need a visible line: the reference bounds first
+      // (heavier — this is the band the whole chart is about), then the two
+      // points where out-of-range becomes significantly out.
+      edges: [
+        { y: point.referenceLow, weight: 'reference' as const },
+        { y: point.referenceHigh, weight: 'reference' as const },
+        { y: point.referenceLow - threshold, weight: 'severity' as const },
+        { y: point.referenceHigh + threshold, weight: 'severity' as const },
+      ],
+    };
+  });
 
   // A one-sided optimal band ("below 5.0 mmol/L") has to end somewhere on
   // screen. Running it to the edge of the plot would shade impossible
@@ -266,23 +322,42 @@ export function TrendChart({
     .map((d) => `${formatDate(d.sampleDate)}: ${d.value}, ${statusLabel(d.status).toLowerCase()}`)
     .join('; ');
 
+  // A boundary line is drawn as a very thin band rather than a ReferenceLine,
+  // because a ReferenceLine spans the whole plot and these have to step with
+  // their own segment. Sized off the domain so it stays ~1px at any scale.
+  const hairline = (domainMax - domainMin) * 0.003;
+
+  // Which bands are actually on screen, for the key. A marker whose results
+  // have never been near the significantly-out threshold still shows the band
+  // (the domain reaches it), but the key only names what is drawn.
+  const bandsShown: MarkerStatus[] = ['SIGNIFICANT_LOW', 'LOW', 'IN_RANGE', 'HIGH', 'SIGNIFICANT_HIGH'].filter(
+    (s) =>
+      bandSegments.some((seg) => {
+        const b = seg.bands.find((x) => x.status === s)!;
+        return (b.to ?? domainMax) > domainMin && (b.from ?? domainMin) < domainMax;
+      }),
+  ) as MarkerStatus[];
+
   return (
     <div>
       {/* Exactly one of these three. The state of the data decides which. */}
       {singlePoint ? (
         <p className="mb-3 text-xs leading-relaxed text-espresso/80">
-          This is your first result for this marker, so it is shown as a single point with no trend line. The shaded
-          band is the reference range it was measured against. A line appears once you have had a second test.
+          This is your first result for this marker, so it is shown as a single point with no trend line. The green
+          band is the reference range it was measured against; the shading either side of it marks how far outside
+          that range a value sits. A line appears once you have had a second test.
         </p>
       ) : connected ? (
         <p className="mb-3 text-xs leading-relaxed text-espresso/80">
-          These {data.length} results are directly comparable, so they are joined into one trend line. The shaded band
-          is the reference range each was measured against.
+          These {data.length} results are directly comparable, so they are joined into one trend line. The green band
+          is the reference range each was measured against; the shading either side of it marks how far outside that
+          range a value sits.
         </p>
       ) : (
         <p className="mb-3 text-xs leading-relaxed text-espresso/80">
           These results come from sources that aren't directly comparable for this marker, so they are shown as
-          separate points rather than joined into one trend line.
+          separate points rather than joined into one trend line. Each is still shown against the reference range it
+          was measured on.
         </p>
       )}
 
@@ -292,18 +367,35 @@ export function TrendChart({
       <div
         className="tabular h-72 w-full sm:h-80"
         role="img"
-        aria-label={`Trend chart for ${data.length} result${data.length === 1 ? '' : 's'}. ${summary}`}
+        aria-label={
+          `Trend chart for ${data.length} result${data.length === 1 ? '' : 's'}. ` +
+          `Shaded bands mark the reference range and how far outside it a value sits. ${summary}`
+        }
       >
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 12, right: 20, left: 0, bottom: 4 }}>
             <defs>
-              {/* The optimal band is told apart from the reference band by its
-                  hatch, not by its hue — the two sit at nearly the same tonal
-                  weight on purpose, because one is not "better" than the other. */}
+              {/* The optimal band is told apart from the status bands by its
+                  hatch, not by its hue — it is a different KIND of statement
+                  (advisory guidance, not the lab's range) and must not look
+                  like a sixth status. */}
               <pattern id={hatchId} width="7" height="7" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
                 <rect width="7" height="7" fill={chartTokens.optimalBand} fillOpacity={chartTokens.optimalBandOpacity} />
                 <line x1="0" y1="0" x2="0" y2="7" stroke={chartTokens.optimalEdge} strokeWidth="1.5" strokeOpacity={0.5} />
               </pattern>
+              {/* One gradient per status band. Stops run top-to-bottom on
+                  screen, which is high-value-to-low-value, so they are the
+                  reverse of the value-order pair bandGradientStops returns.
+                  In range resolves to the same colour twice, i.e. flat. */}
+              {(['SIGNIFICANT_LOW', 'LOW', 'IN_RANGE', 'HIGH', 'SIGNIFICANT_HIGH'] as MarkerStatus[]).map((s) => {
+                const [atLowEnd, atHighEnd] = bandGradientStops(s);
+                return (
+                  <linearGradient key={s} id={`${gradId}-${s}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={atHighEnd} />
+                    <stop offset="100%" stopColor={atLowEnd} />
+                  </linearGradient>
+                );
+              })}
             </defs>
 
             <CartesianGrid stroke={chartTokens.gridline} strokeOpacity={0} />
@@ -333,31 +425,46 @@ export function TrendChart({
               width={44}
             />
 
-            {/* With a single point x1 === x2, which is a zero-width area and
-                renders nothing — so the band is drawn across the full plot
-                instead. The patient still sees the range their one result is
-                measured against, which is the entire point of the band. */}
-            {singlePoint ? (
-              <ReferenceArea
-                y1={data[0].referenceLow}
-                y2={data[0].referenceHigh}
-                fill={chartTokens.referenceBand}
-                fillOpacity={chartTokens.referenceBandOpacity}
-                strokeOpacity={0}
-              />
-            ) : (
-              bandSegments.map((seg, i) => (
+            {/* The five status bands, behind everything else.
+                With a single point x1 === x2, which is a zero-width area and
+                renders nothing — so they are drawn across the full plot
+                instead. The patient still sees where their one result sits
+                relative to its range, which is the entire point. */}
+            {bandSegments.flatMap((seg, i) =>
+              seg.bands.map((b) => (
                 <ReferenceArea
-                  key={i}
-                  x1={seg.x1}
-                  x2={seg.x2}
-                  y1={seg.low}
-                  y2={seg.high}
-                  fill={chartTokens.referenceBand}
-                  fillOpacity={chartTokens.referenceBandOpacity}
+                  key={`band-${i}-${b.status}`}
+                  {...(singlePoint ? {} : { x1: seg.x1, x2: seg.x2 })}
+                  // Null is "open" — the outermost bands run to the edge of
+                  // the plot rather than asserting a bound the lab never gave.
+                  y1={b.from ?? domainMin}
+                  y2={b.to ?? domainMax}
+                  fill={`url(#${gradId}-${b.status})`}
                   strokeOpacity={0}
+                  ifOverflow="hidden"
                 />
-              ))
+              )),
+            )}
+
+            {/* Every band boundary, drawn. This is what keeps the bands legible
+                with the colour taken away: the reference bounds get the heavier
+                line because they are the thing the chart is about, and the two
+                significantly-out thresholds get a lighter one. Drawn as very
+                thin bands rather than ReferenceLines so they step with their own
+                segment instead of spanning the whole plot. */}
+            {bandSegments.flatMap((seg, i) =>
+              seg.edges.map((e, j) => (
+                <ReferenceArea
+                  key={`edge-${i}-${j}`}
+                  {...(singlePoint ? {} : { x1: seg.x1, x2: seg.x2 })}
+                  y1={e.y - hairline * (e.weight === 'reference' ? 1.5 : 1)}
+                  y2={e.y + hairline * (e.weight === 'reference' ? 1.5 : 1)}
+                  fill={chartTokens.referenceEdge}
+                  fillOpacity={e.weight === 'reference' ? 0.85 : 0.45}
+                  strokeOpacity={0}
+                  ifOverflow="hidden"
+                />
+              )),
             )}
 
             {optimal && optimalLow != null && optimalHigh != null && (
@@ -393,50 +500,65 @@ export function TrendChart({
         </ResponsiveContainer>
       </div>
 
-      <ChartKey optimal={optimal} statuses={[...new Set(data.map((d) => d.status))]} />
+      <ChartKey optimal={optimal} statuses={[...new Set(data.map((d) => d.status))]} bands={bandsShown} />
     </div>
   );
 }
 
 /**
- * What the marks and the bands mean, in words. Present because the chart
- * carries status by shape — a shape with no key is a rebus, and the whole
- * point of moving off colour was to make the chart readable rather than
- * decorative.
+ * What the marks and the bands mean, in words.
+ *
+ * Not optional and not decoration. The chart carries status by shape and
+ * reinforces it with colour; a shape with no key is a rebus, and a coloured
+ * region with no name is the exact "colour alone" failure the rest of this
+ * system spends its effort avoiding. Someone who cannot distinguish the green
+ * band from the red one reads this list instead and loses nothing.
+ *
+ * Every phrase here is positional — "above the reference range", not "high
+ * risk", not "unhealthy". The chart says where the lab's range sits; it does
+ * not offer an opinion on being outside it.
  */
-function ChartKey({ optimal, statuses }: { optimal: OptimalRangeDTO | null; statuses: MarkerStatus[] }) {
+function ChartKey({
+  optimal,
+  statuses,
+  bands,
+}: {
+  optimal: OptimalRangeDTO | null;
+  statuses: MarkerStatus[];
+  bands: MarkerStatus[];
+}) {
   return (
-    <ul className="mt-4 flex flex-col gap-2 border-t border-taupe pt-3 text-xs text-espresso/80 sm:flex-row sm:flex-wrap sm:gap-x-6">
-      {statuses.map((s) => (
-        <li key={s} className="flex items-center gap-2">
-          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" className="shrink-0">
-            <StatusMark cx={7} cy={7} status={s} size={0.95} />
-          </svg>
-          {statusLabel(s)}
-        </li>
-      ))}
-      <li className="flex items-center gap-2">
-        <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true" className="shrink-0">
-          <rect
-            x="0"
-            y="2"
-            width="18"
-            height="8"
-            fill={chartTokens.referenceBand}
-            fillOpacity={chartTokens.referenceBandOpacity}
-          />
-        </svg>
-        Reference range
-      </li>
-      {optimal && (
-        <li className="flex items-center gap-2">
-          <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true" className="shrink-0">
-            <rect x="0" y="2" width="18" height="8" fill={chartTokens.optimalBand} fillOpacity={chartTokens.optimalBandOpacity} />
-            <path d="M2 10 L6 2 M7 10 L11 2 M12 10 L16 2" stroke={chartTokens.optimalEdge} strokeWidth="1.2" strokeOpacity="0.6" />
-          </svg>
-          Optimal range (hatched)
-        </li>
-      )}
-    </ul>
+    <div className="mt-4 border-t border-taupe pt-3 text-xs text-espresso/80">
+      <ul className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-x-6">
+        {statuses.map((s) => (
+          <li key={s} className="flex items-center gap-2">
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" className="shrink-0">
+              <StatusMark cx={7} cy={7} status={s} size={0.95} />
+            </svg>
+            {statusLabel(s)}
+          </li>
+        ))}
+      </ul>
+      <ul className="mt-2.5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-x-6">
+        {bands.map((s) => (
+          <li key={s} className="flex items-center gap-2">
+            <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true" className="shrink-0">
+              <rect x="0" y="2" width="18" height="8" fill={statusPaint(s).band} />
+              <line x1="0" y1="2" x2="18" y2="2" stroke={chartTokens.referenceEdge} strokeWidth="1" strokeOpacity="0.85" />
+            </svg>
+            {BAND_LABEL[s]}
+          </li>
+        ))}
+        {optimal && (
+          <li className="flex items-center gap-2">
+            <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true" className="shrink-0">
+              <rect x="0" y="2" width="18" height="8" fill={chartTokens.optimalBand} fillOpacity={chartTokens.optimalBandOpacity} />
+              <path d="M2 10 L6 2 M7 10 L11 2 M12 10 L16 2" stroke={chartTokens.optimalEdge} strokeWidth="1.2" strokeOpacity="0.6" />
+            </svg>
+            Optimal range (hatched)
+          </li>
+        )}
+      </ul>
+    </div>
   );
 }

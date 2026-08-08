@@ -237,7 +237,13 @@ export function PatientOverview() {
                         <StatusBadge status={item.status} />
                       </div>
                       <div className="mt-6 max-w-md">
-                        <RangeBar value={item.value} low={item.referenceLow} high={item.referenceHigh} status={item.status} />
+                        <RangeBar
+                          value={item.value}
+                          low={item.referenceLow}
+                          high={item.referenceHigh}
+                          status={item.status}
+                          severityThreshold={item.severityThreshold}
+                        />
                       </div>
                       <p className="mt-4 text-xs text-espresso/80">
                         {item.panelName} · {formatDate(item.sampleDate)}

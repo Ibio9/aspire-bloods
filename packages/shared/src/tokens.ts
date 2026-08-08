@@ -92,47 +92,105 @@ export const inkScale = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// Status triad — cannot be mathematically derived from a palette with no
-// green/amber/red hues, so these are hand-picked to sit at the same tonal
-// weight (desaturated, mid-dark) as bronze/espresso. Verified AA below.
-// Bronze is the brand accent and is never reused as a status color.
+// The traffic-light hues.
 //
-// These are the TEXT/ICON colors and they are unchanged. The surface wash that
-// now sits behind a result (see `statusTint`) is a separate token family —
-// the tint is allowed to read as green/orange/red; the label beside it is not.
+// Three hues carry the five states, plus a fourth that is never a state:
+//
+//   significantLow / significantHigh → RED
+//   low            / high            → YELLOW
+//   inRange                          → GREEN
+//   ORANGE is the transition between yellow and red. It is used for the
+//          gradient in the range bar and for the shoulder of a chart band,
+//          and it is never a discrete status of its own.
+//
+// They cannot be derived from a palette with no green/yellow/red in it, so
+// they are picked — but picked against two constraints at once, which is what
+// keeps them from turning a blood result into a dashboard:
+//
+//  1. Warm-leaning and low-saturation enough to sit on cream and on the warm
+//     near-black browns. Every one of them is pulled off its pure hue toward
+//     the bronze/espresso axis; none is a web red, a lemon or a signal green.
+//  2. Saturated ENOUGH that a soft wash of it is still unmistakably the colour
+//     it is meant to be. The previous tint bases failed this second test: at a
+//     12% wash the orange read as beige and the red as pink, which is the cost
+//     of colour-coding with none of the benefit.
+//
+// Everything downstream — washes, bars, chart bands, boundary lines, point
+// fills, and the status text colours themselves — is mixed from these four and
+// from nothing else, per theme.
 // ---------------------------------------------------------------------------
+
+export const statusHue = {
+  /** Warm olive-green. Unmistakably green, never a signal green. */
+  green: '#5E8C3A',
+  /** Warm gold. Yellow at this luminance, not lemon and not brown. */
+  yellow: '#C79A16',
+  /** The transition only — never a state. */
+  orange: '#C4711F',
+  /** Warm brick-red. Unmistakably red, never a web #f00 alert. */
+  red: '#B23A28',
+} as const;
+
+export type StatusHue = keyof typeof statusHue;
+
+/**
+ * The status TEXT/ICON colour, per state.
+ *
+ * Derived from the hue above by mixing toward espresso until it clears AA for
+ * body text on every surface it lands on — the page, a card, an input, and its
+ * own wash. That is why the green is a deep leaf rather than the hue itself:
+ * `statusHue.green` on cream measures about 3:1, which is fine for a band and
+ * not fine for a word.
+ *
+ * `high` and `low` share a colour and `significantHigh`/`significantLow` share
+ * a colour, exactly as before. Direction is carried by the icon and by the
+ * word; the hue carries severity only.
+ */
+function statusTextHex(hue: StatusHue): string {
+  // Yellow has by far the highest intrinsic luminance, so it needs the most
+  // pulling down to reach 4.5:1 — the amount is per hue rather than one
+  // constant, so each lands just past the threshold instead of all three
+  // being dragged to the darkest one's level.
+  const toward: Record<StatusHue, number> = { green: 0.45, yellow: 0.63, orange: 0.49, red: 0.22 };
+  return mix(statusHue[hue], brand.espresso, toward[hue]);
+}
 
 export const status = {
   inRange: {
     label: 'In range',
-    hex: '#5B604A', // muted sage — calm, recessive
+    hex: statusTextHex('green'),
     icon: 'dash', // level/dash mark
+    hue: 'green' as StatusHue,
     /** Runtime color, theme-aware. Use this anywhere the value is applied to a live element. */
-    cssVar: 'var(--c-status-in-range)',
+    cssVar: 'rgb(var(--c-status-in-range))',
   },
   high: {
     label: 'Above range',
-    hex: '#765429', // ochre / amber-clay
+    hex: statusTextHex('yellow'),
     icon: 'chevron-up',
-    cssVar: 'var(--c-status-high)',
+    hue: 'yellow' as StatusHue,
+    cssVar: 'rgb(var(--c-status-high))',
   },
   low: {
     label: 'Below range',
-    hex: '#765429', // same tone as `high`; direction is carried by icon, not color
+    hex: statusTextHex('yellow'), // same tone as `high`; direction is carried by icon, not colour
     icon: 'chevron-down',
-    cssVar: 'var(--c-status-low)',
+    hue: 'yellow' as StatusHue,
+    cssVar: 'rgb(var(--c-status-low))',
   },
   significantHigh: {
     label: 'Significantly above range',
-    hex: '#8A4A3A', // deep terracotta-red
+    hex: statusTextHex('red'),
     icon: 'chevron-double-up',
-    cssVar: 'var(--c-status-significant-high)',
+    hue: 'red' as StatusHue,
+    cssVar: 'rgb(var(--c-status-significant-high))',
   },
   significantLow: {
     label: 'Significantly below range',
-    hex: '#8A4A3A',
+    hex: statusTextHex('red'),
     icon: 'chevron-double-down',
-    cssVar: 'var(--c-status-significant-low)',
+    hue: 'red' as StatusHue,
+    cssVar: 'rgb(var(--c-status-significant-low))',
   },
 } as const;
 
@@ -147,61 +205,87 @@ export type StatusKey = keyof typeof status;
 // patients arrive expecting traffic-light coding on a blood result, and
 // withholding it made the page harder to scan without making it any calmer.
 //
-// So: five tints, applied as a soft background on a result card or row.
+// So: five tints, from three hues, on every surface that shows a result — the
+// card, the row, the range bar, the chart bands, the sparkline, the counts
+// strip, the category bars, and the status word in a tooltip.
 //
 //   significantLow  → red      significantHigh → red
-//   low             → orange   high            → orange
-//   inRange         → green
+//   low             → yellow   high            → yellow
+//   inRange         → green    (orange = the transition, never a state)
 //
-// Four rules hold, and the tint is worthless without them:
+// Four rules hold, and the colour is worthless without them:
 //
-//  1. The tint is the LAST thing that carries status, never the first. The
+//  1. Colour is the LAST thing that carries status, never the first. The
 //     level mark / chevron / doubled chevron and the word ("Above range")
 //     are unchanged and still carry the whole meaning in greyscale and to a
-//     colourblind reader. Delete every colour on the page and nothing is lost.
-//  2. Tint only. Text, borders, headings and icons keep the existing palette;
-//     a tinted card does not get red text or a red border.
-//  3. Low-saturation and warm-leaning. These hues are picked to sit on cream
-//     and on the dark warm-brown surfaces without either one turning into a
-//     web-red alert box. The page still has to read as the same premium warm
-//     product it was before.
-//  4. Nothing escalates beyond the tint. No pulse, no warning triangle, no
-//     red body copy. Someone reading a bad number is not to be frightened by
-//     the interface; the out-of-range prompt points calmly at their GP.
-//
-// The tint bases are deliberately NOT the status text hues above. Those are
-// chosen to be recessive next to their own label, and washed out to 12% they
-// stop reading as green/orange/red at all — which would give us the cost of
-// colour-coding with none of the benefit. These carry a little more chroma so
-// that a 12% wash is still identifiably the colour it is meant to be.
+//     colourblind reader. Red and green are the most commonly confused pair
+//     there is; delete every colour here and nothing is lost. Chart bands
+//     therefore carry a boundary line and a written key, never hue alone.
+//  2. Surfaces and marks, not body copy. A tinted card keeps its taupe border,
+//     its espresso text and its ordinary shadow. The one text that takes a
+//     status colour is the status word itself, which is a label for that
+//     colour rather than content sitting in it.
+//  3. Low-saturation and warm-leaning, but not to the point of beige. See the
+//     note on `statusHue`: the wash has to still read as the colour it is.
+//  4. Nothing escalates beyond the colour. No pulse, no warning triangle, no
+//     red body copy, no "danger"/"healthy" vocabulary anywhere. Someone
+//     reading a bad number is not to be frightened by the interface; the
+//     out-of-range prompt points calmly at their GP with contact details.
 // ---------------------------------------------------------------------------
 
-const tintBase = {
-  /** Warm sage-green. Olive-leaning, never a saturated web green. */
-  green: '#6E7F4A',
-  /** Warm clay-orange, the same family as the ochre `high` text tone. */
-  orange: '#B5763A',
-  /** Warm terracotta-red, the same family as the `significant*` text tone. */
-  red: '#A8503C',
-} as const;
-
-const STATUS_TINT_HUE: Record<StatusKey, keyof typeof tintBase> = {
+const STATUS_TINT_HUE: Record<StatusKey, StatusHue> = {
   significantLow: 'red',
-  low: 'orange',
+  low: 'yellow',
   inRange: 'green',
-  high: 'orange',
+  high: 'yellow',
   significantHigh: 'red',
 };
 
 /**
- * How much of the hue survives the wash.
+ * How much of the hue survives, per role. Each is a mix from the surface the
+ * thing actually sits on toward the hue, so nothing needs an opacity at the
+ * call site and the two themes cannot drift.
  *
- * `surface` is the card/row background — deliberately faint, because it sits
- * under body text that has to stay comfortably readable on top of it.
- * `bar` is the category summary bar, which is a field of colour with no text
- * on it and would simply disappear at surface strength.
+ *  · `wash`  — the card/row/tile background. The faintest of them, because it
+ *              sits under body text that has to stay comfortably readable; but
+ *              raised from the old 12% because at 12% the yellow and red were
+ *              indistinguishable from the cream card they replaced.
+ *  · `band`  — a chart band. Sits behind a line and points, so it stays calm,
+ *              but it is a field of colour with no body text on it and can
+ *              carry more hue than the wash.
+ *  · `track` — the range-bar track and the category summary bars. A field of
+ *              colour with nothing on top at all; at wash strength it would
+ *              simply disappear.
+ *  · `edge`  — a boundary line, a band's own hairline, the ring on a plotted
+ *              point. Nearly the hue itself.
+ *  · `mark`  — the fill of a plotted point or a range-bar dot. The one role
+ *              NOT mixed from the surface: it sits on a band of its own colour
+ *              and would wash into it, so it is the hue itself taken a step
+ *              past full strength — deepened in light, lifted in dark. Checked
+ *              at 3:1 against its own band by tokenContrast.test.ts, because
+ *              "the point disappeared into the band" is a chart that has lost
+ *              the shape layer status actually depends on.
  */
-const TINT_MIX = { surface: 0.12, surfaceDark: 0.2, bar: 0.55, barDark: 0.62 } as const;
+const TINT_MIX = {
+  wash: 0.21,
+  washDark: 0.28,
+  band: 0.3,
+  bandDark: 0.32,
+  track: 0.58,
+  trackDark: 0.6,
+  edge: 0.92,
+  edgeDark: 0.82,
+} as const;
+
+/**
+ * The point fill, per hue, as a distance from the hue itself — toward espresso
+ * in light and toward the theme's text tone in dark.
+ *
+ * Per hue rather than one constant for the same reason `statusTextHex` is:
+ * yellow starts far brighter than the others, so a single value that made
+ * yellow legible on its own band would drag green and red into mud.
+ */
+const MARK_SHIFT: Record<StatusHue, number> = { green: 0.18, yellow: 0.4, orange: 0.24, red: 0.12 };
 
 // ---------------------------------------------------------------------------
 // Dark mode.
@@ -281,10 +365,24 @@ export const darkScales = {
  */
 const darkWhite = mix(darkPage, '#000000', 0.35);
 
-function darkStatusHex(hex: string): string {
-  // Toward the dark theme's text tone, so a status label sits at roughly the
-  // same weight as body copy rather than shouting or vanishing.
-  return mix(hex, darkText, 0.52);
+/**
+ * The status label colour in dark, re-derived from the HUE rather than
+ * lightened from the light-mode value.
+ *
+ * Lightening the light-mode hex is what a naive dark mode does here, and it
+ * desaturates twice: the light value is already pulled toward espresso to
+ * clear AA on cream, and pulling that toward a warm cream as well lands on a
+ * beige that is no longer recognisably green or gold. Starting from the hue
+ * each time keeps the chroma and only spends contrast where it is needed.
+ *
+ * Lifted further than the light-mode equivalent is darkened, because a status
+ * label in dark has to clear AA against its OWN wash as well as the page — and
+ * the dark wash carries more hue (26% against light's 16%), so it is the
+ * tighter of the two constraints.
+ */
+function darkStatusHex(hue: StatusHue): string {
+  const toward: Record<StatusHue, number> = { green: 0.5, yellow: 0.4, orange: 0.46, red: 0.58 };
+  return mix(statusHue[hue], darkText, toward[hue]);
 }
 
 /** Every colour token, per theme, as a flat map of CSS custom property → hex. */
@@ -292,12 +390,21 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
   const dark = mode === 'dark';
   const s = dark ? darkScales : scales;
   const surface = dark ? darkScales.cream[500] : brand.cream;
-  const tintSurfaceMix = dark ? TINT_MIX.surfaceDark : TINT_MIX.surface;
-  const tintBarMix = dark ? TINT_MIX.barDark : TINT_MIX.bar;
   // A tint washes toward the surface it sits on: the card in light mode, the
   // card in dark mode too — both are `cream-50`, which is what a tinted card
   // actually replaces.
   const tintTowards = dark ? darkScales.cream[50] : scales.cream[50];
+
+  /**
+   * The hue as it exists in THIS theme, before any wash.
+   *
+   * Dark is re-derived rather than reusing the light hue: the same brick red
+   * that sits calmly on cream is a muddy near-invisible smear on a warm
+   * near-black, and the same gold is a glare. Lifting toward the theme's own
+   * text tone puts every hue at roughly the weight of body copy in its own
+   * theme, which is what makes a 30% band read the same in both.
+   */
+  const themedHue = (hue: StatusHue): string => (dark ? mix(statusHue[hue], darkText, 0.34) : statusHue[hue]);
 
   const out: Record<string, string> = {};
 
@@ -338,22 +445,46 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    */
   out['--c-onaccent'] = dark ? mix(darkPage, '#000000', 0.25) : brand.white;
 
-  for (const key of Object.keys(status) as StatusKey[]) {
-    const base = status[key].hex;
-    out[`--c-status-${kebab(key)}`] = dark ? darkStatusHex(base) : base;
-    const hue = tintBase[STATUS_TINT_HUE[key]];
-    out[`--c-tint-${kebab(key)}`] = mix(tintTowards, hue, tintSurfaceMix);
-    out[`--c-tint-${kebab(key)}-bar`] = mix(tintTowards, hue, tintBarMix);
+  // The four hues, per role. Emitted per HUE and not only per status because
+  // orange is a real token here (the transition stop in a range-bar gradient
+  // and the shoulder of a chart band) while never being a status of its own.
+  for (const hue of Object.keys(statusHue) as StatusHue[]) {
+    const h = themedHue(hue);
+    out[`--c-hue-${hue}-wash`] = mix(tintTowards, h, dark ? TINT_MIX.washDark : TINT_MIX.wash);
+    out[`--c-hue-${hue}-band`] = mix(tintTowards, h, dark ? TINT_MIX.bandDark : TINT_MIX.band);
+    out[`--c-hue-${hue}-track`] = mix(tintTowards, h, dark ? TINT_MIX.trackDark : TINT_MIX.track);
+    out[`--c-hue-${hue}-edge`] = mix(tintTowards, h, dark ? TINT_MIX.edgeDark : TINT_MIX.edge);
+    // Away from the surface rather than toward it — see TINT_MIX.mark.
+    out[`--c-hue-${hue}-mark`] = dark
+      ? mix(h, darkText, MARK_SHIFT[hue])
+      : mix(statusHue[hue], brand.espresso, MARK_SHIFT[hue]);
   }
 
-  // Charts. Same rule as the light-mode note below: status is carried by shape
-  // and by the text label, never by hue, so none of these is a status colour.
+  for (const key of Object.keys(status) as StatusKey[]) {
+    out[`--c-status-${kebab(key)}`] = dark ? darkStatusHex(status[key].hue) : status[key].hex;
+    // Aliases onto the hue this state resolves to. Kept as their own variables
+    // so a component asks for "the significantly-high tint" rather than having
+    // to know that significantly-high happens to be red.
+    const hue = STATUS_TINT_HUE[key];
+    for (const [role, name] of [
+      ['wash', ''],
+      ['bar', '-bar'],
+      ['band', '-band'],
+      ['edge', '-edge'],
+      ['mark', '-mark'],
+    ] as const) {
+      const source = role === 'bar' ? 'track' : role;
+      out[`--c-tint-${kebab(key)}${name}`] = out[`--c-hue-${hue}-${source}`];
+    }
+  }
+
+  // Charts. The bands and the point fills now take the status hues above (see
+  // `--c-tint-*-band`); everything structural — axes, gridlines, the trend
+  // line itself, the optimal band — stays on the four brand hues, so the only
+  // colour in a chart that means anything is the colour that means status.
   out['--c-chart-line'] = dark ? darkScales.bronze[600] : brand.bronze;
   out['--c-chart-point'] = dark ? darkScales.bronze[600] : brand.bronze;
   out['--c-chart-point-ring'] = dark ? darkScales.cream[50] : brand.white;
-  out['--c-chart-point-out'] = dark ? darkScales.bronze[800] : scales.bronze[800];
-  out['--c-chart-point-far-out'] = dark ? brand.cream : ink;
-  out['--c-chart-reference-band'] = dark ? darkScales.taupe[600] : brand.taupe;
   out['--c-chart-reference-edge'] = dark ? darkScales.taupe[800] : scales.taupe[600];
   out['--c-chart-optimal-band'] = dark ? darkScales.bronze[400] : scales.bronze[300];
   out['--c-chart-optimal-edge'] = dark ? darkScales.bronze[700] : scales.bronze[600];
@@ -427,30 +558,97 @@ export const staticTokens = {
   },
 } as const;
 
-/** Status tint utilities, by status key. Values are theme-aware CSS variables. */
+/**
+ * Status tint utilities, by status key. Values are theme-aware CSS variables,
+ * so the same string is right in light and in dark.
+ *
+ *  surface — the card/row/tile wash
+ *  bar     — the category summary bar fill
+ *  band    — a chart band behind the data
+ *  edge    — that band's boundary line, and the ring on a point
+ *  mark    — the fill of a plotted point or a range-bar dot
+ */
+/**
+ * ⚠ Every runtime token below is `rgb(var(--x))`, never a bare `var(--x)`.
+ *
+ * This is not a style choice, it is the bug that made the whole status colour
+ * layer invisible. The custom properties hold BARE CHANNELS ("205 218 193")
+ * rather than a colour, because that is the only form Tailwind's
+ * `<alpha-value>` syntax can composite an opacity into — see the note in
+ * tailwind.config.ts. A bare `var(--c-status-high)` therefore resolves to the
+ * string "205 218 193", which is not a valid colour value: the browser drops
+ * the declaration and the element falls back to inherited text colour or to
+ * black. No error, no warning, nothing in the console. It simply renders in
+ * the wrong colour, which is exactly what a status badge, an SVG `fill` and a
+ * gradient stop had all been doing.
+ *
+ * Anything applied through a `style` prop, an SVG paint attribute or a
+ * gradient stop must go through these helpers. Anything applied as a Tailwind
+ * class (`bg-tint-high`) must NOT — Tailwind adds the `rgb()` itself.
+ */
+function tintSet(key: StatusKey) {
+  const k = kebab(key);
+  return {
+    surface: `rgb(var(--c-tint-${k}))`,
+    bar: `rgb(var(--c-tint-${k}-bar))`,
+    band: `rgb(var(--c-tint-${k}-band))`,
+    edge: `rgb(var(--c-tint-${k}-edge))`,
+    mark: `rgb(var(--c-tint-${k}-mark))`,
+  } as const;
+}
+
 export const statusTint = {
-  inRange: { surface: 'var(--c-tint-in-range)', bar: 'var(--c-tint-in-range-bar)' },
-  high: { surface: 'var(--c-tint-high)', bar: 'var(--c-tint-high-bar)' },
-  low: { surface: 'var(--c-tint-low)', bar: 'var(--c-tint-low-bar)' },
-  significantHigh: { surface: 'var(--c-tint-significant-high)', bar: 'var(--c-tint-significant-high-bar)' },
-  significantLow: { surface: 'var(--c-tint-significant-low)', bar: 'var(--c-tint-significant-low-bar)' },
+  inRange: tintSet('inRange'),
+  high: tintSet('high'),
+  low: tintSet('low'),
+  significantHigh: tintSet('significantHigh'),
+  significantLow: tintSet('significantLow'),
+} as const;
+
+/**
+ * The same five roles per HUE rather than per status — the only way to reach
+ * orange, which is the transition stop in a range-bar gradient and the
+ * shoulder of a chart band, and is never a status.
+ */
+function hueSet(hue: StatusHue) {
+  return {
+    wash: `rgb(var(--c-hue-${hue}-wash))`,
+    band: `rgb(var(--c-hue-${hue}-band))`,
+    track: `rgb(var(--c-hue-${hue}-track))`,
+    edge: `rgb(var(--c-hue-${hue}-edge))`,
+    mark: `rgb(var(--c-hue-${hue}-mark))`,
+  } as const;
+}
+
+export const hueTint = {
+  green: hueSet('green'),
+  yellow: hueSet('yellow'),
+  orange: hueSet('orange'),
+  red: hueSet('red'),
 } as const;
 
 // ---------------------------------------------------------------------------
-// Charts — palette only, no exceptions.
+// Charts — structure from the brand palette, status from the status hues.
 //
-// The status triad above is deliberately NOT used in charts. Its sage/ochre/
-// terracotta hues are hand-picked outside the four brand hues, which is
-// defensible for a small inline badge sitting next to its own text label but
-// reads as an off-palette green/amber/red the moment it's a field of colour in
-// a plot. So everything a chart draws — reference band, optimal band, axes,
-// gridlines, point fills, hover — derives from bronze/espresso/cream/taupe,
-// their tints and shades, plus `ink` for the deepest warm near-black.
+// A trend chart now shades where the lab's range sits: the reference range
+// itself as a soft green band, a yellow band immediately above and below it,
+// and red beyond the significantly-out thresholds, with orange as the
+// transition into it. Every one of those boundaries is derived from THAT
+// result's own reference range and severity threshold — there is no fixed
+// scale anywhere, and a marker whose range is 20–42 gets bands 20–42 wide.
 //
-// Status in a chart is therefore carried by SHAPE and by the text label in the
-// tooltip and legend, never by hue. That is the same rule the rest of the
-// product follows (status badges lead with an icon shape and a word); charts
-// were the one place still leaning on colour to say it.
+// What has NOT changed, and is what makes the bands safe:
+//  · Status is still carried by the POINT'S SHAPE and by the word in the
+//    tooltip and the key. The bands are reinforcement.
+//  · Every band carries a boundary line and a written entry in the key, so it
+//    is legible in greyscale and to a colourblind reader.
+//  · The bands say where the range sits and nothing more. They are never
+//    labelled good, healthy, bad, concerning or danger — the vocabulary is
+//    in range / above / below / significantly out, and stops there.
+//
+// Everything structural — axes, gridlines, the trend line, the optimal band,
+// the cursor, the surface — still derives from bronze/espresso/cream/taupe and
+// `ink`, so the only colour in a chart that carries meaning is status.
 // ---------------------------------------------------------------------------
 
 // Every value here is a CSS custom property rather than a literal hex, so a
@@ -460,32 +658,29 @@ export const statusTint = {
 // `themeTokens` above; only the opacities are literal, because they are the
 // same in both.
 export const chart = {
-  /** The trend line itself, and the fill of an in-range point. */
-  line: 'var(--c-chart-line)',
-  point: 'var(--c-chart-point)',
-  /** Ring around every point so it stays legible against a band. */
-  pointRing: 'var(--c-chart-point-ring)',
-  /** An out-of-range point. Higher contrast, so the emphasis survives greyscale — the shape still carries which direction. */
-  pointOut: 'var(--c-chart-point-out)',
-  /** A significantly out-of-range point: the most extreme warm tone available in the active theme. */
-  pointFarOut: 'var(--c-chart-point-far-out)',
-  /** The lab reference range: a calm background region, not a block. */
-  referenceBand: 'var(--c-chart-reference-band)',
-  referenceBandOpacity: 0.22,
-  /** Hairline top/bottom edge on the reference band, so it reads as bounded without weight. */
-  referenceEdge: 'var(--c-chart-reference-edge)',
+  /** The trend line itself. Bronze — it says "this is your series", not "this is good". */
+  line: 'rgb(var(--c-chart-line))',
+  point: 'rgb(var(--c-chart-point))',
+  /** Ring around every point so it stays legible against the band it lands on. */
+  pointRing: 'rgb(var(--c-chart-point-ring))',
+  /**
+   * The hairline that bounds a band. Neutral taupe rather than the band's own
+   * hue, on purpose: it is the thing that has to stay visible when the colour
+   * is taken away, so it cannot be made of colour.
+   */
+  referenceEdge: 'rgb(var(--c-chart-reference-edge))',
   /** The optimal band, drawn inside/overlapping the reference band. Distinguished by a hatch, not by hue alone. */
-  optimalBand: 'var(--c-chart-optimal-band)',
+  optimalBand: 'rgb(var(--c-chart-optimal-band))',
   optimalBandOpacity: 0.34,
-  optimalEdge: 'var(--c-chart-optimal-edge)',
+  optimalEdge: 'rgb(var(--c-chart-optimal-edge))',
   /** Axis rule and ticks. */
-  axisLine: 'var(--c-chart-axis-line)',
-  axisText: 'var(--c-chart-axis-text)',
-  gridline: 'var(--c-chart-gridline)',
+  axisLine: 'rgb(var(--c-chart-axis-line))',
+  axisText: 'rgb(var(--c-chart-axis-text))',
+  gridline: 'rgb(var(--c-chart-gridline))',
   /** Cursor/crosshair on hover. */
-  cursor: 'var(--c-chart-cursor)',
+  cursor: 'rgb(var(--c-chart-cursor))',
   /** Warm off-white (light) / raised warm near-black (dark) for chart card surfaces — never pure white, never grey. */
-  surface: 'var(--c-chart-surface)',
+  surface: 'rgb(var(--c-chart-surface))',
 } as const;
 
 // ---------------------------------------------------------------------------

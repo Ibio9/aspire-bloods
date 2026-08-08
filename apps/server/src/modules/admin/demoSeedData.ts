@@ -49,6 +49,7 @@
  */
 import type { MarkerStatus, ResultType } from '@aspire-bloods/shared';
 import { FOOD_SENSITIVITY_GROUPS } from '@aspire-bloods/shared';
+import { computeMarkerStatus } from '../../lib/markerStatus.js';
 import { prisma } from '../../db/client.js';
 
 /** The three panels the clinic sells. Report 4 deliberately has no panel. */
@@ -88,6 +89,16 @@ export interface DemoDataDiagnostics {
   markersInOneReportOnly: number;
   markersInTwoOrMoreReports: number;
   foodSensitivityGroups: number;
+  /** Out-of-range results that followed a correlated partner rather than being rolled independently. */
+  correlatedFollowers: number;
+  /** Per report, so a partial panel is visible in the run log rather than only in the database. */
+  markersPerReport: {
+    panel: string;
+    sampleDate: string;
+    results: number;
+    panelKey: string | null;
+    panelMarkers: number | null;
+  }[];
 }
 
 // ---------------------------------------------------------------------------
@@ -199,17 +210,38 @@ export function valueForStatus(status: MarkerStatus, band: Band, marker: MarkerR
       return clampAbove(band.high + threshold * (0.12 + r() * 0.55), band.high);
     case 'SIGNIFICANT_HIGH':
       return clampAbove(band.high + threshold * (1.3 + r() * 0.8), band.high + threshold);
-    case 'LOW':
-      return clampBelow(band.low - threshold * (0.12 + r() * 0.55), band.low);
+    case 'LOW': {
+      // The drop is capped at most of the way to zero, not at the severity
+      // threshold alone. Iron's 10–30 band carries a threshold of 30, so a
+      // "12% to 67% of the threshold" step below 10 lands at a negative
+      // number — and the marker would then be excluded from every below-range
+      // quota, which is why the demo used to show a floor-level ferritin
+      // beside a mid-range iron. Capping keeps the value positive AND keeps
+      // the drop under the threshold, so it is still a LOW rather than a
+      // SIGNIFICANT_LOW.
+      const span = Math.min(threshold, band.low * 0.9);
+      return clampBelow(band.low - span * (0.12 + r() * 0.55), band.low);
+    }
     case 'SIGNIFICANT_LOW':
       return clampBelow(band.low - threshold * (1.3 + r() * 0.8), band.low - threshold);
   }
 }
 
 /**
- * A below-range value only exists if the band has somewhere below it to go.
- * Markers whose range starts at zero (most enzymes and lipids) cannot be LOW
- * without going negative, so they are never chosen for a below-range quota.
+ * Whether a mildly-below-range value is possible at all: only that the band
+ * has somewhere above zero to drop into. Markers whose range starts at zero
+ * (most enzymes and lipids) cannot be LOW without going negative and are never
+ * chosen for a below-range quota.
+ */
+export function canGoMildlyBelow(band: Band): boolean {
+  return band.low > 0;
+}
+
+/**
+ * The stricter version, for SIGNIFICANT_LOW. That value has to sit more than a
+ * full severity threshold below the floor by definition, so unlike a mild LOW
+ * it cannot be capped short — either the band has that much room underneath it
+ * or the marker simply is not eligible.
  */
 export function canGoBelow(band: Band, marker: MarkerRow): boolean {
   const width = band.high - band.low;
@@ -317,8 +349,104 @@ const NARRATIVE: Record<string, Record<number, ScriptedValue>> = {
   // A functional band (2–10), narrower than the assay's, is what makes this
   // read as significantly high rather than a shrug.
   'fasting-insulin': { 2: { value: 24.6, low: 2, high: 10 } },
-  esr: { 2: { value: 32, low: 0, high: 20 } },
 };
+
+// ---------------------------------------------------------------------------
+// Clinical coherence.
+//
+// The quota mechanism below picks which markers land out of range, and left to
+// itself it picks them independently — which produces a report where the
+// haemoglobin is low and the haematocrit is fine, the ferritin is on the floor
+// and the transferrin saturation is mid-range, the HbA1c is raised and the
+// glucose is pristine. Individually each row is plausible. Together they are
+// nonsense, and a clinician glancing at the demo sees that instantly.
+//
+// So markers that move together are declared to move together. Each group has
+// one physiology behind it and a sign per member: +1 moves WITH the group,
+// -1 moves against it (transferrin and TIBC rise as iron stores fall; eGFR
+// falls as creatinine rises; free T4 falls as TSH rises).
+//
+// Two deliberate softenings, because the point is realism rather than drama:
+//  · A follower never inherits "significantly" out. The anchor is the extreme
+//    one and the rest of its group sits mildly out, which is what an actual
+//    picture looks like.
+//  · A follower whose band has no room below it (most enzymes and lipids start
+//    at zero) is left in range rather than pushed negative. See canGoBelow.
+//
+// Keys are the catalogue's own. A key that isn't on a given panel simply has
+// no effect on that report.
+// ---------------------------------------------------------------------------
+
+export interface CorrelatedGroup {
+  key: string;
+  /** markerKey → +1 moves with the group, -1 moves against it. */
+  members: Record<string, 1 | -1>;
+}
+
+export const CORRELATED_GROUPS: CorrelatedGroup[] = [
+  {
+    // A low haemoglobin with a normal haematocrit and a normal red cell count
+    // is the single most obviously wrong thing a fake blood report can show.
+    key: 'red-cells',
+    members: { haemoglobin: 1, haematocrit: 1, rbc: 1, mch: 1, mcv: 1, mchc: 1 },
+  },
+  {
+    // Iron stores. Transferrin and TIBC are the classic inverse pair: the body
+    // makes more carrier as there is less iron to carry.
+    key: 'iron-status',
+    members: { ferritin: 1, iron: 1, 'transferrin-saturation': 1, transferrin: -1, tibc: -1 },
+  },
+  {
+    key: 'glycaemic',
+    members: { hba1c: 1, glucose: 1, 'fasting-insulin': 1 },
+  },
+  {
+    key: 'lipids',
+    members: { 'total-cholesterol': 1, ldl: 1, triglycerides: 1, 'chol-hdl-ratio': 1, hdl: -1 },
+  },
+  {
+    key: 'liver-enzymes',
+    members: { alt: 1, ast: 1, ggt: 1, alp: 1 },
+  },
+  {
+    key: 'kidney',
+    members: { creatinine: 1, urea: 1, egfr: -1 },
+  },
+  {
+    key: 'thyroid',
+    members: { tsh: 1, 'free-t4': -1, 'free-t3': -1 },
+  },
+  {
+    key: 'inflammation',
+    members: { 'hs-crp': 1, crp: 1 },
+  },
+  {
+    key: 'white-cells',
+    members: { wbc: 1, neutrophils: 1, lymphocytes: 1 },
+  },
+];
+
+export const OPPOSITE: Record<MarkerStatus, MarkerStatus> = {
+  IN_RANGE: 'IN_RANGE',
+  HIGH: 'LOW',
+  LOW: 'HIGH',
+  SIGNIFICANT_HIGH: 'SIGNIFICANT_LOW',
+  SIGNIFICANT_LOW: 'SIGNIFICANT_HIGH',
+};
+
+/** A follower sits mildly out where its anchor sits significantly out. */
+export const SOFTENED: Record<MarkerStatus, MarkerStatus> = {
+  IN_RANGE: 'IN_RANGE',
+  HIGH: 'HIGH',
+  LOW: 'LOW',
+  SIGNIFICANT_HIGH: 'HIGH',
+  SIGNIFICANT_LOW: 'LOW',
+};
+
+/** markerKey → the group it belongs to. A marker belongs to at most one. */
+const GROUP_BY_MARKER_KEY = new Map<string, CorrelatedGroup>(
+  CORRELATED_GROUPS.flatMap((g) => Object.keys(g.members).map((k) => [k, g] as const)),
+);
 
 // ---------------------------------------------------------------------------
 // Per-report status quotas. Assigned before any rolling, so the spread is a
@@ -471,6 +599,8 @@ export async function buildDemoReports(opts: {
   const reportsPerMarkerKey = new Map<string, number>();
   /** Set once, so exactly one "< 5.0" appears in the whole history. */
   let comparatorPlaced = false;
+  /** How many out-of-range results came from a correlated partner rather than a quota roll. */
+  let correlatedFollowers = 0;
 
   for (const [index, plan] of REPORT_PLANS.entries()) {
     const panel = plan.panelKey ? panelByKey.get(plan.panelKey)! : null;
@@ -506,12 +636,79 @@ export async function buildDemoReports(opts: {
       }
     }
 
-    // --- assign statuses by quota ------------------------------------------
+    // --- assign statuses by quota, then make them cohere --------------------
     const numericMeasured = markers.filter(
       (m) => m.resultType === 'MEASURED' && m.defaultUnit !== '' && !NARRATIVE[m.key]?.[index],
     );
     const shuffled = deterministicShuffle(numericMeasured, `statuses:${index}`);
     const intended = new Map<string, MarkerStatus>();
+    const byKey = new Map(markers.map((m) => [m.key, m]));
+    // Two different questions: can this marker be mildly below range, and can
+    // it be a full severity threshold below it. See canGoMildlyBelow.
+    const belowMild = (m: MarkerRow) => canGoMildlyBelow(bands.get(m.id)!);
+    const belowFar = (m: MarkerRow) => canGoBelow(bands.get(m.id)!, m);
+
+    /**
+     * Assign a status, then carry it to everything that moves with the marker.
+     * Followers take the softened version, inverted where the group says the
+     * relationship is inverse, and are skipped where their band has no room in
+     * that direction. Nothing already assigned is overwritten — the first
+     * decision about a marker stands, so propagation can never fight itself.
+     */
+    const assign = (marker: MarkerRow, status: MarkerStatus, propagate = true): number => {
+      if (intended.has(marker.id) || NARRATIVE[marker.key]?.[index]) return 0;
+      intended.set(marker.id, status);
+      if (!propagate || status === 'IN_RANGE') return 0;
+
+      const group = GROUP_BY_MARKER_KEY.get(marker.key);
+      if (!group) return 0;
+      const anchorSign = group.members[marker.key];
+      let followers = 0;
+      for (const [key, sign] of Object.entries(group.members)) {
+        if (key === marker.key) continue;
+        const follower = byKey.get(key);
+        if (!follower || follower.resultType !== 'MEASURED' || follower.defaultUnit === '') continue;
+        if (intended.has(follower.id) || NARRATIVE[follower.key]?.[index]) continue;
+        if (!bands.has(follower.id)) continue;
+        // A follower is always softened, so LOW is the worst it can be — the
+        // mild test is the right one, and the strict one is what used to leave
+        // a floor-level ferritin beside a mid-range iron.
+        const wanted = sign === anchorSign ? SOFTENED[status] : OPPOSITE[SOFTENED[status]];
+        if (wanted === 'LOW' && !belowMild(follower)) continue;
+        intended.set(follower.id, wanted);
+        followers += 1;
+      }
+      return followers;
+    };
+
+    // The narrative markers are the anchors that matter most — a scripted low
+    // ferritin has to drag the transferrin saturation with it, and a scripted
+    // raised HbA1c has to be corroborated by the glucose. Their status isn't
+    // declared anywhere; it is computed from the scripted value against the
+    // scripted band, by the same function the server uses on a real result.
+    for (const m of markers) {
+      const scripted = NARRATIVE[m.key]?.[index];
+      if (!scripted || typeof scripted.value !== 'number') continue;
+      const low = scripted.low ?? bands.get(m.id)?.low;
+      const high = scripted.high ?? bands.get(m.id)?.high;
+      if (low == null || high == null || !(high > low)) continue;
+      const anchorStatus = computeMarkerStatus(scripted.value, low, high, m.severityMultiplier, m.severityAbsoluteDelta);
+      if (anchorStatus === 'IN_RANGE') continue;
+      // The anchor itself keeps its scripted value; only its group follows.
+      const group = GROUP_BY_MARKER_KEY.get(m.key);
+      if (!group) continue;
+      const anchorSign = group.members[m.key];
+      for (const [key, sign] of Object.entries(group.members)) {
+        if (key === m.key) continue;
+        const follower = byKey.get(key);
+        if (!follower || follower.resultType !== 'MEASURED' || follower.defaultUnit === '') continue;
+        if (intended.has(follower.id) || NARRATIVE[follower.key]?.[index] || !bands.has(follower.id)) continue;
+        const wanted = sign === anchorSign ? SOFTENED[anchorStatus] : OPPOSITE[SOFTENED[anchorStatus]];
+        if (wanted === 'LOW' && !belowMild(follower)) continue;
+        intended.set(follower.id, wanted);
+        correlatedFollowers += 1;
+      }
+    }
 
     const takeFor = (status: MarkerStatus, count: number, predicate?: (m: MarkerRow) => boolean) => {
       let taken = 0;
@@ -519,13 +716,12 @@ export async function buildDemoReports(opts: {
         if (taken >= count) break;
         if (intended.has(m.id)) continue;
         if (predicate && !predicate(m)) continue;
-        intended.set(m.id, status);
+        correlatedFollowers += assign(m, status);
         taken += 1;
       }
     };
-    const below = (m: MarkerRow) => canGoBelow(bands.get(m.id)!, m);
-    takeFor('SIGNIFICANT_LOW', plan.quotas.SIGNIFICANT_LOW, below);
-    takeFor('LOW', plan.quotas.LOW, below);
+    takeFor('SIGNIFICANT_LOW', plan.quotas.SIGNIFICANT_LOW, belowFar);
+    takeFor('LOW', plan.quotas.LOW, belowMild);
     takeFor('SIGNIFICANT_HIGH', plan.quotas.SIGNIFICANT_HIGH);
     takeFor('HIGH', plan.quotas.HIGH);
 
@@ -666,6 +862,18 @@ export async function buildDemoReports(opts: {
     markersInOneReportOnly: [...reportsPerMarkerKey.values()].filter((n) => n === 1).length,
     markersInTwoOrMoreReports: [...reportsPerMarkerKey.values()].filter((n) => n >= 2).length,
     foodSensitivityGroups: groupsCovered,
+    correlatedFollowers,
+    // `results` and `panelMarkers` must be equal for every report that has a
+    // panel behind it. They are reported side by side rather than as a boolean
+    // so a partial panel says by how much, and tests/demoSeedData.test.ts
+    // asserts the equality.
+    markersPerReport: reports.map((r) => ({
+      panel: r.panelName ?? 'No panel',
+      sampleDate: r.sampleDate.toISOString().slice(0, 10),
+      results: r.results.length,
+      panelKey: r.panelKey,
+      panelMarkers: r.panelKey ? (panelByKey.get(r.panelKey)?.markers.filter((pm) => pm.marker.isActive).length ?? null) : null,
+    })),
   };
 
   return { reports, diagnostics };

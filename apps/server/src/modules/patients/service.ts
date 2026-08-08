@@ -8,6 +8,28 @@ import { optimalContextForPatient, optimalFor } from '../../lib/optimalRange.js'
 import type { ConsentType } from '@aspire-bloods/shared';
 import { formatReportTitle } from '@aspire-bloods/shared';
 
+/**
+ * How far past the reference bound a result has to sit before it counts as
+ * significantly out — in the units the result itself is reported in.
+ *
+ * Sent to the client because the portal draws it: the trend chart's yellow
+ * bands stop and its red bands start exactly here, and the range bar's
+ * gradient turns at the same point. Deriving it client-side from a default
+ * multiplier would put the band edge somewhere other than where the status
+ * actually changes for any marker that overrides the default — a chart whose
+ * shading disagrees with its own status label.
+ *
+ * Same expression as lib/markerStatus.ts computeMarkerStatus, which is the
+ * function that decides the status in the first place.
+ */
+function severityThreshold(
+  marker: { severityMultiplier: number; severityAbsoluteDelta: number | null },
+  low: number,
+  high: number,
+): number {
+  return marker.severityAbsoluteDelta ?? (high - low) * marker.severityMultiplier;
+}
+
 export class PatientAccessError extends Error {
   constructor(
     message = 'Not found',
@@ -123,6 +145,10 @@ export async function getReleasedReportForPatient(patientId: string, reportId: s
         unit: r.unit,
         referenceLow: r.referenceRange.low,
         referenceHigh: r.referenceRange.high,
+        // Where "above range" becomes "significantly above range" for this
+        // marker, so the portal's bands and gradients turn at the same point
+        // the status does. See severityThreshold above.
+        severityThreshold: severityThreshold(r.marker, r.referenceRange.low, r.referenceRange.high),
         status: r.status,
         // What KIND of result this is. Only MEASURED reaches the main grid, the
         // counts strip, the category bars and Trends; the other three types get
@@ -202,6 +228,10 @@ export async function getMarkerTrendForPatient(patientId: string, markerId: stri
       status: r.status,
       referenceLow: lowConversion.value,
       referenceHigh: highConversion.value,
+      // In display units, like the bounds beside it — computed from the
+      // converted range so the chart's band edges land on the same axis as
+      // the points it is drawing.
+      severityThreshold: severityThreshold(marker, lowConversion.value, highConversion.value),
       sourceKey: r.report.source.key,
       sourceLabel: sourceLabel(r.report.source.key, r.report.source.name),
       amendedAt: r.amendedAt,
@@ -247,6 +277,7 @@ export async function getMarkerTrendForPatient(patientId: string, markerId: stri
       unit: latest.unit,
       referenceLow: latest.referenceLow,
       referenceHigh: latest.referenceHigh,
+      severityThreshold: latest.severityThreshold,
       status: latest.status,
       optimal,
       sourceLabel: latest.sourceLabel,

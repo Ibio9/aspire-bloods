@@ -1,6 +1,17 @@
+import { useId } from 'react';
 import { CartesianGrid, ComposedChart, Line, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { formatDate, brand, scales, chart as chartTokens, type MarkerStatus } from '@aspire-bloods/shared';
-import { statusLabel } from '../../lib/markerCopy';
+import {
+  formatDate,
+  brand,
+  scales,
+  chart as chartTokens,
+  statusPaint,
+  bandGradientStops,
+  severityThresholdFor,
+  BAND_LABEL,
+  type MarkerStatus,
+} from '@aspire-bloods/shared';
+import { statusColor, statusLabel } from '../../lib/markerCopy';
 import { formatAxisDate, type TrendSeries } from '../../lib/patientPortal';
 
 /**
@@ -20,6 +31,22 @@ import { formatAxisDate, type TrendSeries } from '../../lib/patientPortal';
  * Normalisation is per point, not per series, so a reference range that
  * changes between sources moves the point correctly rather than being
  * silently held against a stale range.
+ *
+ * THE BANDS. 0 to 1 is every series' own reference range, so that band is
+ * green and it is exactly right for all of them at once. Outside it, the
+ * yellow and red bands can only be drawn when every series agrees on where
+ * significantly-out begins in normalised terms — which is the usual case,
+ * because the threshold is a multiple of each marker's own range width and
+ * therefore lands at the same normalised position for every marker on the
+ * default. Where a marker overrides it with an absolute delta and the series
+ * disagree, the outer bands are simply not drawn rather than drawn wrong, and
+ * the key says which of the two happened. A shared axis is only allowed to
+ * shade what is shared.
+ *
+ * Series identity stays with the line's colour, dash and marker shape — that
+ * is what says WHICH marker a point belongs to, and status must not take it
+ * over. Status here is carried by the word in the tooltip and the legend,
+ * coloured to match the rest of the product.
  */
 
 /** Bronze, espresso, and a deep bronze shade — palette only. Each series also carries a distinct
@@ -64,13 +91,23 @@ function ChartTooltip({ active, label, payload, series }: { active?: boolean; la
       <p className="font-medium text-espresso">{label ? formatDate(label) : ''}</p>
       <ul className="mt-1.5 flex flex-col gap-1">
         {series.map((s, i) => {
-          const raw = row[`${s.markerId}__label`];
+          const raw = row[`${s.markerId}__value`];
+          const st = row[`${s.markerId}__status`] as MarkerStatus | undefined;
           if (raw == null) return null;
           return (
             <li key={s.markerId} className="flex items-center gap-2">
               <span aria-hidden="true" className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: SERIES_STYLES[i % 3].color }} />
               <span className="tabular text-espresso">
                 {s.name}: {raw}
+                {/* The status word carries its own state's colour, as it does
+                    everywhere else. The series dot to its left stays the
+                    series' colour — that says which marker, not how it is. */}
+                {st && (
+                  <>
+                    {', '}
+                    <span style={{ color: statusColor(st) }}>{statusLabel(st)}</span>
+                  </>
+                )}
               </span>
             </li>
           );
@@ -80,8 +117,34 @@ function ChartTooltip({ active, label, payload, series }: { active?: boolean; la
   );
 }
 
+/**
+ * Where significantly-out sits for a series, expressed as a multiple of its
+ * own reference-range width — i.e. in the same normalised units this chart
+ * plots in. Null where the series' own points disagree with each other,
+ * which happens when a reference range changed between reports.
+ */
+function normalisedThreshold(s: TrendSeries): number | null {
+  const ks = s.points.map((p) => {
+    const width = p.referenceHigh - p.referenceLow;
+    if (!(width > 0)) return null;
+    return severityThresholdFor(p.referenceLow, p.referenceHigh, p.severityThreshold) / width;
+  });
+  if (ks.some((k) => k === null)) return null;
+  const first = ks[0] as number;
+  return (ks as number[]).every((k) => Math.abs(k - first) < 1e-6) ? first : null;
+}
+
 export function MultiTrendChart({ series }: { series: TrendSeries[] }) {
+  const gradId = `multi-band-${useId().replace(/:/g, '')}`;
   const dates = [...new Set(series.flatMap((s) => s.points.map((p) => p.sampleDate)))].sort();
+
+  // One shared normalised threshold, or none. See the note at the top: a
+  // shared axis may only shade what every series on it actually shares.
+  const thresholds = series.map(normalisedThreshold);
+  const sharedThreshold =
+    thresholds.length > 0 && thresholds.every((k) => k !== null && Math.abs(k - (thresholds[0] as number)) < 1e-6)
+      ? (thresholds[0] as number)
+      : null;
 
   const rows: Row[] = dates.map((sampleDate) => {
     const row: Row = { sampleDate };
@@ -89,7 +152,8 @@ export function MultiTrendChart({ series }: { series: TrendSeries[] }) {
       const point = s.points.find((p) => p.sampleDate === sampleDate);
       if (!point) continue;
       row[s.markerId] = normalise(point.value, point.referenceLow, point.referenceHigh);
-      row[`${s.markerId}__label`] = `${point.value} ${s.unit}, ${statusLabel(point.status)}`;
+      row[`${s.markerId}__value`] = `${point.value} ${s.unit}`;
+      row[`${s.markerId}__status`] = point.status;
     }
     return row;
   });
@@ -98,6 +162,24 @@ export function MultiTrendChart({ series }: { series: TrendSeries[] }) {
   const min = Math.min(0, ...positions);
   const max = Math.max(1, ...positions);
   const pad = (max - min) * 0.15 || 0.15;
+  const domainMin = min - pad;
+  const domainMax = max + pad;
+
+  // Green across the shared reference range, then yellow and red either side
+  // of it at the shared threshold. Clipped to the domain, and dropped entirely
+  // where it would be zero-height.
+  const bands: { status: MarkerStatus; y1: number; y2: number }[] = [{ status: 'IN_RANGE', y1: 0, y2: 1 }];
+  if (sharedThreshold !== null) {
+    bands.push(
+      { status: 'LOW', y1: -sharedThreshold, y2: 0 },
+      { status: 'HIGH', y1: 1, y2: 1 + sharedThreshold },
+      { status: 'SIGNIFICANT_LOW', y1: domainMin, y2: -sharedThreshold },
+      { status: 'SIGNIFICANT_HIGH', y1: 1 + sharedThreshold, y2: domainMax },
+    );
+  }
+  const shownBands = bands
+    .map((b) => ({ ...b, y1: Math.max(domainMin, b.y1), y2: Math.min(domainMax, b.y2) }))
+    .filter((b) => b.y2 > b.y1);
 
   // Which explanatory note applies is a property of the data, not a constant.
   const singleResultNames = series.filter((s) => s.points.length === 1).map((s) => s.name);
@@ -131,8 +213,19 @@ export function MultiTrendChart({ series }: { series: TrendSeries[] }) {
               axisLine={{ stroke: chartTokens.axisLine }}
               tickLine={false}
             />
+            <defs>
+              {shownBands.map((b) => {
+                const [atLowEnd, atHighEnd] = bandGradientStops(b.status);
+                return (
+                  <linearGradient key={b.status} id={`${gradId}-${b.status}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={atHighEnd} />
+                    <stop offset="100%" stopColor={atLowEnd} />
+                  </linearGradient>
+                );
+              })}
+            </defs>
             <YAxis
-              domain={[min - pad, max + pad]}
+              domain={[domainMin, domainMax]}
               ticks={[0, 1]}
               tickFormatter={(v: number) => (v === 0 ? 'Range low' : 'Range high')}
               tick={{ fontSize: 11, fill: chartTokens.axisText, fontFamily: 'Inter, sans-serif' }}
@@ -140,15 +233,27 @@ export function MultiTrendChart({ series }: { series: TrendSeries[] }) {
               tickLine={false}
               width={74}
             />
-            <ReferenceArea
-              y1={0}
-              y2={1}
-              fill={chartTokens.referenceBand}
-              fillOpacity={chartTokens.referenceBandOpacity}
-              strokeOpacity={0}
-            />
+            {shownBands.map((b) => (
+              <ReferenceArea
+                key={b.status}
+                y1={b.y1}
+                y2={b.y2}
+                fill={`url(#${gradId}-${b.status})`}
+                strokeOpacity={0}
+                ifOverflow="hidden"
+              />
+            ))}
+            {/* The two boundaries every series shares, drawn and labelled on
+                the axis ("Range low" / "Range high") so they are locatable
+                without the colour. */}
             <ReferenceLine y={0} stroke={chartTokens.referenceEdge} />
             <ReferenceLine y={1} stroke={chartTokens.referenceEdge} />
+            {sharedThreshold !== null && (
+              <ReferenceLine y={-sharedThreshold} stroke={chartTokens.referenceEdge} strokeOpacity={0.55} strokeDasharray="3 3" />
+            )}
+            {sharedThreshold !== null && (
+              <ReferenceLine y={1 + sharedThreshold} stroke={chartTokens.referenceEdge} strokeOpacity={0.55} strokeDasharray="3 3" />
+            )}
             <Tooltip content={<ChartTooltip series={series} />} cursor={{ stroke: chartTokens.cursor, strokeWidth: 1 }} />
             {series.map((s, i) => {
               const style = SERIES_STYLES[i % SERIES_STYLES.length];
@@ -194,7 +299,10 @@ export function MultiTrendChart({ series }: { series: TrendSeries[] }) {
               <span className="text-espresso">
                 <span className="font-medium">{s.name}</span>{' '}
                 <span className="tabular text-espresso/80">
-                  latest {last.value} {s.unit}, {statusLabel(last.status as MarkerStatus)}
+                  latest {last.value} {s.unit},{' '}
+                  <span style={{ color: statusColor(last.status as MarkerStatus) }}>
+                    {statusLabel(last.status as MarkerStatus)}
+                  </span>
                 </span>
                 <span className="sr-only"> ({style.dashLabel})</span>
               </span>
@@ -202,6 +310,27 @@ export function MultiTrendChart({ series }: { series: TrendSeries[] }) {
           );
         })}
       </ul>
+
+      {/* What the shading is, named. Same rule as the single-marker chart: a
+          coloured region with no written entry is colour carrying meaning on
+          its own, which this product does not do. */}
+      <ul className="mt-3 flex flex-col gap-2 text-xs text-espresso/80 sm:flex-row sm:flex-wrap sm:gap-x-6">
+        {shownBands.map((b) => (
+          <li key={b.status} className="flex items-center gap-2">
+            <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true" className="shrink-0">
+              <rect x="0" y="2" width="18" height="8" fill={statusPaint(b.status).band} />
+              <line x1="0" y1="2" x2="18" y2="2" stroke={chartTokens.referenceEdge} strokeWidth="1" strokeOpacity="0.85" />
+            </svg>
+            {BAND_LABEL[b.status]}
+          </li>
+        ))}
+      </ul>
+      {sharedThreshold === null && (
+        <p className="mt-3 text-sm leading-relaxed text-espresso/80">
+          These markers don't share a common point at which a result counts as significantly outside its range, so
+          only the reference range itself is shaded here. Each marker's own full shading is on its detail page.
+        </p>
+      )}
 
       {/* One sentence per state that actually applies. A marker with a single
           result and a marker with incomparable sources are different facts and

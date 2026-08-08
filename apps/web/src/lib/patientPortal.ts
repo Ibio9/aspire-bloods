@@ -25,6 +25,8 @@ export interface AttentionItem {
   status: MarkerStatus;
   referenceLow: number;
   referenceHigh: number;
+  /** Where significantly-out begins for this marker — the range bar's gradient turns here. */
+  severityThreshold?: number;
   reportId: string;
   panelName: string;
   sampleDate: string;
@@ -102,6 +104,8 @@ export interface MarkerRow {
   status: MarkerStatus;
   referenceLow: number;
   referenceHigh: number;
+  /** Where significantly-out begins for this marker — the sparkline's band edges sit here. */
+  severityThreshold?: number;
   /** Advisory optimal band; null when this marker has no established one. Never folded into `status`. */
   optimal?: OptimalRangeDTO | null;
   sampleDate: string;
@@ -127,6 +131,8 @@ export interface TrendSeries {
     status: MarkerStatus;
     referenceLow: number;
     referenceHigh: number;
+    /** Where significantly-out begins for this marker, in its own units. */
+    severityThreshold?: number;
     sourceLabel: string;
     reportId: string;
   }[];

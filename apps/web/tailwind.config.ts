@@ -83,8 +83,13 @@ export default {
           significantHigh: v('--c-status-significant-high'),
           significantLow: v('--c-status-significant-low'),
         },
-        // The Part One surface wash. `bg-tint-high` is a background and only
-        // ever a background — there is no text-tint-* on purpose.
+        // The status wash and its stronger relatives. `bg-tint-high` is a
+        // background and only ever a background — there is no text-tint-* on
+        // purpose, because the one piece of text that takes a status colour is
+        // the status word itself, and that uses `text-status-*` above.
+        //
+        // `-bar` is the category summary bar fill, `-band` a chart band,
+        // `-edge` a band's boundary line, `-mark` a plotted point's fill.
         tint: {
           inRange: v('--c-tint-in-range'),
           high: v('--c-tint-high'),
@@ -96,6 +101,37 @@ export default {
           'low-bar': v('--c-tint-low-bar'),
           'significantHigh-bar': v('--c-tint-significant-high-bar'),
           'significantLow-bar': v('--c-tint-significant-low-bar'),
+          'inRange-band': v('--c-tint-in-range-band'),
+          'high-band': v('--c-tint-high-band'),
+          'low-band': v('--c-tint-low-band'),
+          'significantHigh-band': v('--c-tint-significant-high-band'),
+          'significantLow-band': v('--c-tint-significant-low-band'),
+          'inRange-edge': v('--c-tint-in-range-edge'),
+          'high-edge': v('--c-tint-high-edge'),
+          'low-edge': v('--c-tint-low-edge'),
+          'significantHigh-edge': v('--c-tint-significant-high-edge'),
+          'significantLow-edge': v('--c-tint-significant-low-edge'),
+        },
+        // Per-hue, which is the only way to reach orange — the transition
+        // between yellow and red, used in the range-bar gradient and the
+        // shoulder of a chart band, and never a status of its own.
+        hue: {
+          'green-wash': v('--c-hue-green-wash'),
+          'green-band': v('--c-hue-green-band'),
+          'green-track': v('--c-hue-green-track'),
+          'green-edge': v('--c-hue-green-edge'),
+          'yellow-wash': v('--c-hue-yellow-wash'),
+          'yellow-band': v('--c-hue-yellow-band'),
+          'yellow-track': v('--c-hue-yellow-track'),
+          'yellow-edge': v('--c-hue-yellow-edge'),
+          'orange-wash': v('--c-hue-orange-wash'),
+          'orange-band': v('--c-hue-orange-band'),
+          'orange-track': v('--c-hue-orange-track'),
+          'orange-edge': v('--c-hue-orange-edge'),
+          'red-wash': v('--c-hue-red-wash'),
+          'red-band': v('--c-hue-red-band'),
+          'red-track': v('--c-hue-red-track'),
+          'red-edge': v('--c-hue-red-edge'),
         },
       },
       fontFamily: {

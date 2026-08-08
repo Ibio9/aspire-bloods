@@ -1,5 +1,6 @@
 export * from './tokens.js';
 export * from './types.js';
+export * from './statusBands.js';
 export * from './biologicalSex.js';
 export * from './session.js';
 export * from './format.js';

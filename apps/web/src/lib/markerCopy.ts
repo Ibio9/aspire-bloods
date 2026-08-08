@@ -188,3 +188,86 @@ export function filterCountLabel(shown: number, total: number): string {
   if (shown === total) return `${total} marker${total === 1 ? '' : 's'}`;
   return `${shown} of ${total} marker${total === 1 ? '' : 's'}`;
 }
+
+/** Generic version, for the non-measured sections where the noun isn't "marker". */
+export function filterCountLabelFor(shown: number, total: number, noun: string, plural = `${noun}s`): string {
+  if (total === 0) return `No ${plural}`;
+  if (shown === total) return `${total} ${total === 1 ? noun : plural}`;
+  return `${shown} of ${total} ${total === 1 ? noun : plural}`;
+}
+
+// ---------------------------------------------------------------------------
+// Sorting
+// ---------------------------------------------------------------------------
+
+/**
+ * The three orders a page of results can be read in, shared by the report view
+ * and All markers so the two behave identically.
+ *
+ * HEALTH_AREA is the default on a report because a Signature panel is 150
+ * analytes and an unbroken alphabetical wall of them is not a document anyone
+ * reads — under headings it becomes twenty short lists about twenty different
+ * things. STATUS answers the only other question this page reliably gets.
+ */
+export const RESULT_SORTS = [
+  { value: 'HEALTH_AREA', label: 'Health area' },
+  { value: 'NAME', label: 'Name (A–Z)' },
+  { value: 'STATUS', label: 'Needs attention first' },
+] as const;
+
+export type ResultSort = (typeof RESULT_SORTS)[number]['value'];
+
+/** Out of range sorts above in range; significantly out sorts above mildly out. */
+export const ATTENTION_RANK: Record<MarkerStatus, number> = {
+  SIGNIFICANT_HIGH: 0,
+  SIGNIFICANT_LOW: 0,
+  HIGH: 1,
+  LOW: 1,
+  IN_RANGE: 2,
+};
+
+export function byAttentionThenName<T extends { status: MarkerStatus; name: string }>(a: T, b: T): number {
+  return ATTENTION_RANK[a.status] - ATTENTION_RANK[b.status] || a.name.localeCompare(b.name);
+}
+
+/**
+ * Markers under health-area headings.
+ *
+ * A marker legitimately belongs to several areas (one Albumin record in four
+ * of them, never four Albumin records), so it appears under each — which is
+ * the honest rendering of a many-to-many relationship and the reason both
+ * this and the summary bars say the areas overlap. The distinct count is what
+ * the count label reports, so "24 markers" never becomes "38 markers" just
+ * because the reader chose to group them.
+ *
+ * Anything whose categories didn't come through still renders, in a final
+ * group of its own. A result that exists but has nowhere to go is the one
+ * outcome worse than an extra heading.
+ */
+export interface MarkerGroup<T> {
+  key: string;
+  name: string;
+  markers: T[];
+}
+
+export function groupByHealthArea<T extends { categoryKeys?: string[]; name: string }>(
+  markers: T[],
+  categories: { key: string; name: string }[],
+  sortWithin: (a: T, b: T) => number = (a, b) => a.name.localeCompare(b.name),
+): MarkerGroup<T>[] {
+  const groups: MarkerGroup<T>[] = [];
+  const placed = new Set<T>();
+
+  for (const c of categories) {
+    const members = markers.filter((m) => (m.categoryKeys ?? []).includes(c.key));
+    if (members.length === 0) continue;
+    members.forEach((m) => placed.add(m));
+    groups.push({ key: c.key, name: c.name, markers: [...members].sort(sortWithin) });
+  }
+
+  const ungrouped = markers.filter((m) => !placed.has(m));
+  if (ungrouped.length > 0) {
+    groups.push({ key: '__other', name: 'Other markers', markers: [...ungrouped].sort(sortWithin) });
+  }
+  return groups;
+}

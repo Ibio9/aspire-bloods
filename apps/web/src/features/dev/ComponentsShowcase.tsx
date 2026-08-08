@@ -224,19 +224,25 @@ export function ComponentsShowcase() {
         </div>
       </Section>
 
-      <Section title="Status tints — the surface wash (deliberate change, Aug 2026)">
+      <Section title="Traffic-light status (deliberate change, Aug 2026)">
         <p className="max-w-3xl text-sm text-espresso/80">
           The system's original rule was no green, amber or red anywhere. That rule has been deliberately changed:
           patients arrive expecting traffic-light coding on a blood result and the clinic asked for it. Withholding
           it made the page harder to scan without making it any calmer.
         </p>
         <p className="max-w-3xl text-sm text-espresso/80">
-          What did NOT change is everything that makes it safe. The tint is a background wash and nothing else — the
-          border, the type and the shadow are the ordinary card's, and the level mark / chevron / doubled chevron
-          plus the word still carry the status on their own. Turn every colour on this page to greyscale and not one
-          fact is lost. The hues are low-saturation and warm-leaning so a page of results still reads as this
-          product rather than a dashboard, and nothing escalates beyond the tint: no pulsing, no warning
-          iconography, no red body copy.
+          Five states, three hues. Significantly out is red, out is yellow, in range is green — high and low share a
+          hue because direction is carried by the chevron and the word, never by colour. Orange exists only as the
+          transition between yellow and red in a gradient or the shoulder of a chart band, and is never a state.
+        </p>
+        <p className="max-w-3xl text-sm text-espresso/80">
+          What did NOT change is everything that makes it safe. On a card the colour is a background wash and nothing
+          else — the border, the type and the shadow are the ordinary card's, and the level mark / chevron / doubled
+          chevron plus the word still carry the status on their own. Every chart band carries a boundary line and a
+          written entry in its key. Turn every colour on this page to greyscale and not one fact is lost. The hues are
+          low-saturation and warm-leaning so a page of results still reads as this product rather than a dashboard,
+          and nothing escalates beyond the colour: no pulsing, no warning iconography, no red body copy, and no
+          vocabulary beyond in range / above / below / significantly out.
         </p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {STATUS_LIST.map((s) => (

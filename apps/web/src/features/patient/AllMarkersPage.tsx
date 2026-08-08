@@ -16,8 +16,11 @@ import { ArrowRightIcon } from '../../components/nav/patientIcons';
 import { apiFetch } from '../../lib/api';
 import { type MarkerRow } from '../../lib/patientPortal';
 import {
+  ATTENTION_RANK,
   STATUS_FILTERS,
+  byAttentionThenName,
   filterCountLabel,
+  groupByHealthArea,
   matchesMarkerQuery,
   matchesStatusFilter,
   optimalRangeLabel,
@@ -37,23 +40,17 @@ import { Button } from '../../components/ui/Button';
  * first question this list gets asked is almost never "what begins with A".
  */
 
-type SortKey = 'ATTENTION' | 'NAME' | 'RECENT' | 'MOVEMENT';
+type SortKey = 'ATTENTION' | 'HEALTH_AREA' | 'NAME' | 'RECENT' | 'MOVEMENT';
 
 const SORTS: { value: SortKey; label: string }[] = [
   { value: 'ATTENTION', label: 'Needs attention first' },
+  // Same option, same words and the same grouped rendering as the report view,
+  // so the two screens read as one product rather than two.
+  { value: 'HEALTH_AREA', label: 'Health area' },
   { value: 'NAME', label: 'Name (A–Z)' },
   { value: 'RECENT', label: 'Most recently tested' },
   { value: 'MOVEMENT', label: 'Biggest change' },
 ];
-
-/** Out-of-range sorts above in-range; significant sorts above mild. */
-const ATTENTION_RANK: Record<string, number> = {
-  SIGNIFICANT_HIGH: 0,
-  SIGNIFICANT_LOW: 0,
-  HIGH: 1,
-  LOW: 1,
-  IN_RANGE: 2,
-};
 
 /** Change measured relative to the marker's own reference band, so markers on different scales sort against each other. */
 function relativeMovement(m: MarkerRow): number {
@@ -86,9 +83,14 @@ function MarkerListRow({ marker }: { marker: MarkerRow }) {
 
           <div className="shrink-0 lg:w-52">
             <StatusBadge status={marker.status} />
-            <p className="tabular mt-1 text-xs text-espresso/80">
-              Usual range {marker.referenceLow}–{marker.referenceHigh}
-            </p>
+            {/* A qualitative result has no numeric range behind it, and this
+                line used to render "Usual range 0–0" for one. Absent, not
+                zeroed — see the same rule on the report card. */}
+            {marker.referenceHigh > marker.referenceLow && (
+              <p className="tabular mt-1 text-xs text-espresso/80">
+                Usual range {marker.referenceLow}–{marker.referenceHigh}
+              </p>
+            )}
             {/* Advisory, and clearly the second of two ranges. Absent
                 entirely for a marker with no established optimal. */}
             {marker.optimal && (
@@ -107,6 +109,7 @@ function MarkerListRow({ marker }: { marker: MarkerRow }) {
                 points={marker.spark}
                 referenceLow={marker.referenceLow}
                 referenceHigh={marker.referenceHigh}
+                severityThreshold={marker.severityThreshold}
                 optimal={marker.optimal}
               />
             ) : (
@@ -158,7 +161,7 @@ export function AllMarkersPage() {
     );
 
     const sorted = [...filtered];
-    if (sort === 'NAME') sorted.sort((a, b) => a.name.localeCompare(b.name));
+    if (sort === 'NAME' || sort === 'HEALTH_AREA') sorted.sort((a, b) => a.name.localeCompare(b.name));
     else if (sort === 'RECENT') sorted.sort((a, b) => (a.sampleDate < b.sampleDate ? 1 : a.sampleDate > b.sampleDate ? -1 : a.name.localeCompare(b.name)));
     else if (sort === 'MOVEMENT') sorted.sort((a, b) => relativeMovement(b) - relativeMovement(a) || a.name.localeCompare(b.name));
     else sorted.sort((a, b) => ATTENTION_RANK[a.status] - ATTENTION_RANK[b.status] || a.name.localeCompare(b.name));
@@ -171,6 +174,14 @@ export function AllMarkersPage() {
     const present = new Set(measured.flatMap((m) => m.categoryKeys ?? []));
     return categories.filter((c) => present.has(c.key));
   }, [categories, measured]);
+
+  // Grouped under health-area headings, same rendering as the report view.
+  // A marker in four areas appears under all four; the count above stays the
+  // distinct one, so grouping never inflates it.
+  const grouped = useMemo(
+    () => (sort === 'HEALTH_AREA' ? groupByHealthArea(visible, filterableCategories, byAttentionThenName) : []),
+    [sort, visible, filterableCategories],
+  );
 
   const filtersApplied = query.trim() !== '' || statusFilter !== 'ALL' || categoryFilter !== 'ALL';
 
@@ -269,6 +280,30 @@ export function AllMarkersPage() {
                 description="Try clearing the search box, or widening the state and health area you have chosen."
                 action={filtersApplied ? <Button onClick={clearFilters}>Clear filters</Button> : undefined}
               />
+            </div>
+          ) : sort === 'HEALTH_AREA' ? (
+            <div className="mt-4 flex flex-col gap-10">
+              {grouped.map((g) => (
+                <section key={g.key} aria-labelledby={`markers-area-${g.key}`}>
+                  <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-taupe pb-2">
+                    <h2 id={`markers-area-${g.key}`} className="font-display text-2xl leading-tight text-espresso">
+                      {g.name}
+                    </h2>
+                    <p className="tabular text-xs text-espresso/80">
+                      {g.markers.length} marker{g.markers.length === 1 ? '' : 's'}
+                    </p>
+                  </div>
+                  <ul className="flex flex-col gap-4">
+                    {g.markers.map((marker, i) => (
+                      <li key={marker.markerId}>
+                        <Reveal delay={staggerDelay(i)}>
+                          <MarkerListRow marker={marker} />
+                        </Reveal>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
             </div>
           ) : (
             <ul className="mt-4 flex flex-col gap-4">

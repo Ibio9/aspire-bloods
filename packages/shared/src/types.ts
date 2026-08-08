@@ -87,6 +87,17 @@ export interface MarkerCardDTO {
   unit: string;
   referenceLow: number;
   referenceHigh: number;
+  /**
+   * How far past a reference bound this result has to sit before it counts as
+   * significantly out, in the same units as the value. Optional so an older
+   * payload still renders — see severityThresholdFor, which falls back to the
+   * schema's default multiplier on the range's own width.
+   *
+   * Sent because the portal DRAWS it: the trend chart's yellow bands end and
+   * its red bands begin here, and the range bar's gradient turns here. It is
+   * not itself a status and is never shown as a number to the patient.
+   */
+  severityThreshold?: number;
   status: MarkerStatus;
   /**
    * MEASURED / GENETIC / SENSITIVITY / COMPOSITION. Decides which section this
@@ -112,6 +123,8 @@ export interface TrendPointDTO {
   status: MarkerStatus;
   referenceLow: number;
   referenceHigh: number;
+  /** See MarkerCardDTO.severityThreshold — this point's own band boundaries. */
+  severityThreshold?: number;
 }
 
 export interface MarkerDetailDTO {

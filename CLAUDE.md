@@ -16,18 +16,55 @@ Cormorant Garamond display · Inter body and all numerics (tabular figures)
 Match the Aspire Rota sign-in for craft level. No default browser styling anywhere —
 no native selects, no Chrome autofill blue, no native focus rings.
 
-## Status tints — traffic-light coding IS wanted (changed Aug 2026)
+## Traffic-light status — wanted, everywhere (changed Aug 2026)
 This overrides the old "no green, amber or red anywhere" rule. Patients expect
 traffic-light coding on a blood result and the clinic asked for it. Do not revert it.
-- Five tints as a soft background wash on result cards and rows: red significantly
-  out, orange out, green in range. Tokens only (`bg-tint-*`), never a hex.
-- Tint is a SURFACE WASH ONLY. Text, borders, headings and icons stay in the
-  existing palette. No red body text, no warning icons, no pulsing.
+
+**The five states and their three hues.** Significantly below and significantly
+above are RED. Below and above are YELLOW. In range is GREEN. ORANGE is the
+transition between yellow and red — the gradient stop in the range bar and the
+shoulder of a chart band — and is never a state a result can be in.
+Five states, three hues: direction is carried by the chevron and the word, never
+by colour, which is why high and low share a hue and both significants share one.
+
+**Where it appears, and it must appear in all of them:**
+1. Result cards and rows — soft background wash (`bg-tint-*`).
+2. The range bar — green across the reference range, shading out through yellow
+   and orange to red, with the result plotted in its own state's colour.
+3. Trend charts — the reference range as a soft green band, yellow immediately
+   above and below, red beyond the significantly-out thresholds, orange as the
+   transition. Bands sit behind the data at low weight. Points take their own
+   state's colour. Band boundaries come from THAT result's reference range and
+   THAT marker's severity threshold (sent as `severityThreshold` on the DTO,
+   see `statusBands()` in packages/shared) — never a fixed scale.
+4. Sparklines, the counts strip, the per-category summary bars.
+5. Tooltips and legends — the status word carries the colour.
+
+**Non-negotiables.**
 - The shape-and-label layer is unchanged and still carries status on its own:
   level mark in range, chevron out, doubled chevron significantly out, plus the
-  word. Colour is reinforcement, never the sole carrier.
-- Low-saturation and warm-leaning, sitting on cream and on the dark browns.
-  It must still read as a premium warm product, not a dashboard.
+  word. Colour is reinforcement, never the sole carrier — red and green are the
+  commonest confusion pair there is. Chart bands therefore always carry a
+  boundary line AND a written entry in the key.
+- Surfaces and marks, not body copy. A tinted card keeps its taupe border,
+  espresso text and ordinary shadow. The one text that takes a status colour is
+  the status word itself. No warning icons, no pulsing.
+- Never diagnostic. The bands show where the lab's range sits, nothing more.
+  Never label anything good, healthy, bad, concerning or danger. The vocabulary
+  is: in range, above range, below range, significantly out. Out-of-range still
+  points calmly at the GP with contact details inline.
+- Low-saturation and warm-leaning, on cream and on the dark browns — but NOT so
+  muted it reads as beige. That was the previous failure: a 12% wash of an
+  orange is indistinguishable from cream. See the note on `statusHue`.
+- Dark tints are re-derived against the dark surface, never reused.
+
+**⚠ Runtime tokens are `rgb(var(--x))`, never bare `var(--x)`.** The custom
+properties hold bare channels so Tailwind can composite an opacity into them, so
+a bare `var()` in a `style` prop, an SVG `fill` or a gradient stop is not a valid
+colour — the browser drops it silently and the element renders black or
+inherited. That single mistake is what made the whole status layer invisible.
+Use `status.*.cssVar` / `statusTint` / `hueTint` / `chart.*`, which wrap it;
+`apps/server/tests/tokenContrast.test.ts` enforces the shape and the reference.
 
 ## Light and dark
 Every colour resolves through a CSS custom property, so one class name is right in
@@ -48,6 +85,16 @@ in packages/shared/src/tokens.ts; tailwind.config.ts injects them via addBase.
 
 # Rules
 - Never colour alone for status — text label + icon shape carry it first
+- Results screens (a report, All markers) share one search/filter/sort contract,
+  in lib/markerCopy.ts: name+alias search, status filter, health-area filter,
+  and sort by health area (grouped under headings) / name / needs-attention.
+  They compose, they show a live count and an intentional empty state, they
+  never persist across sessions, and they change what is DISPLAYED and never
+  what is fetched. A marker with no result renders nowhere — never a
+  placeholder, never an empty row.
+- Non-measured sections (food sensitivity, genetic, microbiome) carry their own
+  search and group filter, scoped to the section — 197 food items are unusable
+  without one, and the page-level status filter can never apply to them.
 - Markers declare a resultType: MEASURED / GENETIC / SENSITIVITY / COMPOSITION.
   Only MEASURED reaches the results grid, the counts strip, the category bars and
   Trends. The other three get their own sections and their own framing, and never

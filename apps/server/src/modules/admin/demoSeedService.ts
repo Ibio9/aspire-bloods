@@ -70,7 +70,7 @@ import { prisma } from '../../db/client.js';
 import { encryptField, generateToken } from '../../lib/crypto.js';
 import { hashPassword } from '../../lib/password.js';
 import { verifyReport, reviewReport, releaseReport } from '../reports/service.js';
-import { buildDemoReports, type DemoDataDiagnostics } from './demoSeedData.js';
+import { buildDemoReports } from './demoSeedData.js';
 import { assertIsDemoAccount, assertOnlyDemoReports } from './demoSeedGuards.js';
 
 // The demo patient's own login. Overridable because 2FA is not bypassed for
@@ -417,7 +417,21 @@ export async function runDemoSeed(opts: { trigger: DemoSeedTrigger; allowProduct
       markersInOneReportOnly: diagnostics.markersInOneReportOnly,
       markersInTwoOrMoreReports: diagnostics.markersInTwoOrMoreReports,
       intendedStatusSpread: diagnostics.byIntendedStatus,
+      correlatedFollowers: diagnostics.correlatedFollowers,
     });
+
+    // The count that answers "are the panels complete". Printed per report,
+    // with the panel's own marker count beside it, so a partial panel is
+    // visible in the run log rather than only findable by querying.
+    for (const r of diagnostics.markersPerReport) {
+      slog('report-planned', {
+        panel: r.panel,
+        sampleDate: r.sampleDate,
+        results: r.results,
+        panelMarkers: r.panelMarkers,
+        complete: r.panelMarkers === null ? 'n/a (no panel)' : r.results === r.panelMarkers,
+      });
+    }
 
     const demoPassword = process.env.SEED_DEMO_PASSWORD ?? 'DemoShowcase123!';
     const patient = await prisma.user.upsert({
@@ -623,11 +637,15 @@ export async function runDemoSeed(opts: { trigger: DemoSeedTrigger; allowProduct
     const dates = generated.map((r) => r.sampleDate.getTime());
     const spanMonths = Math.round((Math.max(...dates) - Math.min(...dates)) / (1000 * 60 * 60 * 24 * 30.44));
     const d = diagnostics;
+    const perReport = d.markersPerReport
+      .map((r) => `${r.panel} ${r.sampleDate}: ${r.results}${r.panelMarkers === null ? '' : `/${r.panelMarkers}`}`)
+      .join('; ');
     const detail =
       `${generated.length} released reports spanning ~${spanMonths} months, ${usedMarkerIds.size} distinct markers, ` +
       `${resultsWritten} results (${d.byResultType.MEASURED} measured, ${d.byResultType.GENETIC} genetic, ` +
       `${d.byResultType.SENSITIVITY} sensitivity, ${d.byResultType.COMPOSITION} composition). ` +
-      `${d.measuredCategoriesCovered}/${d.measuredCategoriesTotal} health areas covered.`;
+      `${d.measuredCategoriesCovered}/${d.measuredCategoriesTotal} health areas covered. ` +
+      `Markers per report — ${perReport}.`;
 
     slog('succeeded', {
       trigger,

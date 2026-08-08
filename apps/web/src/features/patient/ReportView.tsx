@@ -17,12 +17,16 @@ import { staggerDelay } from '../../components/motion/stagger';
 import { useToast } from '../../components/ui/Toast';
 import { apiFetch } from '../../lib/api';
 import {
+  RESULT_SORTS,
   STATUS_FILTERS,
+  byAttentionThenName,
   filterCountLabel,
+  groupByHealthArea,
   matchesMarkerQuery,
   matchesStatusFilter,
   optimalRangeLabel,
   optimalStatusLabel,
+  type ResultSort,
   type StatusFilter,
 } from '../../lib/markerCopy';
 import { API_BASE_URL } from '../../lib/apiBase';
@@ -71,6 +75,63 @@ function resultTypeOf(m: MarkerCard): string {
   return m.resultType ?? 'MEASURED';
 }
 
+/**
+ * One measured result.
+ *
+ * Hierarchy, loudest first: the value, then the range, then the status, then
+ * the gloss. Clear steps between each level rather than a bordered table row
+ * where everything competes at the same weight.
+ *
+ * Extracted so the flat grid and the grouped-by-health-area view render the
+ * identical card — the sort changes the arrangement and nothing else.
+ */
+function ResultCard({ marker: m, navState }: { marker: MarkerCard; navState: MarkerNavState }) {
+  return (
+    <Link
+      to={`/markers/${m.markerId}`}
+      state={navState}
+      className="block h-full rounded-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
+    >
+      {/* The tint is a surface wash and nothing else: the border, the type and
+          the shadow are the ordinary card's. The chevron shape and the word in
+          StatusBadge below still carry the status on their own, in greyscale
+          and to a colourblind reader. */}
+      <Card interactive tint={m.status} className="flex h-full flex-col">
+        <p className="eyebrow">{m.name}</p>
+        {/* flex-wrap: a textual result ("Not detected") at display size must
+            wrap under itself, not push the unit out of the card. */}
+        <p className="tabular mt-4 flex flex-wrap items-baseline gap-2 text-stat font-semibold leading-none text-espresso">
+          {m.valueText ?? m.value}
+          <span className="text-base font-normal text-espresso/80">{m.unit}</span>
+        </p>
+        {/* The lab's range and the optimal band are two different things and
+            are labelled as two different things. Only the first decides the
+            status badge below.
+            A qualitative result ("Not detected") has no numeric range behind
+            it, and the row for one used to read "Lab reference range 0–0" —
+            which is a half-populated row saying something false. Where there
+            is no range, the line is simply absent. */}
+        {m.referenceHigh > m.referenceLow && (
+          <p className="tabular mt-3 text-xs text-espresso/80">
+            Lab reference range {m.referenceLow}–{m.referenceHigh} {m.unit}
+          </p>
+        )}
+        {m.optimal && (
+          <p className="tabular mt-1 text-xs text-espresso/80">
+            {optimalRangeLabel(m.optimal)}
+            {optimalStatusLabel(m.optimal) && <span> · {optimalStatusLabel(m.optimal)!.toLowerCase()}</span>}
+          </p>
+        )}
+        <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <StatusBadge status={m.status} />
+          {m.amendedAt && <span className="text-xs text-espresso/80">Amended {formatDate(m.amendedAt)}</span>}
+        </div>
+        {m.gloss && <p className="mt-5 text-sm leading-relaxed text-espresso/90">{m.gloss}</p>}
+      </Card>
+    </Link>
+  );
+}
+
 export function ReportView() {
   const { id } = useParams<{ id: string }>();
   const [report, setReport] = useState<ReportDetail | null>(null);
@@ -84,6 +145,7 @@ export function ReportView() {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
+  const [sort, setSort] = useState<ResultSort>('HEALTH_AREA');
   const { show } = useToast();
 
   useEffect(() => {
@@ -105,16 +167,22 @@ export function ReportView() {
     };
   }, [report]);
 
-  const visible = useMemo(
-    () =>
-      byType.measured.filter(
-        (m) =>
-          matchesStatusFilter(m.status, statusFilter) &&
-          matchesMarkerQuery(m, query) &&
-          (categoryFilter === 'ALL' || (m.categoryKeys ?? []).includes(categoryFilter)),
-      ),
-    [byType.measured, statusFilter, query, categoryFilter],
-  );
+  // Filter first, sort second. Nothing here changes what was FETCHED — the
+  // report is whatever it is, and a marker the report doesn't contain has no
+  // row to hide or show. Filtering can only ever remove cards that exist.
+  const visible = useMemo(() => {
+    const filtered = byType.measured.filter(
+      (m) =>
+        matchesStatusFilter(m.status, statusFilter) &&
+        matchesMarkerQuery(m, query) &&
+        (categoryFilter === 'ALL' || (m.categoryKeys ?? []).includes(categoryFilter)),
+    );
+    if (sort === 'NAME') return [...filtered].sort((a, b) => a.name.localeCompare(b.name));
+    if (sort === 'STATUS') return [...filtered].sort(byAttentionThenName);
+    // HEALTH_AREA keeps the report's own order here; the grouping below is what
+    // gives that sort its shape, and re-sorting flat would fight it.
+    return filtered;
+  }, [byType.measured, statusFilter, query, categoryFilter, sort]);
 
   // Only the areas this report actually has markers in — an empty category in
   // the picker is a filter that can only ever produce nothing.
@@ -123,6 +191,14 @@ export function ReportView() {
     return (report?.categories ?? []).filter((c) => c.resultType === 'MEASURED' && present.has(c.key));
   }, [report, byType.measured]);
 
+  // Under health-area headings, in the catalogue's own order. A marker in four
+  // areas appears under all four — see groupByHealthArea; the count below
+  // stays the distinct one, so grouping never inflates it.
+  const grouped = useMemo(
+    () => (sort === 'HEALTH_AREA' ? groupByHealthArea(visible, filterableCategories, byAttentionThenName) : []),
+    [sort, visible, filterableCategories],
+  );
+
   const filtersApplied = query.trim() !== '' || statusFilter !== 'ALL' || categoryFilter !== 'ALL';
 
   function clearFilters() {
@@ -130,6 +206,15 @@ export function ReportView() {
     setStatusFilter('ALL');
     setCategoryFilter('ALL');
   }
+
+  // Prev/next on the marker detail page walks the list the patient is actually
+  // looking at, in the order they are looking at it — so it has to be the
+  // filtered, sorted set rather than the report's raw order.
+  const navState: MarkerNavState = {
+    reportId: report?.reportId ?? '',
+    title: report?.title ?? '',
+    markerIds: visible.map((m) => m.markerId),
+  };
 
   async function handleDownload(kind: 'original-pdf-link' | 'summary-pdf-link') {
     if (!id) return;
@@ -238,13 +323,17 @@ export function ReportView() {
 
       <div className="mt-14">
         <p className="eyebrow mb-4">Results</p>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Input
             label="Find a marker"
             name="report-marker-search"
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            // The abbreviation is the only name most people know, and search
+            // matches aliases as well as the printed name — so "ALT" finds
+            // Alanine Aminotransferase and "TSH" finds Thyroid Stimulating
+            // Hormone. The placeholder says so by example.
             placeholder="Ferritin, ALT, TSH…"
             // A filter, not a form field — Input marks required by default, which
             // would be wrong on something you can legitimately leave blank.
@@ -278,6 +367,18 @@ export function ReportView() {
               </option>
             ))}
           </Select>
+          <Select
+            label="Sort by"
+            name="report-sort"
+            value={sort}
+            onChange={(e) => setSort(e.target.value as ResultSort)}
+          >
+            {RESULT_SORTS.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </Select>
         </div>
 
         <div className="mt-6 flex flex-wrap items-center gap-4">
@@ -304,51 +405,37 @@ export function ReportView() {
             action={filtersApplied ? <Button onClick={clearFilters}>Clear filters</Button> : undefined}
           />
         </div>
+      ) : sort === 'HEALTH_AREA' ? (
+        /* Under headings. Twenty short lists about twenty different things,
+           rather than one 150-card wall — and the one arrangement in which a
+           full Signature panel is a document somebody reads rather than
+           scrolls past. Areas overlap, and the note above the bars says so. */
+        <div className="mt-6 flex flex-col gap-12">
+          {grouped.map((g) => (
+            <section key={g.key} aria-labelledby={`area-${g.key}`}>
+              <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-taupe pb-2">
+                <h2 id={`area-${g.key}`} className="font-display text-2xl leading-tight text-espresso">
+                  {g.name}
+                </h2>
+                <p className="tabular text-xs text-espresso/80">
+                  {g.markers.length} marker{g.markers.length === 1 ? '' : 's'}
+                </p>
+              </div>
+              <div className="grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3">
+                {g.markers.map((m, i) => (
+                  <Reveal key={m.markerId} delay={staggerDelay(i, 30)} className="h-full">
+                    <ResultCard marker={m} navState={navState} />
+                  </Reveal>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
       ) : (
-      /* Hierarchy, loudest first: the value, then the range, then the status,
-         then the gloss. Clear steps between each level rather than a bordered
-         table row where everything competes at the same weight. */
       <div className="mt-6 grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3">
         {visible.map((m, i) => (
           <Reveal key={m.markerId} delay={staggerDelay(i, 30)} className="h-full">
-          <Link
-            to={`/markers/${m.markerId}`}
-            state={{ reportId: report.reportId, title: report.title, markerIds: visible.map((mk) => mk.markerId) } satisfies MarkerNavState}
-            className="block h-full rounded-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
-          >
-            {/* The tint is a surface wash and nothing else: the border, the
-                type and the shadow are the ordinary card's. The chevron shape
-                and the word in StatusBadge below still carry the status on
-                their own, in greyscale and to a colourblind reader. */}
-            <Card interactive tint={m.status} className="flex h-full flex-col">
-              <p className="eyebrow">{m.name}</p>
-              {/* flex-wrap: a textual result ("Not detected") at display size
-                  must wrap under itself, not push the unit out of the card. */}
-              <p className="tabular mt-4 flex flex-wrap items-baseline gap-2 text-stat font-semibold leading-none text-espresso">
-                {m.valueText ?? m.value}
-                <span className="text-base font-normal text-espresso/80">{m.unit}</span>
-              </p>
-              {/* The lab's range and the optimal band are two different
-                  things and are labelled as two different things. Only the
-                  first decides the status badge below. */}
-              <p className="tabular mt-3 text-xs text-espresso/80">
-                Lab reference range {m.referenceLow}–{m.referenceHigh} {m.unit}
-              </p>
-              {m.optimal && (
-                <p className="tabular mt-1 text-xs text-espresso/80">
-                  {optimalRangeLabel(m.optimal)}
-                  {optimalStatusLabel(m.optimal) && (
-                    <span> · {optimalStatusLabel(m.optimal)!.toLowerCase()}</span>
-                  )}
-                </p>
-              )}
-              <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                <StatusBadge status={m.status} />
-                {m.amendedAt && <span className="text-xs text-espresso/80">Amended {formatDate(m.amendedAt)}</span>}
-              </div>
-              {m.gloss && <p className="mt-5 text-sm leading-relaxed text-espresso/90">{m.gloss}</p>}
-            </Card>
-          </Link>
+            <ResultCard marker={m} navState={navState} />
           </Reveal>
         ))}
       </div>
