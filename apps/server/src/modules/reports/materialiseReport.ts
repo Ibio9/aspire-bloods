@@ -73,6 +73,14 @@ export async function materialiseParsedReport(input: {
   }
 
   const allMarkers = await prisma.marker.findMany({ where: { isActive: true } });
+  // A numeric result carries a status and a reference range, and only a
+  // MEASURED marker is allowed to. GENETIC / SENSITIVITY / COMPOSITION markers
+  // are a different kind of result with no range and no status (CLAUDE.md), so
+  // a numeric row must never be filed against one — even if a name happened to
+  // collide. The admin verify/manual-entry path can't reach a non-measured
+  // marker at all (the UI only offers measured ones); this is the same
+  // guarantee for the machine path, which matches against the whole catalogue.
+  const measuredMarkers = allMarkers.filter((m) => m.resultType === 'MEASURED');
   const patientSex = (await prisma.patientProfile.findUnique({ where: { userId: patientId } }))?.sex ?? 'ANY';
 
   const mappingFailures: MappingFailure[] = [];
@@ -88,7 +96,7 @@ export async function materialiseParsedReport(input: {
   }[] = [];
 
   for (const row of parsed.rows) {
-    const marker = findBestMarkerMatch(row.rawName, allMarkers);
+    const marker = findBestMarkerMatch(row.rawName, measuredMarkers);
     if (!marker) {
       mappingFailures.push({ markerName: row.rawName, reason: 'No matching marker in the catalogue' });
       continue;
@@ -114,6 +122,17 @@ export async function materialiseParsedReport(input: {
           row.referenceLowRaw || row.referenceHighRaw
             ? `Reference range "${row.referenceLowRaw ?? ''} – ${row.referenceHighRaw ?? ''}" is one-sided or non-numeric: needs an admin to set the range.`
             : 'Missing reference range on the incoming result',
+      });
+      continue;
+    }
+    // The admin path enforces low < high in the verify schema; the machine path
+    // has to as well, or an inverted or zero-width range from the feed reaches
+    // computeMarkerStatus, whose band arithmetic (high - low) then goes negative
+    // and silently mislabels the result. Held for an admin rather than guessed.
+    if (row.referenceLow >= row.referenceHigh) {
+      mappingFailures.push({
+        markerName: row.rawName,
+        reason: `Reference range ${row.referenceLow}–${row.referenceHigh} is invalid (low is not below high): needs an admin to set the range.`,
       });
       continue;
     }
