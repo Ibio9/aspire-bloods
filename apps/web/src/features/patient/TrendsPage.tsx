@@ -1,5 +1,5 @@
 import { formatDate } from '@aspire-bloods/shared';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
@@ -7,6 +7,7 @@ import { Checkbox } from '../../components/ui/Checkbox';
 import { Input } from '../../components/ui/Input';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { ErrorState } from '../../components/ui/ErrorState';
 import { LinkButton } from '../../components/ui/LinkButton';
 import { MultiTrendChart } from '../../components/ui/MultiTrendChart';
 import { Reveal } from '../../components/motion/Reveal';
@@ -38,6 +39,7 @@ const SUGGESTED_PAIRS: { label: string; markers: string[] }[] = [
 
 export function TrendsPage() {
   const [markers, setMarkers] = useState<MarkerRow[] | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const [series, setSeries] = useState<TrendSeries[] | null>(null);
   const [loadingSeries, setLoadingSeries] = useState(false);
   const [query, setQuery] = useState('');
@@ -48,11 +50,19 @@ export function TrendsPage() {
     [searchParams],
   );
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setError(null);
+    setMarkers(null);
+    // A failed load is not "not enough history yet" — surface it with a retry
+    // rather than telling a patient with results that they have none.
     apiFetch<MarkerRow[]>('/patient/markers')
       .then(setMarkers)
-      .catch(() => setMarkers([]));
+      .catch(setError);
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   useEffect(() => {
     if (selected.length === 0) {
@@ -97,7 +107,16 @@ export function TrendsPage() {
     <>
       <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="Trends" />
 
-      {markers === null ? (
+      {error ? (
+        <div className="mt-10">
+          <ErrorState
+            error={error}
+            subject="your markers"
+            onRetry={load}
+            backTo={{ to: '/overview', label: 'Back to overview' }}
+          />
+        </div>
+      ) : markers === null ? (
         // The header stays put while this loads — only the content arrives.
         // Shaped like what replaces it: the picker column and the chart panel.
         <div className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-10" aria-busy="true" aria-label="Loading your markers">

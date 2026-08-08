@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
@@ -6,6 +6,7 @@ import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { ErrorState } from '../../components/ui/ErrorState';
 import { Reveal } from '../../components/motion/Reveal';
 import { staggerDelay } from '../../components/motion/stagger';
 import { ArrowRightIcon } from '../../components/nav/patientIcons';
@@ -117,14 +118,21 @@ function LibraryCard({ entry }: { entry: LibraryEntry }) {
 
 export function MarkerLibraryPage() {
   const [entries, setEntries] = useState<LibraryEntry[] | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<LibraryFilter>('ALL');
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setError(null);
+    setEntries(null);
     apiFetch<LibraryEntry[]>('/patient/library')
       .then(setEntries)
-      .catch(() => setEntries([]));
+      .catch(setError);
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const visible = useMemo(() => {
     if (!entries) return [];
@@ -144,7 +152,16 @@ export function MarkerLibraryPage() {
         Nothing here is a diagnosis.
       </p>
 
-      {entries === null ? (
+      {error ? (
+        <div className="mt-10">
+          <ErrorState
+            error={error}
+            subject="the marker library"
+            onRetry={load}
+            backTo={{ to: '/overview', label: 'Back to overview' }}
+          />
+        </div>
+      ) : entries === null ? (
         <div className="mt-10 flex flex-col gap-4" aria-busy="true" aria-label="Loading the marker library">
           {[0, 1, 2, 3, 4, 5].map((i) => (
             <Card key={i} padding="tight">

@@ -1,5 +1,5 @@
 import { formatDate } from '@aspire-bloods/shared';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/Button';
 import { LinkButton } from '../../components/ui/LinkButton';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { ErrorState } from '../../components/ui/ErrorState';
 import { Reveal } from '../../components/motion/Reveal';
 import { staggerDelay } from '../../components/motion/stagger';
 import { useToast } from '../../components/ui/Toast';
@@ -30,14 +31,25 @@ type Downloading = { reportId: string; kind: string } | null;
 
 export function DocumentsPage() {
   const [documents, setDocuments] = useState<PatientDocument[] | null>(null);
+  // A failed load is not an empty list. Swallowing the error into [] told a
+  // patient who has released reports that they have "No documents yet" — an
+  // untrue and alarming thing to say to someone paying for the results. The
+  // real load failure is surfaced, with a way to retry.
+  const [error, setError] = useState<unknown>(null);
   const [downloading, setDownloading] = useState<Downloading>(null);
   const { show } = useToast();
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setError(null);
+    setDocuments(null);
     apiFetch<PatientDocument[]>('/patient/documents')
       .then(setDocuments)
-      .catch(() => setDocuments([]));
+      .catch(setError);
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   async function download(reportId: string, kind: 'original-pdf-link' | 'summary-pdf-link') {
     setDownloading({ reportId, kind });
@@ -55,7 +67,16 @@ export function DocumentsPage() {
     <>
       <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="Documents" />
 
-      {documents === null ? (
+      {error ? (
+        <div className="mt-10">
+          <ErrorState
+            error={error}
+            subject="your documents"
+            onRetry={load}
+            backTo={{ to: '/overview', label: 'Back to overview' }}
+          />
+        </div>
+      ) : documents === null ? (
         <div className="mt-10 flex flex-col gap-5" aria-busy="true" aria-label="Loading your documents">
           {[0, 1, 2].map((i) => (
             <Card key={i}>

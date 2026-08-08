@@ -1,5 +1,5 @@
 import { formatDate } from '@aspire-bloods/shared';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
@@ -9,6 +9,7 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { Sparkline } from '../../components/ui/Sparkline';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { ErrorState } from '../../components/ui/ErrorState';
 import { LinkButton } from '../../components/ui/LinkButton';
 import { Reveal } from '../../components/motion/Reveal';
 import { staggerDelay } from '../../components/motion/stagger';
@@ -125,22 +126,32 @@ function MarkerListRow({ marker }: { marker: MarkerRow }) {
 
 export function AllMarkersPage() {
   const [markers, setMarkers] = useState<MarkerRow[] | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const [categories, setCategories] = useState<{ key: string; name: string }[]>([]);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
   const [sort, setSort] = useState<SortKey>('ATTENTION');
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setError(null);
+    setMarkers(null);
+    // A failed markers load is not "nothing tested yet" — that empty state
+    // tells a patient with released results they have none. Surface the
+    // failure with a retry instead.
     apiFetch<MarkerRow[]>('/patient/markers')
       .then(setMarkers)
-      .catch(() => setMarkers([]));
+      .catch(setError);
     // Health areas for the category filter. A failure here costs the category
     // picker and nothing else, so it degrades rather than blocking the page.
     apiFetch<{ key: string; name: string }[]>('/content/marker-categories')
       .then(setCategories)
       .catch(() => setCategories([]));
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   /**
    * Genetic indicators, food sensitivities and microbiome proportions never
@@ -195,7 +206,16 @@ export function AllMarkersPage() {
     <>
       <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="All markers" />
 
-      {markers === null ? (
+      {error ? (
+        <div className="mt-10">
+          <ErrorState
+            error={error}
+            subject="your markers"
+            onRetry={load}
+            backTo={{ to: '/overview', label: 'Back to overview' }}
+          />
+        </div>
+      ) : markers === null ? (
         <div className="mt-10 flex flex-col gap-4" aria-busy="true" aria-label="Loading your markers">
           {[0, 1, 2, 3, 4].map((i) => (
             <Card key={i} padding="tight">
