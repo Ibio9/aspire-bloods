@@ -61,11 +61,13 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     return DESTINATIONS.filter((d) => d.label.toLowerCase().includes(q));
   }, [query]);
 
-  const matchedPatients = useMemo(() => {
+  const PATIENT_LIMIT = 8;
+  const patientMatches = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q || !patients) return [];
-    return patients.filter((p) => p.displayName.toLowerCase().includes(q) || p.email.toLowerCase().includes(q)).slice(0, 8);
+    return patients.filter((p) => p.displayName.toLowerCase().includes(q) || p.email.toLowerCase().includes(q));
   }, [query, patients]);
+  const matchedPatients = useMemo(() => patientMatches.slice(0, PATIENT_LIMIT), [patientMatches]);
 
   type Result = { kind: 'destination'; item: StaticDestination } | { kind: 'patient'; item: PatientOption };
   const results: Result[] = [
@@ -126,27 +128,43 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         </div>
         <div className="scroll-thin flex-1 overflow-y-auto p-1.5">
           {results.length === 0 && <p className="px-3 py-4 text-sm text-espresso/80">No matches.</p>}
-          {matchedDestinations.length > 0 && (
-            <p className="px-3 pb-1 pt-2 text-xs font-medium uppercase tracking-eyebrow text-espresso/80">Go to</p>
-          )}
-          {results.map((r, i) => (
-            <button
-              key={r.kind === 'destination' ? r.item.to : r.item.id}
-              type="button"
-              onClick={() => go(r)}
-              onMouseEnter={() => setActiveIndex(i)}
-              className={`flex w-full flex-col items-start rounded-input px-3 py-2.5 text-left transition-colors duration-100 ${
-                i === activeIndex ? 'bg-bronze text-onaccent' : 'text-espresso'
-              }`}
-            >
-              <span className="text-sm font-medium">{r.kind === 'destination' ? r.item.label : r.item.displayName}</span>
-              <span className={`text-xs ${i === activeIndex ? 'text-onaccent/80' : 'text-espresso/80'}`}>
-                {r.kind === 'destination' ? r.item.hint : r.item.email}
-              </span>
-            </button>
-          ))}
-          {query && matchedPatients.length > 0 && (
-            <p className="px-3 pb-1 pt-3 text-xs font-medium uppercase tracking-eyebrow text-espresso/80">Patients</p>
+          {/* Two groups, each with its heading ABOVE its rows. The single flat
+              results array drives keyboard nav, so a patient row's index is its
+              position after the destinations. */}
+          {results.map((r, i) => {
+            const heading =
+              i === 0 && r.kind === 'destination'
+                ? 'Go to'
+                : r.kind === 'patient' && (i === 0 || results[i - 1].kind === 'destination')
+                  ? 'Patients'
+                  : null;
+            return (
+              <div key={r.kind === 'destination' ? r.item.to : r.item.id}>
+                {heading && (
+                  <p className="px-3 pb-1 pt-2 text-xs font-medium uppercase tracking-eyebrow text-espresso/80">{heading}</p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => go(r)}
+                  onMouseEnter={() => setActiveIndex(i)}
+                  className={`flex w-full flex-col items-start rounded-input px-3 py-2.5 text-left transition-colors duration-100 ${
+                    i === activeIndex ? 'bg-bronze text-onaccent' : 'text-espresso'
+                  }`}
+                >
+                  <span className="text-sm font-medium">{r.kind === 'destination' ? r.item.label : r.item.displayName}</span>
+                  <span className={`text-xs ${i === activeIndex ? 'text-onaccent/80' : 'text-espresso/80'}`}>
+                    {r.kind === 'destination' ? r.item.hint : r.item.email}
+                  </span>
+                </button>
+              </div>
+            );
+          })}
+          {/* Truncation is otherwise invisible: a hidden target reads as "not a
+              patient here" when it's really "keep typing". */}
+          {patientMatches.length > matchedPatients.length && (
+            <p className="px-3 pb-2 pt-2 text-xs text-espresso/80">
+              Showing the first {matchedPatients.length} of {patientMatches.length} matches — keep typing to narrow.
+            </p>
           )}
         </div>
         <div className="flex items-center justify-between border-t border-taupe px-4 py-2 text-xs text-espresso/80">
