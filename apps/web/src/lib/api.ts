@@ -1,3 +1,4 @@
+import { IDLE_TIMEOUT_ERROR_CODE } from '@aspire-bloods/shared';
 import { API_BASE_URL } from './apiBase';
 
 function readCookie(name: string): string | null {
@@ -57,6 +58,17 @@ export class ApiError extends Error {
   ) {
     super(message);
   }
+}
+
+/**
+ * Whether a rejection is specifically "you went idle", rather than any of the
+ * other reasons a session ends. The sign-in screen shows a different line for
+ * each, so this is what keeps the inactivity message truthful — the server
+ * tags the 401 with IDLE_TIMEOUT_ERROR_CODE (see middleware/authGuard.ts).
+ */
+export function isIdleTimeoutError(e: unknown): boolean {
+  if (!(e instanceof ApiError) || e.status !== 401) return false;
+  return (e.details as { code?: string } | null)?.code === IDLE_TIMEOUT_ERROR_CODE;
 }
 
 export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {

@@ -1,6 +1,7 @@
 export * from './tokens.js';
 export * from './types.js';
 export * from './biologicalSex.js';
+export * from './session.js';
 export * from './format.js';
 export * from './optimalRanges.js';
 export * from './markerCatalogue.js';

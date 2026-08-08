@@ -1,40 +1,63 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { IDLE_WARNING_LEAD_MS, idleTimeoutMsForRole } from '@aspire-bloods/shared';
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
-import { apiFetch, ApiError } from '../lib/api';
+import { apiFetch, ApiError, isIdleTimeoutError } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
 
-// Access tokens live 15 minutes server-side (ACCESS_TOKEN_TTL_MINUTES).
-// Refreshing every 10 minutes while genuinely active keeps a working session
-// alive indefinitely; going idle past the warning/logout thresholds below
-// lets the access token lapse on its own instead of masking it.
+/**
+ * Token rotation, unchanged and independent of the idle window. Access tokens
+ * live 15 minutes server-side (ACCESS_TOKEN_TTL_MINUTES); refreshing every 10
+ * keeps a working session alive. This used to double as the idle timeout —
+ * going idle simply let the access token lapse — which is why the two numbers
+ * were the same. They are separate concerns and now separate mechanisms: the
+ * idle deadline is held and enforced by the server (see lib/idleSession.ts),
+ * and a refresh on its own no longer extends it.
+ */
 const SILENT_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
-const IDLE_WARNING_MS = 13 * 60 * 1000;
-const IDLE_LOGOUT_MS = 15 * 60 * 1000;
 const TICK_MS = 5 * 1000;
+
+/**
+ * How often real interaction is reported to the server. The server slides its
+ * deadline on any authenticated request, so this only has to cover the case
+ * where someone is reading rather than clicking; once every two minutes is
+ * enough to keep a 15- or 30-minute deadline ahead of them without turning
+ * scrolling into a request per frame.
+ */
+const ACTIVITY_PING_INTERVAL_MS = 2 * 60 * 1000;
+
 const ACTIVITY_EVENTS = ['mousedown', 'keydown', 'touchstart', 'scroll', 'wheel'] as const;
 
 /**
- * Mounted once, inside AuthProvider, for the lifetime of the app. Does
- * nothing while signed out. While signed in: silently refreshes the
- * session on a timer as long as the person is actually using the app, warns
- * a couple of minutes before an idle sign-out rather than dumping them
- * mid-task, and signs out (with a reason the login screen can explain) both
- * on confirmed inactivity and on a refresh call that comes back rejected —
- * e.g. an admin revoked the account, or the 30-day refresh token itself
- * finally expired.
+ * Mounted once, inside AuthProvider, for the lifetime of the app. Does nothing
+ * while signed out. While signed in it does three things: reports genuine
+ * interaction to the server so the idle deadline slides, warns a couple of
+ * minutes before the deadline rather than dumping someone mid-task, and signs
+ * out (with a reason the login screen can explain) on inactivity or on a
+ * rejected refresh — an admin revoked the account, or the 30-day refresh token
+ * itself finally expired.
+ *
+ * The countdown here is presentation. The timeout is the server's: this
+ * component going away, or its timers being paused by a backgrounded tab,
+ * cannot extend a session by a second.
  */
 export function SessionGuard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const lastActivityRef = useRef(Date.now());
   const lastRefreshRef = useRef(Date.now());
+  const lastActivityPingRef = useRef(Date.now());
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
   // The interval callback below is set up once per sign-in and reads this via a ref (not state)
   // so the warning-suppression check in onActivity doesn't need the interval rebuilt every render.
   const secondsRemainingRef = useRef<number | null>(null);
   secondsRemainingRef.current = secondsRemaining;
+
+  // Patients get 30 minutes, staff 15 — one constant, in the shared package, so
+  // the browser's countdown and the server's deadline cannot drift apart.
+  const idleTimeoutMs = user ? idleTimeoutMsForRole(user.role) : 0;
+  const idleWarningMs = Math.max(0, idleTimeoutMs - IDLE_WARNING_LEAD_MS);
 
   const signOutAndRedirect = useCallback(
     async (reason: 'idle' | 'expired') => {
@@ -45,21 +68,28 @@ export function SessionGuard() {
   );
 
   const staySignedIn = useCallback(async () => {
-    lastActivityRef.current = Date.now();
+    const now = Date.now();
+    lastActivityRef.current = now;
+    lastActivityPingRef.current = now;
     setSecondsRemaining(null);
     try {
+      // Reports the interaction first — this is the call that moves the
+      // server's deadline. The rotation below does not, by design.
+      await apiFetch('/auth/activity', { method: 'POST' });
       await apiFetch('/auth/refresh', { method: 'POST' });
       lastRefreshRef.current = Date.now();
-    } catch {
-      void signOutAndRedirect('expired');
+    } catch (e) {
+      void signOutAndRedirect(isIdleTimeoutError(e) ? 'idle' : 'expired');
     }
   }, [signOutAndRedirect]);
 
   useEffect(() => {
     if (!user) return;
 
-    lastActivityRef.current = Date.now();
-    lastRefreshRef.current = Date.now();
+    const startedAt = Date.now();
+    lastActivityRef.current = startedAt;
+    lastRefreshRef.current = startedAt;
+    lastActivityPingRef.current = startedAt;
     setSecondsRemaining(null);
 
     function onActivity() {
@@ -77,17 +107,35 @@ export function SessionGuard() {
       const now = Date.now();
       const idleMs = now - lastActivityRef.current;
 
-      if (idleMs >= IDLE_LOGOUT_MS) {
+      if (idleMs >= idleTimeoutMs) {
         await signOutAndRedirect('idle');
         return;
       }
 
-      if (idleMs >= IDLE_WARNING_MS) {
-        setSecondsRemaining(Math.max(0, Math.round((IDLE_LOGOUT_MS - idleMs) / 1000)));
+      if (idleMs >= idleWarningMs) {
+        setSecondsRemaining(Math.max(0, Math.round((idleTimeoutMs - idleMs) / 1000)));
         return;
       }
 
       setSecondsRemaining(null);
+
+      // Someone reading a report makes no other requests, so interaction is
+      // reported on its own cadence rather than riding on whatever the page
+      // happens to be fetching.
+      if (
+        idleMs < ACTIVITY_PING_INTERVAL_MS &&
+        now - lastActivityPingRef.current >= ACTIVITY_PING_INTERVAL_MS
+      ) {
+        lastActivityPingRef.current = now;
+        try {
+          await apiFetch('/auth/activity', { method: 'POST' });
+        } catch (e) {
+          if (e instanceof ApiError && e.status === 401) {
+            await signOutAndRedirect(isIdleTimeoutError(e) ? 'idle' : 'expired');
+            return;
+          }
+        }
+      }
 
       if (now - lastRefreshRef.current >= SILENT_REFRESH_INTERVAL_MS) {
         lastRefreshRef.current = now;
@@ -95,7 +143,7 @@ export function SessionGuard() {
           await apiFetch('/auth/refresh', { method: 'POST' });
         } catch (e) {
           if (e instanceof ApiError && e.status === 401) {
-            await signOutAndRedirect('expired');
+            await signOutAndRedirect(isIdleTimeoutError(e) ? 'idle' : 'expired');
           }
         }
       }
@@ -105,7 +153,7 @@ export function SessionGuard() {
       ACTIVITY_EVENTS.forEach((evt) => window.removeEventListener(evt, onActivity));
       window.clearInterval(interval);
     };
-  }, [user, signOutAndRedirect]);
+  }, [user, signOutAndRedirect, idleTimeoutMs, idleWarningMs]);
 
   if (!user || secondsRemaining === null) return null;
 

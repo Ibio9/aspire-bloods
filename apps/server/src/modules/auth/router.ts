@@ -28,8 +28,12 @@ import {
   setRefreshTokenCookie,
   setCsrfCookie,
   setTrustedDeviceCookie,
+  setIdleDeadlineCookie,
   clearAuthCookies,
 } from '../../lib/cookies.js';
+import { effectiveRole } from '../../lib/adminAccess.js';
+import { IDLE_COOKIE_NAME, parseIdleDeadline } from '../../lib/idleSession.js';
+import { IDLE_TIMEOUT_ERROR_CODE } from '@aspire-bloods/shared';
 import { prisma } from '../../db/client.js';
 import { asyncHandler } from '../../lib/asyncHandler.js';
 import {
@@ -201,6 +205,7 @@ authRouter.post('/login', loginRateLimiter, asyncHandler(async (req, res) => {
       setAccessTokenCookie(res, session.accessToken);
       setRefreshTokenCookie(res, session.refreshTokenRaw);
       setCsrfCookie(res, generateCsrfToken());
+      setIdleDeadlineCookie(res, result.userId!, effectiveRole(result.email!, result.role!));
       return res.json({ status: 'authenticated' });
     }
 
@@ -261,6 +266,7 @@ authRouter.post('/otp/verify', otpRateLimiter, asyncHandler(async (req, res) => 
     setAccessTokenCookie(res, result.accessToken);
     setRefreshTokenCookie(res, result.refreshTokenRaw);
     setCsrfCookie(res, generateCsrfToken());
+    setIdleDeadlineCookie(res, result.userId, effectiveRole(result.email, result.role));
     if (result.deviceIdToTrust) {
       setTrustedDeviceCookie(res, result.deviceIdToTrust);
     }
@@ -271,12 +277,38 @@ authRouter.post('/otp/verify', otpRateLimiter, asyncHandler(async (req, res) => 
   }
 }));
 
+/**
+ * Silent token rotation. Deliberately does NOT slide the idle deadline: this is
+ * a background timer, not a person, and a session that only ever sees refresh
+ * calls is by definition idle. It checks the deadline before rotating, so an
+ * abandoned tab cannot keep minting fresh access tokens overnight and then be
+ * resurrected by a single click the next morning.
+ *
+ * The check happens before refreshSession() rather than after because rotation
+ * revokes the presented token — rejecting afterwards would leave the session
+ * unusable either way, but this way an idle refresh is a clean no-op.
+ */
 authRouter.post('/refresh', asyncHandler(async (req, res) => {
   const refreshToken = req.cookies?.refresh_token;
   if (!refreshToken) return res.status(401).json({ error: 'Not authenticated' });
 
+  const idle = parseIdleDeadline(req.cookies?.[IDLE_COOKIE_NAME]);
+  if (!idle || Date.now() > idle.deadlineMs) {
+    clearAuthCookies(res);
+    return res.status(401).json({
+      error: 'Signed out after a period of inactivity',
+      code: IDLE_TIMEOUT_ERROR_CODE,
+    });
+  }
+
   try {
     const result = await refreshSession(refreshToken, clientIp(req), req.header('user-agent') ?? null);
+    // The deadline that authorised this rotation has to belong to the session
+    // being rotated, or one user's activity would keep another's alive.
+    if (idle.userId !== result.userId) {
+      clearAuthCookies(res);
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
     setAccessTokenCookie(res, result.accessToken);
     setRefreshTokenCookie(res, result.refreshTokenRaw);
     setCsrfCookie(res, generateCsrfToken());
@@ -286,6 +318,18 @@ authRouter.post('/refresh', asyncHandler(async (req, res) => {
     if (e instanceof AuthError) return res.status(e.status).json({ error: e.message });
     throw e;
   }
+}));
+
+/**
+ * "Someone is still here." Reading a long report issues no other requests, so
+ * without this the browser could show a fully active session that the server
+ * had already timed out. authGuard slides the deadline for every request that
+ * passes through it, including this one, so the handler only has to report
+ * where the deadline now sits — the client aligns its warning modal to that
+ * rather than to its own clock.
+ */
+authRouter.post('/activity', authGuard, verifyCsrf, asyncHandler(async (req, res) => {
+  res.json({ status: 'active', idleDeadlineMs: req.idleDeadlineMs });
 }));
 
 authRouter.post('/logout', verifyCsrf, asyncHandler(async (req, res) => {

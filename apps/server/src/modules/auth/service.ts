@@ -933,6 +933,8 @@ interface OtpVerifyResult {
   accessToken: string;
   refreshTokenRaw: string;
   userId: string;
+  email: string;
+  /** As stored. The caller re-derives the effective role — see lib/adminAccess.ts. */
   role: 'PATIENT' | 'ADMIN' | 'CLINICIAN';
   deviceIdToTrust?: string;
 }
@@ -994,7 +996,7 @@ export async function verifyOtp(
     ipAddress: ip,
   });
 
-  return { ...result, userId: user.id, role: user.role, deviceIdToTrust };
+  return { ...result, userId: user.id, email: user.email, role: user.role, deviceIdToTrust };
 }
 
 async function issueSession(

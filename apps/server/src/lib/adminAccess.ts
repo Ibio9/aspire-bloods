@@ -1,3 +1,4 @@
+import type { UserRole } from '@aspire-bloods/shared';
 import { env } from '../config/env.js';
 
 /**
@@ -21,6 +22,24 @@ export const adminEmails = parseAdminEmails(env.ADMIN_EMAILS);
 
 export function isAdminEmail(email: string): boolean {
   return adminEmails.has(email.trim().toLowerCase());
+}
+
+/**
+ * Admin role is re-derived from ADMIN_EMAILS every time it is needed, never
+ * trusted from the JWT payload or the database. This is the whole point of the
+ * env-var design: editing the Railway variable and redeploying revokes (or
+ * grants) admin access on someone's very next request, with no session
+ * revocation step needed.
+ *
+ * It lives here rather than inside authGuard because the idle timeout is
+ * role-dependent, and the session-issuing routes need the same answer the
+ * guard will give — a patient who happens to be listed in ADMIN_EMAILS must
+ * get the staff timeout from the moment they sign in, not from their second
+ * request onwards.
+ */
+export function effectiveRole(email: string, storedRole: UserRole): UserRole {
+  if (isAdminEmail(email)) return 'ADMIN';
+  return storedRole === 'CLINICIAN' ? 'CLINICIAN' : 'PATIENT';
 }
 
 // Fail loudly at startup, not silently at first request, if production is

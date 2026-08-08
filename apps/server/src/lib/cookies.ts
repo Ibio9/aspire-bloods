@@ -1,5 +1,7 @@
 import type { Response } from 'express';
+import type { UserRole } from '@aspire-bloods/shared';
 import { env } from '../config/env.js';
+import { IDLE_COOKIE_NAME, issueIdleDeadline } from './idleSession.js';
 
 const isProd = env.NODE_ENV === 'production';
 
@@ -44,8 +46,27 @@ export function setTrustedDeviceCookie(res: Response, deviceId: string) {
   });
 }
 
+/**
+ * Slides the idle deadline forward. Called on every authenticated request (see
+ * middleware/authGuard.ts) — the deadline the browser holds is signed, so this
+ * is the only thing that can move it.
+ *
+ * The cookie's own maxAge tracks the refresh token rather than the idle window:
+ * the browser is not the thing enforcing the timeout, the signed deadline
+ * inside it is, and a cookie that disappeared at the deadline would only turn
+ * an idle sign-out into an indistinguishable one.
+ */
+export function setIdleDeadlineCookie(res: Response, userId: string, role: UserRole): number {
+  const { value, deadlineMs } = issueIdleDeadline(userId, role);
+  res.cookie(IDLE_COOKIE_NAME, value, {
+    ...baseCookieOpts,
+    maxAge: env.REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000,
+  });
+  return deadlineMs;
+}
+
 export function clearAuthCookies(res: Response) {
-  for (const name of ['access_token', 'refresh_token', 'csrf_token']) {
+  for (const name of ['access_token', 'refresh_token', 'csrf_token', IDLE_COOKIE_NAME]) {
     res.clearCookie(name, { ...baseCookieOpts });
   }
 }

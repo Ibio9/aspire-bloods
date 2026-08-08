@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { UserRole } from '@aspire-bloods/shared';
-import { apiFetch, ApiError } from './api';
+import { apiFetch, ApiError, isIdleTimeoutError } from './api';
 import { resetPatientPortalCaches } from './patientPortal';
 
 interface CurrentUser {
@@ -38,6 +38,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(me);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
+        // The server can retire a session before the in-page timer notices —
+        // a backgrounded tab, a reload after lunch. Recording the reason here
+        // as well is what keeps the inactivity line on the sign-in screen
+        // truthful in those cases rather than falling back to a bare redirect.
+        if (isIdleTimeoutError(e)) sessionStorage.setItem(LOGOUT_REASON_KEY, 'idle');
         setUser(null);
       }
     } finally {

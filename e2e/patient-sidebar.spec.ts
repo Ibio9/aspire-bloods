@@ -170,12 +170,18 @@ test('the patient sidebar gives navigation the room, and keeps contact one row a
   await expect(page.getByRole('button', { name: 'Contact the clinic' })).toHaveAttribute('aria-expanded', 'false');
 
   // --- A window genuinely too short scrolls the column, never the nav ---
-  await page.setViewportSize({ width: 1280, height: 560 });
+  //
+  // 460px, not 560px. Six of the eight nav rows lost their sublabel in the
+  // copy pass and the panel got about 80px shorter with them, so 560 stopped
+  // being "too short" and this check started proving nothing — which is
+  // exactly what the assertion below is worded to catch. The number is a
+  // property of the panel's content height, so it has to move when that does.
+  await page.setViewportSize({ width: 1280, height: 460 });
 
   // The nav is still not a scrolling box and still has no clipped rows — the
   // difference at this height is only that the panel as a whole outgrows the
   // viewport, so the column above the nav takes the scroll instead.
-  await expectNavFitsWhole(page, '560px');
+  await expectNavFitsWhole(page, '460px');
 
   const column = page.locator('aside').first().locator('> div').first();
   const short = await column.evaluate((el) => ({ scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }));
