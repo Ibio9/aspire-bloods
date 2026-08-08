@@ -2,7 +2,8 @@
   "buildCommand": "npm run build --workspace=packages/shared && npm run build --workspace=apps/web",
   "outputDirectory": "apps/web/dist",
   "installCommand": "npm ci",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
+  "$comment_rewrites": "The SPA fallback deliberately does NOT cover /assets/. It used to be a bare /(.*) catch-all, which is what turned a missing hashed asset into 'Refused to apply style ... MIME type (text/html)': the request for a stale /assets/index-<hash>.css found no file, fell through to the rewrite, and was answered with index.html under Content-Type: text/html. Excluding /assets/ means a hash that is no longer deployed returns an honest 404 the browser can recover from on reload, instead of HTML pretending to be a stylesheet. Everything else still falls through, so client-side routes keep working.",
+  "rewrites": [{ "source": "/((?!assets/).*)", "destination": "/index.html" }],
   "headers": [
     {
       "source": "/(.*)",
@@ -16,6 +17,20 @@
           "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://api.blood.aspireshield.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
         }
       ]
+    },
+    {
+      "$comment": "Vite content-hashes every filename under /assets, so a given URL's bytes never change. Caching them forever is what makes a deploy cheap; the hash changing is the cache bust.",
+      "source": "/assets/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    },
+    {
+      "$comment": "index.html is the one file that must never be served stale: it is the document that names which asset hashes exist. A cached copy from a previous deploy is precisely how a browser ends up asking for a hash that was removed — the other half of the MIME-type failure above. no-cache means revalidate every time, not 'do not store'.",
+      "source": "/",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+    },
+    {
+      "source": "/index.html",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
     }
   ]
 }

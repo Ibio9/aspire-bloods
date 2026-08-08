@@ -48,8 +48,8 @@
  * both a mildly and a significantly out-of-range result on the newest
  * report.
  *
- * The values are a deliberate clinical narrative, not noise (see demoReports
- * below for the per-report annotations):
+ * The values are a deliberate clinical narrative, not noise (see NARRATIVE in
+ * demoSeedData.ts for the per-marker annotations):
  *   · Vitamin D   — clearly low at baseline, then the classic
  *                   supplementation recovery across all four reports.
  *   · HbA1c       — creeping up, in range until the newest report tips it
@@ -64,11 +64,14 @@
  * it looks up panels/markers/sources by key and fails loudly if they're
  * missing rather than silently creating a parallel, undocumented catalogue.
  */
+import type { Prisma } from '@prisma/client';
 import { maskEmail } from '@aspire-bloods/shared';
 import { prisma } from '../../db/client.js';
 import { encryptField, generateToken } from '../../lib/crypto.js';
 import { hashPassword } from '../../lib/password.js';
 import { verifyReport, reviewReport, releaseReport } from '../reports/service.js';
+import { buildDemoReports, type DemoDataDiagnostics } from './demoSeedData.js';
+import { assertIsDemoAccount, assertOnlyDemoReports } from './demoSeedGuards.js';
 
 // The demo patient's own login. Overridable because 2FA is not bypassed for
 // demo accounts — wherever email is genuinely being delivered (i.e.
@@ -84,10 +87,20 @@ const DEV_CLINICIAN_EMAIL = 'clinician@aspireshield.dev';
 const DEMO_ADMIN_EMAIL = 'demo.admin@aspireshield.dev';
 const DEMO_CLINICIAN_EMAIL = 'demo.clinician@aspireshield.dev';
 
-/** Legacy handle: older seed versions tagged their ReferenceRange rows with
- * this. Current runs create ranges through verifyReport (so they carry the
- * real "source, verified date" attribution) and clean them up by id — the
- * tag is still swept for databases seeded by an older image. */
+/**
+ * Legacy handle: older seed versions tagged their ReferenceRange rows with
+ * this.
+ *
+ * It used to be swept with an UNSCOPED `deleteMany({ source: { startsWith } })`
+ * across the whole table, which is what produced the foreign-key failure this
+ * teardown was rewritten to fix: a bulk delete of parent rows with no regard
+ * for whether a live ReportResult still pointed at any of them, and no regard
+ * for whose result it was. RESTRICT on ReportResult_referenceRangeId_fkey
+ * caught it — correctly, which is why that constraint has not been touched.
+ *
+ * Legacy rows are still cleaned up, but only through the same
+ * unreferenced-only path everything else goes through (see deleteDemoReports).
+ */
 const DEMO_RANGE_TAG = 'DEMO DATA';
 
 export type DemoSeedTrigger = 'boot' | 'admin' | 'cli';
@@ -147,258 +160,119 @@ async function recordSeedRun(
   }
 }
 
-interface DemoResultInput {
-  markerKey: string;
-  /** A string is a textual lab result ("< 0.6", "Not detected") — carried
-   * verbatim through the pipeline, shown verbatim in the portal, and never
-   * plotted or flagged. */
-  value: number | string;
-  low: number;
-  high: number;
-  /** Defaults to the marker's own defaultUnit when omitted. */
-  unit?: string;
-}
+/**
+ * Hard-deletes demo reports and everything hanging off them, in dependency
+ * order, inside one transaction, scoped to the demo patient and nothing else.
+ *
+ * This is the function that used to fail with
+ *   "update or delete on table ReferenceRange violates RESTRICT setting of
+ *    foreign key constraint ReportResult_referenceRangeId_fkey"
+ * and the fix is the order plus the scope, not the constraint. RESTRICT is
+ * there precisely to stop a bulk delete walking through real patient data, so
+ * it stays exactly as it is.
+ *
+ * Three things changed:
+ *
+ *  1. DEPENDENCY ORDER. Children before parents, all the way down: the edit
+ *     history before the results, the results before the reports, and the
+ *     reference ranges last of all — a range is a PARENT of a result, so it
+ *     can only go once no result points at it. Rows that merely reference a
+ *     report loosely (an ingestion log line, a Randox order) are detached
+ *     rather than deleted; they are records of something that really happened.
+ *
+ *  2. UNREFERENCED-ONLY. Ranges are not deleted because we think they were
+ *     ours — they are deleted only after re-checking, inside the transaction,
+ *     that nothing at all still points at them. verifyReport creates one range
+ *     per result and never shares them, but "never shared" is an invariant of
+ *     today's code, and a delete that would corrupt another patient's report
+ *     if that invariant ever changed is not one to write.
+ *
+ *  3. ONE TRANSACTION. Either the whole old history goes or none of it does.
+ *     The half-deleted state the original failure left behind is not
+ *     reachable from here.
+ *
+ * Demo rows are the one deliberate exception to "no hard deletes": they are
+ * synthetic, documented as removable, and keyed to the single demo patient.
+ */
+async function deleteDemoReports(demoPatientId: string, reportIds: string[]): Promise<number> {
+  if (reportIds.length === 0) return 0;
 
-interface DemoReportInput {
-  /** Null on purpose for the ad-hoc report — Report.panelId is optional. */
-  panelKey: string | null;
-  sourceKey: string;
-  /** Whole months before the seed run; the newest report uses daysAgo instead. */
-  monthsAgo?: number;
-  dayOfMonth?: number;
-  daysAgo?: number;
-  /** Code-only note: what this report is meant to demonstrate. */
-  demonstrates: string;
-  results: DemoResultInput[];
-}
+  return prisma.$transaction(
+    async (tx) => {
+    // Re-read ownership from storage rather than trusting the caller's list.
+    const owned = await tx.report.findMany({
+      where: { id: { in: reportIds } },
+      select: { id: true, patientId: true },
+    });
+    assertOnlyDemoReports(owned, demoPatientId);
+    const ids = owned.map((r) => r.id);
+    if (ids.length === 0) return 0;
 
-// ---------------------------------------------------------------------------
-// The four reports. Note what deliberately ISN'T here as much as what is —
-// no report repeats another's marker list, several markers appear in only
-// two of the four (glucose, GGT, Omega-3 Index, RBC magnesium), and cortisol
-// and DHEA-S appear exactly once, so the "markers not tested don't render"
-// rule and the single-point trend case are both visible.
-//
-// Two markers deliberately change reference band mid-series, to show how the
-// trend chart handles a band that moves under the line:
-//   · Vitamin D  50–250 nmol/L  →  75–200 nmol/L  (reports 3 & 4)
-//   · Ferritin   30–400 µg/L    →  20–200 µg/L    (reports 3 & 4)
-// ---------------------------------------------------------------------------
-const demoReports: DemoReportInput[] = [
-  {
-    // ~18 months ago — comprehensive baseline.
-    panelKey: 'ran-chip-insight-360',
-    sourceKey: 'randox_portal',
-    monthsAgo: 18,
-    dayOfMonth: 11,
-    demonstrates:
-      'Widest marker set in the series. Only abnormality is a clearly low vitamin D — a mild escalation, one flagged marker among 40.',
-    results: [
-      // Full blood count
-      { markerKey: 'haemoglobin-f', value: 134, low: 120, high: 150 },
-      { markerKey: 'rbc', value: 4.52, low: 3.9, high: 5.0 },
-      { markerKey: 'haematocrit', value: 41, low: 36, high: 46 },
-      { markerKey: 'mcv', value: 89, low: 80, high: 100 },
-      { markerKey: 'rdw', value: 13.1, low: 11.5, high: 14.5 },
-      { markerKey: 'platelets', value: 261, low: 150, high: 400 },
-      { markerKey: 'wbc', value: 6.2, low: 4.0, high: 11.0 },
-      { markerKey: 'neutrophils', value: 3.6, low: 2.0, high: 7.5 },
-      { markerKey: 'lymphocytes', value: 2.0, low: 1.0, high: 4.0 },
-      // Liver
-      { markerKey: 'alt', value: 18, low: 0, high: 41 },
-      { markerKey: 'ast', value: 21, low: 0, high: 40 },
-      { markerKey: 'ggt', value: 22, low: 0, high: 60 },
-      { markerKey: 'bilirubin', value: 9, low: 0, high: 21 },
-      { markerKey: 'alp', value: 68, low: 30, high: 130 },
-      { markerKey: 'albumin', value: 45, low: 35, high: 50 },
-      { markerKey: 'total-protein', value: 72, low: 60, high: 80 },
-      // Kidney
-      { markerKey: 'creatinine', value: 66, low: 45, high: 90 },
-      { markerKey: 'egfr', value: 99, low: 90, high: 120 },
-      { markerKey: 'urea', value: 4.6, low: 2.5, high: 7.8 },
-      { markerKey: 'sodium', value: 140, low: 135, high: 145 },
-      { markerKey: 'potassium', value: 4.3, low: 3.5, high: 5.1 },
-      // Lipids
-      { markerKey: 'total-cholesterol', value: 4.4, low: 0, high: 5.0 },
-      { markerKey: 'hdl', value: 1.68, low: 1.2, high: 2.3 },
-      { markerKey: 'ldl', value: 2.3, low: 0, high: 3.0 },
-      { markerKey: 'triglycerides', value: 0.9, low: 0, high: 1.7 },
-      { markerKey: 'chol-hdl-ratio', value: 2.6, low: 0, high: 4.5 },
-      { markerKey: 'omega-3-index', value: 8.4, low: 8, high: 12 }, // add-on
-      // Glycaemic — the start of the HbA1c drift
-      { markerKey: 'glucose', value: 4.7, low: 3.9, high: 5.5 },
-      { markerKey: 'hba1c', value: 34, low: 20, high: 42 },
-      // Thyroid
-      { markerKey: 'tsh', value: 1.8, low: 0.4, high: 4.0 },
-      { markerKey: 'free-t4', value: 14.2, low: 9, high: 21 },
-      { markerKey: 'free-t3', value: 4.7, low: 3.1, high: 6.8 },
-      // Vitamins, minerals, iron
-      { markerKey: 'vitamin-d', value: 31, low: 50, high: 250 }, // LOW — start of the supplementation trajectory
-      { markerKey: 'vitamin-b12', value: 411, low: 197, high: 771 },
-      { markerKey: 'folate', value: 12.4, low: 3.9, high: 26.8 },
-      { markerKey: 'ferritin', value: 88, low: 30, high: 400 }, // start of the steady fall
-      { markerKey: 'iron', value: 17.4, low: 10, high: 30 },
-      { markerKey: 'calcium', value: 2.38, low: 2.2, high: 2.6 },
-      // Inflammation — quiet baseline, for contrast with report 3
-      { markerKey: 'hs-crp', value: 0.8, low: 0, high: 3.0 },
-      { markerKey: 'esr', value: 8, low: 0, high: 20 },
-      { markerKey: 'uric-acid', value: 254, low: 140, high: 420 },
-    ],
-  },
-  {
-    // ~12 months ago — nutritional recheck, entirely different marker set,
-    // and a different source (in-house) so the trend chart has mixed
-    // provenance to label.
-    panelKey: 'nutritional-health-hsc15',
-    sourceKey: 'aspire_inhouse',
-    monthsAgo: 12,
-    dayOfMonth: 19,
-    demonstrates:
-      'A fully in-range report — no attention state at all — a marker list sharing only six markers with the baseline, and a textual result: hs-CRP below the assay detection limit, reported as "< 0.6" and shown verbatim, skipped by the trend line.',
-    results: [
-      { markerKey: 'vitamin-d', value: 54, low: 50, high: 250 }, // supplementation working, just into range
-      { markerKey: 'vitamin-b12', value: 438, low: 197, high: 771 },
-      { markerKey: 'folate', value: 14.1, low: 3.9, high: 26.8 },
-      { markerKey: 'ferritin', value: 61, low: 30, high: 400 }, // still falling
-      { markerKey: 'iron', value: 15.2, low: 10, high: 30 },
-      { markerKey: 'tibc', value: 61, low: 45, high: 72 },
-      { markerKey: 'calcium', value: 2.34, low: 2.2, high: 2.6 },
-      { markerKey: 'rbc-magnesium', value: 1.94, low: 1.5, high: 2.5 },
-      { markerKey: 'zinc', value: 12.6, low: 10, high: 18 },
-      { markerKey: 'haemoglobin-f', value: 131, low: 120, high: 150 },
-      { markerKey: 'albumin', value: 44, low: 35, high: 50 },
-      { markerKey: 'total-protein', value: 71, low: 60, high: 80 },
-      { markerKey: 'uric-acid', value: 268, low: 140, high: 420 },
-      { markerKey: 'hba1c', value: 38, low: 20, high: 42 }, // creeping, still comfortably in range
-      // The non-numeric case: below the assay's detection limit, reported as
-      // text. Renders verbatim on the report; the hs-CRP trend line simply
-      // skips this date (0.8 → [gap] → 9.6 → 1.1).
-      { markerKey: 'hs-crp', value: '< 0.6', low: 0, high: 3.0 },
-    ],
-  },
-  {
-    // ~6 months ago — NO PANEL. An ad-hoc set of markers requested off the
-    // back of fatigue symptoms, exactly the case Report.panelId being
-    // optional exists for: the portal has to title this from the marker
-    // count and date, with no panel name to lean on.
-    panelKey: null,
-    sourceKey: 'aspire_inhouse',
-    monthsAgo: 6,
-    dayOfMonth: 3,
-    demonstrates:
-      'No panel — title must fall back to "12 markers · <date>". Also carries the hs-CRP spike (significantly high) and the changed vitamin D / ferritin bands.',
-    results: [
-      { markerKey: 'hs-crp', value: 9.6, low: 0, high: 3.0 }, // SIGNIFICANT_HIGH — the one-off inflammatory event
-      { markerKey: 'esr', value: 32, low: 0, high: 20 }, // HIGH — corroborates the spike
-      { markerKey: 'ferritin', value: 34, low: 20, high: 200 }, // band changed vs reports 1–2
-      { markerKey: 'vitamin-d', value: 82, low: 75, high: 200 }, // band changed vs reports 1–2
-      { markerKey: 'vitamin-b12', value: 396, low: 197, high: 771 },
-      { markerKey: 'folate', value: 11.2, low: 3.9, high: 26.8 },
-      { markerKey: 'homocysteine', value: 13.6, low: 0, high: 15 },
-      { markerKey: 'tsh', value: 2.1, low: 0.4, high: 4.0 },
-      { markerKey: 'hba1c', value: 40, low: 20, high: 42 }, // still creeping
-      // Cortisol and DHEA-S appear in this report ONLY — a marker tested
-      // once has a single trend point and no line, which is worth seeing.
-      { markerKey: 'cortisol', value: 402, low: 133, high: 537 },
-      { markerKey: 'dhea-s', value: 5.4, low: 2.2, high: 15.2 },
-      { markerKey: 'testosterone-f', value: 0.9, low: 0.3, high: 1.7 },
-    ],
-  },
-  {
-    // Most recent — within the last month. The payoff report: vitamin D
-    // recovered, hs-CRP settled, HbA1c finally over the line, ferritin
-    // frankly low, and fasting insulin significantly high (the earliest
-    // marker of the insulin resistance the HbA1c drift is hinting at).
-    panelKey: 'advanced-gp3-female',
-    sourceKey: 'randox_portal',
-    daysAgo: 11,
-    demonstrates:
-      'Four flagged markers: ferritin LOW and HbA1c/glucose HIGH (clearly out of range), fasting insulin SIGNIFICANT_HIGH — so the report carries a SIGNIFICANT escalation.',
-    results: [
-      { markerKey: 'haemoglobin-f', value: 128, low: 120, high: 150 }, // drifting with the ferritin, still in range
-      { markerKey: 'wbc', value: 6.0, low: 4.0, high: 11.0 },
-      { markerKey: 'platelets', value: 274, low: 150, high: 400 },
-      { markerKey: 'alt', value: 22, low: 0, high: 41 },
-      { markerKey: 'ast', value: 20, low: 0, high: 40 },
-      { markerKey: 'ggt', value: 29, low: 0, high: 60 },
-      { markerKey: 'creatinine', value: 68, low: 45, high: 90 },
-      { markerKey: 'egfr', value: 96, low: 90, high: 120 },
-      // Lipids + the two cardiovascular add-ons
-      { markerKey: 'total-cholesterol', value: 4.8, low: 0, high: 5.0 },
-      { markerKey: 'hdl', value: 1.54, low: 1.2, high: 2.3 },
-      { markerKey: 'ldl', value: 2.7, low: 0, high: 3.0 },
-      { markerKey: 'triglycerides', value: 1.4, low: 0, high: 1.7 },
-      { markerKey: 'apob', value: 0.94, low: 0, high: 1.0 },
-      { markerKey: 'homocysteine', value: 10.8, low: 0, high: 15 },
-      { markerKey: 'omega-3-index', value: 8.1, low: 8, high: 12 },
-      // Glycaemic — the trend lands
-      { markerKey: 'glucose', value: 5.6, low: 3.9, high: 5.5 }, // HIGH, only just
-      { markerKey: 'hba1c', value: 44, low: 20, high: 42 }, // HIGH — tips just over
-      // Functional insulin band (2–10 mIU/L), narrower than the assay's
-      // 2–25 — which is what makes 24.6 read as SIGNIFICANT_HIGH rather
-      // than a shrug. Also a third marker whose band differs from the
-      // catalogue default.
-      { markerKey: 'fasting-insulin', value: 24.6, low: 2.0, high: 10.0 },
-      // Thyroid
-      { markerKey: 'tsh', value: 2.2, low: 0.4, high: 4.0 },
-      { markerKey: 'free-t4', value: 13.8, low: 9, high: 21 },
-      { markerKey: 'free-t3', value: 4.5, low: 3.1, high: 6.8 },
-      // Vitamins / iron — the two headline trends finish here
-      { markerKey: 'vitamin-d', value: 104, low: 75, high: 200 }, // recovered
-      { markerKey: 'vitamin-b12', value: 388, low: 197, high: 771 },
-      { markerKey: 'ferritin', value: 18, low: 20, high: 200 }, // LOW — end of the steady fall
-      { markerKey: 'rbc-magnesium', value: 1.71, low: 1.5, high: 2.5 },
-      { markerKey: 'hs-crp', value: 1.1, low: 0, high: 3.0 }, // settled after the spike
-      // Hormones
-      { markerKey: 'testosterone-f', value: 1.0, low: 0.3, high: 1.7 },
-      { markerKey: 'oestradiol', value: 288, low: 100, high: 500 },
-      { markerKey: 'shbg', value: 41, low: 10, high: 57 },
-    ],
-  },
-];
+    const results = await tx.reportResult.findMany({
+      where: { reportId: { in: ids } },
+      select: { id: true, referenceRangeId: true },
+    });
+    const candidateRangeIds = [...new Set(results.map((r) => r.referenceRangeId))];
 
-// ---------------------------------------------------------------------------
-// Dates are relative to the seed run, not hardcoded, so "recent, within the
-// last month" stays true whenever this is re-run for a demo.
-// ---------------------------------------------------------------------------
-function sampleDateFor(input: DemoReportInput, now: Date): Date {
-  if (input.daysAgo !== undefined) {
-    const d = new Date(now.getTime() - input.daysAgo * 24 * 60 * 60 * 1000);
-    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 9, 15));
-  }
-  // dayOfMonth is always <= 28 above, so month arithmetic can't overflow.
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (input.monthsAgo ?? 0), input.dayOfMonth ?? 12, 9, 15));
+    // --- children of ReportResult -----------------------------------------
+    await tx.reportResultEdit.deleteMany({ where: { reportResultId: { in: results.map((r) => r.id) } } });
+
+    // --- children of Report ------------------------------------------------
+    await tx.escalationEvent.deleteMany({ where: { reportId: { in: ids } } });
+    await tx.reportResultExclusion.deleteMany({ where: { reportId: { in: ids } } });
+    await tx.reportMeasurements.deleteMany({ where: { reportId: { in: ids } } });
+    await tx.reportResult.deleteMany({ where: { reportId: { in: ids } } });
+
+    // Loose references: these are logs of things that happened, so they are
+    // detached rather than destroyed. Both columns are nullable for this.
+    await tx.ingestionLogEntry.updateMany({ where: { reportId: { in: ids } }, data: { reportId: null } });
+    await tx.randoxOrder.updateMany({ where: { reportId: { in: ids } }, data: { reportId: null } });
+
+    // No FK — matched on the audit log's polymorphic target columns.
+    await tx.auditLogEntry.deleteMany({ where: { targetType: 'Report', targetId: { in: ids } } });
+
+    await tx.report.deleteMany({ where: { id: { in: ids } } });
+
+    // --- parents, last, and only if genuinely unreferenced -----------------
+    const rangeIds = [...candidateRangeIds, ...(await legacyTaggedRangeIds(tx))];
+    if (rangeIds.length > 0) {
+      const stillReferenced = new Set(
+        (
+          await tx.reportResult.findMany({
+            where: { referenceRangeId: { in: rangeIds } },
+            select: { referenceRangeId: true },
+          })
+        ).map((r) => r.referenceRangeId),
+      );
+      const deletable = rangeIds.filter((id) => !stillReferenced.has(id));
+      if (deletable.length > 0) {
+        await tx.referenceRange.deleteMany({ where: { id: { in: deletable } } });
+      }
+    }
+
+    return ids.length;
+    },
+    // A Signature report alone carries ~440 results and as many ranges. The
+    // 5s interactive default is comfortable on a local socket and not on a
+    // managed database across a network, and this transaction is the one
+    // thing that must not half-run.
+    { timeout: 120_000, maxWait: 30_000 },
+  );
 }
 
 /**
- * Hard-deletes the given demo reports and everything hanging off them,
- * including the per-result ReferenceRange rows verifyReport created for
- * them. Demo rows are the one deliberate exception to "no hard deletes":
- * they are synthetic, documented as removable, and keyed to the single demo
- * patient.
+ * Ranges left by seed versions that tagged their own source string. Collected
+ * as ids so they go through the same "only if nothing references it" check as
+ * everything else, instead of the unscoped deleteMany that used to run here.
  */
-async function deleteReportsById(reportIds: string[]): Promise<void> {
-  if (reportIds.length === 0) return;
-  const results = await prisma.reportResult.findMany({
-    where: { reportId: { in: reportIds } },
-    select: { referenceRangeId: true },
+async function legacyTaggedRangeIds(tx: Prisma.TransactionClient): Promise<string[]> {
+  const rows = await tx.referenceRange.findMany({
+    where: { source: { startsWith: DEMO_RANGE_TAG } },
+    select: { id: true },
   });
-  const rangeIds = [...new Set(results.map((r) => r.referenceRangeId))];
-
-  await prisma.escalationEvent.deleteMany({ where: { reportId: { in: reportIds } } });
-  await prisma.reportResultEdit.deleteMany({ where: { reportResult: { reportId: { in: reportIds } } } });
-  await prisma.reportResult.deleteMany({ where: { reportId: { in: reportIds } } });
-  await prisma.auditLogEntry.deleteMany({ where: { targetType: 'Report', targetId: { in: reportIds } } });
-  await prisma.report.deleteMany({ where: { id: { in: reportIds } } });
-  // After the results are gone the ranges are unreferenced — verifyReport
-  // creates one per result, never shared.
-  if (rangeIds.length > 0) {
-    await prisma.referenceRange.deleteMany({ where: { id: { in: rangeIds } } });
-  }
-  // Sweep ranges tagged by older seed versions too (nothing references them
-  // once their results are deleted above).
-  await prisma.referenceRange.deleteMany({ where: { source: { startsWith: DEMO_RANGE_TAG } } });
+  return rows.map((r) => r.id);
 }
+
 
 /**
  * Reports need real users behind uploadedById/verifiedById/reviewedById.
@@ -520,24 +394,30 @@ export async function runDemoSeed(opts: { trigger: DemoSeedTrigger; allowProduct
     const { admin, clinician } = await resolveDemoStaff(isProduction);
     slog('staff-resolved', { adminId: admin.id, clinicianId: clinician.id });
 
-    const sourceKeys = [...new Set(demoReports.map((r) => r.sourceKey))];
+    // The whole demo history is generated from the catalogue that is actually
+    // in this database — see demoSeedData.ts. Nothing below names a marker.
+    const now = new Date();
+    const { reports: generated, diagnostics } = await buildDemoReports({ now, patientSex: 'FEMALE' });
+
+    const sourceKeys = [...new Set(generated.map((r) => r.sourceKey))];
     const sourcesByKey = new Map((await prisma.source.findMany({ where: { key: { in: sourceKeys } } })).map((s) => [s.key, s]));
     for (const key of sourceKeys) {
       if (!sourcesByKey.has(key)) throw new Error(`Source "${key}" not found — run \`npm run prisma:seed\` first.`);
     }
 
-    const panelKeys = [...new Set(demoReports.map((r) => r.panelKey).filter((k): k is string => k !== null))];
-    const panelsByKey = new Map((await prisma.panel.findMany({ where: { key: { in: panelKeys } } })).map((p) => [p.key, p]));
-    for (const key of panelKeys) {
-      if (!panelsByKey.has(key)) throw new Error(`Panel "${key}" not found — run \`npm run prisma:seed\` first.`);
-    }
-
-    const markerKeys = [...new Set(demoReports.flatMap((r) => r.results.map((res) => res.markerKey)))];
-    const markersByKey = new Map((await prisma.marker.findMany({ where: { key: { in: markerKeys } } })).map((m) => [m.key, m]));
-    for (const key of markerKeys) {
-      if (!markersByKey.has(key)) throw new Error(`Marker "${key}" not found — run \`npm run prisma:seed\` first.`);
-    }
-    slog('catalogue-resolved', { sources: sourceKeys.length, panels: panelKeys.length, markers: markerKeys.length });
+    slog('catalogue-resolved', {
+      reports: generated.length,
+      resultsByType: diagnostics.byResultType,
+      measuredHealthAreasCovered: `${diagnostics.measuredCategoriesCovered}/${diagnostics.measuredCategoriesTotal}`,
+      uncoveredHealthAreas: diagnostics.uncoveredCategoryKeys,
+      foodSensitivityGroups: diagnostics.foodSensitivityGroups,
+      rangesFromCatalogue: diagnostics.catalogueRanges,
+      rangesSynthesised: diagnostics.syntheticRanges,
+      nonNumericResults: diagnostics.nonNumericResults,
+      markersInOneReportOnly: diagnostics.markersInOneReportOnly,
+      markersInTwoOrMoreReports: diagnostics.markersInTwoOrMoreReports,
+      intendedStatusSpread: diagnostics.byIntendedStatus,
+    });
 
     const demoPassword = process.env.SEED_DEMO_PASSWORD ?? 'DemoShowcase123!';
     const patient = await prisma.user.upsert({
@@ -568,6 +448,10 @@ export async function runDemoSeed(opts: { trigger: DemoSeedTrigger; allowProduct
         },
       },
     });
+    // Belt and braces before anything is deleted below: the row we are about
+    // to attach a synthetic history to, and later tear a history off, must be
+    // the account SEED_DEMO_EMAIL names and no other.
+    assertIsDemoAccount(patient, demoEmail);
     slog('patient-upserted', { patientId: patient.id, email: maskEmail(demoEmail) });
 
     // A self-registered row has no profile; verifyReport needs one for the
@@ -608,14 +492,18 @@ export async function runDemoSeed(opts: { trigger: DemoSeedTrigger; allowProduct
     const previousIds = previousReports.map((r) => r.id);
     slog('previous-reports-found', { count: previousIds.length });
 
-    const now = new Date();
     const usedMarkerIds = new Set<string>();
+    const createdReportIds: string[] = [];
     let resultsWritten = 0;
 
-    for (const [index, reportInput] of demoReports.entries()) {
-      const panel = reportInput.panelKey ? panelsByKey.get(reportInput.panelKey)! : null;
+    // If any report fails partway, the ones already written this run are
+    // removed before the error propagates, so the account is never left
+    // holding half a history. Combined with delete-old-after, the outcome is
+    // always one complete set of reports: the new one, or the previous one.
+    try {
+    for (const [index, reportInput] of generated.entries()) {
       const source = sourcesByKey.get(reportInput.sourceKey)!;
-      const sampleDate = sampleDateFor(reportInput, now);
+      const sampleDate = reportInput.sampleDate;
       const day = 1000 * 60 * 60 * 24;
       const receivedDate = new Date(sampleDate.getTime() + day);
       const verifiedAt = new Date(sampleDate.getTime() + day);
@@ -629,7 +517,7 @@ export async function runDemoSeed(opts: { trigger: DemoSeedTrigger; allowProduct
       const report = await prisma.report.create({
         data: {
           patientId: patient.id,
-          panelId: panel?.id ?? null,
+          panelId: reportInput.panelId,
           sourceId: source.id,
           sampleDate,
           receivedDate,
@@ -637,16 +525,16 @@ export async function runDemoSeed(opts: { trigger: DemoSeedTrigger; allowProduct
           uploadedById: admin.id,
         },
       });
+      createdReportIds.push(report.id);
 
       const rows = reportInput.results.map((res) => {
-        const marker = markersByKey.get(res.markerKey)!;
-        usedMarkerIds.add(marker.id);
+        usedMarkerIds.add(res.markerId);
         return {
-          markerId: marker.id,
+          markerId: res.markerId,
           value: res.value,
-          unit: res.unit ?? marker.defaultUnit,
-          referenceLow: res.low,
-          referenceHigh: res.high,
+          unit: res.unit,
+          referenceLow: res.referenceLow,
+          referenceHigh: res.referenceHigh,
         };
       });
 
@@ -685,18 +573,37 @@ export async function runDemoSeed(opts: { trigger: DemoSeedTrigger; allowProduct
       await prisma.reportResult.updateMany({ where: { reportId: report.id }, data: { createdAt: verifiedAt } });
 
       resultsWritten += rows.length;
+      const perType = reportInput.results.reduce<Record<string, number>>((acc, r) => {
+        acc[r.resultType] = (acc[r.resultType] ?? 0) + 1;
+        return acc;
+      }, {});
       slog('report-released', {
         index: index + 1,
         reportId: report.id,
         sampleDate: sampleDate.toISOString().slice(0, 10),
-        panel: panel?.name ?? null,
-        markers: rows.length,
+        panel: reportInput.panelName,
+        results: rows.length,
+        byType: perType,
         flagged: flagged.length,
+        demonstrates: reportInput.demonstrates,
       });
     }
+    } catch (e) {
+      // Compensating cleanup: drop whatever this run managed to write, so the
+      // previous history (still untouched at this point) remains the account's
+      // one complete set.
+      if (createdReportIds.length > 0) {
+        await deleteDemoReports(patient.id, createdReportIds).catch((cleanupError) => {
+          console.error('[seedDemo] partial-run cleanup ALSO failed — demo account may hold both histories:', cleanupError);
+          return 0;
+        });
+        slog('partial-run-rolled-back', { reports: createdReportIds.length });
+      }
+      throw e;
+    }
 
-    await deleteReportsById(previousIds);
-    if (previousIds.length > 0) slog('previous-reports-replaced', { count: previousIds.length });
+    const removed = await deleteDemoReports(patient.id, previousIds);
+    if (removed > 0) slog('previous-reports-replaced', { count: removed });
 
     // Dev-only: publish the explanation copy for markers used above so the
     // marker detail pages show authored copy rather than the "being
@@ -713,14 +620,19 @@ export async function runDemoSeed(opts: { trigger: DemoSeedTrigger; allowProduct
       }
     }
 
-    const dates = demoReports.map((r) => sampleDateFor(r, now).getTime());
+    const dates = generated.map((r) => r.sampleDate.getTime());
     const spanMonths = Math.round((Math.max(...dates) - Math.min(...dates)) / (1000 * 60 * 60 * 24 * 30.44));
-    const detail = `${demoReports.length} released reports spanning ~${spanMonths} months, ${usedMarkerIds.size} distinct markers, ${resultsWritten} results.`;
+    const d = diagnostics;
+    const detail =
+      `${generated.length} released reports spanning ~${spanMonths} months, ${usedMarkerIds.size} distinct markers, ` +
+      `${resultsWritten} results (${d.byResultType.MEASURED} measured, ${d.byResultType.GENETIC} genetic, ` +
+      `${d.byResultType.SENSITIVITY} sensitivity, ${d.byResultType.COMPOSITION} composition). ` +
+      `${d.measuredCategoriesCovered}/${d.measuredCategoriesTotal} health areas covered.`;
 
     slog('succeeded', {
       trigger,
       patientId: patient.id,
-      reportsCreated: demoReports.length,
+      reportsCreated: generated.length,
       resultsWritten,
       durationMs: Date.now() - startedAt,
     });
@@ -729,7 +641,7 @@ export async function runDemoSeed(opts: { trigger: DemoSeedTrigger; allowProduct
       outcome: 'SUCCEEDED',
       detail,
       patientId: patient.id,
-      reportsCreated: demoReports.length,
+      reportsCreated: generated.length,
       resultsWritten,
       durationMs: Date.now() - startedAt,
     });
@@ -761,8 +673,10 @@ export async function purgeDemoSeed(): Promise<{ purged: boolean; detail: string
     return { purged: false, detail: `No demo patient (${demoEmail}) found — nothing to purge.` };
   }
 
+  assertIsDemoAccount(patient, demoEmail);
+
   const reports = await prisma.report.findMany({ where: { patientId: patient.id }, select: { id: true } });
-  await deleteReportsById(reports.map((r) => r.id));
+  await deleteDemoReports(patient.id, reports.map((r) => r.id));
   await prisma.consentRecord.deleteMany({ where: { userId: patient.id } });
   await prisma.refreshToken.deleteMany({ where: { userId: patient.id } });
   await prisma.otpCode.deleteMany({ where: { userId: patient.id } });
