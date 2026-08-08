@@ -7,6 +7,7 @@ import { DateField } from '../../components/ui/DateField';
 import { Checkbox } from '../../components/ui/Checkbox';
 import { Button } from '../../components/ui/Button';
 import { authErrorMessage } from '../../lib/authErrors';
+import { isValidEmail, validateEmail } from '../../lib/validateEmail';
 
 export interface ProfileFormData {
   title?: string;
@@ -164,7 +165,7 @@ export function RegistrationForm({ showEmailField, variant = 'full', submitLabel
    */
   function stepIsComplete(): boolean {
     if (step === 'details') {
-      const emailOk = !showEmailField || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+      const emailOk = !showEmailField || isValidEmail(email);
       return emailOk && !!(form.firstName.trim() && form.lastName.trim());
     }
     if (step === 'details-contact') {
@@ -235,7 +236,7 @@ export function RegistrationForm({ showEmailField, variant = 'full', submitLabel
             autoComplete="username"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            validate={(v) => (!v ? 'Email address is required.' : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? undefined : 'Enter a valid email address.')}
+            validate={validateEmail}
           />
         )}
         <div className="grid grid-cols-1 gap-[calc(var(--auth-step)*0.9)] sm:grid-cols-3">

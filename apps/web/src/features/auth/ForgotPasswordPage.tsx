@@ -5,17 +5,12 @@ import { authErrorMessage } from '../../lib/authErrors';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { AuthSplitLayout } from './AuthSplitLayout';
+import { validateEmail } from '../../lib/validateEmail';
 
 const EYEBROW = 'Aspire Clinic';
 const HEADLINE = 'Locked out? Not for long.';
 const SUPPORTING =
   "Tell us the address you registered with and we'll email you a link to set a new password.";
-
-function validateEmail(value: string): string | undefined {
-  if (!value) return 'Email address is required.';
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Enter a valid email address.';
-  return undefined;
-}
 
 /**
  * "I've forgotten my password" — the exit that didn't exist. Without it the

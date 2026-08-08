@@ -6,6 +6,7 @@ import { AuthSplitLayout } from './AuthSplitLayout';
 import { EmailCodeStep } from './EmailCodeStep';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import { validateEmail } from '../../lib/validateEmail';
 
 const EYEBROW = 'Aspire Clinic';
 const HEADLINE = 'Confirm your email.';
@@ -95,7 +96,7 @@ export function VerifyEmailPage() {
           autoComplete="username"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          validate={(v) => (!v ? 'Email address is required.' : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? undefined : 'Enter a valid email address.')}
+          validate={validateEmail}
         />
         {error && (
           <p role="alert" className="text-sm text-status-significantHigh">

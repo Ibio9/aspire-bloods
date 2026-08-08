@@ -25,6 +25,7 @@ import { CopyButton } from '../../components/ui/CopyButton';
 import { useToast } from '../../components/ui/Toast';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Wordmark } from '../../components/Wordmark';
+import { isValidEmail } from '../../lib/validateEmail';
 
 const STATUS_LIST: { key: MarkerStatus; hex: string; label: string }[] = [
   { key: 'IN_RANGE', hex: status.inRange.hex, label: status.inRange.label },
@@ -325,7 +326,7 @@ export function ComponentsShowcase() {
             label="Blur-validated — try clearing it"
             name="demo7"
             defaultValue="a@b.com"
-            validate={(v) => (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? undefined : 'Enter a valid email address.')}
+            validate={(v) => (isValidEmail(v) ? undefined : 'Enter a valid email address.')}
           />
           <Input label="Disabled" name="demo5" disabled defaultValue="Can't edit this" />
           <Select label="Select" name="demo6" value={demoSelect} onChange={(e) => setDemoSelect(e.target.value)}>

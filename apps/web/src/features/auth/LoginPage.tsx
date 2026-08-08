@@ -10,6 +10,7 @@ import { LOGOUT_REASON_KEY } from '../../lib/AuthContext';
 import { AuthSplitLayout } from './AuthSplitLayout';
 import { AuthCrossLink } from './AuthCrossLink';
 import { consumeRedirect } from '../../lib/redirectAfterLogin';
+import { validateEmail } from '../../lib/validateEmail';
 
 const LOGOUT_REASON_COPY: Record<string, string> = {
   idle: 'You were signed out after a period of inactivity.',
@@ -23,12 +24,6 @@ function readAndClearLogoutReason(): string | null {
 }
 
 type Step = { kind: 'credentials' } | { kind: 'otp'; challenge: OtpChallenge };
-
-function validateEmail(value: string): string | undefined {
-  if (!value) return 'Email address is required.';
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Enter a valid email address.';
-  return undefined;
-}
 
 function validateRequired(value: string): string | undefined {
   return value ? undefined : 'Password is required.';
