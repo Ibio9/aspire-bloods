@@ -366,16 +366,22 @@ export async function verifyReport(
     throw new ReportError('At least one result is required', 400);
   }
   const markerIds = input.results.map((r) => r.markerId);
-  const duplicateMarkerIds = markerIds.filter((id, i) => markerIds.indexOf(id) !== i);
-  if (duplicateMarkerIds.length > 0) {
+  const markers = await prisma.marker.findMany({ where: { id: { in: markerIds } } });
+  const markerById = new Map(markers.map((m) => [m.id, m]));
+
+  // Name the offending marker(s) rather than saying "a marker": on a 40-row
+  // verify table, "Total Cholesterol is matched to more than one row" is
+  // something an admin can act on at a glance, where the generic sentence sent
+  // them hunting through the whole table for the pair.
+  const duplicateIds = [...new Set(markerIds.filter((id, i) => markerIds.indexOf(id) !== i))];
+  if (duplicateIds.length > 0) {
+    const names = duplicateIds.map((id) => markerById.get(id)?.name ?? 'an unrecognised marker');
+    const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
     throw new ReportError(
-      'Two rows are matched to the same marker. A report can only have one result per marker, so unmatch or fix one of them.',
+      `${list} ${names.length === 1 ? 'is' : 'are'} matched to more than one row. A report can only hold one result per marker, so unmatch or fix the duplicate${names.length === 1 ? '' : 's'}.`,
       400,
     );
   }
-
-  const markers = await prisma.marker.findMany({ where: { id: { in: markerIds } } });
-  const markerById = new Map(markers.map((m) => [m.id, m]));
   const patientSex = report.patient.patientProfile?.sex ?? 'ANY';
 
   // Rows are computed up front and written with two createMany calls (ids
