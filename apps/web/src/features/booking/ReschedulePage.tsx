@@ -126,7 +126,7 @@ export function ReschedulePage() {
             </p>
             <p className="mt-3 text-reading leading-relaxed text-espresso/90">
               {appointment.status === 'CONFIRMED'
-                ? `Appointments can be moved here up to ${bookingService.changeCutoffHours} hours beforehand, and yours is inside that window. Please call the clinic. We would much rather rearrange it than have you not turn up.`
+                ? `Yours is inside the ${bookingService.changeCutoffHours}-hour window, so please call the clinic. We would much rather rearrange it than have you not turn up.`
                 : 'Book a new appointment whenever you are ready, or call us if you would rather do it with someone.'}
             </p>
             <Button className="mt-6" variant="secondary" onClick={() => navigate('/book')}>
@@ -151,7 +151,7 @@ export function ReschedulePage() {
       <TwoTierHeading eyebrow={`Reference ${appointment.reference}`} title="Move your appointment" />
       <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
         You're moving your <span className="font-medium">{panel?.name}</span> at {location?.name}. Everything else
-        stays as it is, including your reference. Pick a new time and nothing else changes.
+        stays as it is, including your reference.
       </p>
 
       {error && (

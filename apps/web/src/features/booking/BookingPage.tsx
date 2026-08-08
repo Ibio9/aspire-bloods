@@ -43,7 +43,7 @@ const STEPS = [
     key: 'test',
     short: 'Test',
     title: 'Choose your test',
-    lede: 'Four panels, each covering a different amount of ground. Add anything alongside whichever you pick.',
+    lede: 'Four panels, each covering a different amount of ground.',
   },
   {
     key: 'where',
@@ -55,7 +55,7 @@ const STEPS = [
     key: 'when',
     short: 'When',
     title: 'Choose when',
-    lede: 'Pick a date, then a time. The count under each date is how many slots are left on it.',
+    lede: 'The count under each date is how many slots are left on it.',
   },
   {
     key: 'prepare',

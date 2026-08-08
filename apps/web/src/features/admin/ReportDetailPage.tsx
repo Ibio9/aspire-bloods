@@ -553,8 +553,7 @@ export function ReportDetailPage() {
         <Card className="mt-8 max-w-2xl" aria-busy="true">
           <p className="text-sm font-medium text-espresso">Reading the report…</p>
           <p className="mt-1 text-sm text-espresso/80">
-            Extracting every marker, its value, units and the reference range printed alongside it, then working out
-            each one's status from that range.
+            Extracting every marker, its value, units and printed reference range, then deriving each status.
           </p>
           <Skeleton className="mt-4 h-4 w-full" />
           <Skeleton className="mt-2 h-4 w-3/4" />
@@ -579,10 +578,10 @@ export function ReportDetailPage() {
               <p className="eyebrow mb-1">
                 Needs your input · {attentionRows.length} of {rows.length}
               </p>
+              {/* The collapse below already says how many parsed cleanly. */}
               <p className="mb-3 max-w-2xl text-sm text-espresso/80">
-                Everything else parsed cleanly and is collapsed below. These are the rows nothing could settle
-                automatically: an unrecognised marker, a result with no usable range, or a status that disagrees with
-                the lab's own flag.
+                Nothing could settle these automatically: an unrecognised marker, a result with no usable range, or
+                a status that disagrees with the lab's own flag.
               </p>
               <RowTable
                 entries={attentionRows}

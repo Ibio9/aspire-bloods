@@ -54,9 +54,6 @@ export function DocumentsPage() {
   return (
     <>
       <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="Documents" />
-      <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
-        Every report you can download in one place: the original laboratory PDF and the Aspire summary.
-      </p>
 
       {documents === null ? (
         <div className="mt-10 flex flex-col gap-5" aria-busy="true" aria-label="Loading your documents">
@@ -72,7 +69,7 @@ export function DocumentsPage() {
         <div className="mt-10 max-w-2xl">
           <EmptyState
             title="No documents yet"
-            description="When a report has been reviewed and released to you, its PDFs appear here: the laboratory's own report, and an Aspire summary written in plain English."
+            description="When a report has been released to you, its PDFs appear here: the laboratory's own report, and an Aspire summary."
             action={<LinkButton to="/overview">Back to overview</LinkButton>}
           />
         </div>
@@ -109,7 +106,7 @@ export function DocumentsPage() {
                   <Button
                     variant="secondary"
                     disabled={!doc.hasOriginalPdf}
-                    disabledReason="These results were entered by the clinical team rather than arriving as a laboratory PDF, so there's no original document to download."
+                    disabledReason="These results were entered by the clinical team, so there's no original laboratory PDF."
                     loading={downloading?.reportId === doc.reportId && downloading.kind === 'original-pdf-link'}
                     onClick={() => void download(doc.reportId, 'original-pdf-link')}
                   >

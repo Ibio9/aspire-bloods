@@ -1,5 +1,5 @@
 import { useEffect, useState, type KeyboardEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { formatDate } from '@aspire-bloods/shared';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
@@ -122,13 +122,6 @@ export function PatientHome() {
   return (
     <>
       <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="My results" />
-      <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
-        Each panel you've had, newest first. To look at a single marker across every panel it appeared in, use{' '}
-        <Link to="/markers" className="rounded-sm font-medium text-bronze-700 underline-offset-4 hover:underline">
-          All markers
-        </Link>
-        .
-      </p>
 
       {reports === null ? (
         <div
@@ -154,7 +147,7 @@ export function PatientHome() {
               the sign-up right. */}
           <EmptyState
             title="Nothing here yet, and that's exactly right"
-            description="Your account is set up and waiting. Once you've had a sample taken, the clinic matches the result to you and a clinician reviews it. Then your first panel appears here."
+            description="Once you've had a sample taken, the clinic matches the result to you and a clinician reviews it. Then your first panel appears here."
             action={<LinkButton to="/overview">What happens next</LinkButton>}
           />
         </div>

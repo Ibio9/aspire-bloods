@@ -78,8 +78,8 @@ export function ChooseLocation({ locations, selectedAddOns, locationId, onChange
             {redirected.map((a) => a.name).join(' and ')} will come to you by post
           </p>
           <p className="mt-2 text-sm leading-relaxed text-espresso/90">
-            {selected?.name} can't take that sample on site, so we'll post you a kit within two working days of
-            booking. Your blood draw goes ahead exactly as planned, and nothing has been removed from your order.
+            {selected?.name} can't take that sample on site, so we'll post you a kit within two working days. Your
+            blood draw goes ahead exactly as planned.
           </p>
         </div>
       )}

@@ -17,12 +17,14 @@ interface NavCard {
   adminOnly?: boolean;
 }
 
+// Same destinations as the sidebar, so the descriptions say the same thing the
+// sublabels there do — short, and once.
 const CARDS: NavCard[] = [
-  { to: '/admin', title: 'Reports', description: 'Upload PDFs, enter results manually, verify, review and release.' },
-  { to: '/admin/patients', title: 'Patients', description: 'Search patients, open full profiles, manage invites, 2FA, access and erasure.' },
-  { to: '/admin/panels', title: 'Panels', description: 'The three test levels the clinic offers, what each contains, and any custom panels.' },
-  { to: '/admin/markers', title: 'Marker library', description: 'Every analyte, the explanation copy patients read, and the review queue that releases it.' },
-  { to: '/admin/audit-log', title: 'Audit log', description: 'Full system-wide activity: every action and every view, by every admin.', adminOnly: true },
+  { to: '/admin', title: 'Reports', description: 'Upload, enter, verify, review, release.' },
+  { to: '/admin/patients', title: 'Patients', description: 'Profiles, invites, access, erasure.' },
+  { to: '/admin/panels', title: 'Panels', description: 'Test levels and their contents.' },
+  { to: '/admin/markers', title: 'Marker library', description: 'Analytes and the explanation copy patients read.' },
+  { to: '/admin/audit-log', title: 'Audit log', description: 'Every action and view, by whom.', adminOnly: true },
 ];
 
 function timeAgo(iso: string): string {
@@ -192,8 +194,7 @@ function DemoSeedCard() {
             Run the demo seed now
           </Button>
           <p className="mt-2 text-xs leading-relaxed text-espresso/80">
-            Replaces the demo patient's reports with a fresh set — no redeploy needed. Touches nothing but the
-            single demo account.
+            Replaces the demo patient's reports with a fresh set. Touches nothing else.
           </p>
         </div>
       </Card>

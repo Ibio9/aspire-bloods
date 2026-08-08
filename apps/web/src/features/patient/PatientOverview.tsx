@@ -78,7 +78,7 @@ function ChangeCard({ change }: { change: ChangeItem }) {
 
 const QUICK_ROUTES = [
   { to: '/markers', label: 'All markers', body: 'Every marker you have ever had tested, with its direction of travel.', icon: MarkersIcon },
-  { to: '/trends', label: 'Trends', body: 'Put two or three markers on one timeline and see how they move together.', icon: TrendsIcon },
+  { to: '/trends', label: 'Trends', body: 'Two or three markers on one timeline.', icon: TrendsIcon },
   { to: '/library', label: 'Understanding your results', body: 'Plain-English explanations of what each marker measures.', icon: LibraryIcon },
 ];
 
@@ -174,44 +174,30 @@ export function PatientOverview() {
       <UpcomingAppointments />
 
       {/* ---------------------------------------------------------------
-          Empty state — a new patient gets an explanation of what will show
-          up and when, not seven empty sections with headings on them.
+          Empty state — what is happening and what happens next, and only
+          that. Two of the four cards here used to be a tour of the sidebar
+          ("you'll find the full panel under My results", "All markers and
+          Trends start showing direction of travel"), which is a product
+          walkthrough rather than an answer to "why is this empty".
           --------------------------------------------------------------- */}
       {!hasAnything && (
         <section aria-labelledby="whats-coming">
           <h2 id="whats-coming" className="font-display text-3xl text-espresso">
-            What you'll see here
+            What happens next
           </h2>
           <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
             <Card>
               <p className="eyebrow mb-3">Your account is ready</p>
               <p className="text-reading leading-relaxed text-espresso">
-                There's nothing here yet, and nothing has gone wrong. A new account simply starts empty.
-                Results appear once you've had a sample taken and the clinic has matched it to you.
+                Nothing has gone wrong — a new account simply starts empty. Results appear once you've had a
+                sample taken and the clinic has matched it to you.
               </p>
             </Card>
             <Card>
               <p className="eyebrow mb-3">After your appointment</p>
               <p className="text-reading leading-relaxed text-espresso">
-                Your sample goes to the laboratory, and the results come back to the Aspire clinical team first.
-                They check the result is yours before it reaches your account, and a clinician reviews it before
-                it's published. Nothing appears here automatically.
-              </p>
-            </Card>
-            <Card>
-              <p className="eyebrow mb-3">When your results are ready</p>
-              <p className="text-reading leading-relaxed text-espresso">
-                We'll email you. You'll find the full panel under <span className="font-medium">My results</span>,
-                every individual marker with its reference range and a plain-English explanation, and the original
-                laboratory PDF under <span className="font-medium">Documents</span>.
-              </p>
-            </Card>
-            <Card>
-              <p className="eyebrow mb-3">Over time</p>
-              <p className="text-reading leading-relaxed text-espresso">
-                From your second test onwards, <span className="font-medium">All markers</span> and{' '}
-                <span className="font-medium">Trends</span> start showing direction of travel: how each marker has
-                moved, and how markers move in relation to one another.
+                Your sample goes to the laboratory, and the results come back to the Aspire clinical team. A
+                clinician reviews every result before it's published, and we'll email you when yours is ready.
               </p>
             </Card>
             <ClinicContactCard />

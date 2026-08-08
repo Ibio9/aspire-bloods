@@ -12,8 +12,8 @@ import { AuthCrossLink } from './AuthCrossLink';
 import { consumeRedirect } from '../../lib/redirectAfterLogin';
 
 const LOGOUT_REASON_COPY: Record<string, string> = {
-  idle: "You were signed out after a period of inactivity, to keep your results secure.",
-  expired: 'Your session has expired. Please sign in again.',
+  idle: 'You were signed out after a period of inactivity.',
+  expired: 'Your session has expired.',
 };
 
 function readAndClearLogoutReason(): string | null {
@@ -128,13 +128,9 @@ export function LoginPage() {
         <>
           <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">Patient portal</p>
           <h2 className="auth-heading">Sign in</h2>
-          {/* Someone arriving cold has no way of knowing whose site this is
-              or what's behind the form. One line, before the fields, naming
-              the clinic and what the portal holds — that's the whole job. */}
-          <p className="mt-[var(--auth-step)] text-sm leading-relaxed text-espresso/80">
-            This is Aspire Clinic's blood test results portal. Sign in to see your results, track markers over
-            time, and book a test.
-          </p>
+          {/* Whose portal this is, and what's behind the form, is carried by
+              the left panel — the wordmark, the positioning line and the
+              clinic's own address block. A paragraph here repeated it. */}
 
           {sessionNotice && (
             <p
@@ -147,7 +143,7 @@ export function LoginPage() {
 
           <form
             onSubmit={handleCredentials}
-            className="mt-[calc(var(--auth-step)*1.6)] flex flex-col gap-[calc(var(--auth-step)*1.2)]"
+            className="mt-[calc(var(--auth-step)*1.4)] flex flex-col gap-[calc(var(--auth-step)*1.2)]"
             noValidate
           >
             <Input
@@ -212,19 +208,14 @@ export function LoginPage() {
             </Link>
           </p>
 
-          <AuthCrossLink
-            prompt="New here? Anyone can register. You don't need an invitation from the clinic."
-            to="/signup"
-            label="Create an account"
-          />
+          <AuthCrossLink prompt="New here? Anyone can register." to="/signup" label="Create an account" />
 
           {/* Invites still exist in parallel for patients the practice sets
               up directly, and that link goes to /activate, not here. Kept as
               a footnote rather than deleted: registration being open doesn't
               make an invitation email wrong, it just makes it optional. */}
           <p className="mt-[calc(var(--auth-step)*0.9)] text-xs leading-relaxed text-espresso/80">
-            If the clinic emailed you an invitation, use the link in it instead. It sets your account up with the
-            details we already hold.
+            If the clinic emailed you an invitation, use the link in it instead.
           </p>
         </>
       ) : (

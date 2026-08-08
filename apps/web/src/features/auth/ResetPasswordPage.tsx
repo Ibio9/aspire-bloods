@@ -9,8 +9,7 @@ import { AuthSplitLayout } from './AuthSplitLayout';
 
 const EYEBROW = 'Aspire Clinic';
 const HEADLINE = 'Choose a new password.';
-const SUPPORTING =
-  "One password, at least twelve characters. You'll sign in with it and your two-factor code, exactly as before.";
+const SUPPORTING = "You'll sign in with it and your two-factor code, exactly as before.";
 
 /**
  * Spending the emailed reset link.
@@ -80,8 +79,8 @@ export function ResetPasswordPage() {
         <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">Done</p>
         <h2 className="auth-heading">Your password is changed</h2>
         <p role="status" className="mt-[var(--auth-step)] text-sm leading-relaxed text-espresso/80">
-          You've been signed out everywhere else, so anyone who was in your account no longer is. Sign in with your
-          new password and we'll send your two-factor code as usual.
+          You've been signed out everywhere else. Sign in with your new password and we'll send your two-factor
+          code as usual.
         </p>
         <LinkButton to="/login" variant="primary" className="mt-[calc(var(--auth-step)*1.5)] w-full">
           Sign in
@@ -95,8 +94,7 @@ export function ResetPasswordPage() {
       <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">Password reset</p>
       <h2 className="auth-heading">Set a new password</h2>
       <p className="mt-[var(--auth-step)] text-sm leading-relaxed text-espresso/80">
-        Choose something you haven't used elsewhere. Saving it signs you out on every device, including any you
-        don't recognise.
+        Saving it signs you out on every device, including any you don't recognise.
       </p>
 
       <form

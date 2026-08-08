@@ -115,13 +115,9 @@ export function BiologicalSexCard({ variant, onSaved }: Props) {
             ? "We don't have your biological sex on file, and the laboratory can't accept an order without it."
             : "We don't have your biological sex on file. It's optional when you register, but it's worth adding."}
       </p>
+      {/* One explanation of why we ask, and only one — the consequence of
+          leaving it blank followed from the same sentence. */}
       <p className="mt-2 text-reading leading-relaxed text-espresso/80">{BIOLOGICAL_SEX_PURPOSE}</p>
-      {!editing && !blocking && (
-        <p className="mt-2 text-sm leading-relaxed text-espresso/80">
-          Without it, any result whose range differs by sex will show its range as unavailable rather than showing
-          you one that might not be yours.
-        </p>
-      )}
 
       <fieldset className="mt-5">
         <legend className="text-sm font-medium text-espresso">Biological sex</legend>
@@ -164,8 +160,8 @@ export function BiologicalSexCard({ variant, onSaved }: Props) {
       </div>
 
       <p className="mt-4 text-xs leading-relaxed text-espresso/80">
-        This is the biological sex your results are interpreted against. If neither option fits, or your record
-        needs to say something different, call the clinic and we'll handle it with you.
+        If neither option fits, or your record needs to say something different, call the clinic and we'll handle
+        it with you.
       </p>
     </Card>
   );

@@ -308,8 +308,8 @@ function UnmatchedResultCard({ result, onChanged }: { result: UnmatchedResult; o
 
         {result.candidates.length === 0 && (
           <p className="text-sm leading-relaxed text-espresso/80">
-            Nothing on file resembles this patient. If they haven't registered yet, this will keep waiting here.
-            The queue is checked against new accounts every time you open it.
+            Nothing on file resembles this patient. It keeps waiting here, and is rechecked against new accounts
+            every time you open the queue.
           </p>
         )}
 
@@ -510,9 +510,8 @@ export function LinkingPage() {
     <>
       <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Result linking" />
       <p className="mt-5 max-w-3xl text-lg leading-relaxed text-espresso">
-        Results that arrived without an account, beside accounts with nothing attached. Nothing is ever matched
-        automatically. A name on its own is never enough, and the date of birth has to agree before a link can
-        be made at all.
+        Results that arrived without an account, beside accounts with nothing attached. Nothing is matched
+        automatically: a name alone is never enough, and the date of birth must agree before a link can be made.
       </p>
 
       {queue === null ? (
@@ -561,8 +560,7 @@ export function LinkingPage() {
                 )}
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-espresso/80">
-                People who have registered and are waiting. An account here is not a problem to solve. Most are
-                simply patients who haven't been tested yet.
+                An account here is not a problem to solve — most are simply patients who haven't been tested yet.
               </p>
 
               {queue.unlinkedAccounts.length > 0 && (
@@ -615,10 +613,8 @@ export function LinkingPage() {
               <h2 id="recent-heading" className="font-display text-3xl text-espresso">
                 Recently linked
               </h2>
-              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-espresso/80">
-                A link that turns out to be wrong is usually spotted within minutes of making it, so the way back
-                is here rather than buried in the report.
-              </p>
+              {/* The section exists because a wrong link is usually spotted
+                  within minutes — the Unlink control says that by being here. */}
               <Card className="mt-6">
                 <ul className="flex flex-col">
                   {queue.recentLinks.map((l) => (

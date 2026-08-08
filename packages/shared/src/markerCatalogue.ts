@@ -84,7 +84,7 @@ export const RESULT_TYPE_RULES: Record<
     trendable: false,
     canHaveOptimalRange: false,
     framing:
-      'These are genetic indicators, not blood measurements. They describe a tendency you were born with rather than anything about your health today, they have no reference range, and they will not change between tests — so there is nothing here to track over time.',
+      'These are genetic indicators, not blood measurements. They describe a tendency you were born with rather than anything about your health today. They have no reference range and will not change between tests.',
   },
   SENSITIVITY: {
     label: 'Food sensitivity',
@@ -93,7 +93,7 @@ export const RESULT_TYPE_RULES: Record<
     trendable: false,
     canHaveOptimalRange: false,
     framing:
-      'These measure IgG reactivity to foods. There is no clinical reference range for them and no established clinical consensus on how to interpret them — they are not a test for food allergy, which is a different measurement entirely. Please discuss anything here with a clinician before changing what you eat.',
+      'These measure IgG reactivity to foods. They are not a test for food allergy, which is a different measurement entirely, and there is no reference range or agreed way to interpret them. Please discuss anything here with a clinician before changing what you eat.',
   },
   COMPOSITION: {
     label: 'Microbiome composition',
@@ -102,7 +102,7 @@ export const RESULT_TYPE_RULES: Record<
     trendable: false,
     canHaveOptimalRange: false,
     framing:
-      'These describe the relative make-up of your gut microbiome rather than an absolute amount of anything. They are reported as proportions of the whole, so they have no reference range and are not comparable with a blood measurement.',
+      'These describe the relative make-up of your gut microbiome, reported as proportions of the whole rather than absolute amounts. They have no reference range and are not comparable with a blood measurement.',
   },
 };
 

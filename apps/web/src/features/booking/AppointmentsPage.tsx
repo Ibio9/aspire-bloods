@@ -45,12 +45,8 @@ export function AppointmentsPage() {
     <>
       <Breadcrumbs items={[{ label: 'Overview', to: '/overview' }, { label: 'Appointments' }]} />
       <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="Your appointments" />
-      <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
-        Everything in your diary, and everything already behind you. Open any appointment to see what to do
-        beforehand, or to move or cancel it.
-      </p>
 
-      <div className="mt-10">
+      <div className="mt-8">
         <BookLink />
       </div>
 
@@ -85,7 +81,7 @@ export function AppointmentsPage() {
         <div className="mt-14 max-w-2xl">
           <EmptyState
             title="Nothing booked yet"
-            description="When you book a blood test it will appear here, with everything you need to do beforehand and a way to move or cancel it."
+            description="When you book a blood test it will appear here, with everything you need to do beforehand."
             action={<BookLink />}
           />
         </div>

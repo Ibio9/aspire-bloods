@@ -9,7 +9,7 @@ import { EmailCodeStep } from './EmailCodeStep';
 const EYEBROW = 'Aspire Clinic';
 const HEADLINE = 'Create your account.';
 const SUPPORTING =
-  'Set up your portal in a minute. Your results appear here once the clinic has matched them to you. Nothing is published until a clinician has reviewed it.';
+  'Your results appear here once the clinic has matched them to you, and nothing is published until a clinician has reviewed it.';
 
 interface SignupResponse {
   status: string;
@@ -69,10 +69,12 @@ export function SignupPage() {
           <>
             <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">Patient portal</p>
             <h2 className="auth-heading">Create an account</h2>
+            {/* Why the clinic needs a date of birth and a contact number is
+                said once, on the field that asks for them (see
+                RegistrationForm) rather than again here. */}
             <p className="mt-[var(--auth-step)] max-w-prose text-sm leading-relaxed text-espresso/80">
-              Anyone can register. You don't need an invitation. We'll confirm your email address, then set up
-              two-factor sign-in. Your date of birth and contact number are how the clinic makes sure a result is
-              yours before it's added to your account.
+              Anyone can register — you don't need an invitation. We'll confirm your email address, then set up
+              two-factor sign-in.
             </p>
 
             {/* The exact mirror of the band on the sign-in screen — same component,

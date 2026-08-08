@@ -64,8 +64,7 @@ export function UpcomingAppointments() {
         </h2>
         <Card className="mt-7 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
           <p className="max-w-xl text-reading leading-relaxed text-espresso">
-            When you're ready for your next panel, you can book it here. Pick the test, choose Mortimer Street or a
-            Randox clinic, and we'll tell you exactly how to prepare.
+            When you're ready for your next panel, you can book it here.
           </p>
           <Link
             to="/book"

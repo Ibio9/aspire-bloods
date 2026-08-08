@@ -227,15 +227,15 @@ export function PanelsPage() {
     <>
       <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Panels" />
       <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
-        The test levels the clinic offers, and what each one contains. A panel is optional on a report — a report with
-        no panel is titled by its marker count and date — so a marker never needs to belong to one to be reported.
+        The test levels the clinic offers, and what each contains. A panel is optional on a report: one with no
+        panel is titled by its marker count and date.
       </p>
 
       {active.length === 0 && (
         <div className="mt-8">
           <EmptyState
             title="No active panels"
-            description="Nothing is broken: reports can still be uploaded, verified and released without a panel. Reactivate one below, or create one, to offer it in the booking flow again."
+            description="Reports can still be uploaded, verified and released without a panel. Reactivate or create one to offer it in the booking flow again."
           />
         </div>
       )}
@@ -264,9 +264,6 @@ export function PanelsPage() {
       <div className="mt-14">
         <p className="eyebrow mb-4">Add a custom panel</p>
         <Card className="flex max-w-xl flex-col gap-3">
-          <p className="text-sm leading-relaxed text-espresso/80">
-            A custom panel is the same shape as the three above: a name, and a set of markers you add to it here.
-          </p>
           <Input
             label="Key"
             name="panelKey"
@@ -291,8 +288,8 @@ export function PanelsPage() {
         <div className="mt-14">
           <p className="eyebrow mb-4">Deactivated</p>
           <p className="mb-4 max-w-2xl text-sm leading-relaxed text-espresso/80">
-            Not offered any more. They stay here rather than being deleted, because reports already filed against them
-            still carry their name. Reactivating one puts it straight back in the pickers.
+            Not offered any more. Kept rather than deleted, because reports already filed against them still carry
+            their name.
           </p>
           <div className="flex flex-col gap-3">
             {archived.map((panel) => (

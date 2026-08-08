@@ -99,7 +99,7 @@ test('self-signup -> email verification -> 2FA -> empty portal', async ({ page, 
 
   // --- Signed in, on a warm empty portal rather than a blank one ---
   await expect(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })).toBeVisible({ timeout: 10000 });
-  await expect(page.getByRole('heading', { name: "What you'll see here" })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'What happens next' })).toBeVisible();
   await expect(page.getByText('a new account simply starts empty')).toBeVisible();
 
   await page.goto('/my-results');

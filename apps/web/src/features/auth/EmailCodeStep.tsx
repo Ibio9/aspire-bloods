@@ -160,7 +160,7 @@ export function EmailCodeStep({ email, sentTo, expiresInMinutes, cooldownSeconds
       <p className="mt-[var(--auth-step)] text-sm leading-relaxed text-espresso/80">
         We've sent a 6-digit code to{' '}
         <span className="font-medium text-espresso">{maskedAddress ?? 'your email address'}</span>. It's valid for{' '}
-        {expiry} minutes. Enter it here and we'll set up two-factor sign-in.
+        {expiry} minutes. Two-factor sign-in comes next.
       </p>
 
       <form
@@ -199,7 +199,7 @@ export function EmailCodeStep({ email, sentTo, expiresInMinutes, cooldownSeconds
       </form>
 
       <div className="mt-[calc(var(--auth-step)*1.4)] border-t border-taupe pt-[calc(var(--auth-step)*1.2)]">
-        <p className="text-sm text-espresso/80">Didn't get it? Check your junk folder first, then:</p>
+        <p className="text-sm text-espresso/80">Didn't get it? Check your junk folder first.</p>
         <div className="mt-[calc(var(--auth-step)*0.75)] flex flex-wrap items-center gap-x-4 gap-y-2">
           <Button
             variant="secondary"
@@ -223,7 +223,7 @@ export function EmailCodeStep({ email, sentTo, expiresInMinutes, cooldownSeconds
 
         {(exhausted || resendAttempts >= 2) && (
           <p className="mt-[var(--auth-step)] rounded-input border border-taupe bg-cream-50 px-4 py-2.5 text-sm leading-relaxed text-espresso">
-            Still nothing? Codes can be held up by spam filters. If it still hasn't arrived,{' '}
+            Codes can be held up by spam filters. If it still hasn't arrived,{' '}
             {CLINIC_PHONE && CLINIC_PHONE_HREF ? (
               <>
                 call the clinic on{' '}

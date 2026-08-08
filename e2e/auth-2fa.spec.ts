@@ -98,7 +98,8 @@ test('invite -> activate -> login -> 2FA -> session', async ({ page, request }) 
 
   // --- Lands on the portal Overview, freshly activated with no results yet ---
   await expect(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })).toBeVisible({ timeout: 10000 });
-  // A brand-new patient gets an explanation of what will appear and when, not empty sections.
-  await expect(page.getByRole('heading', { name: "What you'll see here" })).toBeVisible();
+  // A brand-new patient is told what is happening and what happens next, not
+  // given a tour of the sidebar.
+  await expect(page.getByRole('heading', { name: 'What happens next' })).toBeVisible();
   await expect(page.getByText('Once you have had a sample taken')).toBeVisible();
 });

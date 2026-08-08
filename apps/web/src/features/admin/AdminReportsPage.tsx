@@ -193,7 +193,7 @@ function PdfUploadForm({
         <div className="flex flex-col gap-1.5">
           <Select
             label="Which test package?"
-            hint="A panel is a bundle of markers run on one sample, such as Core, Insight 360 or Signature. Leave it on individual markers for a one-off or repeat test that isn't part of a package."
+            hint="A bundle of markers run on one sample — Core, Insight 360 or Signature. Leave it on individual markers for a one-off test."
             name="panelId"
             emptyMessage={<ConfigureLink what="panels" />}
             value={panelId}
@@ -215,7 +215,6 @@ function PdfUploadForm({
         </div>
         <Select
           label="Where was this analysed?"
-          hint="The lab or process that produced this result."
           name="sourceId"
           emptyMessage={<ConfigureLink what="sources" />}
           value={sourceId}
@@ -336,8 +335,7 @@ function ManualEntryForm({
         noValidate
       >
         <p className="text-sm text-espresso/80">
-          For Aspire's own in-house testing. Enter values directly instead of uploading a PDF. It goes through the
-          same verify-and-release process as everything else.
+          For Aspire's own in-house testing. It goes through the same verify-and-release process as everything else.
         </p>
         <Select
           label="Patient"
@@ -357,7 +355,7 @@ function ManualEntryForm({
         <div className="flex flex-col gap-1.5">
           <Select
             label="Which test package?"
-            hint="A panel is a bundle of markers run on one sample, such as Core, Insight 360 or Signature. Leave it on individual markers for a one-off or repeat test that isn't part of a package."
+            hint="A bundle of markers run on one sample — Core, Insight 360 or Signature. Leave it on individual markers for a one-off test."
             name="manualPanelId"
             emptyMessage={<ConfigureLink what="panels" />}
             value={panelId}
@@ -578,8 +576,7 @@ export function AdminReportsPage() {
           )}
         </div>
         <p className="mt-1 mb-4 text-xs text-espresso/80">
-          Reports still moving through the pipeline are listed first, closest to release first. Released reports
-          trail behind, most recent first.
+          Still in the pipeline first, closest to release; released reports follow, most recent first.
         </p>
         {reports === null && (
           <div className="flex flex-col gap-3" aria-busy="true" aria-label="Loading reports">

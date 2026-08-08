@@ -26,8 +26,12 @@ const COLLAPSE_KEY = 'aspire_patient_sidebar_collapsed';
 interface NavItem {
   to: string;
   label: string;
-  /** One line under the label when expanded — the patient side has room for it and benefits from it. */
-  hint: string;
+  /**
+   * One line under the label, only where the label alone is genuinely
+   * ambiguous. "Trends" and "Documents" explain themselves; "All markers"
+   * next to "My results" and "Understanding your results" does not.
+   */
+  hint?: string;
   icon: (props: React.SVGProps<SVGSVGElement>) => JSX.Element;
   /**
    * Extra path prefixes this item owns. Booking and appointments are one
@@ -38,20 +42,14 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { to: '/overview', label: 'Overview', hint: 'Your latest results at a glance', icon: OverviewIcon },
-  {
-    to: '/book',
-    label: 'Book a test',
-    hint: 'Panels, clinics and appointment times',
-    icon: BookTestIcon,
-    alsoActiveOn: ['/appointments'],
-  },
-  { to: '/my-results', label: 'My results', hint: 'Every panel you’ve had', icon: PanelsIcon },
-  { to: '/markers', label: 'All markers', hint: 'Everything ever tested, in one list', icon: MarkersIcon },
-  { to: '/trends', label: 'Trends', hint: 'Compare markers over time', icon: TrendsIcon },
+  { to: '/overview', label: 'Overview', icon: OverviewIcon },
+  { to: '/book', label: 'Book a test', icon: BookTestIcon, alsoActiveOn: ['/appointments'] },
+  { to: '/my-results', label: 'My results', icon: PanelsIcon },
+  { to: '/markers', label: 'All markers', hint: 'Every marker you’ve had tested', icon: MarkersIcon },
+  { to: '/trends', label: 'Trends', icon: TrendsIcon },
   { to: '/library', label: 'Understanding your results', hint: 'What each marker means', icon: LibraryIcon },
-  { to: '/documents', label: 'Documents', hint: 'Download your PDFs', icon: DocumentsIcon },
-  { to: '/account', label: 'Account & privacy', hint: 'Profile, consents, your data', icon: AccountIcon },
+  { to: '/documents', label: 'Documents', icon: DocumentsIcon },
+  { to: '/account', label: 'Account & privacy', icon: AccountIcon },
 ];
 
 function SidebarLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed: boolean; onNavigate?: () => void }) {
@@ -88,7 +86,7 @@ function SidebarLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed
           {!collapsed && (
             <span className="min-w-0 flex-1">
               <span className={`block truncate text-reading ${isActive ? 'font-semibold' : 'font-medium'}`}>{item.label}</span>
-              <span className="mt-0.5 block text-xs leading-snug text-espresso/80">{item.hint}</span>
+              {item.hint && <span className="mt-0.5 block text-xs leading-snug text-espresso/80">{item.hint}</span>}
             </span>
           )}
           {collapsed && (

@@ -59,8 +59,11 @@ async function registerAndVerify(page: import('@playwright/test').Page, request:
 test('the sign-in screen says whose portal this is and routes to registration', async ({ page }) => {
   await page.goto('/login');
 
-  // Someone arriving cold has to be able to tell what this is.
-  await expect(page.getByText("Aspire Clinic's blood test results portal")).toBeVisible();
+  // Someone arriving cold has to be able to tell what this is. The form itself
+  // no longer explains what signing in is — whose portal this is is carried by
+  // the left panel: the wordmark, the positioning line and the address block.
+  await expect(page.getByRole('heading', { name: 'Your results, explained.' })).toBeVisible();
+  await expect(page.getByText('Aspire Clinic, part of the Aspire Group of Companies')).toBeVisible();
 
   // The route to /signup that used to not exist anywhere in the product.
   const createAccount = page.getByRole('link', { name: 'Create an account' });

@@ -42,9 +42,10 @@ export function ChooseTest({ panels, addOns, panelId, onPanelChange, addOnIds, o
         <h2 id="add-ons-heading" className="font-display text-2xl leading-tight text-espresso sm:text-3xl">
           Add anything alongside it
         </h2>
+        {/* Which of them share the draw and which arrives by post is on each
+            card already, in its own row — it doesn't need saying twice. */}
         <p className="mt-3 max-w-2xl text-reading leading-relaxed text-espresso/90">
-          These four sit outside the standard panels and can be added to any of them. Three come from the same draw
-          and add nothing to your appointment; Calprotectin is a home kit we post to you.
+          These sit outside the standard panels and can be added to any of them.
         </p>
         <div className="mt-7 grid grid-cols-1 gap-5 lg:grid-cols-2">
           {addOns.map((addOn) => (

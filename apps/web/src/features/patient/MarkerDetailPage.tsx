@@ -250,8 +250,8 @@ export function MarkerDetailPage() {
                   ? `below ${detail.optimal.high} ${detail.optimal.unit}`
                   : `${detail.optimal.low} ${detail.optimal.unit} or above`}
             </span>
-            . The optimal range is separate context from published clinical guidance, not part of how this result was
-            classified. Source: {detail.optimal.source}
+            . The optimal range is published clinical guidance, separate from how this result was classified.
+            Source: {detail.optimal.source}
           </p>
         </Card>
       )}

@@ -299,7 +299,7 @@ export function ReportView() {
             description={
               byType.measured.length === 0
                 ? 'This report has no standard blood measurements. Anything it does contain is shown in the sections below.'
-                : 'Try clearing the search box, or widening the state and health area you have chosen. Markers that were not part of this panel are never listed here, so a narrower filter cannot reveal them.'
+                : 'Try clearing the search box, or widening the state and health area you have chosen.'
             }
             action={filtersApplied ? <Button onClick={clearFilters}>Clear filters</Button> : undefined}
           />

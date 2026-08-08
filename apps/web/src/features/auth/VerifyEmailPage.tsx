@@ -10,7 +10,7 @@ import { Button } from '../../components/ui/Button';
 const EYEBROW = 'Aspire Clinic';
 const HEADLINE = 'Confirm your email.';
 const SUPPORTING =
-  "A six-digit code to prove this is your address, then a one-time code to set up two-factor sign-in. After that you're in.";
+  'A six-digit code to confirm this is your address, then a one-time code to set up two-factor sign-in.';
 
 interface ResendResponse {
   sentTo?: string;

@@ -183,9 +183,6 @@ export function AllMarkersPage() {
   return (
     <>
       <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="All markers" />
-      <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
-        Everything you've ever had tested, whichever report it came from, with its latest value and how it has moved.
-      </p>
 
       {markers === null ? (
         <div className="mt-10 flex flex-col gap-4" aria-busy="true" aria-label="Loading your markers">
@@ -200,7 +197,7 @@ export function AllMarkersPage() {
         <div className="mt-10 max-w-2xl">
           <EmptyState
             title="Nothing tested yet"
-            description="Once your first results have been reviewed and released, every marker in them will be listed here. From your second test onwards, each one will show which way it's heading."
+            description="Once your first results have been released, every marker in them is listed here. From your second test onwards, each one shows which way it's heading."
             action={<LinkButton to="/overview">Back to overview</LinkButton>}
           />
         </div>
@@ -269,7 +266,7 @@ export function AllMarkersPage() {
             <div className="mt-4 max-w-2xl">
               <EmptyState
                 title="Nothing matches those filters"
-                description="Try clearing the search box, or widening the state and health area you have chosen. Only markers you have actually had tested are ever listed here, so a narrower filter cannot reveal one you have not had."
+                description="Try clearing the search box, or widening the state and health area you have chosen."
                 action={filtersApplied ? <Button onClick={clearFilters}>Clear filters</Button> : undefined}
               />
             </div>

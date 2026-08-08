@@ -9,7 +9,7 @@ import { AuthSplitLayout } from './AuthSplitLayout';
 const EYEBROW = 'Aspire Clinic';
 const HEADLINE = 'Locked out? Not for long.';
 const SUPPORTING =
-  "Tell us the address you registered with and we'll email you a link to set a new password. Your results are untouched either way.";
+  "Tell us the address you registered with and we'll email you a link to set a new password.";
 
 function validateEmail(value: string): string | undefined {
   if (!value) return 'Email address is required.';
@@ -61,7 +61,7 @@ export function ForgotPasswordPage() {
           a new password is on its way. It can take a minute to arrive, so check your junk folder too.
         </p>
         <p className="mt-[calc(var(--auth-step)*0.75)] text-sm leading-relaxed text-espresso/80">
-          The link can only be used once, and it expires. Nothing about your account has changed until you use it.
+          The link can only be used once, and it expires. Nothing has changed until you use it.
         </p>
 
         <div className="mt-[calc(var(--auth-step)*1.5)] border-t border-taupe pt-[calc(var(--auth-step)*1.25)]">
@@ -96,8 +96,7 @@ export function ForgotPasswordPage() {
       <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">Patient portal</p>
       <h2 className="auth-heading">Reset your password</h2>
       <p className="mt-[var(--auth-step)] text-sm leading-relaxed text-espresso/80">
-        Enter the email address you registered with. We'll send you a link to choose a new password. You'll still
-        need your two-factor code to sign in afterwards.
+        You'll still need your two-factor code to sign in afterwards.
       </p>
 
       <form

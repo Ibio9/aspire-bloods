@@ -7,7 +7,7 @@ import { RegistrationForm } from './RegistrationForm';
 const ACTIVATE_EYEBROW = 'Aspire Clinic';
 const ACTIVATE_HEADLINE = 'Activate your account.';
 const ACTIVATE_SUPPORTING =
-  'You were invited by the clinic. Set up your details once and your results are waiting the moment they land.';
+  'Set up your details once, and your results are waiting the moment they land.';
 
 /**
  * Activation is an auth screen like the other three, so it uses the same
@@ -55,7 +55,7 @@ export function ActivatePage() {
             <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">Aspire Clinic</p>
             <h2 className="auth-heading">Activate your account</h2>
             <p className="mt-[var(--auth-step)] max-w-prose text-sm leading-relaxed text-espresso/80">
-              A few details for our records, then set a password to finish setting up your portal account.
+              A few details for our records, then a password.
             </p>
           </>
         }

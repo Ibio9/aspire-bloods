@@ -33,7 +33,7 @@ export function NotFoundPage() {
         <p className="mt-5 font-display text-3xl leading-tight text-espresso">This page doesn’t exist</p>
         <p className="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-espresso/80">
           There’s nothing at <span className="break-all font-medium">{location.pathname}</span>. The link may be out
-          of date, or it may have been typed slightly wrong.
+          of date, or typed slightly wrong.
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <LinkButton to={home}>{homeLabel}</LinkButton>

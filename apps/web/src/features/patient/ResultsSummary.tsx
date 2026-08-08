@@ -88,9 +88,6 @@ export function CountsStrip({
           );
         })}
       </ul>
-      {onSelectStatus && (
-        <p className="mt-2 text-xs text-espresso/80">Select a state to filter the results below.</p>
-      )}
     </div>
   );
 }
@@ -141,9 +138,10 @@ export function CategorySummaryBars({
   return (
     <div className="mt-12">
       <p className="eyebrow mb-1">By health area</p>
+      {/* The overlap is the one thing the bars can't show for themselves —
+          without it the counts look like they should add up to the total. */}
       <p className="mb-5 max-w-2xl text-sm text-espresso/80">
-        Where this report's markers sit within each area of your health. Areas overlap — several markers appear in
-        more than one.
+        Areas overlap — a marker can appear in more than one.
       </p>
       <ul className="flex flex-col gap-4">
         {areas.map(({ category, members }) => {

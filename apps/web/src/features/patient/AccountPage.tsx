@@ -132,8 +132,7 @@ export function AccountPage() {
           <Card>
             <p className="eyebrow mb-3">Appearance</p>
             <p className="text-sm text-espresso">
-              Choose how the portal looks on this device. Your choice is saved here rather than to your account, so
-              your phone and your computer can differ.
+              Saved on this device rather than to your account, so your phone and your computer can differ.
             </p>
             <ThemeToggle className="mt-4" />
           </Card>
@@ -196,8 +195,7 @@ export function AccountPage() {
         {confirmWithdraw && (
           <p>
             You're about to withdraw consent for <strong>{CONSENT_LABEL[confirmWithdraw]}</strong>. Depending on
-            which consent this is, we may no longer be able to provide parts of the portal. You can review the
-            detail above before continuing.
+            which consent this is, we may no longer be able to provide parts of the portal.
           </p>
         )}
       </Modal>

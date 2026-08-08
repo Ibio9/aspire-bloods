@@ -26,17 +26,17 @@ const COLLAPSE_KEY = 'aspire_admin_sidebar_collapsed';
 interface NavItem {
   to: string;
   label: string;
-  /** One line under the label. The admin sidebar carried bare labels and three
-   * identical shield icons; "Ingestion log" and "Audit log" are not
-   * self-explanatory names, and the sublabel is what tells them apart. */
-  hint: string;
+  /** One line under the label, where the label alone is genuinely ambiguous.
+   * "Ingestion log" and "Audit log" are not self-explanatory names, and the
+   * sublabel is what tells them apart. "Patients" needs no such help. */
+  hint?: string;
   icon: (props: React.SVGProps<SVGSVGElement>) => JSX.Element;
   adminOnly?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
   { to: '/admin', label: 'Reports & entry', hint: 'Upload, verify, review, release', icon: ReportsIcon },
-  { to: '/admin/patients', label: 'Patients', hint: 'Profiles, invites, access, erasure', icon: PatientsIcon },
+  { to: '/admin/patients', label: 'Patients', icon: PatientsIcon },
   // Sits directly under Patients: it's the same subject (who is who) at the
   // moment it matters most, not a reporting screen.
   { to: '/admin/linking', label: 'Result linking', hint: 'Match a result to a patient', icon: LinkingIcon, adminOnly: true },
@@ -73,7 +73,7 @@ function SidebarLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed
           {!collapsed && (
             <span className="min-w-0 flex-1">
               <span className={`block truncate text-sm ${isActive ? 'font-semibold' : 'font-medium'}`}>{item.label}</span>
-              <span className="mt-px block truncate text-xs leading-snug text-espresso/80">{item.hint}</span>
+              {item.hint && <span className="mt-px block truncate text-xs leading-snug text-espresso/80">{item.hint}</span>}
             </span>
           )}
           {collapsed && (

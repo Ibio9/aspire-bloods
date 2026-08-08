@@ -131,8 +131,8 @@ export function AppointmentDetailPage() {
           </p>
           <p className="mt-4 text-reading leading-relaxed text-espresso">
             We've emailed you a confirmation. Your reference is{' '}
-            <span className="tabular font-semibold">{appointment.reference}</span>. Quote it if you call us. Read the
-            preparation below before the day; it's the part that matters.
+            <span className="tabular font-semibold">{appointment.reference}</span> — quote it if you call us. Read
+            the preparation below before the day.
           </p>
         </div>
       )}
@@ -157,8 +157,7 @@ export function AppointmentDetailPage() {
             This appointment was cancelled
           </p>
           <p className="mt-3 text-reading leading-relaxed text-espresso/90">
-            Nothing was taken and nothing is owed. The record stays here so your history is complete. Book again
-            whenever you're ready.
+            Nothing was taken and nothing is owed. Book again whenever you're ready.
           </p>
           <Button className="mt-6" onClick={() => navigate('/book')}>
             Book another test
@@ -190,10 +189,7 @@ export function AppointmentDetailPage() {
             <Link to={`/reports/${appointment.reportId}`} className="mt-6 block rounded-card">
               <Card interactive>
                 <p className="font-display text-2xl leading-tight text-espresso">{panel?.name ?? 'Your panel'}</p>
-                <p className="mt-3 text-reading leading-relaxed text-espresso/90">
-                  The panel from this appointment has been reviewed and released to you.
-                </p>
-                <p className="mt-5 flex items-center gap-1.5 text-sm font-medium text-bronze-700">
+                <p className="mt-4 flex items-center gap-1.5 text-sm font-medium text-bronze-700">
                   Open the full panel <ArrowRightIcon />
                 </p>
               </Card>
@@ -203,8 +199,7 @@ export function AppointmentDetailPage() {
               <p className="text-reading leading-relaxed text-espresso/90">
                 Your sample is with the laboratory. Results for {panel?.name ?? 'this panel'} usually take{' '}
                 {combinedTurnaround(panel, addOns).label}, {expectedResultsLabel(panel, addOns, appointment.date)}.
-                They come back to the Aspire clinical team first, and nothing is published to you until a clinician
-                has reviewed it.
+                Nothing is published to you until a clinician has reviewed it.
               </p>
             </Card>
           )}
@@ -221,8 +216,8 @@ export function AppointmentDetailPage() {
           {changeable ? (
             <>
               <p className="mt-4 max-w-2xl text-reading leading-relaxed text-espresso/90">
-                You can move or cancel this appointment yourself up to {bookingService.changeCutoffHours} hours
-                beforehand. After that, give us a call and we'll sort it out with you.
+                You can move or cancel this yourself up to {bookingService.changeCutoffHours} hours beforehand.
+                After that, give us a call.
               </p>
               <div className="mt-7 flex flex-wrap gap-3">
                 <Button onClick={() => navigate(`/appointments/${appointment.id}/reschedule`)}>
@@ -241,9 +236,8 @@ export function AppointmentDetailPage() {
                   Too close to change online
                 </p>
                 <p className="mt-3 text-reading leading-relaxed text-espresso/90">
-                  Appointments can be moved or cancelled here up to {bookingService.changeCutoffHours} hours
-                  beforehand, and yours is inside that window. Please call the clinic. We would much rather rearrange
-                  it than have you not turn up.
+                  Yours is inside the {bookingService.changeCutoffHours}-hour window, so please call the clinic. We
+                  would much rather rearrange it than have you not turn up.
                 </p>
               </Card>
               <ClinicContactCard />

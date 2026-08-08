@@ -96,9 +96,6 @@ export function TrendsPage() {
   return (
     <>
       <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="Trends" />
-      <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
-        Put up to {MAX_SELECTED} markers on one timeline to see how they've moved in relation to each other.
-      </p>
 
       {markers === null ? (
         // The header stays put while this loads — only the content arrives.
@@ -119,7 +116,7 @@ export function TrendsPage() {
         <div className="mt-10 max-w-2xl">
           <EmptyState
             title="Not enough history yet"
-            description="A trend needs at least two results for the same marker. Once you've had a second test, everything measured on both will be plottable here."
+            description="A trend needs at least two results for the same marker. Once you've had a second test, everything measured on both appears here."
             action={<LinkButton to="/markers">See all markers</LinkButton>}
           />
         </div>
@@ -192,7 +189,7 @@ export function TrendsPage() {
 
               {selected.length >= MAX_SELECTED && (
                 <p className="mt-3 text-xs text-espresso/80">
-                  That's the maximum. Deselect one to swap it out. More than three lines stops being a comparison.
+                  That's the maximum. Deselect one to swap it out.
                 </p>
               )}
             </Card>
@@ -204,9 +201,10 @@ export function TrendsPage() {
               // choosing a first marker never jumps the layout.
               <Card className="flex min-h-96 flex-col items-center justify-center text-center">
                 <p className="font-display text-3xl text-espresso">Pick a marker to begin</p>
+                {/* How the shared band works is explained once, on the chart
+                    it belongs to, rather than here as well. */}
                 <p className="mt-3 max-w-md text-reading leading-relaxed text-espresso/80">
-                  Choose two or three from the list, or start with one of the common comparisons. Each marker is
-                  plotted against its own reference range, so markers measured in different units can share one chart.
+                  Choose two or three from the list, or start with one of the common comparisons.
                 </p>
               </Card>
             ) : loadingSeries || series === null ? (
@@ -223,8 +221,8 @@ export function TrendsPage() {
                 <Card>
                   <p className="eyebrow mb-1">Compared over time</p>
                   <p className="mb-6 text-sm leading-relaxed text-espresso/80">
-                    The shaded band is the usual reference range, shared by every line, because each marker is
-                    plotted against its own. A line inside the band is within range for that marker.
+                    Each marker is plotted against its own reference range, so the shaded band is shared: a line
+                    inside it is in range for that marker.
                   </p>
                   <MultiTrendChart series={series} />
                 </Card>
