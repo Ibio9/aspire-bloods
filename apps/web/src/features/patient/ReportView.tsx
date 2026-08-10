@@ -365,11 +365,14 @@ export function ReportView() {
         activeStatus={statusFilter}
         onSelectStatus={(s) => setStatusFilter(s as StatusFilter)}
       />
+      {/* Each area opens where it is, showing its own markers underneath its
+          own bar, rather than rewriting the grid several screens below and
+          leaving the reader where they clicked. */}
       <CategorySummaryBars
         markers={byType.measured}
         categories={report.categories ?? []}
-        activeCategory={categoryFilter}
-        onSelectCategory={setCategoryFilter}
+        visibleMarkers={visible}
+        renderMarker={(m) => <ResultCard key={m.markerId} marker={m} navState={navState} />}
       />
 
       <div className="mt-14">

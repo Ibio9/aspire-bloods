@@ -1,5 +1,7 @@
+import { useId, useState, type ReactNode } from 'react';
 import { countable, type MarkerStatus } from '@aspire-bloods/shared';
 import { statusBarClass, statusLabel, statusTintClass } from '../../lib/markerCopy';
+import { Collapsible } from '../../components/ui/Collapsible';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 
 /**
@@ -119,7 +121,7 @@ export interface SummaryCategory {
 
 /**
  * One bar per health area, showing the proportion of that area's markers in
- * each state.
+ * each state — and, when opened, that area's markers directly beneath it.
  *
  * Three things carry the breakdown, and colour is the last of them: each
  * segment has its own hatch (flat in range, open hatch out of range, dense
@@ -127,18 +129,49 @@ export interface SummaryCategory {
  * written count beneath it; and the whole bar has an accessible label spelling
  * the counts out in words. Someone who cannot see any of the three colours
  * loses nothing.
+ *
+ * WHY THESE OPEN IN PLACE. Clicking an area used to set the page's health-area
+ * filter, which rewrote the grid at the bottom of the page and left the reader
+ * looking at the summary they had just clicked, with no indication that the
+ * thing they asked for was now several screens below. On a Signature panel that
+ * is a long way down. An area is a section of the report, so it behaves like
+ * one: it opens where it is, and what it contains appears under it.
+ *
+ * Several can be open at once, because comparing two areas is the obvious next
+ * thing to want and an accordion that closes one to open another makes that
+ * impossible. Nothing here is remembered between visits, in keeping with the
+ * rest of the results filtering.
+ *
+ * The bars themselves count the WHOLE report, not the filtered set. A
+ * proportion that moved every time you typed in the search box would be a
+ * different statistic on every keystroke. What opens beneath is the filtered
+ * set, so search and the status filter do what they always did: change what is
+ * displayed, never what is counted.
  */
-export function CategorySummaryBars({
+export function CategorySummaryBars<T extends SummaryMarker>({
   markers,
   categories,
-  onSelectCategory,
-  activeCategory,
+  visibleMarkers,
+  renderMarker,
+  emptyLabel = 'Nothing in this area matches the filters above.',
 }: {
-  markers: SummaryMarker[];
+  /** Every measured marker on the report. The bars are a summary of all of them. */
+  markers: T[];
   categories: SummaryCategory[];
-  onSelectCategory?: (key: string | 'ALL') => void;
-  activeCategory?: string;
+  /**
+   * The filtered, sorted set the page is currently showing. Only these appear
+   * inside an opened area — omit it and the areas are summary bars only, with
+   * nothing to open.
+   */
+  visibleMarkers?: T[];
+  /** How one marker renders. Kept out here so this file never has to know what a result card is. */
+  renderMarker?: (marker: T, index: number) => ReactNode;
+  emptyLabel?: string;
 }) {
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const headingId = useId().replace(/:/g, '');
+  const expandable = !!renderMarker && !!visibleMarkers;
+
   // MEASURED areas only — a bar of "proportion in range" over a set of genetic
   // indicators would be a statement about nothing. And within those, only the
   // results that were actually compared against a range: a bar is a proportion,
@@ -151,6 +184,15 @@ export function CategorySummaryBars({
 
   if (areas.length === 0) return null;
 
+  function toggle(key: string) {
+    setOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
   return (
     <div className="mt-12">
       <p className="eyebrow mb-5">By health area</p>
@@ -159,28 +201,50 @@ export function CategorySummaryBars({
           const counts = countByStatus(members);
           const segments = BAR_ORDER.filter((s) => counts[s] > 0);
           const spoken = segments.map((s) => `${counts[s]} ${statusLabel(s).toLowerCase()}`).join(', ');
-          const selected = activeCategory === category.key;
-          const Wrapper = onSelectCategory ? 'button' : 'div';
+          const isOpen = expandable && open.has(category.key);
+          const shown = (visibleMarkers ?? []).filter((m) => m.categoryKeys?.includes(category.key));
+          const buttonId = `${headingId}-area-${category.key}`;
+          const panelId = `${headingId}-panel-${category.key}`;
+          const Wrapper = expandable ? 'button' : 'div';
 
           return (
-            <li key={category.key}>
+            <li key={category.key} className={`rounded-card border ${isOpen ? 'border-bronze bg-cream-100 shadow-card' : 'border-taupe bg-cream-50'} transition-colors duration-150 ease-out`}>
               <Wrapper
-                {...(onSelectCategory
+                {...(expandable
                   ? {
                       type: 'button' as const,
-                      onClick: () => onSelectCategory(selected ? 'ALL' : category.key),
-                      'aria-pressed': selected,
+                      id: buttonId,
+                      onClick: () => toggle(category.key),
+                      'aria-expanded': isOpen,
+                      'aria-controls': panelId,
                     }
                   : {})}
-                className={`w-full rounded-card border p-4 text-left transition duration-150 ease-out ${
-                  selected ? 'border-bronze bg-cream-100 shadow-card' : 'border-taupe bg-cream-50'
-                } ${onSelectCategory ? 'cursor-pointer hover:border-bronze/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze' : ''}`}
+                className={`w-full rounded-card p-4 text-left ${
+                  expandable
+                    ? 'cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze'
+                    : ''
+                }`}
               >
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                   <p className="font-display text-lg leading-tight text-espresso">{category.name}</p>
-                  <p className="tabular text-xs text-espresso/80">
-                    {members.length} marker{members.length === 1 ? '' : 's'}
-                  </p>
+                  <span className="flex shrink-0 items-center gap-3">
+                    <span className="tabular text-xs text-espresso/80">
+                      {members.length} marker{members.length === 1 ? '' : 's'}
+                    </span>
+                    {/* Rotation is decoration; aria-expanded on the button is
+                        what actually reports the state. */}
+                    {expandable && (
+                      <svg
+                        width="12"
+                        height="8"
+                        viewBox="0 0 12 8"
+                        aria-hidden="true"
+                        className={`text-espresso/80 motion-safe:transition-transform motion-safe:duration-200 ${isOpen ? 'rotate-180' : ''}`}
+                      >
+                        <path d="M1 1L6 6L11 1" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </span>
                 </div>
 
                 <div
@@ -209,6 +273,31 @@ export function CategorySummaryBars({
                 </p>
                 {category.note && <p className="mt-2 text-xs italic text-espresso/80">{category.note}</p>}
               </Wrapper>
+
+              {expandable && (
+                <Collapsible open={isOpen} id={panelId} labelledBy={buttonId}>
+                  <div className="border-t border-taupe px-4 pb-5 pt-5">
+                    {shown.length === 0 ? (
+                      <p className="text-sm text-espresso/80">{emptyLabel}</p>
+                    ) : (
+                      <>
+                        {/* An area with twenty-one markers in it is the case
+                            this layout has to survive, so the cards go into the
+                            same responsive grid the flat results view uses
+                            rather than a single tall column. */}
+                        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                          {shown.map((m, i) => renderMarker!(m, i))}
+                        </div>
+                        {shown.length !== members.length && (
+                          <p className="mt-4 text-xs text-espresso/80" role="status">
+                            {shown.length} of {members.length} shown, by the filters above.
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </Collapsible>
+              )}
             </li>
           );
         })}

@@ -23,6 +23,7 @@ import {
   type OptimalRangeDTO,
 } from '@aspire-bloods/shared';
 import { formatAxisDate } from '../../lib/patientPortal';
+import { useReducedMotion } from '../../lib/useReducedMotion';
 import { statusColor, statusLabel } from '../../lib/markerCopy';
 
 /**
@@ -61,19 +62,6 @@ import { statusColor, statusLabel } from '../../lib/markerCopy';
  * unconditionally — which, on a patient's very first result, was a sentence
  * about a comparison that hadn't happened.
  */
-
-function useReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-  );
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const onChange = () => setReduced(mq.matches);
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
-  return reduced;
-}
 
 /**
  * A calendar date as an epoch value, for a time-scaled axis.
