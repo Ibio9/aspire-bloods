@@ -243,7 +243,7 @@ export function MarkerListView({
         <div className="max-w-2xl">
           <EmptyState
             title="Nothing tested yet"
-            description="Once your first results have been released, every marker in them is listed here. From your second test onwards, each one shows which way it's heading."
+            description="Every marker from your first released results is listed here."
             action={<LinkButton to="/overview">Back to overview</LinkButton>}
           />
         </div>
@@ -282,7 +282,6 @@ export function MarkerListView({
             <div className="mt-4 max-w-2xl">
               <EmptyState
                 title="Nothing matches those filters"
-                description="Try clearing the search box, or widening the state and health area you have chosen."
                 action={filtersApplied ? <Button onClick={clearFilters}>Clear filters</Button> : undefined}
               />
             </div>

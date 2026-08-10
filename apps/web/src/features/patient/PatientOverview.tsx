@@ -189,7 +189,7 @@ export function PatientOverview() {
             <Card>
               <p className="eyebrow mb-3">Your account is ready</p>
               <p className="text-reading leading-relaxed text-espresso">
-                Nothing has gone wrong — a new account simply starts empty. Results appear once you've had a
+                Nothing has gone wrong. A new account simply starts empty, and results appear once you've had a
                 sample taken and the clinic has matched it to you.
               </p>
             </Card>
@@ -286,9 +286,9 @@ export function PatientOverview() {
           <h2 id="changes-heading" className="font-display text-3xl text-espresso">
             What's changed
           </h2>
-          <p className="mt-3 max-w-2xl text-reading leading-relaxed text-espresso/90">
-            Markers that moved meaningfully since your previous result, in either direction.
-          </p>
+          {/* No standfirst: every card below carries its own movement label and
+              the date it is compared with, which is the whole of what the
+              sentence said. */}
           <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {data.changes.map((change, i) => (
               <Reveal key={change.markerId} delay={staggerDelay(i)} className="h-full">

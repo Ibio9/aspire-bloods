@@ -742,6 +742,6 @@ export const typography = {
   numeric: {
     fontFamily: '"Inter", sans-serif',
     fontVariantNumeric: 'tabular-nums',
-    role: 'Marker values, reference ranges, axis labels — always tabular for column alignment',
+    role: 'Marker values, reference ranges, axis labels; always tabular for column alignment',
   },
 } as const;

@@ -19,9 +19,9 @@ import type { LibraryEntry } from '../../lib/patientPortal';
  * up on what ferritin actually measures shouldn't first have to find a
  * ferritin result.
  *
- * Entries expand in place — the copy is a few paragraphs, so a page per
- * marker would be a navigation step that buys nothing, and it would push
- * "read about a marker" to three clicks from Overview.
+ * Entries expand in place: the copy is a few paragraphs, so a page per marker
+ * would be a navigation step that buys nothing, and it would push "read about
+ * a marker" to three clicks from Overview.
  */
 
 type LibraryFilter = 'ALL' | 'MINE';
@@ -146,11 +146,10 @@ export function MarkerLibraryPage() {
 
   return (
     <>
+      {/* No standfirst. It said the page contained plain-English explanations,
+          which is what the page visibly is, and that nothing here is a
+          diagnosis, which the footer disclaimer says on every screen. */}
       <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="Understanding your results" />
-      <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
-        Plain-English explanations of what each marker measures, written and reviewed by the Aspire clinical team.
-        Nothing here is a diagnosis.
-      </p>
 
       {error ? (
         <div className="mt-10">
@@ -197,10 +196,7 @@ export function MarkerLibraryPage() {
 
           {visible.length === 0 ? (
             <div className="mt-4 max-w-2xl">
-              <EmptyState
-                title="Nothing matches"
-                description="Try a different spelling, or switch “Show” back to every marker."
-              />
+              <EmptyState title="No marker matches that" />
             </div>
           ) : (
             <div className="mt-4 flex flex-col gap-4">

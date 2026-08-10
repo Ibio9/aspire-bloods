@@ -49,27 +49,35 @@ function parts(value: string | Date): { y: number; m: number; d: number } | null
   return { y: parsed.getFullYear(), m: parsed.getMonth(), d: parsed.getDate() };
 }
 
-/** "5 August 2026" — the house format for every user-facing date. */
+/**
+ * What a date slot says when there is no date in it. Words rather than a dash,
+ * for the same reason a marker with no result says so in words: a punctuation
+ * mark standing in for a fact is something the reader has to decode, and half
+ * of them decode it as a rendering fault.
+ */
+const NO_DATE = 'Not recorded';
+
+/** "5 August 2026", the house format for every user-facing date. */
 export function formatDate(value: string | Date | null | undefined): string {
-  if (!value) return '—';
+  if (!value) return NO_DATE;
   const p = parts(value);
-  if (!p) return '—';
+  if (!p) return NO_DATE;
   return `${p.d} ${MONTHS[p.m]} ${p.y}`;
 }
 
-/** "5 Aug 2026" — chart axes and other genuinely space-constrained places only. */
+/** "5 Aug 2026", for chart axes and other genuinely space-constrained places only. */
 export function formatDateShort(value: string | Date | null | undefined): string {
-  if (!value) return '—';
+  if (!value) return NO_DATE;
   const p = parts(value);
-  if (!p) return '—';
+  if (!p) return NO_DATE;
   return `${p.d} ${MONTHS_SHORT[p.m]} ${p.y}`;
 }
 
-/** "5 August 2026 at 14:32" — audit trails and amendment stamps, where the time matters. */
+/** "5 August 2026 at 14:32", for audit trails and amendment stamps, where the time matters. */
 export function formatDateTime(value: string | Date | null | undefined): string {
-  if (!value) return '—';
+  if (!value) return NO_DATE;
   const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
+  if (Number.isNaN(date.getTime())) return NO_DATE;
   const time = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
   return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()} at ${time}`;
 }

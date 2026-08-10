@@ -113,7 +113,7 @@ export const OPTIMAL_RANGES: readonly OptimalRangeEntry[] = [
     high: 33,
     unit: 'U/L',
     source:
-      'American College of Gastroenterology Clinical Guideline: Evaluation of Abnormal Liver Chemistries (Am J Gastroenterol 2017) — true upper limit of normal ALT is 33 U/L in men, below the upper limit most laboratories report.',
+      'American College of Gastroenterology Clinical Guideline: Evaluation of Abnormal Liver Chemistries (Am J Gastroenterol 2017). True upper limit of normal ALT is 33 U/L in men, below the upper limit most laboratories report.',
     confidence: 'established',
     note: 'Sex-specific. Derived from healthy-donor cohorts (Prati et al., Ann Intern Med 2002) and adopted as the ACG reference standard.',
   },
@@ -126,7 +126,7 @@ export const OPTIMAL_RANGES: readonly OptimalRangeEntry[] = [
     high: 25,
     unit: 'U/L',
     source:
-      'American College of Gastroenterology Clinical Guideline: Evaluation of Abnormal Liver Chemistries (Am J Gastroenterol 2017) — true upper limit of normal ALT is 25 U/L in women, below the upper limit most laboratories report.',
+      'American College of Gastroenterology Clinical Guideline: Evaluation of Abnormal Liver Chemistries (Am J Gastroenterol 2017). True upper limit of normal ALT is 25 U/L in women, below the upper limit most laboratories report.',
     confidence: 'established',
     note: 'Sex-specific. Derived from healthy-donor cohorts (Prati et al., Ann Intern Med 2002) and adopted as the ACG reference standard.',
   },
@@ -150,7 +150,7 @@ export const OPTIMAL_RANGES: readonly OptimalRangeEntry[] = [
     high: null,
     unit: 'mL/min/1.73m²',
     source:
-      'KDIGO 2012 Clinical Practice Guideline for the Evaluation and Management of Chronic Kidney Disease — GFR category G1 (90 mL/min/1.73m² or above) is normal kidney function.',
+      'KDIGO 2012 Clinical Practice Guideline for the Evaluation and Management of Chronic Kidney Disease. GFR category G1 (90 mL/min/1.73m² or above) is normal kidney function.',
     confidence: 'established',
     note: 'One-sided: KDIGO bounds this below only. There is no upper bound, so none is invented.',
   },
@@ -172,7 +172,7 @@ export const OPTIMAL_RANGES: readonly OptimalRangeEntry[] = [
     high: 5.0,
     unit: 'mmol/L',
     source:
-      'Joint British Societies’ consensus recommendations (JBS3, Heart 2014) and NICE CG181 — total cholesterol below 5.0 mmol/L is the desirable level in the general population.',
+      'Joint British Societies’ consensus recommendations (JBS3, Heart 2014) and NICE CG181. Total cholesterol below 5.0 mmol/L is the desirable level in the general population.',
     confidence: 'established',
     note: 'One-sided: the guidance bounds this above only.',
   },
@@ -185,7 +185,7 @@ export const OPTIMAL_RANGES: readonly OptimalRangeEntry[] = [
     high: null,
     unit: 'mmol/L',
     source:
-      'ESC/EAS 2019 Guidelines for the Management of Dyslipidaemias and JBS3 (Heart 2014) — HDL cholesterol below 1.0 mmol/L in men marks increased cardiovascular risk, so 1.0 mmol/L is the desirable floor.',
+      'ESC/EAS 2019 Guidelines for the Management of Dyslipidaemias and JBS3 (Heart 2014). HDL cholesterol below 1.0 mmol/L in men marks increased cardiovascular risk, so 1.0 mmol/L is the desirable floor.',
     confidence: 'established',
     note: 'Sex-specific and one-sided: the guidance bounds this below only.',
   },
@@ -198,7 +198,7 @@ export const OPTIMAL_RANGES: readonly OptimalRangeEntry[] = [
     high: null,
     unit: 'mmol/L',
     source:
-      'ESC/EAS 2019 Guidelines for the Management of Dyslipidaemias and JBS3 (Heart 2014) — HDL cholesterol below 1.2 mmol/L in women marks increased cardiovascular risk, so 1.2 mmol/L is the desirable floor.',
+      'ESC/EAS 2019 Guidelines for the Management of Dyslipidaemias and JBS3 (Heart 2014). HDL cholesterol below 1.2 mmol/L in women marks increased cardiovascular risk, so 1.2 mmol/L is the desirable floor.',
     confidence: 'established',
     note: 'Sex-specific and one-sided: the guidance bounds this below only.',
   },
@@ -211,7 +211,7 @@ export const OPTIMAL_RANGES: readonly OptimalRangeEntry[] = [
     high: 3.0,
     unit: 'mmol/L',
     source:
-      'NICE CG181 and JBS3 (Heart 2014) — LDL cholesterol below 3.0 mmol/L in primary prevention.',
+      'NICE CG181 and JBS3 (Heart 2014). LDL cholesterol below 3.0 mmol/L in primary prevention.',
     confidence: 'established',
     note: 'One-sided. People already treated for established cardiovascular disease have lower, individually-set targets that this general band does not represent.',
   },
@@ -224,7 +224,7 @@ export const OPTIMAL_RANGES: readonly OptimalRangeEntry[] = [
     high: 1.7,
     unit: 'mmol/L',
     source:
-      'ESC/EAS 2019 Guidelines for the Management of Dyslipidaemias — fasting triglycerides below 1.7 mmol/L (150 mg/dL) is the desirable level.',
+      'ESC/EAS 2019 Guidelines for the Management of Dyslipidaemias. Fasting triglycerides below 1.7 mmol/L (150 mg/dL) is the desirable level.',
     confidence: 'established',
     note: 'Converted from 150 mg/dL by dividing by 88.57. One-sided.',
   },
@@ -237,7 +237,7 @@ export const OPTIMAL_RANGES: readonly OptimalRangeEntry[] = [
     high: 4.0,
     unit: 'ratio',
     source:
-      'Joint British Societies’ consensus recommendations (JBS3, Heart 2014) — a total cholesterol to HDL cholesterol ratio below 4.0 is desirable.',
+      'Joint British Societies’ consensus recommendations (JBS3, Heart 2014). A total cholesterol to HDL cholesterol ratio below 4.0 is desirable.',
     confidence: 'established',
     note: 'Dimensionless. Randox print this analyte with a "%" unit on their report, which is a labelling artefact — the figure is a ratio and is stored and compared as one.',
   },
@@ -250,7 +250,7 @@ export const OPTIMAL_RANGES: readonly OptimalRangeEntry[] = [
     high: 1.0,
     unit: 'g/L',
     source:
-      'ESC/EAS 2019 Guidelines for the Management of Dyslipidaemias — ApoB below 100 mg/dL for people at low to moderate cardiovascular risk.',
+      'ESC/EAS 2019 Guidelines for the Management of Dyslipidaemias. ApoB below 100 mg/dL for people at low to moderate cardiovascular risk.',
     confidence: 'established',
     note: 'Converted from 100 mg/dL to 1.0 g/L by dividing by 100. One-sided.',
   },
@@ -264,7 +264,7 @@ export const OPTIMAL_RANGES: readonly OptimalRangeEntry[] = [
     high: 12,
     unit: '%',
     source:
-      'Harris WS, von Schacky C. The Omega-3 Index: a new risk factor for death from coronary heart disease? (Preventive Medicine 2004) — proposed target zone of 8–12% of red cell membrane fatty acids.',
+      'Harris WS, von Schacky C. The Omega-3 Index: a new risk factor for death from coronary heart disease? (Preventive Medicine 2004). Proposed target zone of 8–12% of red cell membrane fatty acids.',
     confidence: 'established',
     note: 'The one marker in this table whose reference interval and target zone are the same published proposal; both sides are bounded by the source.',
   },
@@ -281,7 +281,7 @@ export const OPTIMAL_RANGES: readonly OptimalRangeEntry[] = [
     high: 5.5,
     unit: 'mmol/L',
     source:
-      'American Diabetes Association Standards of Care in Diabetes — normal fasting plasma glucose is 3.9–5.5 mmol/L (70–99 mg/dL); 5.6–6.9 mmol/L is impaired fasting glucose.',
+      'American Diabetes Association Standards of Care in Diabetes. Normal fasting plasma glucose is 3.9–5.5 mmol/L (70–99 mg/dL); 5.6–6.9 mmol/L is impaired fasting glucose.',
     confidence: 'established',
     note: 'Converted from 70–99 mg/dL by dividing by 18.0182. Applies to a fasting sample only; a non-fasting glucose has no optimal band and should be read against the lab range alone.',
   },
@@ -294,7 +294,7 @@ export const OPTIMAL_RANGES: readonly OptimalRangeEntry[] = [
     high: 42,
     unit: 'mmol/mol',
     source:
-      'WHO 2011 use of HbA1c in the diagnosis of diabetes mellitus, and NICE NG238 — below 42 mmol/mol (6.0%) is normoglycaemic; 42–47 mmol/mol is non-diabetic hyperglycaemia.',
+      'WHO 2011 use of HbA1c in the diagnosis of diabetes mellitus, and NICE NG238. Below 42 mmol/mol (6.0%) is normoglycaemic; 42–47 mmol/mol is non-diabetic hyperglycaemia.',
     confidence: 'established',
     note: 'IFCC units. Equivalent to below 6.0% in NGSP/DCCT units. One-sided.',
   },
@@ -312,7 +312,7 @@ export const OPTIMAL_RANGES: readonly OptimalRangeEntry[] = [
     high: 1.0,
     unit: 'mg/L',
     source:
-      'Pearson TA et al., Markers of Inflammation and Cardiovascular Disease — AHA/CDC Scientific Statement (Circulation 2003) — hs-CRP below 1.0 mg/L is the low cardiovascular-risk stratum.',
+      'Pearson TA et al., Markers of Inflammation and Cardiovascular Disease, AHA/CDC Scientific Statement (Circulation 2003). An hs-CRP below 1.0 mg/L is the low cardiovascular-risk stratum.',
     confidence: 'established',
     note: 'One-sided. The same statement notes a single raised value should be repeated, as acute illness raises hs-CRP transiently.',
   },
@@ -329,7 +329,7 @@ export const OPTIMAL_RANGES: readonly OptimalRangeEntry[] = [
     high: 50,
     unit: 'µg/g',
     source:
-      'NICE DG11: Faecal calprotectin diagnostic tests for inflammatory diseases of the bowel — below 50 µg/g makes inflammatory bowel disease unlikely.',
+      'NICE DG11: Faecal calprotectin diagnostic tests for inflammatory diseases of the bowel. Below 50 µg/g makes inflammatory bowel disease unlikely.',
     confidence: 'established',
     note: 'One-sided. This is the threshold NICE adopt for the general adult population; it is not a treatment target for anyone with a known bowel condition.',
   },
@@ -355,7 +355,7 @@ export const OPTIMAL_RANGES: readonly OptimalRangeEntry[] = [
     high: 125,
     unit: 'nmol/L',
     source:
-      'SACN Vitamin D and Health report 2016 — serum 25(OH)D at or above 50 nmol/L year-round for musculoskeletal health; Institute of Medicine 2011 place 125 nmol/L as the concentration above which adverse effects have been reported.',
+      'SACN Vitamin D and Health report 2016. Serum 25(OH)D at or above 50 nmol/L year-round for musculoskeletal health; Institute of Medicine 2011 place 125 nmol/L as the concentration above which adverse effects have been reported.',
     confidence: 'established',
     note: 'Two sources, one for each side: SACN bound it below, the IOM above. Both are stated so neither is mistaken for the other’s work.',
   },
@@ -431,7 +431,7 @@ export const OPTIMAL_RANGES: readonly OptimalRangeEntry[] = [
     high: 75,
     unit: 'nmol/L',
     source:
-      'European Atherosclerosis Society 2022 consensus statement on lipoprotein(a) (Kronenberg F et al., Eur Heart J 2022) — below 75 nmol/L (30 mg/dL) carries no appreciable excess cardiovascular risk.',
+      'European Atherosclerosis Society 2022 consensus statement on lipoprotein(a) (Kronenberg F et al., Eur Heart J 2022). Below 75 nmol/L (30 mg/dL) carries no appreciable excess cardiovascular risk.',
     confidence: 'established',
     note: 'One-sided. Lp(a) is roughly 90% genetically determined and changes very little with lifestyle, so this band describes inherited risk rather than anything that responds to what the patient does.',
   },

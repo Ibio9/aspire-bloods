@@ -249,11 +249,9 @@ export function CompareView({
                 })}
               </div>
 
-              {selected.length >= MAX_SELECTED && (
-                <p className="mt-3 text-xs text-espresso/80">
-                  That's the maximum. Deselect one to swap it out.
-                </p>
-              )}
+              {/* No "that's the maximum, deselect one to swap it out": the
+                  count above already reads "3 of 3 selected" and the remaining
+                  boxes are visibly disabled. */}
             </Card>
           </div>
 
@@ -262,22 +260,17 @@ export function CompareView({
               // Same min-height as the loading and chart panels beside it, so
               // choosing a first marker never jumps the layout.
               <Card className="flex min-h-96 flex-col items-center justify-center text-center">
+                {/* The picker is beside it, labelled "Choose markers", with the
+                    common comparisons at the top of it. Restating that here in
+                    a sentence tells a competent adult nothing. */}
                 <p className="font-display text-3xl text-espresso">Pick a marker to begin</p>
-                {/* How the shared band works is explained once, on the chart
-                    it belongs to, rather than here as well. */}
-                <p className="mt-3 max-w-md text-reading leading-relaxed text-espresso/80">
-                  Choose two or three from the list, or start with one of the common comparisons.
-                </p>
               </Card>
             ) : loadingSeries || series === null ? (
               <Card aria-busy="true" aria-label="Loading chart" className="min-h-96">
                 <Skeleton className="h-80 w-full" />
               </Card>
             ) : series.length === 0 ? (
-              <EmptyState
-                title="Nothing to plot"
-                description="We couldn't find released results for that selection. Try a different marker, or clear the selection and start again."
-              />
+              <EmptyState title="No released results for that selection" />
             ) : (
               <>
                 <Card>

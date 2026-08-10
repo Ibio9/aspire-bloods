@@ -284,7 +284,7 @@ export function PanelsPage() {
             name="panelKey"
             value={newPanelKey}
             onChange={(e) => setNewPanelKey(e.target.value)}
-            hint="lowercase-with-hyphens. Permanent — it is what reports and orders refer to."
+            hint="lowercase-with-hyphens. Permanent: it is what reports and orders refer to."
           />
           <Input label="Name" name="panelName" value={newPanelName} onChange={(e) => setNewPanelName(e.target.value)} />
           <Button

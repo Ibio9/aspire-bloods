@@ -163,7 +163,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
               patient here" when it's really "keep typing". */}
           {patientMatches.length > matchedPatients.length && (
             <p className="px-3 pb-2 pt-2 text-xs text-espresso/80">
-              Showing the first {matchedPatients.length} of {patientMatches.length} matches — keep typing to narrow.
+              Showing the first {matchedPatients.length} of {patientMatches.length} matches. Keep typing to narrow.
             </p>
           )}
         </div>

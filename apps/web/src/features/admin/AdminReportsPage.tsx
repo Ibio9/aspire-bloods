@@ -196,7 +196,7 @@ function PdfUploadForm({
         <div className="flex flex-col gap-1.5">
           <Select
             label="Which test package?"
-            hint="A bundle of markers run on one sample — Core, Insight 360 or Signature. Leave it on individual markers for a one-off test."
+            hint="A bundle of markers run on one sample: Core, Insight 360 or Signature. Leave it on individual markers for a one-off test."
             name="panelId"
             emptyMessage={<ConfigureLink what="panels" />}
             value={panelId}
@@ -358,7 +358,7 @@ function ManualEntryForm({
         <div className="flex flex-col gap-1.5">
           <Select
             label="Which test package?"
-            hint="A bundle of markers run on one sample — Core, Insight 360 or Signature. Leave it on individual markers for a one-off test."
+            hint="A bundle of markers run on one sample: Core, Insight 360 or Signature. Leave it on individual markers for a one-off test."
             name="manualPanelId"
             emptyMessage={<ConfigureLink what="panels" />}
             value={panelId}

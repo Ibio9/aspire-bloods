@@ -678,7 +678,7 @@ export const FOOD_SENSITIVITY_GROUPS: { key: string; name: string; items: readon
 
 const FOOD_SENSITIVITY_CATEGORIES: CatalogueCategory[] = FOOD_SENSITIVITY_GROUPS.map((g) => ({
   key: `food-sensitivity-${g.key}`,
-  name: `Food Sensitivity — ${g.name}`,
+  name: `Food Sensitivity: ${g.name}`,
   randoxId: null,
   resultType: 'SENSITIVITY' as const,
   // Prefixed so a food never collides with a blood analyte of the same name:
@@ -766,7 +766,7 @@ export const CATALOGUE_PANELS: CataloguePanel[] = [
     key: 'core',
     name: 'Core',
     description:
-      'Randox Advanced GP3 in full — organ function, cardiovascular and metabolic health and sex hormones — plus Free Testosterone, the Omega-3 Index and AMH.',
+      'Randox Advanced GP3 in full, covering organ function, cardiovascular and metabolic health and sex hormones, plus Free Testosterone, the Omega-3 Index and AMH.',
     includes: ['advanced-gp3', 'advanced-gp2', 'standard-screen-plus', 'standard-screen', 'basic-screen'],
     categoryKeys: [],
     extraMarkerNames: [...GP3_FLATTENED_MARKER_NAMES, 'Free Testosterone', 'Omega-3 Index', 'Anti-Mullerian Hormone (AMH)'],

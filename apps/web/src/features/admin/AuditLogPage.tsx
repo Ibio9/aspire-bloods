@@ -125,7 +125,7 @@ export function AuditLogPage() {
                       {r.targetId ? ` (${r.targetId.slice(0, 8)}…)` : ''}
                     </TableCell>
                     <TableCell>{r.actorType === 'SYSTEM' ? 'System' : (r.actorName ?? r.actorEmail ?? 'Unknown')}</TableCell>
-                    <TableCell className="tabular">{r.ipAddress ?? '—'}</TableCell>
+                    <TableCell className="tabular">{r.ipAddress ?? 'Not recorded'}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

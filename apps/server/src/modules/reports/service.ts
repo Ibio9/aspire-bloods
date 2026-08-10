@@ -453,7 +453,7 @@ export async function verifyReport(
     // unmatch the row, and either way it is their decision and not ours.
     if (classified.kind === 'absent') {
       throw new ReportError(
-        `${marker.name} has no result value. Enter the value from the report, or unmatch the row — a marker with nothing measured is not recorded as in range.`,
+        `${marker.name} has no result value. Enter the value from the report, or unmatch the row. A marker with nothing measured is not recorded as in range.`,
         400,
       );
     }

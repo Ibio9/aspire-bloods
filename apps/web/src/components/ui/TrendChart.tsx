@@ -370,23 +370,22 @@ export function TrendChart({
   return (
     <div>
       {/* Exactly one of these three. The state of the data decides which. */}
+      {/* One sentence: which of the three data states applies, and nothing
+          else. What the bands are is named in the key below, in words, for
+          every band actually drawn — saying it again up here was the same
+          fact twice on a chart that already carries a lot of explanation. */}
       {singlePoint ? (
         <p className="mb-3 text-xs leading-relaxed text-espresso/80">
-          This is your first result for this marker, so it is shown as a single point with no trend line. The green
-          band is the reference range it was measured against; the shading either side of it marks how far outside
-          that range a value sits. A line appears once you have had a second test.
+          This is your first result for this marker, so it is shown as a single point with no trend line.
         </p>
       ) : connected ? (
         <p className="mb-3 text-xs leading-relaxed text-espresso/80">
-          These {data.length} results are directly comparable, so they are joined into one trend line. The green band
-          is the reference range each was measured against; the shading either side of it marks how far outside that
-          range a value sits.
+          These {data.length} results are directly comparable, so they are joined into one trend line.
         </p>
       ) : (
         <p className="mb-3 text-xs leading-relaxed text-espresso/80">
           These results come from sources that aren't directly comparable for this marker, so they are shown as
-          separate points rather than joined into one trend line. Each is still shown against the reference range it
-          was measured on.
+          separate points rather than joined into one trend line.
         </p>
       )}
 

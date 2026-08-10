@@ -21,6 +21,7 @@ import { encryptField } from '../src/lib/crypto.js';
 import { hashPassword } from '../src/lib/password.js';
 import { hashToken, generateToken } from '../src/lib/crypto.js';
 import { seedRandoxCatalogue, formatCatalogueReport } from './seedCatalogue.js';
+import { removeEmDashes, sameWords } from '../src/lib/houseStyle.js';
 
 interface MarkerSeed {
   key: string;
@@ -184,6 +185,26 @@ const sourceDefinitions = [
   { key: 'manual_entry', name: 'Manual Entry' },
 ];
 
+/**
+ * "The same words, differently punctuated."
+ *
+ * Every upsert in this file is `update: {}` on purpose: a seed that overwrites
+ * on every deploy is a seed quietly overruling whoever edited the copy. The
+ * cost of that, discovered by reading the rendered product rather than the
+ * source, is that a house-style correction never reaches a database that was
+ * already seeded. Em dashes were taken out of the source copy months ago and
+ * were still on screen in every environment, because no row was ever updated.
+ *
+ * So the rule is narrow rather than blanket. Strip punctuation and case from
+ * both sides: if what is stored is the seed's own wording in an older
+ * punctuation style, it is this file's copy and this file may correct it. If
+ * anybody has changed a word, the normalised forms differ and the stored text
+ * is left exactly alone.
+ *
+ * The one thing this deliberately does overwrite is a human edit that changed
+ * ONLY punctuation. That is the trade: house style is the thing being enforced,
+ * and it is worth more than preserving a comma somebody moved.
+ */
 const copyBlocks = [
   {
     slug: 'out_of_range_prompt',
@@ -200,6 +221,76 @@ const retentionPolicies = [
   { dataType: 'AUDIT_LOG', retentionPeriodDays: 8 * 365 },
   { dataType: 'CONSENT_RECORDS', retentionPeriodDays: 8 * 365 },
 ];
+
+/**
+ * The house-style sweep over copy that lives in the database.
+ *
+ * Two boundaries, both deliberate.
+ *
+ * It is punctuation only — removeEmDashes adds and removes no words — so the
+ * meaning of a clinical sentence cannot change here.
+ *
+ * Copy a named clinician has signed off is corrected too, and that is the part
+ * worth being explicit about. It would be safer-looking to skip those and
+ * print a list for somebody to work through, but a list nobody actions leaves
+ * the em dashes on the screen, which is the whole problem. What makes it
+ * defensible is the same thing that makes it safe: no word changes, so nothing
+ * a reviewer approved is different in substance. What makes it accountable is
+ * that every reviewed record touched gets an audit entry naming the field,
+ * with a SYSTEM actor, because a clinical record that changes silently is
+ * worse than one that changes. The review status itself is untouched: pulling
+ * approved copy back into the queue over a comma would take it off the
+ * patient's screen for no clinical reason.
+ */
+async function removeEmDashesFromStoredCopy() {
+  const explanations = await prisma.markerExplanation.findMany({
+    include: { marker: { select: { name: true } } },
+  });
+
+  const FIELDS = ['whatItIs', 'highMeans', 'lowMeans', 'lifestyleContext'] as const;
+  let cleaned = 0;
+  let audited = 0;
+
+  for (const e of explanations) {
+    const patch: Partial<Record<(typeof FIELDS)[number], string>> = {};
+    const changedFields: string[] = [];
+    for (const field of FIELDS) {
+      const value = e[field];
+      if (typeof value !== 'string' || !value.includes('—')) continue;
+      patch[field] = removeEmDashes(value);
+      changedFields.push(field);
+    }
+    if (changedFields.length === 0) continue;
+
+    await prisma.markerExplanation.update({ where: { id: e.id }, data: patch });
+    cleaned += 1;
+
+    if (e.reviewedById) {
+      await prisma.auditLogEntry.create({
+        data: {
+          actorType: 'SYSTEM',
+          action: 'MARKER_EXPLANATION_RESTYLED',
+          targetType: 'MarkerExplanation',
+          targetId: e.id,
+          metadata: {
+            marker: e.marker.name,
+            fields: changedFields,
+            change: 'em dashes replaced with a full stop or a comma',
+            wordingChanged: false,
+          },
+        },
+      });
+      audited += 1;
+    }
+  }
+
+  if (cleaned > 0) {
+    console.log(
+      `  Removed em dashes from ${cleaned} marker explanation(s). Punctuation only, no wording changed.` +
+        (audited > 0 ? ` ${audited} were clinician-reviewed and are recorded in the audit log.` : ''),
+    );
+  }
+}
 
 async function main() {
   console.log('Removing excluded markers (Randox cannot supply)...');
@@ -219,6 +310,7 @@ async function main() {
   console.log('Seeding markers...');
   const markerIdByKey = new Map<string, string>();
   let approvedExplanations = 0;
+  let restyledExplanations = 0;
   for (const m of markers) {
     const marker = await prisma.marker.upsert({
       where: { key: m.key },
@@ -248,7 +340,7 @@ async function main() {
       });
     }
 
-    const explanation = await prisma.markerExplanation.upsert({
+    let explanation = await prisma.markerExplanation.upsert({
       where: { markerId: marker.id },
       update: {},
       create: {
@@ -260,6 +352,25 @@ async function main() {
         reviewStatus: 'DRAFT',
       },
     });
+
+    // Same words, older punctuation: this is the seed's own copy and the seed
+    // may restyle it. This is what carries a house-style change (em dashes out)
+    // into a database that was seeded before it — without it, a correction to
+    // this file reaches new environments only, and the live product keeps
+    // rendering copy nobody can find in the repository. See sameWords.
+    const restyled = {
+      whatItIs: m.whatItIs,
+      highMeans: m.highMeans ?? null,
+      lowMeans: m.lowMeans ?? null,
+      lifestyleContext: m.lifestyleContext ?? null,
+    };
+    const isSeedCopyRestyled =
+      (Object.keys(restyled) as (keyof typeof restyled)[]).every((k) => sameWords(explanation[k], restyled[k])) &&
+      (Object.keys(restyled) as (keyof typeof restyled)[]).some((k) => explanation[k] !== restyled[k]);
+    if (isSeedCopyRestyled) {
+      explanation = await prisma.markerExplanation.update({ where: { id: explanation.id }, data: restyled });
+      restyledExplanations += 1;
+    }
 
     // Approve the seeded copy. The DRAFT gate is correct and stays — the
     // patient read path still only returns REVIEWED/PUBLISHED — but copy
@@ -303,6 +414,10 @@ async function main() {
 
   if (approvedExplanations > 0) {
     console.log(`Approved ${approvedExplanations} untouched seed explanation(s) to REVIEWED.`);
+  }
+
+  if (restyledExplanations > 0) {
+    console.log(`Re-styled ${restyledExplanations} seed explanation(s) to the current punctuation. No wording changed.`);
   }
 
   console.log('Retiring superseded guessed panels (deactivated, never deleted)...');
@@ -354,13 +469,25 @@ async function main() {
   }
 
   console.log('Seeding copy blocks...');
+  let restyledBlocks = 0;
   for (const c of copyBlocks) {
-    await prisma.copyBlock.upsert({
+    const existing = await prisma.copyBlock.upsert({
       where: { slug: c.slug },
       update: {},
       create: c,
     });
+    // Still this file's words, in an older punctuation style: bring it up to
+    // house style. Anything a human has actually reworded is left alone.
+    if (existing.body !== c.body && sameWords(existing.body, c.body)) {
+      await prisma.copyBlock.update({ where: { id: existing.id }, data: { body: c.body } });
+      restyledBlocks += 1;
+    }
   }
+  if (restyledBlocks > 0) {
+    console.log(`  Re-styled ${restyledBlocks} copy block(s) to the current punctuation. No wording changed.`);
+  }
+
+  await removeEmDashesFromStoredCopy();
 
   console.log('Seeding retention policies...');
   for (const r of retentionPolicies) {

@@ -253,7 +253,7 @@ export function addOnsRedirectedAt(location: BookingLocation | null, addOns: Add
 
 /** The slowest thing in the basket sets the wait, plus whatever the add-ons add. */
 export function combinedTurnaround(panel: Panel | null, addOns: AddOn[]): { label: string; days: [number, number] } {
-  if (!panel) return { label: '—', days: [0, 0] };
+  if (!panel) return { label: 'Not known yet', days: [0, 0] };
   const extra = addOns.reduce((max, a) => Math.max(max, a.addsTurnaroundDays), 0);
   const days: [number, number] = [panel.turnaroundDays[0] + extra, panel.turnaroundDays[1] + extra];
   return { label: `${days[0]}–${days[1]} working days`, days };
@@ -271,10 +271,10 @@ export function addWorkingDays(iso: string, days: number): string {
   return cursor;
 }
 
-/** "between 17 and 19 August" — when to expect results, from the appointment date. */
+/** "between 17 and 19 August": when to expect results, from the appointment date. */
 export function expectedResultsLabel(panel: Panel | null, addOns: AddOn[], date: string): string {
   const { days } = combinedTurnaround(panel, addOns);
-  if (days[1] === 0) return '—';
+  if (days[1] === 0) return 'Not known yet';
   const from = addWorkingDays(date, days[0]);
   const to = addWorkingDays(date, days[1]);
   return `between ${formatDate(from)} and ${formatDate(to)}`;

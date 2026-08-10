@@ -43,10 +43,14 @@ describe('formatDate', () => {
     }
   });
 
-  it('renders an em dash for absent dates rather than "Invalid Date"', () => {
-    expect(formatDate(null)).toBe('—');
-    expect(formatDate(undefined)).toBe('—');
-    expect(formatDate('not a date')).toBe('—');
+  // Words, not a dash. A punctuation mark standing in for a fact is something
+  // the reader has to decode, and a good share of them decode it as a
+  // rendering fault rather than as "nothing was recorded".
+  it('says so in words for absent dates rather than rendering "Invalid Date"', () => {
+    expect(formatDate(null)).toBe('Not recorded');
+    expect(formatDate(undefined)).toBe('Not recorded');
+    expect(formatDate('not a date')).toBe('Not recorded');
+    expect(formatDate(null)).not.toContain('—');
   });
 
   it('has a short form for space-constrained axes', () => {

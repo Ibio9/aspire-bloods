@@ -193,7 +193,7 @@ export function PatientDetailPage() {
               </div>
               <div>
                 <dt className="text-espresso/80">Sex</dt>
-                <dd className="text-espresso">{p.sex ?? '—'}</dd>
+                <dd className="text-espresso">{p.sex ?? 'Not recorded'}</dd>
               </div>
               <div>
                 <dt className="text-espresso/80">Contact number</dt>
@@ -209,24 +209,24 @@ export function PatientDetailPage() {
               </div>
               <div>
                 <dt className="text-espresso/80">GP</dt>
-                <dd className="text-espresso">{p.gpName ?? '—'}</dd>
+                <dd className="text-espresso">{p.gpName ?? 'Not recorded'}</dd>
               </div>
               <div>
                 <dt className="text-espresso/80">GP address</dt>
-                <dd className="text-espresso">{p.gpAddress ?? '—'}</dd>
+                <dd className="text-espresso">{p.gpAddress ?? 'Not recorded'}</dd>
               </div>
               <div>
                 <dt className="text-espresso/80">Medication</dt>
-                <dd className="text-espresso">{p.medication ?? '—'}</dd>
+                <dd className="text-espresso">{p.medication ?? 'Not recorded'}</dd>
               </div>
               <div>
                 <dt className="text-espresso/80">Allergies</dt>
-                <dd className="text-espresso">{p.allergies ?? '—'}</dd>
+                <dd className="text-espresso">{p.allergies ?? 'Not recorded'}</dd>
               </div>
               <div className="sm:col-span-2">
                 <dt className="text-espresso/80">Emergency contact</dt>
                 <dd className="text-espresso">
-                  {p.emergencyContactName ?? '—'} {p.emergencyContactNumber ? `(${p.emergencyContactNumber})` : ''}
+                  {p.emergencyContactName ?? 'Not recorded'} {p.emergencyContactNumber ? `(${p.emergencyContactNumber})` : ''}
                 </dd>
               </div>
             </dl>
@@ -344,7 +344,7 @@ export function PatientDetailPage() {
                     <TableCell className="tabular">{formatDateTime(a.createdAt)}</TableCell>
                     <TableCell>{a.action.replace(/_/g, ' ')}</TableCell>
                     <TableCell>{a.actorName ?? 'System'}</TableCell>
-                    <TableCell className="tabular">{a.ipAddress ?? '—'}</TableCell>
+                    <TableCell className="tabular">{a.ipAddress ?? 'Not recorded'}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

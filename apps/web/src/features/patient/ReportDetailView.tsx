@@ -426,12 +426,16 @@ export function ReportDetailView({
 
       {visible.length === 0 ? (
         <div className="mt-6 max-w-2xl">
+          {/* No "try widening your search" line: the Clear filters button is
+              the answer and it is right there. The one case that does need a
+              sentence is a report with no blood measurements at all, where the
+              reader would otherwise think the page had failed. */}
           <EmptyState
-            title="Nothing matches those filters"
+            title={byType.measured.length === 0 ? 'No blood measurements on this report' : 'Nothing matches those filters'}
             description={
               byType.measured.length === 0
-                ? 'This report has no standard blood measurements. Anything it does contain is shown in the sections below.'
-                : 'Try clearing the search box, or widening the state and health area you have chosen.'
+                ? 'Everything this report does contain is in the sections below.'
+                : undefined
             }
             action={filtersApplied ? <Button onClick={clearFilters}>Clear filters</Button> : undefined}
           />

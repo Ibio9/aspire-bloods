@@ -131,7 +131,7 @@ export function AppointmentDetailPage() {
           </p>
           <p className="mt-4 text-reading leading-relaxed text-espresso">
             We've emailed you a confirmation. Your reference is{' '}
-            <span className="tabular font-semibold">{appointment.reference}</span> — quote it if you call us. Read
+            <span className="tabular font-semibold">{appointment.reference}</span>. Quote it if you call us. Read
             the preparation below before the day.
           </p>
         </div>

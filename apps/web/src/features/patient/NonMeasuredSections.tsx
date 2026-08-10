@@ -246,10 +246,7 @@ function CategorisedSection({
       />
       {visible.length === 0 ? (
         <div className="mt-4 max-w-2xl">
-          <EmptyState
-            title={`Nothing matches that search`}
-            description="Try a shorter search, or widen the area you have chosen."
-          />
+          <EmptyState title="Nothing matches that search" />
         </div>
       ) : (
         <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
@@ -369,10 +366,7 @@ export function SensitivitySection({ markers }: { markers: NonMeasuredMarker[] }
 
       {groups.length === 0 && (
         <div className="mt-4 max-w-2xl">
-          <EmptyState
-            title="No foods match that search"
-            description="Try a shorter search, or widen the food group you have chosen."
-          />
+          <EmptyState title="No foods match that search" />
         </div>
       )}
 

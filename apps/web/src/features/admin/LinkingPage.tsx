@@ -560,7 +560,7 @@ export function LinkingPage() {
                 )}
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-espresso/80">
-                An account here is not a problem to solve — most are simply patients who haven't been tested yet.
+                An account here is not a problem to solve. Most are simply patients who haven't been tested yet.
               </p>
 
               {queue.unlinkedAccounts.length > 0 && (
