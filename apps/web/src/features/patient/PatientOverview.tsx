@@ -220,8 +220,7 @@ export function PatientOverview() {
           </h2>
           <p className="mt-3 max-w-2xl text-reading leading-relaxed text-espresso/90">
             {data.attention.length === 1 ? 'One of your results sits' : `${data.attention.length} of your results sit`} outside
-            the usual reference range. That on its own is not a diagnosis: reference ranges describe most people, not
-            every person, and a single result can't be read without the rest of your history.
+            the usual reference range.
           </p>
 
           <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">

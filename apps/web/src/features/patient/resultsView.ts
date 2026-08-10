@@ -1,4 +1,4 @@
-import type { StatusFilter } from '../../lib/markerCopy';
+import type { MarkerSort, ResultGrouping, ResultSort, StatusFilter } from '../../lib/markerCopy';
 
 /**
  * The state the three results views share, and the contract each of them
@@ -11,12 +11,10 @@ import type { StatusFilter } from '../../lib/markerCopy';
  * from one to the next. They are now three arrangements of one page, and the
  * search and filters live above the switch rather than inside each view.
  *
- * What deliberately does NOT live here is SORT. The report view sorts by health
- * area, name or needs-attention; the marker list adds most-recent and
- * biggest-change, which mean nothing on a single report. They were different
- * before and they stay different, because the brief for this consolidation was
- * to preserve every existing filtering, sorting and counting behaviour exactly
- * rather than to unify them into a lowest common denominator.
+ * Grouping and sort live here too, in ResultsArrangement — see below. They used
+ * to sit inside each view, which put a second control bar halfway down an open
+ * report, underneath the report's own header. There is one bar now and it holds
+ * all of it.
  */
 export type ResultsView = 'by-report' | 'by-marker' | 'compare';
 
@@ -51,7 +49,41 @@ export function filtersApplied(f: ResultsFilters): boolean {
 }
 
 /**
- * What a view tells the page about itself, so the page's filter bar can offer
+ * How the markers are ARRANGED, as against which of them are shown.
+ *
+ * One object at page level rather than a pair of useStates inside each view,
+ * because the controls that drive it now sit in the same bar as the search and
+ * the filters — and because state that lives inside a view is state that is
+ * thrown away the moment somebody switches view. Group a report by health area,
+ * look at every marker, come back: still grouped.
+ *
+ * The two sorts are two fields rather than one, because they are two
+ * vocabularies (see MARKER_SORTS). Only one is ever on screen, and neither
+ * disturbs the other.
+ */
+export interface ResultsArrangement {
+  grouping: ResultGrouping;
+  reportSort: ResultSort;
+  markerSort: MarkerSort;
+}
+
+/** Ungrouped, needs-attention first — what every arrangement opens as. */
+export const DEFAULT_ARRANGEMENT: ResultsArrangement = {
+  grouping: 'NONE',
+  reportSort: 'STATUS',
+  markerSort: 'ATTENTION',
+};
+
+/**
+ * Which sort vocabulary the thing currently on screen speaks, or null where it
+ * has no order to choose — the report LIST and the comparison both arrange
+ * themselves, so the bar drops Group by and Sort by entirely rather than
+ * showing two pickers that cannot move anything.
+ */
+export type ArrangementScope = 'REPORT' | 'MARKER' | null;
+
+/**
+ * What a view tells the page about itself, so the page's control bar can offer
  * exactly the health areas the active view can actually return something for.
  * Offering one that cannot is the same mistake as offering a status filter over
  * genetic indicators.

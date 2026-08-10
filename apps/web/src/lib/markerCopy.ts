@@ -335,6 +335,26 @@ export const RESULT_SORTS = [
 
 export type ResultSort = (typeof RESULT_SORTS)[number]['value'];
 
+/**
+ * The marker list's orders: the report's two, plus two that only mean anything
+ * across reports.
+ *
+ * Deliberately a second list rather than an extension of the first. "Most
+ * recently tested" and "biggest change" are questions about a marker's history,
+ * and a single report is one sample — offering them on an opened report would
+ * be two options that cannot reorder anything. So the Sort by picker in the
+ * control bar shows whichever set the active arrangement can actually answer
+ * for, and each keeps its own selection.
+ */
+export const MARKER_SORTS = [
+  { value: 'ATTENTION', label: 'Needs attention first' },
+  { value: 'NAME', label: 'Name (A–Z)' },
+  { value: 'RECENT', label: 'Most recently tested' },
+  { value: 'MOVEMENT', label: 'Biggest change' },
+] as const;
+
+export type MarkerSort = (typeof MARKER_SORTS)[number]['value'];
+
 export function byName<T extends { name: string }>(a: T, b: T): number {
   return a.name.localeCompare(b.name);
 }

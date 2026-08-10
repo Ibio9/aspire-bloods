@@ -3,21 +3,25 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { MarkerStatus } from '@aspire-bloods/shared';
 import { Breadcrumbs } from '../../components/nav/Breadcrumbs';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
-import { Segmented } from '../../components/ui/Segmented';
 import type { StatusFilter } from '../../lib/markerCopy';
-import { ResultsFilterBar } from './ResultsFilterBar';
+import { ResultsControlBar } from './ResultsControlBar';
 import {
+  DEFAULT_ARRANGEMENT,
   EMPTY_FILTERS,
   RESULTS_VIEWS,
   filtersApplied,
   isResultsView,
+  type ArrangementScope,
+  type ResultsArrangement,
   type ResultsFilters,
   type ResultsView,
 } from './resultsView';
 import { ReportListView } from './ReportListView';
+import { ReportHeader } from './ReportHeader';
 import { ReportDetailView } from './ReportDetailView';
 import { MarkerListView } from './MarkerListView';
 import { CompareView } from './CompareView';
+import { useReportDetail } from './useReportDetail';
 
 /**
  * Results — one page, three arrangements.
@@ -30,11 +34,19 @@ import { CompareView } from './CompareView';
  * typing the same marker name again somewhere else, and nothing you had
  * narrowed came with you.
  *
- * Now the search and the two filters sit above the switch and apply to
- * whichever arrangement is showing, so moving between them keeps what you
- * asked for. Everything below the switch is the screen it replaced, behaving
- * exactly as it did — same filters, same sorts, same counts, same empty
- * states. This consolidates the navigation; it does not redesign the results.
+ * THE ORDER OF THE PAGE, and it is the whole point of the layout. With a report
+ * open: the report itself first — its title, where it was analysed, its
+ * downloads and the five-number summary — then one control bar with every
+ * control on it, then the markers. A patient knows which panel they are reading
+ * and how it went before they are offered a single tool for going through it.
+ * There were two bars with the report's own header sandwiched between them,
+ * which read as controls, content, more controls.
+ *
+ * The bar holds search, both filters, grouping, sort and the view switch, and
+ * all of that state lives HERE — so switching view, or grouping, or sort, never
+ * throws away anything else you asked for. Everything below the bar is the
+ * screen it replaced, behaving exactly as it did: same filters, same sorts,
+ * same counts, same empty states.
  *
  * BY REPORT is the default because it is the common case: nearly every visit
  * is somebody coming back to the panel they were just emailed about. An opened
@@ -54,15 +66,21 @@ export function ResultsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  // The three controls above the switch. Component state and nothing more:
-  // not the URL, not localStorage, not the server. They change what is
-  // displayed and never what is fetched, and they start clean on every visit —
-  // the same rule the three screens each followed on their own.
+  // What the bar holds. Component state and nothing more: not the URL, not
+  // localStorage, not the server. It changes what is displayed and never what
+  // is fetched, and it starts clean on every visit — the same rule the three
+  // screens each followed on their own.
   const [filters, setFilters] = useState<ResultsFilters>(EMPTY_FILTERS);
+  const [arrangement, setArrangement] = useState<ResultsArrangement>(DEFAULT_ARRANGEMENT);
   // What the ACTIVE view can actually answer for, reported up by that view, so
   // the health-area picker never offers an area that can only return nothing.
+  // The open report is the exception — the page fetches that one itself, so it
+  // reads the answer straight off the payload rather than being told.
   const [available, setAvailable] = useState<{ key: string; name: string }[]>([]);
-  const [statusCounts, setStatusCounts] = useState<Record<StatusFilter, number> | undefined>();
+  const [viewStatusCounts, setViewStatusCounts] = useState<Record<StatusFilter, number> | undefined>();
+
+  // No-ops without an id, so the two views that are not a report cost nothing.
+  const report = useReportDetail(reportId);
 
   const paramView = searchParams.get('view');
   // An open report is a report view by definition, whatever the URL says.
@@ -82,7 +100,7 @@ export function ResultsPage() {
       // Each view answers for its own areas and its own counts; until the new
       // one says otherwise, the page offers neither rather than the last one's.
       setAvailable([]);
-      setStatusCounts(undefined);
+      setViewStatusCounts(undefined);
 
       /**
        * Inside an open report the view is pinned by the ROUTE, not by the query
@@ -108,6 +126,9 @@ export function ResultsPage() {
   const updateFilters = useCallback((next: Partial<ResultsFilters>) => {
     setFilters((f) => ({ ...f, ...next }));
   }, []);
+  const updateArrangement = useCallback((next: Partial<ResultsArrangement>) => {
+    setArrangement((a) => ({ ...a, ...next }));
+  }, []);
   const clearFilters = useCallback(() => setFilters(EMPTY_FILTERS), []);
   const onStatusFilter = useCallback(
     (status: MarkerStatus | 'ALL') =>
@@ -119,7 +140,14 @@ export function ResultsPage() {
   const onCategoriesAvailable = useCallback((categories: { key: string; name: string }[]) => {
     setAvailable(categories);
   }, []);
-  const onStatusCounts = useCallback((counts: Record<StatusFilter, number>) => setStatusCounts(counts), []);
+  const onStatusCounts = useCallback((counts: Record<StatusFilter, number>) => setViewStatusCounts(counts), []);
+
+  // The report list arranges itself by date and the comparison by its own
+  // selection, so neither offers a grouping or a sort — see ArrangementScope.
+  const scope: ArrangementScope = reportId ? 'REPORT' : view === 'by-marker' ? 'MARKER' : null;
+
+  const activeCategories = reportId ? report.categoryOptions : available;
+  const statusCounts = reportId ? report.statusCounts : viewStatusCounts;
 
   /**
    * The picker always contains what is currently selected, even where the
@@ -132,9 +160,9 @@ export function ResultsPage() {
    * it reads as though nothing is filtering while everything is hidden.
    */
   const categoryOptions = useMemo(() => {
-    if (filters.categoryFilter === 'ALL' || available.some((c) => c.key === filters.categoryFilter)) return available;
-    return [...available, { key: filters.categoryFilter, name: 'Selected area, not in this view' }];
-  }, [available, filters.categoryFilter]);
+    if (filters.categoryFilter === 'ALL' || activeCategories.some((c) => c.key === filters.categoryFilter)) return activeCategories;
+    return [...activeCategories, { key: filters.categoryFilter, name: 'Selected area, not in this view' }];
+  }, [activeCategories, filters.categoryFilter]);
 
   return (
     <>
@@ -143,29 +171,34 @@ export function ResultsPage() {
       )}
       <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="Results" />
 
+      {/* Which report, and how it went, before any control that acts on it. */}
+      {reportId && (
+        <ReportHeader
+          key={reportId}
+          reportId={reportId}
+          data={report}
+          activeStatus={filters.statusFilter}
+          onSelectStatus={onStatusFilter}
+        />
+      )}
+
       {/* Rendered on all three views, including the bare report list where
           there are as yet no markers to narrow. A control that appears and
           disappears as you move between the views reads as though the thing
           you typed has been thrown away, which is the exact opposite of what
           hoisting it up here was for. */}
-      <div className="mt-8">
-        <ResultsFilterBar
-          filters={filters}
-          onChange={updateFilters}
-          categories={categoryOptions}
-          statusCounts={statusCounts}
-        />
-      </div>
-
-      <div className="mt-8">
-        <Segmented
-          options={RESULTS_VIEWS}
-          value={view}
-          onChange={setView}
-          label="Results view"
-          panelId={PANEL_ID}
-        />
-      </div>
+      <ResultsControlBar
+        filters={filters}
+        onChange={updateFilters}
+        categories={categoryOptions}
+        statusCounts={statusCounts}
+        arrangement={arrangement}
+        onArrange={updateArrangement}
+        scope={scope}
+        view={view}
+        onViewChange={setView}
+        panelId={PANEL_ID}
+      />
 
       <div id={PANEL_ID} role="tabpanel" aria-labelledby={`segment-${view}`} className="motion-safe:animate-fadeIn mt-10">
         {view === 'by-report' &&
@@ -174,12 +207,10 @@ export function ResultsPage() {
               // Remounts on a change of report, so nothing of the previous
               // one's state survives under the new one's URL.
               key={reportId}
-              reportId={reportId}
+              data={report}
               filters={filters}
-              onStatusFilter={onStatusFilter}
+              arrangement={arrangement}
               onClearFilters={clearFilters}
-              onCategoriesAvailable={onCategoriesAvailable}
-              onStatusCounts={onStatusCounts}
             />
           ) : (
             <ReportListView />
@@ -187,6 +218,7 @@ export function ResultsPage() {
         {view === 'by-marker' && (
           <MarkerListView
             filters={filters}
+            arrangement={arrangement}
             onClearFilters={clearFilters}
             onCategoriesAvailable={onCategoriesAvailable}
             onStatusCounts={onStatusCounts}

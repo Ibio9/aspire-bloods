@@ -1,7 +1,6 @@
 import { formatDate } from '@aspire-bloods/shared';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card } from '../../components/ui/Card';
-import { Select } from '../../components/ui/Select';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { Sparkline } from '../../components/ui/Sparkline';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -12,7 +11,6 @@ import { staggerDelay } from '../../components/motion/stagger';
 import { apiFetch } from '../../lib/api';
 import { type MarkerRow } from '../../lib/patientPortal';
 import {
-  RESULT_GROUPINGS,
   byAttentionThenName,
   byName,
   filterCountLabel,
@@ -20,13 +18,13 @@ import {
   matchesMarkerQuery,
   matchesStatusFilter,
   statusFilterCounts,
-  type ResultGrouping,
+  type MarkerSort,
   type StatusFilter,
 } from '../../lib/markerCopy';
 import { Button } from '../../components/ui/Button';
 import { AreaGroupHeading } from './ResultsSummary';
 import { MARKER_GRID_CLASS, MarkerResultCard } from './MarkerResultCard';
-import type { ResultsFilters, ViewReportsCategories } from './resultsView';
+import type { ResultsArrangement, ResultsFilters, ViewReportsCategories } from './resultsView';
 
 /**
  * Every marker ever tested, one card each — the "By marker" view.
@@ -46,16 +44,10 @@ import type { ResultsFilters, ViewReportsCategories } from './resultsView';
  *
  * Sorting defaults to "needs attention first" rather than alphabetical — the
  * first question this list gets asked is almost never "what begins with A".
+ * The four orders themselves are MARKER_SORTS, in lib/markerCopy, because the
+ * picker that offers them now lives in the page's one control bar rather than
+ * in a second bar down here.
  */
-
-type SortKey = 'ATTENTION' | 'NAME' | 'RECENT' | 'MOVEMENT';
-
-const SORTS: { value: SortKey; label: string }[] = [
-  { value: 'ATTENTION', label: 'Needs attention first' },
-  { value: 'NAME', label: 'Name (A–Z)' },
-  { value: 'RECENT', label: 'Most recently tested' },
-  { value: 'MOVEMENT', label: 'Biggest change' },
-];
 
 /** Change measured relative to the marker's own reference band, so markers on different scales sort against each other. */
 function relativeMovement(m: MarkerRow): number {
@@ -65,7 +57,7 @@ function relativeMovement(m: MarkerRow): number {
 }
 
 /** One comparator per sort, so grouping reorders nothing — it only breaks the grid into sections. */
-function comparatorFor(sort: SortKey): (a: MarkerRow, b: MarkerRow) => number {
+function comparatorFor(sort: MarkerSort): (a: MarkerRow, b: MarkerRow) => number {
   if (sort === 'NAME') return byName;
   if (sort === 'RECENT')
     return (a, b) => (a.sampleDate < b.sampleDate ? 1 : a.sampleDate > b.sampleDate ? -1 : a.name.localeCompare(b.name));
@@ -91,11 +83,13 @@ interface CategoryOption {
 
 export function MarkerListView({
   filters,
+  arrangement,
   onClearFilters,
   onCategoriesAvailable,
   onStatusCounts,
 }: {
   filters: ResultsFilters;
+  arrangement: ResultsArrangement;
   onClearFilters: () => void;
   onStatusCounts?: (counts: Record<StatusFilter, number>) => void;
 } & ViewReportsCategories) {
@@ -103,8 +97,7 @@ export function MarkerListView({
   const [error, setError] = useState<unknown>(null);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const { query, statusFilter, categoryFilter } = filters;
-  const [grouping, setGrouping] = useState<ResultGrouping>('NONE');
-  const [sort, setSort] = useState<SortKey>('ATTENTION');
+  const { grouping, markerSort: sort } = arrangement;
 
   const load = useCallback(() => {
     setError(null);
@@ -231,14 +224,13 @@ export function MarkerListView({
         </div>
       ) : (
         <>
-          {/* The count, the grouping and the sort share a row: search and the
-              two filters live above the view switch, and these are the controls
-              that belong to this arrangement rather than to all three. */}
-          {/* Stacked under lg, where the two pickers take the full width and
-              the count would otherwise sit awkwardly beside them. */}
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between lg:gap-x-6">
+          {/* The live count and the way out of an over-narrow filter. Every
+              control that produced them — search, both filters, the grouping
+              and the sort — is in the one bar above. */}
+          <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3">
+            <p className="eyebrow">Every marker you've had tested</p>
             <div className="flex flex-wrap items-center gap-4">
-              <p className="text-sm text-espresso/80" role="status">
+              <p className="tabular text-sm text-espresso/80" role="status">
                 {filterCountLabel(visible.length, measured.length)}
               </p>
               {filtersApplied && (
@@ -246,34 +238,6 @@ export function MarkerListView({
                   Clear filters
                 </Button>
               )}
-            </div>
-            <div className="flex flex-col gap-4 sm:flex-row sm:gap-3">
-              <Select
-                label="Group by"
-                name="marker-grouping"
-                value={grouping}
-                onChange={(e) => setGrouping(e.target.value as ResultGrouping)}
-                className="w-full sm:w-44"
-              >
-                {RESULT_GROUPINGS.map((g) => (
-                  <option key={g.value} value={g.value}>
-                    {g.label}
-                  </option>
-                ))}
-              </Select>
-              <Select
-                label="Sort by"
-                name="marker-sort"
-                value={sort}
-                onChange={(e) => setSort(e.target.value as SortKey)}
-                className="w-full sm:w-56"
-              >
-                {SORTS.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </Select>
             </div>
           </div>
 
