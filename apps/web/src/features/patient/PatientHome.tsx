@@ -1,6 +1,6 @@
 import { useEffect, useState, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { formatDate } from '@aspire-bloods/shared';
+import { formatDate, formatReportHeading } from '@aspire-bloods/shared';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { Skeleton } from '../../components/ui/Skeleton';
@@ -34,7 +34,11 @@ interface ReportSummary {
 function ReleasedReportCard({ report }: { report: ReportSummary }) {
   const navigate = useNavigate();
   const to = `/reports/${report.reportId}`;
-  const title = report.title;
+  // The heading form, not the full composed title: the eyebrow directly above
+  // is already the sample date, and formatReportTitle's fallback carries the
+  // date too — so a panel-less report read "6 August 2026 / 12 markers · 6
+  // August 2026". Self-contained titles are for the PDF and the email.
+  const title = formatReportHeading(report.panelName, report.markerCount);
 
   function handleKeyDown(e: KeyboardEvent<HTMLAnchorElement>) {
     if (e.key === ' ' || e.key === 'Spacebar') {
@@ -78,7 +82,7 @@ function PendingReportCard({ report }: { report: ReportSummary }) {
     <Card inert className="flex h-full flex-col">
       <p className="eyebrow mb-2">{formatDate(report.sampleDate)}</p>
       <p className="font-display text-3xl leading-tight text-espresso">
-        {report.title}
+        {formatReportHeading(report.panelName, report.markerCount)}
       </p>
       <p className="mt-6 text-sm text-espresso">
         Your results are with the clinical team and will be available shortly.

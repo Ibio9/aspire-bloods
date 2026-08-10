@@ -75,6 +75,19 @@ function useReducedMotion(): boolean {
   return reduced;
 }
 
+/**
+ * A calendar date as an epoch value, for a time-scaled axis.
+ *
+ * Read as UTC midnight deliberately: a sample date is a calendar date, not an
+ * instant, and parsing it in local time shifts it a day west of Greenwich —
+ * the same reason packages/shared/format.ts reads the parts directly.
+ */
+function epochOf(sampleDate: string): number {
+  return Date.parse(`${sampleDate.slice(0, 10)}T00:00:00Z`);
+}
+
+const DAY_MS = 86_400_000;
+
 interface TrendPoint {
   sampleDate: string;
   value: number;
@@ -252,6 +265,30 @@ export function TrendChart({
     );
   }
 
+  /**
+   * THE TIME AXIS.
+   *
+   * This chart used to plot sampleDate as a category, which is Recharts'
+   * default for a string key — every point evenly spaced regardless of when it
+   * was actually taken. On a screening history that is not a cosmetic
+   * simplification, it is a false claim about rate of change: results in
+   * August 2025, November 2025 and August 2026 drew as three equal steps, so a
+   * marker that moved sharply over three months and then held for nine
+   * rendered as a steady drift across the whole year. The slope of the line —
+   * the only thing a trend chart is for — meant nothing.
+   *
+   * Plotted against real time, the gaps are the gaps.
+   */
+  const rows = data.map((d) => ({ ...d, t: epochOf(d.sampleDate) }));
+  const times = rows.map((r) => r.t);
+  const tFirst = Math.min(...times);
+  const tLast = Math.max(...times);
+  // A single point (or several on one day) has no span to pad from; a week
+  // either side gives it a plot area rather than a degenerate domain.
+  const tPad = Math.max((tLast - tFirst) * 0.06, 7 * DAY_MS);
+  const tMin = tFirst - tPad;
+  const tMax = tLast + tPad;
+
   const values = data.map((d) => d.value);
   const allLows = data.map((d) => d.referenceLow);
   const allHighs = data.map((d) => d.referenceHigh);
@@ -287,11 +324,15 @@ export function TrendChart({
   // misrepresent which range actually applied when. The five status bands are
   // built per segment for the same reason: they are derived from that point's
   // range, so they step with it.
-  const bandSegments = data.map((point, i) => {
+  const bandSegments = rows.map((point, i) => {
     const threshold = severityThresholdFor(point.referenceLow, point.referenceHigh, point.severityThreshold);
     return {
-      x1: point.sampleDate,
-      x2: data[i + 1]?.sampleDate ?? point.sampleDate,
+      // Each point's range is shaded from that point up to the next one. The
+      // first and last segments run out to the axis edges so the padding
+      // gutters aren't bare — the range that applied at the first sample is
+      // the range that applied just before it, and likewise at the end.
+      x1: i === 0 ? tMin : point.t,
+      x2: i === rows.length - 1 ? tMax : rows[i + 1].t,
       low: point.referenceLow,
       high: point.referenceHigh,
       threshold,
@@ -373,7 +414,7 @@ export function TrendChart({
         }
       >
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={data} margin={{ top: 12, right: 20, left: 0, bottom: 4 }}>
+          <ComposedChart data={rows} margin={{ top: 12, right: 20, left: 0, bottom: 4 }}>
             <defs>
               {/* The optimal band is told apart from the status bands by its
                   hatch, not by its hue — it is a different KIND of statement
@@ -400,10 +441,18 @@ export function TrendChart({
 
             <CartesianGrid stroke={chartTokens.gridline} strokeOpacity={0} />
             <XAxis
-              dataKey="sampleDate"
+              dataKey="t"
+              // Real time, not a category per sample — see the note above the
+              // domain. Ticks are the sample dates themselves, so every tick
+              // marks a real event rather than a round number the patient
+              // never had a test on.
+              type="number"
+              scale="time"
+              domain={[tMin, tMax]}
+              ticks={times}
               // ISO never reaches an axis. The compact "Aug 26" form is purely
               // for width — the tooltip gives the full "5 August 2026".
-              tickFormatter={formatAxisDate}
+              tickFormatter={(t: number) => formatAxisDate(new Date(t).toISOString().slice(0, 10))}
               // Inter, sized here; the tabular figures come from the
               // `tabular` class on the wrapper below, which SVG text inherits.
               // Recharts' tick prop type doesn't carry fontVariantNumeric, and
@@ -425,16 +474,16 @@ export function TrendChart({
               width={44}
             />
 
-            {/* The five status bands, behind everything else.
-                With a single point x1 === x2, which is a zero-width area and
-                renders nothing — so they are drawn across the full plot
-                instead. The patient still sees where their one result sits
-                relative to its range, which is the entire point. */}
+            {/* The five status bands, behind everything else. A single point
+                still gets a full-width band: its one segment runs from the
+                axis minimum to the axis maximum, so the patient sees where
+                their one result sits relative to its range. */}
             {bandSegments.flatMap((seg, i) =>
               seg.bands.map((b) => (
                 <ReferenceArea
                   key={`band-${i}-${b.status}`}
-                  {...(singlePoint ? {} : { x1: seg.x1, x2: seg.x2 })}
+                  x1={seg.x1}
+                  x2={seg.x2}
                   // Null is "open" — the outermost bands run to the edge of
                   // the plot rather than asserting a bound the lab never gave.
                   y1={b.from ?? domainMin}
@@ -456,7 +505,8 @@ export function TrendChart({
               seg.edges.map((e, j) => (
                 <ReferenceArea
                   key={`edge-${i}-${j}`}
-                  {...(singlePoint ? {} : { x1: seg.x1, x2: seg.x2 })}
+                  x1={seg.x1}
+                  x2={seg.x2}
                   y1={e.y - hairline * (e.weight === 'reference' ? 1.5 : 1)}
                   y2={e.y + hairline * (e.weight === 'reference' ? 1.5 : 1)}
                   fill={chartTokens.referenceEdge}

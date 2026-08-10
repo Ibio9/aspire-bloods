@@ -1,4 +1,4 @@
-import { formatDate } from '@aspire-bloods/shared';
+import { formatDate, formatReportHeading } from '@aspire-bloods/shared';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card } from '../../components/ui/Card';
@@ -310,10 +310,13 @@ export function PatientOverview() {
             <div className="flex flex-wrap items-start justify-between gap-6">
               <div>
                 <p className="eyebrow mb-2">{formatDate(data.latest.sampleDate)}</p>
-                {/* The composed title, not the raw panel name — a report with
-                    no panel behind it rendered this heading empty, which is
-                    the most prominent card on the landing page. */}
-                <p className="font-display text-3xl leading-tight text-espresso">{data.latest.title}</p>
+                {/* Never blank — a report with no panel behind it rendered
+                    this heading empty, on the most prominent card of the
+                    landing page. The heading form rather than the full title,
+                    because the eyebrow above is already the date. */}
+                <p className="font-display text-3xl leading-tight text-espresso">
+                  {formatReportHeading(data.latest.panelName, data.latest.markerCount)}
+                </p>
                 <p className="mt-2 text-xs text-espresso/80">{data.latest.sourceLabel}</p>
               </div>
               <LinkButton to={`/reports/${data.latest.reportId}`} variant="primary">

@@ -82,6 +82,29 @@ export function formatReportTitle(
 }
 
 /**
+ * The same title, for the places that already print the date right beside it.
+ *
+ * formatReportTitle has to be self-contained: it labels a PDF, an email
+ * subject and a breadcrumb, where nothing else says when the sample was
+ * taken. On a card whose eyebrow is already "6 AUGUST 2026", the full form
+ * lands as "6 AUGUST 2026 / 12 markers · 6 August 2026", which reads like a
+ * rendering fault rather than a title.
+ *
+ * So: the panel's name where there is one, and the count alone where there
+ * isn't. Never empty, and never the date twice.
+ */
+export function formatReportHeading(
+  panelName: string | null | undefined,
+  markerCount: number | null | undefined,
+): string {
+  if (panelName && panelName.trim()) return panelName.trim();
+  if (typeof markerCount === 'number' && markerCount > 0) {
+    return `${markerCount} marker${markerCount === 1 ? '' : 's'}`;
+  }
+  return 'Results';
+}
+
+/**
  * "i••••@gmail.com" — enough for the patient to confirm we're sending to
  * the address they expect, not enough to disclose the address to anyone
  * reading over their shoulder or to an attacker probing the resend endpoint.

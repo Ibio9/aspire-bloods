@@ -81,7 +81,20 @@ export function Sparkline({
   const domain = domainMax - domainMin || 1;
 
   const y = (v: number) => height - ((v - domainMin) / domain) * height;
-  const x = (i: number) => (points.length === 1 ? width / 2 : (i / (points.length - 1)) * width);
+
+  // Spaced by real time, not by index. Evenly spaced points say every gap was
+  // the same length, so a marker retested at three months and then a year
+  // later drew as a steady slope — the same misreading the full trend chart
+  // was making, and this row is the first thing anyone scans. UTC midnight
+  // because a sample date is a calendar date, not an instant.
+  const times = points.map((p) => Date.parse(`${p.sampleDate.slice(0, 10)}T00:00:00Z`));
+  const tFirst = Math.min(...times);
+  const tSpan = Math.max(...times) - tFirst;
+  // Inset by the mark's own radius: the latest point sits at the right-hand
+  // end, and drawn at x = width its outer half was clipped off by the viewBox.
+  const inset = 3.8;
+  const plotW = width - inset * 2;
+  const x = (i: number) => (tSpan > 0 ? inset + ((times[i] - tFirst) / tSpan) * plotW : width / 2);
 
   // The same five regions the full chart draws, clipped to the sparkline's own
   // domain. Derived from this marker's reference range and severity threshold,

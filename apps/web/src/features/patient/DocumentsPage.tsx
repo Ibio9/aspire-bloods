@@ -1,4 +1,4 @@
-import { formatDate } from '@aspire-bloods/shared';
+import { formatDate, formatReportHeading } from '@aspire-bloods/shared';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
@@ -110,11 +110,18 @@ export function DocumentsPage() {
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
                     <p className="eyebrow mb-2">{formatDate(doc.sampleDate)}</p>
-                    {/* The composed title — a manual-entry or ad-hoc report has
-                        no panel, and the raw name rendered this heading blank. */}
-                    <p className="font-display text-2xl leading-tight text-espresso">{doc.title}</p>
+                    {/* Never blank: a manual-entry or ad-hoc report has no
+                        panel, and the raw name rendered this heading empty.
+                        The heading form rather than the full title, because
+                        the eyebrow above already carries the date. */}
+                    <p className="font-display text-2xl leading-tight text-espresso">
+                      {formatReportHeading(doc.panelName, doc.markerCount)}
+                    </p>
                     <p className="tabular mt-2 text-xs text-espresso/80">
-                      {doc.markerCount} marker{doc.markerCount === 1 ? '' : 's'} · {doc.sourceLabel}
+                      {/* The count is already in the heading when there is no
+                          panel to name — don't say it twice. */}
+                      {doc.panelName ? `${doc.markerCount} marker${doc.markerCount === 1 ? '' : 's'} · ` : ''}
+                      {doc.sourceLabel}
                     </p>
                   </div>
                   <Link

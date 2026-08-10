@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatDate, formatDateShort, formatReportTitle, maskEmail } from '@aspire-bloods/shared';
+import { formatDate, formatDateShort, formatReportHeading, formatReportTitle, maskEmail } from '@aspire-bloods/shared';
 
 describe('formatDate', () => {
   it('renders the house format, never ISO', () => {
@@ -48,6 +48,28 @@ describe('formatReportTitle', () => {
 
   it('singularises a one-marker report', () => {
     expect(formatReportTitle(null, 1, '2026-08-04')).toBe('1 marker · 4 August 2026');
+  });
+});
+
+describe('formatReportHeading', () => {
+  it('uses the panel name when there is one', () => {
+    expect(formatReportHeading('Signature', 436)).toBe('Signature');
+  });
+
+  it('drops the date, because the caller is already printing it', () => {
+    // The whole reason this exists: on a card whose eyebrow reads
+    // "6 AUGUST 2026", formatReportTitle's fallback prints the date a second
+    // time, which reads as a rendering fault rather than as a title.
+    expect(formatReportHeading(null, 12)).toBe('12 markers');
+    expect(formatReportHeading(null, 1)).toBe('1 marker');
+  });
+
+  it('is never blank, whatever it is given', () => {
+    // Panels are optional and marker counts can legitimately be absent on a
+    // pending report — an empty display heading is the failure mode here.
+    expect(formatReportHeading(null, 0)).toBe('Results');
+    expect(formatReportHeading('', undefined)).toBe('Results');
+    expect(formatReportHeading('   ', null)).toBe('Results');
   });
 });
 

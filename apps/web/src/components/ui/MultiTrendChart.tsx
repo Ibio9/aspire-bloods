@@ -65,8 +65,17 @@ function normalise(value: number, low: number, high: number): number {
 
 interface Row {
   sampleDate: string;
+  /** The sample date as an epoch value — see the time-axis note in MultiTrendChart. */
+  t: number;
   [key: string]: string | number | undefined;
 }
+
+/** UTC midnight: a sample date is a calendar date, not an instant. Matches TrendChart. */
+function epochOf(sampleDate: string): number {
+  return Date.parse(`${sampleDate.slice(0, 10)}T00:00:00Z`);
+}
+
+const DAY_MS = 86_400_000;
 
 function SeriesDot({ cx, cy, shape, color }: { cx?: number; cy?: number; shape: 'circle' | 'square' | 'diamond'; color: string }) {
   if (cx == null || cy == null) return null;
@@ -82,13 +91,15 @@ function SeriesDot({ cx, cy, shape, color }: { cx?: number; cy?: number; shape: 
   );
 }
 
-function ChartTooltip({ active, label, payload, series }: { active?: boolean; label?: string; payload?: unknown[]; series: TrendSeries[] }) {
+function ChartTooltip({ active, payload, series }: { active?: boolean; payload?: unknown[]; series: TrendSeries[] }) {
   if (!active || !payload?.length) return null;
   const row = (payload[0] as { payload: Row }).payload;
 
   return (
     <div className="rounded-card border border-taupe bg-white px-3.5 py-2.5 text-xs shadow-card">
-      <p className="font-medium text-espresso">{label ? formatDate(label) : ''}</p>
+      {/* The row's own sampleDate, not the axis label — the axis is a time
+          scale now, so its label is an epoch number. */}
+      <p className="font-medium text-espresso">{formatDate(row.sampleDate)}</p>
       <ul className="mt-1.5 flex flex-col gap-1">
         {series.map((s, i) => {
           const raw = row[`${s.markerId}__value`];
@@ -141,6 +152,7 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
   // longer sends one; this is the belt to that braces.
   const series = input.filter((s) => s.points.length > 0);
   const dates = [...new Set(series.flatMap((s) => s.points.map((p) => p.sampleDate)))].sort();
+  const hasData = dates.length > 0;
 
   // One shared normalised threshold, or none. See the note at the top: a
   // shared axis may only shade what every series on it actually shares.
@@ -151,7 +163,7 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
       : null;
 
   const rows: Row[] = dates.map((sampleDate) => {
-    const row: Row = { sampleDate };
+    const row: Row = { sampleDate, t: epochOf(sampleDate) };
     for (const s of series) {
       const point = s.points.find((p) => p.sampleDate === sampleDate);
       if (!point) continue;
@@ -161,6 +173,14 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
     }
     return row;
   });
+
+  const times = rows.map((r) => r.t);
+  // Empty spreads give Math.min Infinity, which produces a chart made of NaN.
+  const tFirst = hasData ? Math.min(...times) : 0;
+  const tLast = hasData ? Math.max(...times) : 0;
+  const tPad = Math.max((tLast - tFirst) * 0.06, 7 * DAY_MS);
+  const tMin = tFirst - tPad;
+  const tMax = tLast + tPad;
 
   const positions = rows.flatMap((r) => series.map((s) => r[s.markerId]).filter((v): v is number => typeof v === 'number'));
   const min = Math.min(0, ...positions);
@@ -189,6 +209,8 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
   const singleResultNames = series.filter((s) => s.points.length === 1).map((s) => s.name);
   const incomparableNames = series.filter((s) => !s.comparable && s.points.length >= 2).map((s) => s.name);
 
+  if (!hasData) return null;
+
   const summary = series
     .map((s) => {
       const first = s.points[0];
@@ -207,15 +229,26 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={rows} margin={{ top: 12, right: 16, left: 4, bottom: 0 }}>
             <CartesianGrid stroke={chartTokens.gridline} strokeOpacity={0} />
+            {/* Real time, not one category per sample date. Plotted as
+                categories, a marker retested at three months and again at a
+                year drew as two equal steps — which says the change happened
+                at a steady rate when it did not. Same correction, and the same
+                reasoning, as the single-marker chart. */}
             <XAxis
-              dataKey="sampleDate"
-              tickFormatter={formatAxisDate}
+              dataKey="t"
+              type="number"
+              scale="time"
+              domain={[tMin, tMax]}
+              ticks={times}
+              tickFormatter={(t: number) => formatAxisDate(new Date(t).toISOString().slice(0, 10))}
               // Inter; the tabular figures are inherited from the `tabular`
               // class on the wrapper, since Recharts' tick prop type has no
               // fontVariantNumeric.
               tick={{ fontSize: 12, fill: chartTokens.axisText, fontFamily: 'Inter, sans-serif' }}
               axisLine={{ stroke: chartTokens.axisLine }}
               tickLine={false}
+              minTickGap={16}
+              interval="preserveStartEnd"
             />
             <defs>
               {shownBands.map((b) => {
