@@ -29,8 +29,8 @@ import { apiFetch, ApiError } from '../../lib/api';
  *
  * Nothing here deletes a panel. A report filed against a panel keeps its title
  * for as long as the report exists, so a panel the clinic has stopped selling is
- * deactivated: it leaves the pickers and the booking catalogue and stays intact
- * behind every report that used it.
+ * deactivated: it leaves the pickers and stays intact behind every report that
+ * used it.
  */
 
 interface MarkerRow {
@@ -156,7 +156,7 @@ export function PanelsPage() {
       await apiFetch(`/panels/${panel.id}`, { method: 'PATCH', body: JSON.stringify({ isActive: !panel.isActive }) });
       show(
         panel.isActive
-          ? 'Panel deactivated. It leaves the pickers and the booking catalogue; reports already filed against it are untouched.'
+          ? 'Panel deactivated. It leaves the pickers; reports already filed against it are untouched.'
           : 'Panel reactivated.',
         'success',
       );
@@ -250,7 +250,7 @@ export function PanelsPage() {
         <div className="mt-8">
           <EmptyState
             title="No active panels"
-            description="Reports can still be uploaded, verified and released without a panel. Reactivate or create one to offer it in the booking flow again."
+            description="Reports can still be uploaded, verified and released without a panel. Reactivate or create one to bring it back to the pickers."
           />
         </div>
       )}
@@ -303,8 +303,8 @@ export function PanelsPage() {
         <div className="mt-14">
           <p className="eyebrow mb-4">Deactivated</p>
           <p className="mb-4 max-w-2xl text-sm leading-relaxed text-espresso/80">
-            Not offered any more. Kept rather than deleted, because reports already filed against them still carry
-            their name.
+            Not offered any more. Kept rather than deleted: reports already filed against them still carry their
+            name.
           </p>
           <div className="flex flex-col gap-3">
             {archived.map((panel) => (

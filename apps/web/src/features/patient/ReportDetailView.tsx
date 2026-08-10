@@ -35,6 +35,7 @@ import {
   type ResultSort,
   type StatusFilter,
 } from '../../lib/markerCopy';
+import { BOOKING_ENABLED } from '../../lib/features';
 import { ReportBookingLink } from '../booking/ReportBookingLink';
 import { CategorySummaryBars, CountsStrip, type SummaryCategory } from './ResultsSummary';
 import { CompositionSection, GeneticSection, SensitivitySection } from './NonMeasuredSections';
@@ -322,8 +323,7 @@ export function ReportDetailView({
       <Card className="max-w-xl">
         <p className="font-display text-2xl text-espresso">We couldn't open that panel</p>
         <p className="mt-2 text-sm leading-relaxed text-espresso/90">
-          This report may no longer be available, or the link may be out of date. Everything released to you is listed
-          under Results.
+          This report may no longer be available, or the link may be out of date.
         </p>
         <LinkButton to="/results" className="mt-6">
           Back to all reports
@@ -369,8 +369,10 @@ export function ReportDetailView({
         </Link>
       </div>
       {/* Provenance — the appointment this sample came from, when the booking
-          system knows of one. Renders nothing for reports that pre-date it. */}
-      <ReportBookingLink reportId={report.reportId} />
+          system knows of one. Renders nothing for reports that pre-date it,
+          and nothing at all while booking is off: this portal keeps no diary
+          to link back to. */}
+      {BOOKING_ENABLED && <ReportBookingLink reportId={report.reportId} />}
 
       <div className="mt-8 flex flex-wrap gap-3">
         <Button

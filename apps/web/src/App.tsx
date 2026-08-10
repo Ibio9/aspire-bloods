@@ -33,6 +33,7 @@ import { BookingPage } from './features/booking/BookingPage';
 import { AppointmentsPage } from './features/booking/AppointmentsPage';
 import { AppointmentDetailPage } from './features/booking/AppointmentDetailPage';
 import { ReschedulePage } from './features/booking/ReschedulePage';
+import { BOOKING_ENABLED } from './lib/features';
 import { AdminShell } from './components/nav/AdminShell';
 import { PatientShell } from './components/nav/PatientShell';
 import { SessionGuard } from './components/SessionGuard';
@@ -100,11 +101,26 @@ export default function App() {
                 {/* Booking — the flow itself, the diary, and one appointment.
                     `/appointments/:id` doubles as the confirmation screen
                     (with ?booked=1) so the summary a patient checks before
-                    confirming is the same one they come back to. */}
-                <Route path="/book" element={<BookingPage />} />
-                <Route path="/appointments" element={<AppointmentsPage />} />
-                <Route path="/appointments/:id" element={<AppointmentDetailPage />} />
-                <Route path="/appointments/:id/reschedule" element={<ReschedulePage />} />
+                    confirming is the same one they come back to.
+
+                    Off unless VITE_BOOKING_ENABLED=true (see lib/features.ts):
+                    appointments are booked on the clinic's main website now.
+                    The paths stay declared and redirect, because they are in
+                    bookmarks and in at least one browser history — a redirect
+                    to somewhere real beats a 404 on a URL that used to work. */}
+                <Route path="/book" element={BOOKING_ENABLED ? <BookingPage /> : <Navigate to="/overview" replace />} />
+                <Route
+                  path="/appointments"
+                  element={BOOKING_ENABLED ? <AppointmentsPage /> : <Navigate to="/overview" replace />}
+                />
+                <Route
+                  path="/appointments/:id"
+                  element={BOOKING_ENABLED ? <AppointmentDetailPage /> : <Navigate to="/overview" replace />}
+                />
+                <Route
+                  path="/appointments/:id/reschedule"
+                  element={BOOKING_ENABLED ? <ReschedulePage /> : <Navigate to="/overview" replace />}
+                />
                 {/* Results — one destination, three views chosen by the
                     segmented control at the top of it. An opened report keeps
                     /reports/:id so every link already sent out still lands on

@@ -405,9 +405,8 @@ export function PatientDetailPage() {
         }
       >
         <p>
-          <strong>{name}</strong> will no longer be able to sign in, and any session already in progress ends
-          immediately. All their data (results, consents, history) is retained untouched. This is reversible: you
-          can reactivate the account at any time.
+          <strong>{name}</strong> will no longer be able to sign in, and any session in progress ends immediately.
+          All their data is retained untouched, and you can reactivate the account at any time.
         </p>
       </ConfirmModal>
 
@@ -441,12 +440,12 @@ export function PatientDetailPage() {
         }
       >
         <p>
-          Starts the process of erasing <strong>{name}</strong>'s personal details from our records. This creates a
-          request that still needs to be scheduled before anything is purged.
+          Starts erasing <strong>{name}</strong>'s personal details from our records. This creates a request that
+          still needs scheduling before anything is purged.
         </p>
         <p className="mt-3">
           <strong>Clinical results are never deleted by this.</strong> They're retained for the period required by
-          law regardless. Only the patient's personal and contact details are de-identified once the purge runs.
+          law. Only the patient's personal and contact details are de-identified once the purge runs.
         </p>
       </ConfirmModal>
     </>

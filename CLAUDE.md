@@ -83,6 +83,31 @@ in packages/shared/src/tokens.ts; tailwind.config.ts injects them via addBase.
   AA in light mode; anything fainter is for placeholders, disabled controls and
   decorative icons only. apps/server/tests/tokenContrast.test.ts enforces all of it.
 
+# Booking is in this codebase and is deliberately off (Aug 2026)
+The patient-facing booking flow is complete and stays in the tree, behind ONE
+build-time flag: `VITE_BOOKING_ENABLED`, unset (off) by default, read in exactly
+one place, `apps/web/src/lib/features.ts`. Do not add a second flag, and do not
+delete the flow.
+
+**Why.** Appointments are taken on the clinic's main website now. This portal is
+results only. Off means: no "Book a test" in the sidebar, /book and
+/appointments redirect to /overview (they are in bookmarks, so redirect, never
+404), no appointment cards on Overview, no report → appointment provenance link,
+no fasting or preparation notices. Rollup folds the flag, so none of
+features/booking or lib/booking reaches the production bundle.
+
+**What is NOT behind it, and must keep working:** the server's whole Randox
+chain — placeOrder/amend/cancel, GetServiceLocations, AvailabilityDetails,
+HoldAvailabilityBooking, CreateRandoxBooking, the mock transport, every test
+over them. That is what whatever books on the main site will call, and it has
+its own separate switch (`RANDOX_ENABLED`). Results ingestion, polling and the
+order lifecycle are untouched by the flag.
+
+Turning it back on is `VITE_BOOKING_ENABLED=true` in Vercel and a redeploy.
+Two e2e expectations are written against "off" (sidebar link count in
+patient-sidebar.spec.ts; the "no booking entry point" test in
+route-console.spec.ts). See DEPLOYMENT.md → Feature flags for the full note.
+
 # Rules
 - Never colour alone for status — text label + icon shape carry it first
 - Results screens (a report, All markers) share one search/filter/sort contract,

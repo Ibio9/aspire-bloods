@@ -223,7 +223,7 @@ export function EmailCodeStep({ email, sentTo, expiresInMinutes, cooldownSeconds
 
         {(exhausted || resendAttempts >= 2) && (
           <p className="mt-[var(--auth-step)] rounded-input border border-taupe bg-cream-50 px-4 py-2.5 text-sm leading-relaxed text-espresso">
-            Codes can be held up by spam filters. If it still hasn't arrived,{' '}
+            If it still hasn't arrived,{' '}
             {CLINIC_PHONE && CLINIC_PHONE_HREF ? (
               <>
                 call the clinic on{' '}

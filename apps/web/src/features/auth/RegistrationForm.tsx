@@ -298,7 +298,7 @@ export function RegistrationForm({ showEmailField, variant = 'full', submitLabel
           hint={
             full
               ? undefined
-              : 'Along with your date of birth, this is how the clinic confirms a result is yours before attaching it to your account.'
+              : 'With your date of birth, this is how the clinic confirms a result is yours before attaching it.'
           }
         />
         {full && (
@@ -328,8 +328,8 @@ export function RegistrationForm({ showEmailField, variant = 'full', submitLabel
       <Card padding="tight" className="flex flex-col gap-[calc(var(--auth-step)*0.9)]">
         <p className="eyebrow">GP &amp; medical details</p>
         <p className="text-sm text-espresso -mt-2">
-          If any of your results come back outside the expected range, we'll ask you to contact your GP. Having
-          these details on file helps us point you in the right direction.
+          If a result comes back outside the usual range we'll point you to your GP, so it helps to have these on
+          file.
         </p>
         <div className="grid grid-cols-1 gap-[calc(var(--auth-step)*0.9)] sm:grid-cols-2">
           <Input label="GP name" name="gpName" optional value={form.gpName} onChange={(e) => set('gpName', e.target.value)} />

@@ -163,8 +163,11 @@ async function patientRoutes(ctx: BrowserContext): Promise<{ name: string; path:
     { name: 'marker library', path: '/library' },
     { name: 'documents', path: '/documents' },
     { name: 'account', path: '/account' },
-    { name: 'book a test', path: '/book' },
-    { name: 'appointments', path: '/appointments' },
+    // Booking is off (VITE_BOOKING_ENABLED), so these two redirect. They are
+    // still visited: a redirect that renders a broken Overview is exactly the
+    // failure this spec exists to catch.
+    { name: 'retired /book', path: '/book' },
+    { name: 'retired /appointments', path: '/appointments' },
     { name: 'a URL that does not exist', path: '/nothing-here' },
   ];
 }
@@ -189,6 +192,46 @@ for (const theme of ['light', 'dark'] as const) {
     await ctx.close();
   });
 }
+
+/**
+ * Booking is not in this portal.
+ *
+ * Appointments are made on the clinic's main website; VITE_BOOKING_ENABLED
+ * keeps the finished flow in the tree and out of the product. "Off" has to
+ * mean three things at once, and each has been wrong on its own before: no way
+ * in from the navigation, no dead URL left rendering a shell, and no link
+ * anywhere on a patient screen still offering it.
+ */
+test('no booking entry point is reachable with the flag off', async ({ browser }) => {
+  const ctx = await signedInContext(browser, 'light');
+  const page = await ctx.newPage();
+
+  // 1. Not in the sidebar.
+  await page.goto('/overview');
+  await settle(page);
+  await expect(page.getByRole('link', { name: 'Book a test' })).toHaveCount(0);
+
+  // 2. The retired URLs land somewhere real, rather than 404ing or rendering
+  //    an empty shell. Overview is where they go.
+  for (const path of ['/book', '/appointments', '/appointments/apt-seed-upcoming']) {
+    await page.goto(path);
+    await settle(page);
+    await expect(page, `${path} should redirect rather than render`).toHaveURL(/\/overview$/);
+  }
+
+  // 3. Nothing on any patient screen still points at one.
+  for (const path of ['/overview', '/results', '/library', '/documents', '/account']) {
+    await page.goto(path);
+    await settle(page);
+    const hrefs = await page.locator('a[href]').evaluateAll((as) => as.map((a) => a.getAttribute('href') ?? ''));
+    expect(
+      hrefs.filter((h) => /^\/(book|appointments)\b/.test(h)),
+      `${path} still links to booking`,
+    ).toEqual([]);
+  }
+
+  await ctx.close();
+});
 
 /**
  * The pre-paint theme script is a real file on this origin.

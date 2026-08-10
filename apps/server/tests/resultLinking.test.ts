@@ -44,7 +44,7 @@ describe('assessMatch', () => {
     );
     expect(result.linkable).toBe(false);
     expect(result.dob).toBe(false);
-    expect(result.blockedReason).toMatch(/did not supply a date of birth/i);
+    expect(result.blockedReason).toMatch(/supplied no date of birth/i);
   });
 
   it('refuses a matching date of birth when neither name agrees — two people share a birthday', () => {

@@ -97,7 +97,7 @@ export function DocumentsPage() {
         <div className="mt-10 max-w-2xl">
           <EmptyState
             title="No documents yet"
-            description="When a report has been released to you, its PDFs appear here: the laboratory's own report, and an Aspire summary."
+            description="Once a report is released to you, its PDFs appear here: the laboratory's report and an Aspire summary."
             action={<LinkButton to="/overview">Back to overview</LinkButton>}
           />
         </div>

@@ -104,7 +104,7 @@ export class MockNexusLabClient implements NexusLabClient {
       throw new RandoxWindowExpiredError(
         'UpdatePendingOrder',
         order.orderNumber,
-        `Order ${order.orderNumber} can no longer be amended — it has already been submitted for processing.`,
+        `Order ${order.orderNumber} can no longer be amended. It has already been submitted for processing.`,
       );
     }
     return { orderId: order.orderId, externalNumber: order.orderNumber };
@@ -119,7 +119,7 @@ export class MockNexusLabClient implements NexusLabClient {
       throw new RandoxWindowExpiredError(
         'CancelOrder',
         order.orderNumber,
-        `Order ${order.orderNumber} can no longer be cancelled — results have already been reported.`,
+        `Order ${order.orderNumber} can no longer be cancelled. Results have already been reported.`,
       );
     }
     order.cancelled = true;

@@ -476,8 +476,8 @@ export function ComponentsShowcase() {
         <div className="max-w-md">
           <EmptyState
             title="No results yet"
-            description="You haven't had any tests yet. Once you've had a sample taken, your results will appear here."
-            action={<Button variant="secondary">Book a test</Button>}
+            description="Once you've had a sample taken, your results will appear here."
+            action={<Button variant="secondary">Contact the clinic</Button>}
           />
         </div>
       </Section>

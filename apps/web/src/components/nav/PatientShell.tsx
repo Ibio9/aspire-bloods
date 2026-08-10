@@ -5,6 +5,7 @@ import { PageTransition } from '../PageTransition';
 import { Wordmark } from '../Wordmark';
 import { Avatar } from '../ui/Avatar';
 import { useAuth } from '../../lib/AuthContext';
+import { BOOKING_ENABLED } from '../../lib/features';
 import { useDialogFocus } from '../../lib/useDialogFocus';
 import { ClinicContactPanel } from '../patient/ClinicContact';
 import { MarkerSearch } from './MarkerSearch';
@@ -31,20 +32,27 @@ interface NavItem {
 }
 
 /**
- * Six destinations. My results, All markers and Trends were three of them and
- * are now one: they were three overlapping answers about the same data, and
- * choosing between them in a sidebar meant guessing which one held the thing
- * you were after. Results holds all three, chosen by a control at the top of
- * the page where the difference between them is visible.
+ * Five destinations, six with booking on. My results, All markers and Trends
+ * were three of them and are now one: they were three overlapping answers
+ * about the same data, and choosing between them in a sidebar meant guessing
+ * which one held the thing you were after. Results holds all three, chosen by
+ * a control at the top of the page where the difference between them is
+ * visible.
  *
  * `alsoActiveOn` carries the routes each item owns but isn't the URL for. An
  * opened report and a marker's own page both belong to Results as far as a
  * patient is concerned, so the sidebar must not go blank the moment they open
  * one — the same reason booking owns /appointments.
+ *
+ * Book a test is behind VITE_BOOKING_ENABLED and off by default: appointments
+ * are made on the clinic's main website, so a sidebar item pointing at a
+ * booking flow here would be a promise this portal no longer keeps.
  */
 const NAV_ITEMS: NavItem[] = [
   { to: '/overview', label: 'Overview', icon: OverviewIcon },
-  { to: '/book', label: 'Book a test', icon: BookTestIcon, alsoActiveOn: ['/appointments'] },
+  ...(BOOKING_ENABLED
+    ? [{ to: '/book', label: 'Book a test', icon: BookTestIcon, alsoActiveOn: ['/appointments'] }]
+    : []),
   { to: '/results', label: 'Results', icon: PanelsIcon, alsoActiveOn: ['/reports/', '/markers/'] },
   { to: '/library', label: 'Understanding your results', icon: LibraryIcon },
   { to: '/documents', label: 'Documents', icon: DocumentsIcon },
@@ -293,9 +301,9 @@ function SidebarContents({
  * their own health data, and the density should say so.
  *
  * It replaces a two-item top bar. Two items in a sidebar would have looked
- * emptier than the bar did — the eight destinations here (Overview, booking,
- * results, every marker, trends, the explanation library, documents, account)
- * are what make the shape earn itself.
+ * emptier than the bar did — the destinations here (Overview, results, the
+ * explanation library, documents, account) are what make the shape earn
+ * itself.
  */
 export function PatientShell({ children }: { children?: ReactNode }) {
   const [collapsed, setCollapsed] = useState(() => {

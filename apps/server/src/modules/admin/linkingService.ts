@@ -125,7 +125,7 @@ export function assessMatch(claimed: ClaimedIdentity, account: AccountIdentity):
   let blockedReason: string | null = null;
   if (claimedDob === '') {
     blockedReason =
-      'The laboratory did not supply a date of birth with this result, so there is nothing to check the account against. Ask the laboratory to confirm the patient’s date of birth before linking.';
+      'The laboratory supplied no date of birth with this result, so there is nothing to check the account against. Ask them to confirm it before linking.';
   } else if (!dob) {
     blockedReason = 'The date of birth on this result does not match the date of birth on this account.';
   } else if (!firstName && !lastName) {

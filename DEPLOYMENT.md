@@ -69,6 +69,7 @@ I already checked: git history has no committed `.env` files and no secret-shape
 - [ ] Project → **Settings → Environment Variables**, add `VITE_API_BASE_URL`:
   - **Production**: `https://api.blood.aspireshield.com`
   - **Preview**: the staging Railway API URL — **never** the production URL (see "Preview deploys" below)
+- [ ] Do **not** set `VITE_BOOKING_ENABLED`. Unset is off, which is the intended production state — see "Feature flags" below.
 - [ ] Project → **Settings → Domains**, add `blood.aspireshield.com`. Vercel will show the record to add — that's the other IONOS record below.
 
 ### 5. Preview deploys → separate staging API
@@ -120,6 +121,7 @@ If you need a working deploy before DNS/certs are sorted: in `vercel.json`, add 
 | `COOKIE_DOMAIN` / `APP_BASE_URL` / `API_BASE_URL` | ✅ | | |
 | `BACKUP_S3_*` / `BACKUP_RETENTION_DAYS` (off-platform backup target) | | ✅ | |
 | `VITE_API_BASE_URL` | | | ✅ |
+| `VITE_BOOKING_ENABLED` (not a secret — a build-time feature flag, deliberately unset) | | | ✅ |
 
 Nothing above should ever be committed to the repo — `.env`, `.env.local`, and friends are gitignored, and `.env.example` only ever holds placeholder values (the app refuses to boot in production if it detects the literal placeholder strings).
 
@@ -136,6 +138,26 @@ These have working defaults and only need setting in Railway if the practice wan
 | `PASSWORD_RESET_RATE_LIMIT_MAX` | `5` | Reset links requestable per IP per `SIGNUP_RATE_LIMIT_WINDOW_SECONDS`. Not an enumeration control (the endpoint answers identically for an unknown address) — it stops our mail server being used to bombard an inbox. Leave it at the default in production; it exists as a setting so local/e2e runs can raise it |
 
 **Note the rename**: `LOGIN_RATE_LIMIT_WINDOW_MINUTES` and `OTP_RATE_LIMIT_WINDOW_MINUTES` are gone, replaced by the `_SECONDS` variables above — the login window is now shorter than a minute's granularity can express. Any value still set for the old names is ignored, so remove them from Railway when deploying this change or the numbers will silently be the defaults rather than what the dashboard appears to say.
+
+## Feature flags
+
+### `VITE_BOOKING_ENABLED` — the patient-facing booking flow (Vercel, off)
+
+| | |
+|---|---|
+| **Where** | Vercel, build time. Vite substitutes it into the bundle; it is not readable at runtime. |
+| **Default** | Unset, which means off. Only the exact string `true` turns it on. |
+| **Read in** | `apps/web/src/lib/features.ts`, once. Nothing else reads the variable directly. |
+
+**Why it is off.** Booking moved to the clinic's main website, which now handles appointments. This portal is results only. The flow itself was finished and is not deleted, because turning it off is a product decision that could be reversed and because the parts underneath it are what the main site's booking will call.
+
+**What off removes.** "Book a test" leaves the patient sidebar; `/book`, `/appointments`, `/appointments/:id` and `/appointments/:id/reschedule` redirect to `/overview` rather than 404ing (they are in bookmarks); Overview drops the upcoming-appointments section; an opened report drops its "from your appointment on…" provenance link; the fasting and preparation notices go with the flow that carried them. Rollup constant-folds the flag, so with it unset none of `features/booking` or `lib/booking` is in the production bundle at all — verified by grepping `dist/assets/*.js`.
+
+**What off does NOT touch.** The server's Randox integration is a separate concern with a separate switch (`RANDOX_ENABLED`) and is untouched: ordering (`CreatePendingOrder`), `GetServiceLocations`, `AvailabilityDetails`, `HoldAvailabilityBooking`, `CreateRandoxBooking`, cancel/reschedule, the mock transport and every test over them all still run. Whatever implements booking on the main site calls those. Results ingestion, polling and the order lifecycle are likewise unaffected.
+
+**Turning it back on.** Set `VITE_BOOKING_ENABLED=true` in Vercel (Production and/or Preview) and redeploy. Nothing else needs changing; no migration, no server variable. Two e2e expectations are written against "off" and would need updating with it: the patient sidebar's link count in `e2e/patient-sidebar.spec.ts`, and the "no booking entry point is reachable" test in `e2e/route-console.spec.ts`.
+
+**Before it goes live on the main site**, read the note in `apps/web/src/lib/booking/README.md` about `findAppointmentForReport`: the report → appointment link needs Randox to carry the booking reference on the result payload, and the current implementation is a browser-local mock.
 
 ## Deploy process
 

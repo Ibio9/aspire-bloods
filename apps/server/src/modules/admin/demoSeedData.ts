@@ -547,7 +547,7 @@ export async function buildDemoReports(opts: {
   const panelByKey = new Map(panels.map((p) => [p.key, p]));
   for (const key of panelKeys) {
     if (!panelByKey.has(key)) {
-      throw new Error(`Panel "${key}" not found — run \`npm run prisma:seed\` (the catalogue seed) first.`);
+      throw new Error(`Panel "${key}" not found. Run \`npm run prisma:seed\` (the catalogue seed) first.`);
     }
   }
 

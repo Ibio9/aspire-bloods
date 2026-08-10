@@ -108,8 +108,7 @@ export function MarkerDetailPage() {
         <TwoTierHeading eyebrow="Marker detail" title="We couldn't open that marker" />
         <Card className="mt-10 max-w-xl">
           <p className="text-sm leading-relaxed text-espresso/90">
-            You may not have a released result for this marker yet, or the link may be out of date. Everything you
-            have had tested is listed under Results.
+            You may not have a released result for this marker yet, or the link may be out of date.
           </p>
           <LinkButton to="/results?view=by-marker" className="mt-6">
             See every marker
@@ -280,7 +279,7 @@ export function MarkerDetailPage() {
       {detail.optimal && detail.optimal.within === false && latestStatus === 'IN_RANGE' && (
         <Card className="mt-7 max-w-3xl">
           <p className="text-sm leading-relaxed text-espresso/90">
-            This result is in range against the lab's reference range, and outside the optimal range of{' '}
+            This result is in range against the lab's reference range and outside the optimal range of{' '}
             <span className="tabular">
               {detail.optimal.low != null && detail.optimal.high != null
                 ? `${detail.optimal.low}–${detail.optimal.high} ${detail.optimal.unit}`
@@ -288,8 +287,8 @@ export function MarkerDetailPage() {
                   ? `below ${detail.optimal.high} ${detail.optimal.unit}`
                   : `${detail.optimal.low} ${detail.optimal.unit} or above`}
             </span>
-            . The optimal range is published clinical guidance, separate from how this result was classified.
-            Source: {detail.optimal.source}
+            . The optimal range is published guidance, separate from how the result was classified. Source:{' '}
+            {detail.optimal.source}
           </p>
         </Card>
       )}

@@ -291,7 +291,7 @@ async function resolveDemoStaff(isProduction: boolean) {
 
   if (!isProduction) {
     throw new Error(
-      'Dev staff users not found — run `npm run prisma:seed` (the main catalogue seed) before seeding demo data.',
+      'Dev staff users not found. Run `npm run prisma:seed` (the main catalogue seed) before seeding demo data.',
     );
   }
 
@@ -402,7 +402,7 @@ export async function runDemoSeed(opts: { trigger: DemoSeedTrigger; allowProduct
     const sourceKeys = [...new Set(generated.map((r) => r.sourceKey))];
     const sourcesByKey = new Map((await prisma.source.findMany({ where: { key: { in: sourceKeys } } })).map((s) => [s.key, s]));
     for (const key of sourceKeys) {
-      if (!sourcesByKey.has(key)) throw new Error(`Source "${key}" not found — run \`npm run prisma:seed\` first.`);
+      if (!sourcesByKey.has(key)) throw new Error(`Source "${key}" not found. Run \`npm run prisma:seed\` first.`);
     }
 
     slog('catalogue-resolved', {
@@ -650,7 +650,7 @@ export async function runDemoSeed(opts: { trigger: DemoSeedTrigger; allowProduct
       `${resultsWritten} results (${d.byResultType.MEASURED} measured, ${d.byResultType.GENETIC} genetic, ` +
       `${d.byResultType.SENSITIVITY} sensitivity, ${d.byResultType.COMPOSITION} composition). ` +
       `${d.measuredCategoriesCovered}/${d.measuredCategoriesTotal} health areas covered. ` +
-      `Markers per report — ${perReport}.`;
+      `Markers per report: ${perReport}.`;
 
     slog('succeeded', {
       trigger,

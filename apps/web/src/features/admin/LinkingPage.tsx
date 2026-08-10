@@ -308,8 +308,8 @@ function UnmatchedResultCard({ result, onChanged }: { result: UnmatchedResult; o
 
         {result.candidates.length === 0 && (
           <p className="text-sm leading-relaxed text-espresso/80">
-            Nothing on file resembles this patient. It keeps waiting here, and is rechecked against new accounts
-            every time you open the queue.
+            Nothing on file resembles this patient. It waits here and is rechecked against new accounts each time
+            you open the queue.
           </p>
         )}
 
@@ -405,9 +405,8 @@ function UnmatchedResultCard({ result, onChanged }: { result: UnmatchedResult; o
         }}
       >
         <p className="text-sm leading-relaxed text-espresso">
-          The result stays on record with your reason attached (nothing is deleted), but it stops appearing in
-          this queue. Use this for duplicates and results that were never ours, not for ones you simply can't
-          place yet.
+          The result stays on record with your reason attached and stops appearing in this queue. Use it for
+          duplicates and results that were never ours, not for ones you can't place yet.
         </p>
       </ConfirmModal>
     </Card>
@@ -511,7 +510,7 @@ export function LinkingPage() {
       <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Result linking" />
       <p className="mt-5 max-w-3xl text-lg leading-relaxed text-espresso">
         Results that arrived without an account, beside accounts with nothing attached. Nothing is matched
-        automatically: a name alone is never enough, and the date of birth must agree before a link can be made.
+        automatically: a name alone is never enough, and the date of birth must agree.
       </p>
 
       {queue === null ? (
@@ -560,7 +559,7 @@ export function LinkingPage() {
                 )}
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-espresso/80">
-                An account here is not a problem to solve. Most are simply patients who haven't been tested yet.
+                Not a problem to solve: most are patients who haven't been tested yet.
               </p>
 
               {queue.unlinkedAccounts.length > 0 && (

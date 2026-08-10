@@ -85,8 +85,6 @@ test('no em dashes and British spelling across the patient portal', async ({ bro
     '/library',
     '/documents',
     '/account',
-    '/book',
-    '/appointments',
   ];
 
   const offences: string[] = [];

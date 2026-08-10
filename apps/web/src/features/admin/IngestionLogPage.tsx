@@ -70,7 +70,7 @@ export function IngestionLogPage() {
       <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Ingestion log" />
       <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
         Every attempt to pull a result in from Randox's API, successful or not. Ingestion only ever reaches
-        admin-verified. A clinician still reviews and releases before a patient sees anything.
+        admin-verified; a clinician still reviews and releases before a patient sees anything.
       </p>
 
       {error != null ? (

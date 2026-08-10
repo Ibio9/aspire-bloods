@@ -317,21 +317,21 @@ export async function getPatientOverview(patientId: string) {
     nextSteps.push({
       kind: 'RESULTS_PENDING',
       title: pendingReports.length === 1 ? 'A result is on its way' : `${pendingReports.length} results are on their way`,
-      body: 'Your sample is with the clinical team. We’ll email you as soon as it has been reviewed and released.',
+      body: 'Your sample is with the clinical team. We’ll email you once it has been reviewed and released.',
     });
   }
   if (attention.length > 0) {
     nextSteps.push({
       kind: 'DISCUSS_RESULTS',
       title: 'Worth a conversation',
-      body: 'Some of your results sit outside the usual reference range. Your GP or the Aspire clinical team can talk you through what they mean in the context of your own history.',
+      body: 'Some of your results sit outside the usual reference range. Your GP or the Aspire clinical team can talk you through them in the context of your own history.',
     });
   }
   if (retestDueDate && retestDueDate <= new Date()) {
     nextSteps.push({
       kind: 'RETEST_DUE',
       title: 'A repeat test is due',
-      body: `It has been over ${RETEST_INTERVAL_MONTHS} months since your last sample. Get in touch when you’d like to book the next one.`,
+      body: `It has been over ${RETEST_INTERVAL_MONTHS} months since your last sample. Get in touch when you’d like the next one.`,
     });
   }
 
@@ -505,7 +505,7 @@ export async function getMultiMarkerTrends(patientId: string, markerIds: string[
 // ---------------------------------------------------------------------------
 
 const EXPLANATION_PENDING =
-  'A full explanation for this marker is being finalised by our clinical team and will appear here soon.';
+  'An explanation for this marker is being finalised and will appear here soon.';
 
 /**
  * The explanation library as a destination, not a leaf node. Shows every
@@ -602,8 +602,8 @@ export async function listDocumentsForPatient(patientId: string) {
     unreportedNote:
       r._count.exclusions > 0
         ? r._count.exclusions === 1
-          ? 'One test on this panel could not be reported. Please contact the clinic if you would like it repeated.'
-          : `${r._count.exclusions} tests on this panel could not be reported. Please contact the clinic if you would like them repeated.`
+          ? 'One test on this panel could not be reported. Contact the clinic if you would like it repeated.'
+          : `${r._count.exclusions} tests on this panel could not be reported. Contact the clinic if you would like them repeated.`
         : null,
   }));
 }

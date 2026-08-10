@@ -338,7 +338,7 @@ function ManualEntryForm({
         noValidate
       >
         <p className="text-sm text-espresso/80">
-          For Aspire's own in-house testing. It goes through the same verify-and-release process as everything else.
+          For Aspire's own in-house testing. Same verify-and-release process as everything else.
         </p>
         <Select
           label="Patient"

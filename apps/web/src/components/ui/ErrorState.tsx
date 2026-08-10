@@ -46,7 +46,7 @@ function explain(error: unknown, subject: string): Explanation {
   if (status === 403) {
     return {
       title: 'You don’t have access to this',
-      description: `${subject.charAt(0).toUpperCase()}${subject.slice(1)} belongs to an account you're not permitted to view. If you think that's wrong, ask an administrator to check your access.`,
+      description: `${subject.charAt(0).toUpperCase()}${subject.slice(1)} belongs to an account you're not permitted to view. If that's wrong, ask an administrator to check your access.`,
       retryable: false,
     };
   }
@@ -60,20 +60,20 @@ function explain(error: unknown, subject: string): Explanation {
   if (status === 429) {
     return {
       title: 'Too many requests',
-      description: 'Things are moving faster than we can keep up with. Wait a moment and try again.',
+      description: 'Things are moving faster than we can keep up with. Wait a moment.',
       retryable: true,
     };
   }
   if (status >= 500) {
     return {
       title: 'Something went wrong at our end',
-      description: `We couldn't load ${subject}. This is a fault on our side, not anything you did. Trying again often works.`,
+      description: `We couldn't load ${subject}. That's a fault on our side, not anything you did.`,
       retryable: true,
     };
   }
   return {
     title: 'We couldn’t load this',
-    description: `Something stopped ${subject} from loading. Check your connection and try again.`,
+    description: `Something stopped ${subject} from loading. Check your connection.`,
     retryable: true,
   };
 }

@@ -144,7 +144,7 @@ export function AccountPage() {
           <Card>
             <p className="eyebrow mb-3">Appearance</p>
             <p className="text-sm text-espresso">
-              Saved on this device rather than to your account, so your phone and your computer can differ.
+              Saved on this device, not to your account, so your phone and your computer can differ.
             </p>
             <ThemeToggle className="mt-4" />
           </Card>
@@ -158,8 +158,7 @@ export function AccountPage() {
           <Card>
             <p className="eyebrow mb-3">Your data</p>
             <p className="text-sm text-espresso">
-              Download a full copy of everything we hold about you: your profile, results, consent history, and
-              account activity.
+              Download everything we hold about you: your profile, results, consent history and account activity.
             </p>
             <Button variant="secondary" className="mt-4" loading={exporting} onClick={() => void handleExport()}>
               Download my data
@@ -169,8 +168,8 @@ export function AccountPage() {
           <Card>
             <p className="eyebrow mb-3">Delete my account</p>
             <p className="text-sm text-espresso">
-              You can request that we erase your personal data. Clinical results are retained for the period
-              required by law, but your personal details will be removed from our records.
+              You can ask us to erase your personal data. Clinical results are retained for the period required by
+              law; your personal details are removed from our records.
             </p>
             {erasureRequested ? (
               <p className="mt-4 text-sm text-espresso">
@@ -206,8 +205,8 @@ export function AccountPage() {
       >
         {confirmWithdraw && (
           <p>
-            You're about to withdraw consent for <strong>{CONSENT_LABEL[confirmWithdraw]}</strong>. Depending on
-            which consent this is, we may no longer be able to provide parts of the portal.
+            You're about to withdraw consent for <strong>{CONSENT_LABEL[confirmWithdraw]}</strong>. We may no
+            longer be able to provide parts of the portal without it.
           </p>
         )}
       </Modal>
@@ -228,8 +227,8 @@ export function AccountPage() {
         }
       >
         <p>
-          This starts the process of erasing your personal details from our records. Clinical results are retained
-          for the period required by law regardless of this request. This can't be undone once our team actions it.
+          This starts erasing your personal details from our records. Clinical results are retained for the period
+          required by law regardless. It can't be undone once our team has actioned it.
         </p>
       </Modal>
     </>

@@ -4,15 +4,15 @@ import { test, expect } from '@playwright/test';
  * The patient sidebar's job is navigation, and it has to be able to do it.
  *
  * The contact block used to sit permanently expanded at the bottom and took
- * roughly half the column at a normal window height, which pushed the eight
- * nav items into a short scrolling strip that cut rows in half. Trimming the
+ * roughly half the column at a normal window height, which pushed the whole
+ * nav into a short scrolling strip that cut rows in half. Trimming the
  * contact block back to one row bought the space; the nav then kept a scroll
  * container of its own, which put a scrollbar down the side of the panel and
  * still clipped rows once the window dipped under ~750px.
  *
  * So the nav has no scroll container at all now, and this pins what replaced
  * it: a panel exactly one viewport tall with the footer flush to its bottom,
- * eight nav items whole at 700px, and — when a window is genuinely shorter
+ * every nav item whole at 700px, and — when a window is genuinely shorter
  * than the sidebar's content — the whole column scrolling as one piece rather
  * than the nav scrolling inside a fixed box.
  *
@@ -71,10 +71,11 @@ async function expectNavFitsWhole(page: import('@playwright/test').Page, at: str
   // item is what this is really guarding against.
   const navBox = (await nav.boundingBox())!;
   const links = await nav.getByRole('link').all();
-  // Six, not eight: My results, All markers and Trends were three answers to
-  // overlapping questions and are now one Results destination with the three
-  // as views inside it.
-  expect(links.length).toBe(6);
+  // Five. My results, All markers and Trends were three answers to overlapping
+  // questions and are now one Results destination with the three as views
+  // inside it; Book a test went with booking, which the clinic's main website
+  // handles now (VITE_BOOKING_ENABLED).
+  expect(links.length).toBe(5);
   for (const link of links) {
     const box = (await link.boundingBox())!;
     const label = (await link.textContent())?.trim().slice(0, 24);

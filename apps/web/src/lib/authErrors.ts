@@ -48,12 +48,12 @@ export function authErrorMessage(e: unknown): string {
         : `${e.message} This is a temporary lock to protect your account.`;
     }
     if (e.status === 502 || e.status === 503) {
-      return `We couldn't send that just now. Our email and SMS service is temporarily unavailable. Please try again in a few minutes, or contact ${CLINIC_CONTACT} if this continues.`;
+      return `Our email and SMS service is temporarily unavailable. Try again in a few minutes, or contact ${CLINIC_CONTACT} if it continues.`;
     }
     return e.message;
   }
   // fetch() itself throwing (offline, DNS failure, server unreachable) is a
   // plain TypeError, not an ApiError — this is the genuine "service is
   // down" case, not a validation or auth failure.
-  return `Aspire Bloods isn't reachable right now. Check your connection and try again, or contact ${CLINIC_CONTACT} if this continues.`;
+  return `Aspire Bloods isn't reachable right now. Check your connection, or contact ${CLINIC_CONTACT} if it continues.`;
 }

@@ -201,7 +201,7 @@ export function CompareView({
         <div className="max-w-2xl">
           <EmptyState
             title="Not enough history yet"
-            description="A comparison needs at least two results for the same marker. Once you've had a second test, everything measured on both appears here."
+            description="A comparison needs at least two results for the same marker. After a second test, everything measured on both appears here."
           />
         </div>
       ) : (

@@ -144,7 +144,7 @@ const markers: MarkerSeed[] = [
  * against "RP10 Heart Health" still has to render with its panel name intact,
  * and deleting the row would leave that report with a dangling foreign key and
  * a patient with a titleless result set. Deactivated panels disappear from the
- * pickers and from the booking catalogue; nothing else about them changes.
+ * pickers; nothing else about them changes.
  *
  * `signature` is absent from this list on purpose — the new catalogue reuses
  * that exact key, so the panel is upgraded in place rather than retired.
@@ -205,14 +205,30 @@ const sourceDefinitions = [
  * ONLY punctuation. That is the trade: house style is the thing being enforced,
  * and it is worth more than preserving a comma somebody moved.
  */
-const copyBlocks = [
+/**
+ * `supersedes` lists wordings this file has shipped before.
+ *
+ * The restyle rule below only replaces a stored block whose WORDS still match
+ * this file's, so a genuine shortening of the copy would otherwise reach new
+ * environments and never the live one — the same failure the marker
+ * explanations already guard against. A stored body matching a superseded
+ * wording exactly is ours to replace; anything else was reworded by a human
+ * and is still left alone.
+ */
+const copyBlocks: { slug: string; body: string; supersedes?: string[] }[] = [
   {
     slug: 'out_of_range_prompt',
-    body: 'One or more of your results falls outside the expected reference range. This is not a diagnosis. Many things can affect a single result, and only a clinician who knows your full history can interpret it properly. Please contact your GP or the Aspire clinical team to discuss these results and next steps.\n\nAspire Clinic, Aspire Group of Companies, 27 Mortimer Street, London\nClinical team: clinical-team@aspireshield.com',
+    body: 'One or more of your results falls outside the usual reference range. This is not a diagnosis. Many things affect a single result, and only a clinician who knows your full history can interpret it properly. Please contact your GP or the Aspire clinical team to discuss it.\n\nAspire Clinic, Aspire Group of Companies, 27 Mortimer Street, London\nClinical team: clinical-team@aspireshield.com',
+    supersedes: [
+      'One or more of your results falls outside the expected reference range. This is not a diagnosis. Many things can affect a single result, and only a clinician who knows your full history can interpret it properly. Please contact your GP or the Aspire clinical team to discuss these results and next steps.\n\nAspire Clinic, Aspire Group of Companies, 27 Mortimer Street, London\nClinical team: clinical-team@aspireshield.com',
+    ],
   },
   {
     slug: 'footer_disclaimer',
-    body: 'The information in this portal is provided for your information and does not constitute a diagnosis or medical advice. If you have concerns about your results, please contact your GP or the Aspire clinical team. In a medical emergency, call 999 or NHS 111.',
+    body: 'This portal is for information only and does not constitute a diagnosis or medical advice. If you have concerns about your results, contact your GP or the Aspire clinical team. In a medical emergency, call 999 or NHS 111.',
+    supersedes: [
+      'The information in this portal is provided for your information and does not constitute a diagnosis or medical advice. If you have concerns about your results, please contact your GP or the Aspire clinical team. In a medical emergency, call 999 or NHS 111.',
+    ],
   },
 ];
 
@@ -289,6 +305,20 @@ async function removeEmDashesFromStoredCopy() {
       `  Removed em dashes from ${cleaned} marker explanation(s). Punctuation only, no wording changed.` +
         (audited > 0 ? ` ${audited} were clinician-reviewed and are recorded in the audit log.` : ''),
     );
+  }
+
+  // The same sweep over the two copy blocks. They ship from this file so they
+  // should never carry one, but they are editable in the admin console and
+  // this is the only place that would catch it if somebody pasted one in.
+  const blocks = await prisma.copyBlock.findMany();
+  let blocksCleaned = 0;
+  for (const b of blocks) {
+    if (!b.body.includes('—')) continue;
+    await prisma.copyBlock.update({ where: { id: b.id }, data: { body: removeEmDashes(b.body) } });
+    blocksCleaned += 1;
+  }
+  if (blocksCleaned > 0) {
+    console.log(`  Removed em dashes from ${blocksCleaned} copy block(s). Punctuation only, no wording changed.`);
   }
 }
 
@@ -474,17 +504,21 @@ async function main() {
     const existing = await prisma.copyBlock.upsert({
       where: { slug: c.slug },
       update: {},
-      create: c,
+      create: { slug: c.slug, body: c.body },
     });
-    // Still this file's words, in an older punctuation style: bring it up to
-    // house style. Anything a human has actually reworded is left alone.
-    if (existing.body !== c.body && sameWords(existing.body, c.body)) {
+    // Still this file's copy — either its current words in an older
+    // punctuation style, or a wording this file used to ship. Either way it is
+    // ours to bring up to date. Anything a human has actually reworded is left
+    // alone, because it matches neither.
+    const isOurs =
+      sameWords(existing.body, c.body) || (c.supersedes ?? []).some((prev) => sameWords(existing.body, prev));
+    if (existing.body !== c.body && isOurs) {
       await prisma.copyBlock.update({ where: { id: existing.id }, data: { body: c.body } });
       restyledBlocks += 1;
     }
   }
   if (restyledBlocks > 0) {
-    console.log(`  Re-styled ${restyledBlocks} copy block(s) to the current punctuation. No wording changed.`);
+    console.log(`  Brought ${restyledBlocks} copy block(s) up to this file's current wording and punctuation.`);
   }
 
   await removeEmDashesFromStoredCopy();

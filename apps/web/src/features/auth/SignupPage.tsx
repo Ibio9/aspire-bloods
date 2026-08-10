@@ -9,7 +9,7 @@ import { EmailCodeStep } from './EmailCodeStep';
 const EYEBROW = 'Aspire Clinic';
 const HEADLINE = 'Create your account.';
 const SUPPORTING =
-  'Your results appear here once the clinic has matched them to you, and nothing is published until a clinician has reviewed it.';
+  'Results appear here once the clinic has matched them to you, and only after a clinician has reviewed them.';
 
 interface SignupResponse {
   status: string;
@@ -73,8 +73,7 @@ export function SignupPage() {
                 said once, on the field that asks for them (see
                 RegistrationForm) rather than again here. */}
             <p className="mt-[var(--auth-step)] max-w-prose text-sm leading-relaxed text-espresso/80">
-              Anyone can register; you don't need an invitation. We'll confirm your email address, then set up
-              two-factor sign-in.
+              No invitation needed. We'll confirm your email address, then set up two-factor sign-in.
             </p>
 
             {/* The exact mirror of the band on the sign-in screen — same component,

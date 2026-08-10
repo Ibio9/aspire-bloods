@@ -783,8 +783,8 @@ export function ReportDetailPage() {
       >
         <p>
           <strong>{patientName}</strong> will no longer see this report anywhere in their portal. It stays in the
-          database and the audit log, and remains visible here, marked voided. This is a state change, not a
-          deletion. The record is never destroyed.
+          database and the audit log, and remains visible here marked voided. This is a state change, never a
+          deletion.
         </p>
       </ConfirmModal>
 
@@ -811,8 +811,8 @@ export function ReportDetailPage() {
           <>
             <p>
               This report has already been released to <strong>{patientName}</strong>. The change is versioned, not
-              overwritten. The previous value, who changed it, when, and the reason are all kept and shown to
-              admins. The patient sees the new value with an "amended" note and date.
+              overwritten: the previous value, who changed it, when and why are all kept and shown to admins. The
+              patient sees the new value with an "amended" note and date.
             </p>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">

@@ -364,7 +364,7 @@ export async function getMarkerTrendForPatient(patientId: string, markerId: stri
           reviewStatus: marker.explanation!.reviewStatus,
         }
       : {
-          whatItIs: 'A full explanation for this marker is being finalised by our clinical team and will appear here soon.',
+          whatItIs: 'An explanation for this marker is being finalised and will appear here soon.',
           highMeans: null,
           lowMeans: null,
           lifestyleContext: null,

@@ -203,8 +203,8 @@ async function sendVerificationCode(userId: string, email: string, resendCount =
   await emailProvider.sendEmail({
     to: email,
     subject: 'Your Aspire Bloods confirmation code',
-    text: `Welcome to the Aspire Bloods patient portal. Your confirmation code is ${code}.\n\nEnter it on the confirm-your-email screen to finish setting up your account. It expires in ${ttlMinutes} minutes. If you didn't create an account, you can ignore this email.`,
-    html: `<p>Welcome to the Aspire Bloods patient portal.</p><p>Your confirmation code is <strong>${code}</strong>.</p><p>Enter it on the confirm-your-email screen to finish setting up your account. It expires in ${ttlMinutes} minutes. If you didn't create an account, you can ignore this email.</p>`,
+    text: `Welcome to the Aspire Bloods patient portal. Your confirmation code is ${code}.\n\nEnter it on the confirm-your-email screen to finish setting up. It expires in ${ttlMinutes} minutes. If you didn't create an account, ignore this email.`,
+    html: `<p>Welcome to the Aspire Bloods patient portal.</p><p>Your confirmation code is <strong>${code}</strong>.</p><p>Enter it on the confirm-your-email screen to finish setting up. It expires in ${ttlMinutes} minutes. If you didn't create an account, ignore this email.</p>`,
   });
 
   return code;
@@ -252,8 +252,8 @@ export async function signup(input: SignupRequest, ip: string | null): Promise<S
       .sendEmail({
         to: existing.email,
         subject: 'Someone tried to register with your email',
-        text: `Someone just tried to create an Aspire Bloods account with this email address, but you already have one. If that was you, sign in at ${env.APP_BASE_URL}/login instead. You can reset your password there if you've forgotten it. If it wasn't you, no action is needed: no new account was created and nothing about yours has changed.`,
-        html: `<p>Someone just tried to create an Aspire Bloods account with this email address, but you already have one.</p><p>If that was you, <a href="${env.APP_BASE_URL}/login">sign in</a> instead. If it wasn't, no action is needed: no new account was created and nothing about yours has changed.</p>`,
+        text: `Someone just tried to create an Aspire Bloods account with this email address, but you already have one. If that was you, sign in at ${env.APP_BASE_URL}/login, and reset your password there if you've forgotten it. If it wasn't you, no new account was created and nothing about yours has changed.`,
+        html: `<p>Someone just tried to create an Aspire Bloods account with this email address, but you already have one.</p><p>If that was you, <a href="${env.APP_BASE_URL}/login">sign in</a> instead. If it wasn't, no new account was created and nothing about yours has changed.</p>`,
       })
       .catch((e) => {
         // The notice failing must not change the response shape and give
@@ -340,7 +340,7 @@ export async function signup(input: SignupRequest, ip: string | null): Promise<S
       error: e instanceof Error ? e.message : e,
     });
     throw new AuthError(
-      "We couldn't send your confirmation email just now. Your details are saved, so please try again in a few minutes.",
+      "We couldn't send your confirmation email. Your details are saved, so try again in a few minutes.",
       502,
     );
   }
@@ -784,7 +784,7 @@ export async function login(
       ipAddress: ip,
     });
     throw new AuthError(
-      'Please confirm your email address first by entering the code we emailed you when you registered. You can ask for a new one from the confirm-your-email page.',
+      'Confirm your email address first, using the code we emailed when you registered. You can ask for a new one on the confirm-your-email page.',
       403,
     );
   }

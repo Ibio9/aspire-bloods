@@ -91,7 +91,7 @@ export class MockClinicBookingClient implements ClinicBookingClient {
       throw new RandoxWindowExpiredError(
         'CreateRandoxBooking',
         request.gpExternalNumber,
-        `Hold ${request.holdReference} is not recognised — it may already have expired.`,
+        `Hold ${request.holdReference} is not recognised. It may already have expired.`,
       );
     }
     if (hold.consumed || Date.now() > hold.expiresAt) {
@@ -128,7 +128,7 @@ export class MockClinicBookingClient implements ClinicBookingClient {
       throw new RandoxWindowExpiredError(
         'CancelRandoxBooking',
         orderNumber,
-        `Booking ${bookingReference} is not recognised — it may already have been cancelled.`,
+        `Booking ${bookingReference} is not recognised. It may already have been cancelled.`,
       );
     }
     // Real cancellation windows close before the appointment; an

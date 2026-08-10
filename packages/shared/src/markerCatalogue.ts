@@ -84,7 +84,7 @@ export const RESULT_TYPE_RULES: Record<
     trendable: false,
     canHaveOptimalRange: false,
     framing:
-      'These are genetic indicators, not blood measurements. They describe a tendency you were born with rather than anything about your health today. They have no reference range and will not change between tests.',
+      'Genetic indicators, not blood measurements. They describe a tendency you were born with, not your health today. They have no reference range and will not change between tests.',
   },
   SENSITIVITY: {
     label: 'Food sensitivity',
@@ -93,7 +93,7 @@ export const RESULT_TYPE_RULES: Record<
     trendable: false,
     canHaveOptimalRange: false,
     framing:
-      'These measure IgG reactivity to foods. They are not a test for food allergy, which is a different measurement entirely, and there is no reference range or agreed way to interpret them. Please discuss anything here with a clinician before changing what you eat.',
+      'These measure IgG reactivity to foods. They are not an allergy test, and there is no reference range or agreed way to interpret them. Please talk to a clinician before changing what you eat.',
   },
   COMPOSITION: {
     label: 'Microbiome composition',
@@ -102,7 +102,7 @@ export const RESULT_TYPE_RULES: Record<
     trendable: false,
     canHaveOptimalRange: false,
     framing:
-      'These describe the relative make-up of your gut microbiome, reported as proportions of the whole rather than absolute amounts. They have no reference range and are not comparable with a blood measurement.',
+      'These describe the make-up of your gut microbiome as proportions of the whole, not absolute amounts. They have no reference range and are not comparable with a blood measurement.',
   },
 };
 
@@ -541,7 +541,7 @@ const INSIGHT_CATEGORIES: CatalogueCategory[] = [
   {
     key: 'personal-health-measurements', name: 'Personal Health Measurements', randoxId: 58, resultType: 'MEASURED',
     markerNames: ['Body Composition Analyser', 'Diastolic Blood Pressure', 'Height', 'Hip Circumference', 'Oxygen Saturation', 'Pulse', 'Systolic Blood Pressure', 'Waist/Hip Ratio', 'Waist Circumference', 'Weight'],
-    note: 'Recorded at your appointment rather than measured from your blood sample.',
+    note: 'Recorded at your clinic visit, not measured from your blood sample.',
   },
   {
     key: 'pituitary-adrenal', name: 'Pituitary & Adrenal', randoxId: 59, resultType: 'MEASURED',
@@ -554,7 +554,7 @@ const INSIGHT_CATEGORIES: CatalogueCategory[] = [
   {
     key: 'digestive-bowel-health', name: 'Digestive & Bowel Health', randoxId: 63, resultType: 'MEASURED',
     markerNames: ['Calprotectin', 'Gastrin', 'H. Pylori antibodies', 'Pepsinogen 1', 'Pepsinogen 2', 'qFIT'],
-    note: 'Collected with an at-home stool kit, returned separately from your appointment.',
+    note: 'Collected with an at-home stool kit and returned separately.',
   },
   {
     key: 'stress', name: 'Stress', randoxId: 77, resultType: 'MEASURED',
@@ -777,7 +777,7 @@ export const CATALOGUE_PANELS: CataloguePanel[] = [
     key: 'insight-360',
     name: 'Insight 360',
     description:
-      'RanChip Insight 360: around 250 data points across roughly 150 conditions, spanning blood, urine and measurements taken at your appointment, with an at-home bowel health kit returned separately.',
+      'RanChip Insight 360: around 250 data points across roughly 150 conditions, spanning blood, urine and measurements taken at the clinic, with an at-home bowel health kit returned separately.',
     includes: [],
     categoryKeys: INSIGHT_CATEGORIES.map((c) => c.key),
     turnaroundWorkingDays: 10,

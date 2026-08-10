@@ -155,8 +155,8 @@ function MarkersTab() {
       <Card className="flex max-w-xl flex-col gap-3">
         <p className="eyebrow">New marker</p>
         <p className="text-sm leading-relaxed text-espresso/80">
-          Most analytes arrive with the Randox catalogue import. Add one here only where the clinic measures something
-          Randox does not supply.
+          Most analytes arrive with the Randox catalogue import. Add one here only where the clinic measures
+          something Randox doesn't supply.
         </p>
         <Input
           label="Key"
@@ -230,8 +230,8 @@ function MarkersTab() {
           {showRetired && (
             <Card className="mt-4">
               <p className="mb-3 text-sm leading-relaxed text-espresso/80">
-                Not offered any more. Kept rather than deleted, because results already filed against them still refer
-                to them.
+                Not offered any more. Kept rather than deleted: results already filed against them still refer to
+                them.
               </p>
               <div className="flex flex-col gap-2">
                 {retired.map((m) => (
@@ -478,8 +478,8 @@ export function AdminMarkerLibraryPage() {
     <>
       <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Marker library" />
       <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
-        Every analyte the clinic can report, and the wording a patient reads beside it. Explanation copy is not visible
-        to patients until it has been reviewed.
+        Every analyte the clinic can report, and the wording a patient reads beside it. Explanation copy isn't
+        visible to patients until it has been reviewed.
       </p>
 
       <div className="mt-10">

@@ -14,6 +14,7 @@ import { ArrowRightIcon, LibraryIcon, MarkersIcon, TrendsIcon } from '../../comp
 import { apiFetch } from '../../lib/api';
 import { formatRelativeDate, type ChangeItem, type PatientOverview as Overview } from '../../lib/patientPortal';
 import { MOVEMENT_COPY } from '../../lib/markerCopy';
+import { BOOKING_ENABLED } from '../../lib/features';
 import { UpcomingAppointments } from '../booking/UpcomingAppointments';
 
 /**
@@ -170,8 +171,11 @@ export function PatientOverview() {
           before, and a result can be read whenever. It renders its own
           prompt to book when the diary is empty, so the section never
           silently disappears.
+
+          Off with booking (see lib/features.ts). Appointments are made on
+          the clinic's main website, so this portal has no diary to show.
           --------------------------------------------------------------- */}
-      <UpcomingAppointments />
+      {BOOKING_ENABLED && <UpcomingAppointments />}
 
       {/* ---------------------------------------------------------------
           Empty state — what is happening and what happens next, and only
@@ -189,15 +193,15 @@ export function PatientOverview() {
             <Card>
               <p className="eyebrow mb-3">Your account is ready</p>
               <p className="text-reading leading-relaxed text-espresso">
-                Nothing has gone wrong. A new account simply starts empty, and results appear once you've had a
-                sample taken and the clinic has matched it to you.
+                A new account starts empty. Results appear once you've had a sample taken and the clinic has
+                matched it to you.
               </p>
             </Card>
             <Card>
-              <p className="eyebrow mb-3">After your appointment</p>
+              <p className="eyebrow mb-3">After your test</p>
               <p className="text-reading leading-relaxed text-espresso">
-                Your sample goes to the laboratory, and the results come back to the Aspire clinical team. A
-                clinician reviews every result before it's published, and we'll email you when yours is ready.
+                Your sample goes to the laboratory and the results come back to the Aspire clinical team. A
+                clinician reviews every one before it's published, and we'll email you when yours is ready.
               </p>
             </Card>
             <ClinicContactCard />
@@ -216,7 +220,7 @@ export function PatientOverview() {
           </h2>
           <p className="mt-3 max-w-2xl text-reading leading-relaxed text-espresso/90">
             {data.attention.length === 1 ? 'One of your results sits' : `${data.attention.length} of your results sit`} outside
-            the usual reference range. That on its own is not a diagnosis. Reference ranges describe most people, not
+            the usual reference range. That on its own is not a diagnosis: reference ranges describe most people, not
             every person, and a single result can't be read without the rest of your history.
           </p>
 
