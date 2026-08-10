@@ -489,6 +489,17 @@ export function TrendChart({
                   y1={b.from ?? domainMin}
                   y2={b.to ?? domainMax}
                   fill={`url(#${gradId}-${b.status})`}
+                  // NOT optional, and this is the whole of why the bands were
+                  // invisible. Recharts' ReferenceArea defaults fillOpacity to
+                  // 0.5, so every band was drawn at half the weight the token
+                  // system had already calibrated — and the band tokens are a
+                  // ~30% mix toward the hue precisely because that is what
+                  // reads as green or gold rather than as cream. Halved again
+                  // it lands on ~15%, which is the exact "a 12% wash of an
+                  // orange is indistinguishable from cream" failure the token
+                  // file documents. The opacity belongs in the token, not in
+                  // the chart library's default, so it is pinned to 1 here.
+                  fillOpacity={1}
                   strokeOpacity={0}
                   ifOverflow="hidden"
                 />
@@ -518,7 +529,17 @@ export function TrendChart({
             )}
 
             {optimal && optimalLow != null && optimalHigh != null && (
-              <ReferenceArea y1={optimalLow} y2={optimalHigh} fill={`url(#${hatchId})`} strokeOpacity={0} />
+              // fillOpacity pinned for the same reason as the status bands
+              // above: the hatch pattern carries its own opacity internally
+              // (chartTokens.optimalBandOpacity), and the library's 0.5 default
+              // was quietly halving it a second time.
+              <ReferenceArea
+                y1={optimalLow}
+                y2={optimalHigh}
+                fill={`url(#${hatchId})`}
+                fillOpacity={1}
+                strokeOpacity={0}
+              />
             )}
             {/* Dashed edges, so the optimal band has a boundary you can point
                 at even where it sits inside the reference band. */}

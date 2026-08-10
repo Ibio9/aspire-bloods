@@ -276,6 +276,14 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
                 y1={b.y1}
                 y2={b.y2}
                 fill={`url(#${gradId}-${b.status})`}
+                // See the same line in TrendChart: ReferenceArea's fillOpacity
+                // defaults to 0.5, which halves a band token that was already
+                // calibrated to be applied whole. That is what made every
+                // chart in the product read as grey while the cards, the
+                // counts strip and the summary bars read correctly — those
+                // apply the same tokens as Tailwind classes, where nothing
+                // silently halves them.
+                fillOpacity={1}
                 strokeOpacity={0}
                 ifOverflow="hidden"
               />

@@ -154,6 +154,59 @@ test.describe('traffic-light status', () => {
       const gradients = page.locator('svg defs linearGradient[id^="band-"]');
       await expect(gradients).toHaveCount(5, { timeout: 10_000 });
 
+      // And the bands are PAINTED at the weight the tokens computed.
+      //
+      // This is the check the gradient count above cannot make, and the one
+      // that would have caught the failure it exists for. Recharts'
+      // ReferenceArea defaults fillOpacity to 0.5, so every band was drawn at
+      // half strength — on top of a band token that is deliberately only a
+      // ~30% mix toward its hue, because that is the point at which it reads
+      // as a colour rather than as cream. Halved, all five landed in the same
+      // beige and the whole chart read as grey, while the gradients, the key,
+      // the boundary lines and the tokens themselves were all perfectly
+      // correct. Nothing short of reading the painted opacity sees it.
+      const bandPaint = await page.evaluate(() => {
+        const paths = [...document.querySelectorAll('.recharts-reference-area path')];
+        return paths
+          .filter((p) => (p.getAttribute('fill') ?? '').includes('band-'))
+          .map((p) => Number(getComputedStyle(p as SVGElement).fillOpacity));
+      });
+      expect(bandPaint.length, `${theme}: no status bands were painted at all`).toBeGreaterThan(0);
+      for (const opacity of bandPaint) {
+        expect(opacity, `${theme}: a status band is painted at ${opacity}, not at its token's own weight`).toBe(1);
+      }
+
+      // The band tokens themselves still carry real colour in this theme. A
+      // band drawn at full opacity is worth nothing if the value behind it has
+      // been flattened to the surface colour.
+      const hues = await page.evaluate(() => {
+        const styles = getComputedStyle(document.documentElement);
+        return ['green', 'yellow', 'orange', 'red'].map((h) => ({
+          hue: h,
+          channels: styles.getPropertyValue(`--c-hue-${h}-band`).trim(),
+        }));
+      });
+      for (const { hue, channels } of hues) {
+        const [r, g, b] = channels.split(/\s+/).map(Number);
+        expect(Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b), `${theme}: --c-hue-${hue}-band is "${channels}"`).toBe(true);
+        expect(
+          Math.max(r, g, b) - Math.min(r, g, b),
+          `${theme}: the ${hue} band token has no colour in it (${channels})`,
+        ).toBeGreaterThanOrEqual(8);
+      }
+
+      // Copy and rendering agree. The chart states in words which of its three
+      // data shapes applies, and a sentence promising a trend line while the
+      // plot shows unconnected points is the chart lying about its own data.
+      const saysJoined = (await page.locator('body').innerText()).includes('joined into one trend line');
+      const line = await page.evaluate(() => {
+        const curve = document.querySelector('path.recharts-line-curve') as SVGPathElement | null;
+        if (!curve) return { drawn: false, length: 0 };
+        const stroke = getComputedStyle(curve).stroke;
+        return { drawn: stroke !== 'none' && stroke !== '' && curve.getTotalLength() > 1, length: curve.getTotalLength() };
+      });
+      expect(line.drawn, `${theme}: copy says the results are joined into a line, and none is drawn`).toBe(saysJoined);
+
       // The key names every band in words. This is the non-colour carrier, and
       // it is the thing that must never be dropped in favour of the shading.
       await expect(page.getByText('Within the reference range')).toBeVisible();
