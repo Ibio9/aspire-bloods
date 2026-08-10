@@ -10,6 +10,11 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
    * re-validates on each change after that so it clears the moment it's fixed, without nagging
    * before the field has been left, or before it has been touched at all. */
   validate?: (value: string) => string | undefined;
+  /** Keeps the accessible name (still announced, still what getByLabel finds) but removes the
+   * visible caption — for a field in a compact bar where a line of label above it costs more
+   * vertical space than the field itself. The placeholder has to carry the field's purpose when
+   * this is set. Same escape hatch, same conditions, as Select's. Prefer a visible label. */
+  hideLabel?: boolean;
 }
 
 /**
@@ -21,7 +26,19 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
  * fields) instead of the default (required) sidesteps the problem
  * entirely and reads calmer.
  */
-export function Input({ label, optional, error, hint, id, className = '', validate, onBlur, onChange, ...props }: InputProps) {
+export function Input({
+  label,
+  optional,
+  error,
+  hint,
+  id,
+  className = '',
+  validate,
+  hideLabel,
+  onBlur,
+  onChange,
+  ...props
+}: InputProps) {
   const fieldId = id ?? props.name;
   const [blurError, setBlurError] = useState<string | undefined>(undefined);
 
@@ -73,8 +90,8 @@ export function Input({ label, optional, error, hint, id, className = '', valida
   }
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={fieldId} className="text-sm font-medium text-espresso">
+    <div className={hideLabel ? '' : 'flex flex-col gap-1.5'}>
+      <label htmlFor={fieldId} className={hideLabel ? 'sr-only' : 'text-sm font-medium text-espresso'}>
         {label}
         {optional && <span className="font-normal text-espresso/80"> (optional)</span>}
       </label>

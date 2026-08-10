@@ -70,7 +70,14 @@ export function Listbox({
     const selectedIndex = Math.max(0, options.findIndex((o) => o.value === value));
     setActiveIndex(selectedIndex);
     // Focus the filter field if searchable, otherwise the list itself so arrow keys work immediately.
-    (searchable ? searchRef.current : listRef.current)?.focus();
+    //
+    // preventScroll, because focus() scrolls its target into view by default
+    // and the target here is a popover that opens BELOW the trigger — so on
+    // any picker in the lower half of a window, merely opening it scrolled the
+    // page by several hundred pixels. The trigger the reader just pressed is
+    // already where they are looking; nothing about opening a menu should move
+    // the page underneath it.
+    (searchable ? searchRef.current : listRef.current)?.focus({ preventScroll: true });
 
     function onPointerDown(e: PointerEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
@@ -86,8 +93,13 @@ export function Listbox({
 
   useEffect(() => {
     if (!open) return;
-    const el = listRef.current?.querySelector<HTMLElement>(`[data-index="${activeIndex}"]`);
-    el?.scrollIntoView({ block: 'nearest' });
+    const list = listRef.current;
+    // Only where the list is actually scrollable. `block: 'nearest'` walks up
+    // to the nearest scrollport, and on a short list that is the PAGE — so
+    // keeping the active option in view scrolled the document instead of the
+    // menu, which is never what was being asked for.
+    if (!list || list.scrollHeight <= list.clientHeight) return;
+    list.querySelector<HTMLElement>(`[data-index="${activeIndex}"]`)?.scrollIntoView({ block: 'nearest' });
   }, [activeIndex, open]);
 
   function commit(index: number) {

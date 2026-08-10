@@ -281,6 +281,128 @@ test.describe('Results', () => {
   });
 
   /**
+   * The control bar condenses once you have scrolled past it — and the page
+   * underneath does not pay for it.
+   *
+   * Two full rows of controls pinned to the top of a window is a third of a
+   * 720px screen, and it was taking the names off the cards immediately under
+   * it. The bar is now one row from the moment it pins, with the rest folded
+   * behind a disclosure.
+   *
+   * WHAT IS ACTUALLY BEING PINNED HERE is the arithmetic, because that is the
+   * part that is easy to get wrong and impossible to see in a screenshot. The
+   * bar is sticky, so its box is what the markers start after; anything that
+   * changes that box while the bar is pinned drags the whole page up or down
+   * under someone mid-read. So the marker grid's position in the DOCUMENT is
+   * measured before condensing, after condensing, and after unfolding, and it
+   * has to be the same number all three times.
+   */
+  test('the control bar condenses on scroll without moving anything under it', async ({ browser }) => {
+    const ctx = await browser.newContext();
+    await loginAsDemoPatient(ctx.request);
+    const page = await ctx.newPage();
+
+    const reports = (await (await ctx.request.get('/api/patient/reports')).json()) as {
+      reportId: string;
+      markerCount: number;
+      patientStatus: string;
+    }[];
+    const biggest = reports.filter((r) => r.patientStatus === 'RELEASED').sort((a, b) => b.markerCount - a.markerCount)[0];
+
+    const fold = page.locator('#results-control-fold');
+    const disclosure = page.getByRole('button', { name: /^Filters/ });
+    const search = page.getByLabel('Find a marker');
+    const applied = page.getByRole('group', { name: 'Applied filters' });
+
+    /**
+     * Where the markers begin, in document coordinates.
+     *
+     * The panel and not the first card: cards enter on a translate (see
+     * Reveal), so a card measured before it has scrolled into view reads a
+     * dozen pixels low, which is an entrance animation being reported as a
+     * layout shift.
+     */
+    const gridTop = () =>
+      page.evaluate(() => Math.round(document.getElementById('results-panel')!.getBoundingClientRect().top + window.scrollY));
+    /** What the bar actually PAINTS — its one row, once the rest has folded. */
+    const paintedHeight = () =>
+      page.evaluate(() =>
+        Math.round(document.querySelector('input[name="results-search"]')!.closest('div.border-y')!.getBoundingClientRect().height),
+      );
+    /** Its whole box, painted or not. */
+    const boxHeight = () =>
+      page.evaluate(() =>
+        Math.round(
+          document.querySelector('input[name="results-search"]')!.closest('div.border-y')!.parentElement!.getBoundingClientRect()
+            .height,
+        ),
+      );
+
+    // Mobile is not the afterthought here — it is where the walk back to the
+    // top of a 187-marker report costs the most, and where the unfolded bar is
+    // most of the screen.
+    for (const viewport of [
+      { width: 1280, height: 720, at: 'desktop' },
+      { width: 375, height: 780, at: 'mobile' },
+    ]) {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await page.goto(`/reports/${biggest.reportId}`);
+      await expect(page.locator('a[href^="/markers/"]').first()).toBeVisible({ timeout: 10_000 });
+
+      // At the top: full height, everything on show, and nothing offering to
+      // unfold what is already unfolded.
+      await expect(fold).toBeVisible();
+      await expect(disclosure).toHaveCount(0);
+      const full = await boxHeight();
+      const grid = await gridTop();
+
+      // Scrolled past: one row, carrying the two controls a patient reaches
+      // for most often.
+      await page.evaluate(() => window.scrollTo(0, 1500));
+      await expect(disclosure).toBeVisible();
+      await expect(fold).toBeHidden();
+      await expect(search).toBeVisible();
+      await expect(page.getByRole('tablist', { name: 'Results view' })).toBeVisible();
+      expect(await paintedHeight(), `${viewport.at}: the condensed bar is not meaningfully shorter`).toBeLessThan(full / 2);
+      expect(await gridTop(), `${viewport.at}: condensing moved the markers`).toBe(grid);
+
+      // Unfolding brings the rest back in place and takes the reader nowhere.
+      const scrolled = await page.evaluate(() => window.scrollY);
+      await disclosure.click();
+      await expect(fold).toBeVisible();
+      await expect(page.getByLabel('Group by')).toBeVisible();
+      expect(await page.evaluate(() => window.scrollY), `${viewport.at}: unfolding scrolled the page`).toBe(scrolled);
+      expect(await gridTop(), `${viewport.at}: unfolding moved the markers`).toBe(grid);
+
+      // A filter set from the fold stays VISIBLE once the fold has gone. A
+      // filter you cannot see is how somebody concludes their results have
+      // vanished, so the chip and the way out of it are on the condensed row.
+      await page.getByLabel('Show').click();
+      await page.getByRole('option', { name: /^Above range/ }).click();
+      // The fold holds itself open while it has the focus (see the bar) —
+      // this is the reader turning back to the results.
+      await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+      await page.evaluate(() => window.scrollBy(0, 400));
+      await expect(fold).toBeHidden();
+      await expect(applied.getByRole('button', { name: /Above range/ })).toBeVisible();
+
+      // And clearing from there clears it, without disturbing the arrangement
+      // the reader chose.
+      await applied.getByRole('button', { name: 'Clear all filters' }).click();
+      await expect(applied).toHaveCount(0);
+      await expect(page.getByText('187 markers')).toBeVisible();
+
+      // Nothing about scrolling, folding or unfolding touches what was typed.
+      await search.fill('ferritin');
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await expect(fold).toBeVisible();
+      await expect(search).toHaveValue('ferritin');
+    }
+
+    await ctx.close();
+  });
+
+  /**
    * The other two views are reachable from inside a report.
    *
    * They were rendered, they were focusable, they took the click — and nothing

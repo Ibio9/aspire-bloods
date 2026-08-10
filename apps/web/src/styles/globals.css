@@ -156,6 +156,52 @@
     }
   }
 
+  /* ── The results control bar's collapsing half ─────────────────────────
+     (see features/patient/ResultsControlBar.tsx)
+
+     Hidden with VISIBILITY, never with display or a height animation. The
+     bar is sticky, so its box is what reserves the space the page below it
+     starts after: collapse that box and everything under a pinned bar jumps
+     up by the difference, and jumps back down on the way out. visibility
+     keeps the box exactly where it was — the fold simply stops being
+     painted, and the markers scroll through the space it leaves.
+
+     It also takes the pickers out of the tab order and out of the
+     accessibility tree, which opacity alone does not: an invisible control
+     that still answers Tab is worse than one that is merely off screen.
+
+     visibility is a discrete property, so it is transitioned with a delay on
+     the way out (flip after the fade) and with none on the way in (flip
+     before it) — without the split, the browser switches it at the halfway
+     point and cuts the fade in half. */
+  .bar-fold {
+    transition:
+      opacity 200ms ease-out,
+      transform 200ms ease-out,
+      visibility 0s;
+  }
+  .bar-fold-folded {
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(-0.25rem);
+    transition:
+      opacity 200ms ease-out,
+      transform 200ms ease-out,
+      visibility 0s linear 200ms;
+  }
+  /* Reduced motion: the fold is either there or it is not, with no fade and
+     no travel — and no delay either, so the visibility flip does not lag
+     200ms behind an opacity change that has already happened instantly. */
+  @media (prefers-reduced-motion: reduce) {
+    .bar-fold,
+    .bar-fold-folded {
+      transition: none;
+    }
+    .bar-fold-folded {
+      transform: none;
+    }
+  }
+
   /* prefers-reduced-motion: reduce to instant, not slower — every
      motion-safe: animation is skipped entirely by that variant already;
      this belt-and-braces rule catches any transition that isn't. */

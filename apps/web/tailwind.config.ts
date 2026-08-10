@@ -162,6 +162,12 @@ export default {
         // action bar) offset by exactly this. One token instead of a magic
         // number that silently breaks when the bar's padding changes.
         topbar: '3.8125rem',
+        // The patient shell's own top bar, which exists only below md (the
+        // desktop layout is sidebar-and-content, no header). The results
+        // control bar pins directly underneath it, so the two numbers have
+        // to agree — hence a token rather than the same measurement written
+        // down in two files.
+        'topbar-patient': '4.0625rem',
       },
       borderRadius: {
         // Soft, generous radii (brief §3: "soft radius" on dropdowns/cards) — card and input are

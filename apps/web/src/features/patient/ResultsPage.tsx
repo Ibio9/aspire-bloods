@@ -190,6 +190,7 @@ export function ResultsPage() {
       <ResultsControlBar
         filters={filters}
         onChange={updateFilters}
+        onClearFilters={clearFilters}
         categories={categoryOptions}
         statusCounts={statusCounts}
         arrangement={arrangement}
