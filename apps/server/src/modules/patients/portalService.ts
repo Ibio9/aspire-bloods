@@ -71,12 +71,48 @@ interface NormalisedPoint {
  * than each re-reading (and re-decrypting) the result table.
  */
 async function loadReleasedPoints(patientId: string): Promise<NormalisedPoint[]> {
+  // `select`, not `include`, and the difference is not stylistic.
+  //
+  // The previous shape was `include: { marker: { include: { categories: {
+  // include: { category: true } } } } }`, which materialises a full
+  // MarkerCategory row — name, resultType, sortOrder and the `note` prose —
+  // once per membership per result. On a patient with four panels behind them
+  // that is several thousand redundant category objects, and it measured at
+  // 679ms against 208ms for the same query with categories dropped entirely.
+  //
+  // Only the key is ever read from those rows. Asking for only the key brings
+  // it back to 234ms — near the cost of not joining at all — and this query is
+  // the whole of what Overview and All markers spend their time on, so it is
+  // most of half a second off the patient's landing screen.
   const results = await prisma.reportResult.findMany({
     where: { report: { patientId, status: 'RELEASED', voidedAt: null } },
-    include: {
-      report: { include: { panel: true, source: true } },
-      marker: { include: { categories: { include: { category: true } } } },
-      referenceRange: true,
+    select: {
+      markerId: true,
+      reportId: true,
+      valueEncrypted: true,
+      unit: true,
+      status: true,
+      amendedAt: true,
+      marker: {
+        select: {
+          key: true,
+          name: true,
+          defaultUnit: true,
+          resultType: true,
+          aliases: true,
+          severityMultiplier: true,
+          severityAbsoluteDelta: true,
+          categories: { select: { category: { select: { key: true } } } },
+        },
+      },
+      referenceRange: { select: { low: true, high: true, unit: true } },
+      report: {
+        select: {
+          sampleDate: true,
+          panel: { select: { name: true } },
+          source: { select: { key: true, name: true } },
+        },
+      },
     },
     orderBy: [{ report: { sampleDate: 'asc' } }, { createdAt: 'asc' }],
   });
@@ -191,10 +227,28 @@ export async function getPatientOverview(patientId: string) {
   // What's changed — each marker in the latest report against that marker's
   // own previous result, whichever report it came from. Improvements and
   // declines are both reported; the caller decides how to phrase them.
+  // One index rather than a full scan per marker. This used to be
+  // `points.filter(...)` inside a map over the latest report's markers — for a
+  // 436-marker Signature panel against several years of history that is a
+  // sweep of every result the patient has ever had, 436 times over, each one
+  // allocating an array it throws away. `points` is already oldest-first, so
+  // the last entry strictly before the current sample date is the previous
+  // result, whichever report it came from.
+  const historyByMarker = new Map<string, NormalisedPoint[]>();
+  for (const p of points) {
+    const list = historyByMarker.get(p.markerId);
+    if (list) list.push(p);
+    else historyByMarker.set(p.markerId, [p]);
+  }
+
   const changes = latestPoints
     .map((current) => {
-      const history = points.filter((p) => p.markerId === current.markerId && p.sampleDate < current.sampleDate);
-      const previous = history[history.length - 1];
+      const series = historyByMarker.get(current.markerId) ?? [];
+      let previous: NormalisedPoint | undefined;
+      for (const p of series) {
+        if (p.sampleDate < current.sampleDate) previous = p;
+        else break; // oldest-first, so nothing after this point qualifies either
+      }
       if (!previous) return null;
       if (!current.convertible || !previous.convertible) return null; // never compare across units we can't relate
       // A textual result ("< 0.6") has no magnitude — nothing to compare.

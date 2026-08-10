@@ -130,7 +130,7 @@ export const emailVerificationResendRateLimiter = rateLimit({
  */
 export const passwordResetRateLimiter = rateLimit({
   windowMs: env.SIGNUP_RATE_LIMIT_WINDOW_SECONDS * 1000,
-  limit: 5,
+  limit: env.PASSWORD_RESET_RATE_LIMIT_MAX,
   standardHeaders: true,
   legacyHeaders: false,
   handler: lockoutResponder('Too many password reset requests from this connection.'),

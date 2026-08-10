@@ -82,13 +82,40 @@ export async function getReleasedReportForPatient(patientId: string, reportId: s
       source: true,
       originalPdfFile: { select: { originalFilename: true } },
       results: {
-        include: {
+        // Narrowed to what is actually read. The explanation table holds four
+        // long prose fields and only `whatItIs` reaches this payload (as the
+        // one-line gloss); fetching all four for each of a 436-marker panel's
+        // results was several hundred kilobytes of text pulled out of Postgres
+        // and dropped on the floor.
+        select: {
+          markerId: true,
+          unit: true,
+          status: true,
+          valueEncrypted: true,
+          amendedAt: true,
           // Health areas ride along with each result so the report can group by
           // them without a second round trip, and so the category summary bars
           // are computed from the same rows the grid renders — two queries
           // would eventually disagree with each other about a count.
-          marker: { include: { explanation: true, categories: { include: { category: true } } } },
-          referenceRange: true,
+          marker: {
+            select: {
+              key: true,
+              name: true,
+              resultType: true,
+              aliases: true,
+              severityMultiplier: true,
+              severityAbsoluteDelta: true,
+              explanation: { select: { whatItIs: true } },
+              categories: {
+                select: {
+                  category: {
+                    select: { id: true, key: true, name: true, resultType: true, note: true, sortOrder: true },
+                  },
+                },
+              },
+            },
+          },
+          referenceRange: { select: { low: true, high: true, unit: true } },
         },
       },
     },

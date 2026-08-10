@@ -222,6 +222,14 @@ const envSchema = z.object({
   // not a gate on who may register.
   SIGNUP_RATE_LIMIT_MAX: z.coerce.number().default(10),
   SIGNUP_RATE_LIMIT_WINDOW_SECONDS: z.coerce.number().default(3600),
+  // The tightest send budget in the app, and the only limiter here whose
+  // ceiling used to be a literal in middleware/rateLimit.ts rather than a
+  // setting. Same production default as before — five per hour — but
+  // configurable like its five siblings, because five per hour from one IP is
+  // below what the e2e suite legitimately does in a single run, which made
+  // that run unrepeatable for the next 45 minutes and the suite flaky in a
+  // way that looked like a product fault.
+  PASSWORD_RESET_RATE_LIMIT_MAX: z.coerce.number().default(5),
 });
 
 export type Env = z.infer<typeof envSchema>;

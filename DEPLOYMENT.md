@@ -125,7 +125,7 @@ Nothing above should ever be committed to the repo — `.env`, `.env.local`, and
 
 ### Tunable at runtime (no deploy needed)
 
-These have working defaults and only need setting in Railway if the practice wants to change them. All four are read at boot, so changing one needs a service restart but not a code change or a release:
+These have working defaults and only need setting in Railway if the practice wants to change them. All of them are read at boot, so changing one needs a service restart but not a code change or a release:
 
 | Variable | Default | What it controls |
 |---|---|---|
@@ -133,6 +133,7 @@ These have working defaults and only need setting in Railway if the practice wan
 | `LOGIN_RATE_LIMIT_WINDOW_SECONDS` | `120` | The window those attempts are counted over |
 | `OTP_RATE_LIMIT_MAX` | `5` | 2FA code attempts allowed — deliberately tighter, six digits is a small search space |
 | `OTP_RATE_LIMIT_WINDOW_SECONDS` | `900` | The window for the above |
+| `PASSWORD_RESET_RATE_LIMIT_MAX` | `5` | Reset links requestable per IP per `SIGNUP_RATE_LIMIT_WINDOW_SECONDS`. Not an enumeration control (the endpoint answers identically for an unknown address) — it stops our mail server being used to bombard an inbox. Leave it at the default in production; it exists as a setting so local/e2e runs can raise it |
 
 **Note the rename**: `LOGIN_RATE_LIMIT_WINDOW_MINUTES` and `OTP_RATE_LIMIT_WINDOW_MINUTES` are gone, replaced by the `_SECONDS` variables above — the login window is now shorter than a minute's granularity can express. Any value still set for the old names is ignored, so remove them from Railway when deploying this change or the numbers will silently be the defaults rather than what the dashboard appears to say.
 
