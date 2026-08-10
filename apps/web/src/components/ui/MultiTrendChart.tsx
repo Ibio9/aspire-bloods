@@ -134,8 +134,12 @@ function normalisedThreshold(s: TrendSeries): number | null {
   return (ks as number[]).every((k) => Math.abs(k - first) < 1e-6) ? first : null;
 }
 
-export function MultiTrendChart({ series }: { series: TrendSeries[] }) {
+export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
   const gradId = `multi-band-${useId().replace(/:/g, '')}`;
+  // The legend and the accessible summary both read points[0] and the last
+  // point, so a series with none takes the whole screen down. The server no
+  // longer sends one; this is the belt to that braces.
+  const series = input.filter((s) => s.points.length > 0);
   const dates = [...new Set(series.flatMap((s) => s.points.map((p) => p.sampleDate)))].sort();
 
   // One shared normalised threshold, or none. See the note at the top: a

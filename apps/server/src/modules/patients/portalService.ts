@@ -389,13 +389,21 @@ export async function getMultiMarkerTrends(patientId: string, markerIds: string[
       // rather than in the UI so a hand-built URL can't produce one either.
       if (series[0].resultType !== 'MEASURED') return null;
       const comparable = series.every((p) => p.convertible);
+      const plottable = series.filter((p) => p.value !== null);
+      // A marker whose every released result is textual ("< 0.6", "Not
+      // detected") has nothing to put on an axis. It used to come back as a
+      // series with an empty points array, and the comparison chart reads
+      // points[0] and points[length - 1] to build its legend and its
+      // accessible summary — so the whole Trends screen threw and rendered
+      // white. Refused here rather than guarded there: a series with no
+      // points is not a series.
+      if (plottable.length === 0) return null;
       return {
         markerId,
         name: series[0].markerName,
         unit: series[0].displayUnit,
         comparable,
-        points: series
-          .filter((p) => p.value !== null)
+        points: plottable
           .map((p) => ({
             sampleDate: p.sampleDate,
             value: p.value,

@@ -13,7 +13,7 @@ import { MultiTrendChart } from '../../components/ui/MultiTrendChart';
 import { Reveal } from '../../components/motion/Reveal';
 import { staggerDelay } from '../../components/motion/stagger';
 import { apiFetch } from '../../lib/api';
-import { statusLabel } from '../../lib/markerCopy';
+import { matchesMarkerQuery, statusLabel } from '../../lib/markerCopy';
 import { type MarkerRow, type TrendSeries } from '../../lib/patientPortal';
 
 /**
@@ -85,13 +85,29 @@ export function TrendsPage() {
     else if (selected.length < MAX_SELECTED) setSelected([...selected, markerId]);
   }
 
-  /** Only markers with more than one result can show a trend — one point is a dot, not a line. */
-  const plottable = useMemo(() => (markers ?? []).filter((m) => m.resultCount > 1), [markers]);
+  /**
+   * What can actually be put on this chart.
+   *
+   * Two conditions, and the picker used to enforce only the first. More than
+   * one result, because one point is a dot and not a line — and MEASURED,
+   * because a genome doesn't change between tests, a food-sensitivity level
+   * has no reference range and a relative abundance is not an amount. The
+   * server has always refused to plot those (see getMultiMarkerTrends), so
+   * offering them here was a tick box whose only possible outcome was
+   * "Nothing to plot".
+   */
+  const plottable = useMemo(
+    () => (markers ?? []).filter((m) => m.resultCount > 1 && (m.resultType ?? 'MEASURED') === 'MEASURED'),
+    [markers],
+  );
 
-  const matching = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return plottable.filter((m) => q === '' || m.name.toLowerCase().includes(q));
-  }, [plottable, query]);
+  // The same name-and-alias search every other results screen uses. Matching
+  // the printed name alone meant "ALT" and "TSH" — the only names most people
+  // know these by — found nothing here while working everywhere else.
+  const matching = useMemo(
+    () => plottable.filter((m) => matchesMarkerQuery(m, query)),
+    [plottable, query],
+  );
 
   const suggestions = useMemo(() => {
     if (plottable.length === 0) return [];
@@ -247,7 +263,7 @@ export function TrendsPage() {
                 </Card>
 
                 <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2">
-                  {series.map((s, i) => {
+                  {series.filter((s) => s.points.length > 0).map((s, i) => {
                     const last = s.points[s.points.length - 1];
                     const first = s.points[0];
                     return (
