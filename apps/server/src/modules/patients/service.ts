@@ -80,6 +80,7 @@ export async function getReleasedReportForPatient(patientId: string, reportId: s
     include: {
       panel: true,
       source: true,
+      originalPdfFile: { select: { originalFilename: true } },
       results: {
         include: {
           // Health areas ride along with each result so the report can group by
@@ -129,6 +130,11 @@ export async function getReleasedReportForPatient(patientId: string, reportId: s
     title: formatReportTitle(report.panel?.name, report.results.length, report.sampleDate),
     sampleDate: report.sampleDate.toISOString().slice(0, 10),
     sourceLabel: sourceLabel(report.source.key, report.source.name),
+    // Whether there is a laboratory PDF behind this report at all. A manually
+    // entered report has none, and the portal used to offer the download
+    // anyway and let it 404 — a button that is known in advance to fail.
+    hasOriginalPdf: !!report.originalPdfFileId,
+    originalFilename: report.originalPdfFile?.originalFilename ?? null,
     // Panels state a turnaround; a released report has already arrived, so this
     // is only carried for the repeat-programme note on the page.
     repeatIntervalMonths: report.panel?.repeatIntervalMonths ?? null,

@@ -16,7 +16,7 @@ import { Modal } from '../../components/ui/Modal';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { useToast } from '../../components/ui/Toast';
 import { apiFetch, ApiError } from '../../lib/api';
-import { API_BASE_URL } from '../../lib/apiBase';
+import { downloadSignedFile } from '../../lib/download';
 import { useAuth } from '../../lib/AuthContext';
 import type { ReportStatus } from '../../lib/reportStatus';
 import { formatDate, formatDateTime, type MarkerStatus } from '@aspire-bloods/shared';
@@ -399,8 +399,10 @@ export function ReportDetailPage() {
   async function handleDownload() {
     if (!id) return;
     try {
-      const { url } = await apiFetch<{ url: string }>(`/reports/${id}/download-link`);
-      window.open(`${API_BASE_URL}${url}`, '_blank');
+      // Fetched and saved rather than window.open'd: a popup opened after an
+      // await is no longer user-initiated and is silently blocked by default
+      // in Safari. See lib/download.ts.
+      await downloadSignedFile(`/reports/${id}/download-link`, 'original-report.pdf');
     } catch (e) {
       // A file that has aged out of storage, or a signing failure. Either way
       // this used to reject into nothing at all.

@@ -12,7 +12,7 @@ import { Reveal } from '../../components/motion/Reveal';
 import { staggerDelay } from '../../components/motion/stagger';
 import { useToast } from '../../components/ui/Toast';
 import { apiFetch } from '../../lib/api';
-import { API_BASE_URL } from '../../lib/apiBase';
+import { downloadSignedFile } from '../../lib/download';
 import { type PatientDocument } from '../../lib/patientPortal';
 
 /**
@@ -51,11 +51,18 @@ export function DocumentsPage() {
     load();
   }, [load]);
 
-  async function download(reportId: string, kind: 'original-pdf-link' | 'summary-pdf-link') {
-    setDownloading({ reportId, kind });
+  async function download(doc: PatientDocument, kind: 'original-pdf-link' | 'summary-pdf-link') {
+    setDownloading({ reportId: doc.reportId, kind });
     try {
-      const { url } = await apiFetch<{ url: string }>(`/patient/reports/${reportId}/${kind}`);
-      window.open(`${API_BASE_URL}${url}`, '_blank');
+      // Fetched and saved rather than opened in a tab — a window.open after an
+      // await has left the user-gesture window and is blocked outright on iOS
+      // Safari, which made this button do nothing at all. See lib/download.ts.
+      await downloadSignedFile(
+        `/patient/reports/${doc.reportId}/${kind}`,
+        kind === 'summary-pdf-link'
+          ? `aspire-summary-${doc.sampleDate}.pdf`
+          : (doc.originalFilename ?? `laboratory-report-${doc.sampleDate}.pdf`),
+      );
     } catch {
       show('That download could not be prepared. Please try again.', 'error');
     } finally {
@@ -122,7 +129,7 @@ export function DocumentsPage() {
                   <Button
                     variant="secondary"
                     loading={downloading?.reportId === doc.reportId && downloading.kind === 'summary-pdf-link'}
-                    onClick={() => void download(doc.reportId, 'summary-pdf-link')}
+                    onClick={() => void download(doc, 'summary-pdf-link')}
                   >
                     Aspire summary (PDF)
                   </Button>
@@ -131,7 +138,7 @@ export function DocumentsPage() {
                     disabled={!doc.hasOriginalPdf}
                     disabledReason="These results were entered by the clinical team, so there's no original laboratory PDF."
                     loading={downloading?.reportId === doc.reportId && downloading.kind === 'original-pdf-link'}
-                    onClick={() => void download(doc.reportId, 'original-pdf-link')}
+                    onClick={() => void download(doc, 'original-pdf-link')}
                   >
                     Original laboratory report (PDF)
                   </Button>

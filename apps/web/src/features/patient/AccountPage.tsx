@@ -9,7 +9,7 @@ import { CopyButton } from '../../components/ui/CopyButton';
 import { ThemeToggle } from '../../components/ui/ThemeToggle';
 import { useToast } from '../../components/ui/Toast';
 import { apiFetch, ApiError } from '../../lib/api';
-import { API_BASE_URL } from '../../lib/apiBase';
+import { downloadFromApi } from '../../lib/download';
 import { useAuth } from '../../lib/AuthContext';
 import { BiologicalSexCard } from './BiologicalSexCard';
 
@@ -39,6 +39,7 @@ export function AccountPage() {
   const [confirmWithdraw, setConfirmWithdraw] = useState<ConsentType | null>(null);
   const [confirmErasure, setConfirmErasure] = useState(false);
   const [erasing, setErasing] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   async function load() {
     const data = await apiFetch<ConsentStatus[]>('/patient/me/consents');
@@ -65,9 +66,20 @@ export function AccountPage() {
     }
   }
 
-  function handleExport() {
-    window.open(`${API_BASE_URL}/api/patient/me/export`, '_blank');
-    show('Your data export is downloading.');
+  // A new tab pointed at an authenticated endpoint renders raw JSON when the
+  // session has lapsed, under the clinic's own domain — and the toast said
+  // "downloading" regardless of whether anything did. Fetched and saved, so a
+  // failure is a failure the patient is told about.
+  async function handleExport() {
+    setExporting(true);
+    try {
+      await downloadFromApi('/api/patient/me/export', 'aspire-my-data.json');
+      show('Your data export is downloading.');
+    } catch (e) {
+      show(e instanceof ApiError ? e.message : 'Could not prepare your data export. Please try again.', 'error');
+    } finally {
+      setExporting(false);
+    }
   }
 
   async function handleErasureRequest() {
@@ -149,7 +161,7 @@ export function AccountPage() {
               Download a full copy of everything we hold about you: your profile, results, consent history, and
               account activity.
             </p>
-            <Button variant="secondary" className="mt-4" onClick={handleExport}>
+            <Button variant="secondary" className="mt-4" loading={exporting} onClick={() => void handleExport()}>
               Download my data
             </Button>
           </Card>

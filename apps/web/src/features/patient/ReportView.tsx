@@ -16,6 +16,7 @@ import { Reveal } from '../../components/motion/Reveal';
 import { staggerDelay } from '../../components/motion/stagger';
 import { useToast } from '../../components/ui/Toast';
 import { apiFetch } from '../../lib/api';
+import { downloadSignedFile } from '../../lib/download';
 import {
   RESULT_SORTS,
   STATUS_FILTERS,
@@ -30,7 +31,6 @@ import {
   type ResultSort,
   type StatusFilter,
 } from '../../lib/markerCopy';
-import { API_BASE_URL } from '../../lib/apiBase';
 import { ReportBookingLink } from '../booking/ReportBookingLink';
 import { CategorySummaryBars, CountsStrip, type SummaryCategory } from './ResultsSummary';
 import { CompositionSection, GeneticSection, SensitivitySection } from './NonMeasuredSections';
@@ -67,6 +67,9 @@ interface ReportDetail {
   title: string;
   sampleDate: string;
   sourceLabel?: string;
+  /** False for a manually entered report — there is no laboratory PDF behind one. */
+  hasOriginalPdf?: boolean;
+  originalFilename?: string | null;
   categories?: SummaryCategory[];
   markers: MarkerCard[];
 }
@@ -222,14 +225,20 @@ export function ReportView() {
   };
 
   async function handleDownload(kind: 'original-pdf-link' | 'summary-pdf-link') {
-    if (!id) return;
+    if (!id || !report) return;
     setDownloading(kind);
     try {
-      const { url } = await apiFetch<{ url: string }>(`/patient/reports/${id}/${kind}`);
-      window.open(`${API_BASE_URL}${url}`, '_blank');
+      // Fetched and saved rather than opened in a tab. A window.open issued
+      // after an await has left the click's user-gesture window and is blocked
+      // outright by iOS Safari and by default in desktop Safari — the button
+      // spun, finished, and produced nothing. See lib/download.ts.
+      await downloadSignedFile(
+        `/patient/reports/${id}/${kind}`,
+        kind === 'summary-pdf-link'
+          ? `aspire-summary-${report.sampleDate}.pdf`
+          : (report.originalFilename ?? `laboratory-report-${report.sampleDate}.pdf`),
+      );
     } catch {
-      // Manual-entry reports have no original lab PDF, so this button can
-      // legitimately fail — silently doing nothing looked like a broken page.
       show('That download could not be prepared. Please try again.', 'error');
     } finally {
       setDownloading(null);
@@ -302,8 +311,14 @@ export function ReportView() {
         >
           Download Aspire summary (PDF)
         </Button>
+        {/* Disabled with a reason rather than offered and allowed to 404 —
+            a manually entered report has no laboratory PDF behind it, and the
+            server now says so on the payload. Matches Documents, which has
+            always got this right. */}
         <Button
           variant="secondary"
+          disabled={report.hasOriginalPdf === false}
+          disabledReason="These results were entered by the clinical team, so there's no original laboratory PDF."
           loading={downloading === 'original-pdf-link'}
           onClick={() => void handleDownload('original-pdf-link')}
         >
