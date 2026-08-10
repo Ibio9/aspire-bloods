@@ -154,9 +154,21 @@ export function ReportView() {
 
   useEffect(() => {
     if (!id) return;
+    // Reset on every id change, and ignore a response that arrives after the
+    // id has moved on. Without the reset, navigating from one report to
+    // another showed the previous report's markers under the new one's URL
+    // until the fetch landed; and `failed` was write-once, so a single bad
+    // link left "We couldn't open that panel" pinned over every subsequent
+    // report for the rest of the session.
+    let current = true;
+    setReport(null);
+    setFailed(false);
     apiFetch<ReportDetail>(`/patient/reports/${id}`)
-      .then(setReport)
-      .catch(() => setFailed(true));
+      .then((r) => current && setReport(r))
+      .catch(() => current && setFailed(true));
+    return () => {
+      current = false;
+    };
   }, [id]);
 
   // Split by result type once. Only MEASURED reaches the grid, the counts strip

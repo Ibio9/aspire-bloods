@@ -74,10 +74,21 @@ export function MarkerDetailPage() {
 
   useEffect(() => {
     if (!markerId) return;
+    // The prev/next arrows page through a report without unmounting this
+    // component, so without clearing `detail` the previous marker's name,
+    // value, range and chart stayed on screen under the next marker's URL
+    // until the fetch landed — a value shown against the wrong marker, which
+    // is the one thing a results page must never do, even for 200ms.
+    // `current` guards the case where two clicks land out of order.
+    let current = true;
+    setDetail(null);
     setFailed(false);
     apiFetch<MarkerDetail>(`/patient/markers/${markerId}`)
-      .then(setDetail)
-      .catch(() => setFailed(true));
+      .then((d) => current && setDetail(d))
+      .catch(() => current && setFailed(true));
+    return () => {
+      current = false;
+    };
   }, [markerId]);
 
   // Now that the sidebar search and All markers both deep-link here, a stale
@@ -206,9 +217,16 @@ export function MarkerDetailPage() {
               is advisory context and says so. Where a marker has no
               established optimal, this second line simply isn't there - no
               empty band, no placeholder. */}
-          <p className="tabular mt-2 text-xs text-espresso/80">
-            Lab reference range {detail.latest.referenceLow}–{detail.latest.referenceHigh} {detail.latest.unit}
-          </p>
+          {/* A qualitative result ("Not detected") has no numeric range behind
+              it, and this line rendered "Lab reference range 0–0 " for one —
+              a half-populated row stating something false. The report card and
+              the All-markers row already guarded this; the marker's own page,
+              which is where someone goes to read the range properly, did not. */}
+          {detail.latest.referenceHigh > detail.latest.referenceLow && (
+            <p className="tabular mt-2 text-xs text-espresso/80">
+              Lab reference range {detail.latest.referenceLow}–{detail.latest.referenceHigh} {detail.latest.unit}
+            </p>
+          )}
           {detail.optimal && (
             <p className="tabular mt-1 text-xs text-espresso/80">
               {optimalRangeLabel(detail.optimal)}
