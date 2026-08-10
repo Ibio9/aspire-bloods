@@ -296,21 +296,48 @@ export function filterCountLabelFor(shown: number, total: number, noun: string, 
 // ---------------------------------------------------------------------------
 
 /**
- * The three orders a page of results can be read in, shared by the report view
- * and All markers so the two behave identically.
+ * Grouping and sorting are two questions, and they are now two controls.
  *
- * HEALTH_AREA is the default on a report because a Signature panel is 150
- * analytes and an unbroken alphabetical wall of them is not a document anyone
- * reads — under headings it becomes twenty short lists about twenty different
- * things. STATUS answers the only other question this page reliably gets.
+ * They used to be one. "Health area" sat in the sort picker alongside "Name"
+ * and "Needs attention first", and picking it did something the other two did
+ * not: it broke the grid into sections. So there was no way to read a report
+ * grouped by area with the out-of-range markers first inside each area, and no
+ * way to sort by area without grouping — the control could express three of the
+ * six things it looked like it could.
+ *
+ * Split, every combination is reachable and nothing that was reachable before
+ * has gone: "sort by health area" is Group by health area, and within each
+ * heading the sort still applies. Both are shared by the report view and the
+ * marker list, so the two screens group and sort identically.
+ *
+ * UNGROUPED is the default. A report opens as every marker it contains, in one
+ * flat grid — the grouped reading is one control away, and it is the reader's
+ * to ask for rather than the page's to assume.
+ */
+export const RESULT_GROUPINGS = [
+  { value: 'NONE', label: 'Ungrouped' },
+  { value: 'HEALTH_AREA', label: 'Health area' },
+] as const;
+
+export type ResultGrouping = (typeof RESULT_GROUPINGS)[number]['value'];
+
+/**
+ * The two orders a page of results can be read in, flat or within a group.
+ *
+ * STATUS is the default and answers the question this page reliably gets. NAME
+ * is for the reader who came looking for one analyte and did not use the search
+ * box.
  */
 export const RESULT_SORTS = [
-  { value: 'HEALTH_AREA', label: 'Health area' },
-  { value: 'NAME', label: 'Name (A–Z)' },
   { value: 'STATUS', label: 'Needs attention first' },
+  { value: 'NAME', label: 'Name (A–Z)' },
 ] as const;
 
 export type ResultSort = (typeof RESULT_SORTS)[number]['value'];
+
+export function byName<T extends { name: string }>(a: T, b: T): number {
+  return a.name.localeCompare(b.name);
+}
 
 /**
  * Out of range sorts above in range; significantly out sorts above mildly out;

@@ -203,6 +203,11 @@ for (const theme of ['light', 'dark'] as const) {
  * anywhere on a patient screen still offering it.
  */
 test('no booking entry point is reachable with the flag off', async ({ browser }) => {
+  // Eight routes, each waited on until it settles — `settle` alone spends 1.2s
+  // per route before it looks at anything. This lands within a couple of
+  // seconds of the 30s default and has timed out on a slow run for no reason
+  // other than the clock. Its two neighbours in this file already say so.
+  test.slow();
   const ctx = await signedInContext(browser, 'light');
   const page = await ctx.newPage();
 

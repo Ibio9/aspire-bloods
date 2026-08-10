@@ -1,20 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  asMarkerStatus,
-  formatDate,
-  hasResultValue,
-  NO_STATUS_LABEL,
-  type MarkerStatus,
-  type MarkerStatusInput,
-  type OptimalRangeDTO,
-} from '@aspire-bloods/shared';
+import { formatDate, hasResultValue } from '@aspire-bloods/shared';
+import type { MarkerStatus } from '@aspire-bloods/shared';
 import type { MarkerNavState } from './markerNavState';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
 import { LinkButton } from '../../components/ui/LinkButton';
-import { StatusBadge } from '../../components/ui/StatusBadge';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Reveal } from '../../components/motion/Reveal';
@@ -23,45 +15,27 @@ import { useToast } from '../../components/ui/Toast';
 import { apiFetch } from '../../lib/api';
 import { downloadSignedFile } from '../../lib/download';
 import {
+  RESULT_GROUPINGS,
   RESULT_SORTS,
   byAttentionThenName,
+  byName,
   filterCountLabel,
   groupByHealthArea,
   matchesMarkerQuery,
   matchesStatusFilter,
-  optimalRangeLabel,
-  optimalStatusLabel,
   statusFilterCounts,
+  type ResultGrouping,
   type ResultSort,
   type StatusFilter,
 } from '../../lib/markerCopy';
 import { BOOKING_ENABLED } from '../../lib/features';
 import { ReportBookingLink } from '../booking/ReportBookingLink';
-import { CategorySummaryBars, CountsStrip, type SummaryCategory } from './ResultsSummary';
+import { AreaGroupHeading, CountsStrip, type SummaryCategory } from './ResultsSummary';
+import { MARKER_GRID_CLASS, MarkerResultCard, type MarkerCardResult } from './MarkerResultCard';
 import { CompositionSection, GeneticSection, SensitivitySection } from './NonMeasuredSections';
 import type { ResultsFilters, ViewReportsCategories } from './resultsView';
 
-interface MarkerCard {
-  markerId: string;
-  name: string;
-  // Exactly one of value/valueText is set — valueText carries a textual lab
-  // result ("< 0.6", "Not detected") verbatim.
-  value: number | null;
-  valueText?: string | null;
-  unit: string;
-  referenceLow: number;
-  referenceHigh: number;
-  /**
-   * Null when this result has no position on its reference range. The card
-   * then shows the value and says so in words, with no tint, no shape mark and
-   * no place in any count. It is never rendered as "In range".
-   *
-   * `MarkerStatusInput` rather than `MarkerStatus | null`: absent and
-   * unrecognised are the same fact as null here, and writing the guard as
-   * `!== null` is exactly what let the first of those through to a token
-   * lookup. See asMarkerStatus.
-   */
-  status: MarkerStatusInput;
+interface MarkerCard extends MarkerCardResult {
   /**
    * MEASURED / GENETIC / SENSITIVITY / COMPOSITION. Absent on a payload from
    * before result types existed, which is treated as MEASURED — that is what
@@ -70,8 +44,6 @@ interface MarkerCard {
   resultType?: string;
   categoryKeys?: string[];
   aliases?: string[];
-  /** Null for the majority of markers; nothing about optimal is shown for those. */
-  optimal?: OptimalRangeDTO | null;
   gloss: string;
   amendedAt?: string | null;
 }
@@ -96,85 +68,25 @@ function resultTypeOf(m: MarkerCard): string {
 }
 
 /**
- * One measured result.
+ * One report, opened — the counts strip and the report's markers as cards.
  *
- * Hierarchy, loudest first: the value, then the range, then the status, then
- * the gloss. Clear steps between each level rather than a bordered table row
- * where everything competes at the same weight.
+ * WHAT THIS USED TO BE. The same report shown twice: a block of health-area
+ * summary bars, each opening in place to reveal that area's markers, and then
+ * the whole marker list again below it, grouped under health-area headings.
+ * Two renderings of one grouping, one above the other, with the same cards in
+ * both. Opening an area put a copy of markers on screen that were already
+ * further down the page.
  *
- * Extracted so the flat grid and the grouped-by-health-area view render the
- * identical card — the sort changes the arrangement and nothing else.
- */
-function ResultCard({ marker: m, navState }: { marker: MarkerCard; navState: MarkerNavState }) {
-  // Narrowed once, and every "does this result have a status" question on the
-  // card asks this rather than comparing against null.
-  const status = asMarkerStatus(m.status);
-  return (
-    <Link
-      to={`/markers/${m.markerId}`}
-      state={navState}
-      className="block h-full rounded-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
-    >
-      {/* The tint is a surface wash and nothing else: the border, the type and
-          the shadow are the ordinary card's. The chevron shape and the word in
-          StatusBadge below still carry the status on their own, in greyscale
-          and to a colourblind reader. */}
-      <Card interactive tint={status} className="flex h-full flex-col">
-        <p className="eyebrow">{m.name}</p>
-        {/* flex-wrap: a textual result ("Not detected") at display size must
-            wrap under itself, not push the unit out of the card. */}
-        <p className="tabular mt-4 flex flex-wrap items-baseline gap-2 text-stat font-semibold leading-none text-espresso">
-          {m.valueText ?? m.value}
-          <span className="text-base font-normal text-espresso/80">{m.unit}</span>
-        </p>
-        {/* The lab's range and the optimal band are two different things and
-            are labelled as two different things. Only the first decides the
-            status badge below.
-            A qualitative result ("Not detected") has no numeric range behind
-            it, and the row for one used to read "Lab reference range 0–0" —
-            which is a half-populated row saying something false. Where there
-            is no range, the line is simply absent. */}
-        {/* The range is only shown where it was actually applied. A result
-            with no status was not compared against it, so printing the range
-            beside the value would invite the reader to do the comparison
-            themselves — which is the thing nobody could do. */}
-        {status !== null && m.referenceHigh > m.referenceLow && (
-          <p className="tabular mt-3 text-xs text-espresso/80">
-            Lab reference range {m.referenceLow}–{m.referenceHigh} {m.unit}
-          </p>
-        )}
-        {status === null && (
-          <p className="mt-3 text-xs text-espresso/80">{NO_STATUS_LABEL}</p>
-        )}
-        {m.optimal && (
-          <p className="tabular mt-1 text-xs text-espresso/80">
-            {optimalRangeLabel(m.optimal)}
-            {optimalStatusLabel(m.optimal) && <span> · {optimalStatusLabel(m.optimal)!.toLowerCase()}</span>}
-          </p>
-        )}
-        <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          {/* Absent, not blank, where there is no status: StatusBadge renders
-              the words with no mark and no colour, and the tint above is not
-              applied at all. */}
-          {status !== null && <StatusBadge status={status} />}
-          {m.amendedAt && <span className="text-xs text-espresso/80">Amended {formatDate(m.amendedAt)}</span>}
-        </div>
-        {m.gloss && <p className="mt-5 text-sm leading-relaxed text-espresso/90">{m.gloss}</p>}
-      </Card>
-    </Link>
-  );
-}
-
-/**
- * One report, opened — the counts strip, the health areas that open in place,
- * and the marker cards.
+ * The cards are now the single presentation. Grouping by health area is one
+ * control rather than a second block, and the per-area counts the bars carried
+ * moved into the headings, where they sit directly above the markers they
+ * describe. The counts strip stays: it summarises the whole report in five
+ * numbers, which is not something the groups say.
  *
- * Search, the status filter and the health-area filter now arrive from the
- * Results page above rather than being three more controls on this screen. The
- * SORT stays here, because "health area / name / needs attention first" is the
- * set that means something about a single panel; the marker list has its own,
- * wider set, and flattening the two into one control would have been a
- * redesign rather than a consolidation.
+ * Search, the status filter and the health-area filter arrive from the Results
+ * page above rather than being three more controls on this screen. Grouping and
+ * SORT stay here, because they are properties of this arrangement — and they
+ * survive each other: changing one never resets the other, nor the filters.
  */
 export function ReportDetailView({
   reportId,
@@ -196,10 +108,11 @@ export function ReportDetailView({
   const [failed, setFailed] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
   const { query, statusFilter, categoryFilter } = filters;
-  // Sort is deliberately component state and nothing more: not the URL, not
-  // localStorage, not the server. It changes what is displayed and never what
-  // is fetched, and it starts clean on every visit.
-  const [sort, setSort] = useState<ResultSort>('HEALTH_AREA');
+  // Grouping and sort are deliberately component state and nothing more: not
+  // the URL, not localStorage, not the server. They change what is displayed
+  // and never what is fetched, and they start clean on every visit.
+  const [grouping, setGrouping] = useState<ResultGrouping>('NONE');
+  const [sort, setSort] = useState<ResultSort>('STATUS');
   const { show } = useToast();
 
   useEffect(() => {
@@ -222,7 +135,7 @@ export function ReportDetailView({
   }, [id]);
 
   // Split by result type once. Only MEASURED reaches the grid, the counts strip
-  // and the category bars; the other three get their own sections below.
+  // and the group headings; the other three get their own sections below.
   const byType = useMemo(() => {
     // A marker with no result renders nowhere — never a placeholder, never an
     // empty row. The server no longer sends one; this is the second lock on
@@ -241,6 +154,10 @@ export function ReportDetailView({
   // filter per option per render.
   const statusCounts = useMemo(() => statusFilterCounts(byType.measured), [byType.measured]);
 
+  // One comparator, used flat and inside every group — so grouping changes the
+  // arrangement and never the order within it.
+  const compare = sort === 'NAME' ? byName<MarkerCard> : byAttentionThenName<MarkerCard>;
+
   // Filter first, sort second. Nothing here changes what was FETCHED — the
   // report is whatever it is, and a marker the report doesn't contain has no
   // row to hide or show. Filtering can only ever remove cards that exist.
@@ -251,12 +168,8 @@ export function ReportDetailView({
         matchesMarkerQuery(m, query) &&
         (categoryFilter === 'ALL' || (m.categoryKeys ?? []).includes(categoryFilter)),
     );
-    if (sort === 'NAME') return [...filtered].sort((a, b) => a.name.localeCompare(b.name));
-    if (sort === 'STATUS') return [...filtered].sort(byAttentionThenName);
-    // HEALTH_AREA keeps the report's own order here; the grouping below is what
-    // gives that sort its shape, and re-sorting flat would fight it.
-    return filtered;
-  }, [byType.measured, statusFilter, query, categoryFilter, sort]);
+    return [...filtered].sort(compare);
+  }, [byType.measured, statusFilter, query, categoryFilter, compare]);
 
   // Only the areas this report actually has markers in — an empty category in
   // the picker is a filter that can only ever produce nothing.
@@ -266,11 +179,24 @@ export function ReportDetailView({
   }, [report, byType.measured]);
 
   // Under health-area headings, in the catalogue's own order. A marker in four
-  // areas appears under all four — see groupByHealthArea; the count below
-  // stays the distinct one, so grouping never inflates it.
+  // areas appears under all four — see groupByHealthArea; the count above stays
+  // the distinct one, so grouping never inflates it.
   const grouped = useMemo(
-    () => (sort === 'HEALTH_AREA' ? groupByHealthArea(visible, filterableCategories, byAttentionThenName) : []),
-    [sort, visible, filterableCategories],
+    () => (grouping === 'HEALTH_AREA' ? groupByHealthArea(visible, filterableCategories, compare) : []),
+    [grouping, visible, filterableCategories, compare],
+  );
+
+  // What each area holds BEFORE the filters, so a heading can say "3 of 21
+  // markers" rather than claiming the area has three in it. Grouped the same
+  // way as the visible set, so the "Other markers" bucket has a total too.
+  const areaTotals = useMemo(() => {
+    const all = groupByHealthArea(byType.measured, filterableCategories);
+    return new Map(all.map((g) => [g.key, g.markers.length]));
+  }, [byType.measured, filterableCategories]);
+
+  const areaNotes = useMemo(
+    () => new Map((report?.categories ?? []).map((c) => [c.key, c.note])),
+    [report],
   );
 
   // The page's health-area picker offers exactly the areas this report has
@@ -337,11 +263,11 @@ export function ReportDetailView({
       <div aria-busy="true" aria-label="Loading report">
         <Skeleton className="h-4 w-40" />
         <Skeleton className="mt-3 h-9 w-72" />
-        <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <Card key={i}>
+        <div className={`mt-10 ${MARKER_GRID_CLASS}`}>
+          {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+            <Card key={i} padding="tight">
               <Skeleton className="h-4 w-28" />
-              <Skeleton className="mt-2 h-7 w-20" />
+              <Skeleton className="mt-3 h-8 w-20" />
               <Skeleton className="mt-3 h-3 w-24" />
             </Card>
           ))}
@@ -397,23 +323,14 @@ export function ReportDetailView({
         </Button>
       </div>
 
-      {/* Two summaries, both MEASURED-only: how many markers landed in each
-          state, then how that breaks down by health area. Both double as
-          filters for the grid below. */}
+      {/* MEASURED-only, and a summary of the whole report rather than of any
+          grouping of it — which is why it survives while the per-area bars did
+          not. It doubles as the status filter. */}
       <CountsStrip markers={byType.measured} activeStatus={statusFilter} onSelectStatus={onStatusFilter} />
-      {/* Each area opens where it is, showing its own markers underneath its
-          own bar, rather than rewriting the grid several screens below and
-          leaving the reader where they clicked. */}
-      <CategorySummaryBars
-        markers={byType.measured}
-        categories={report.categories ?? []}
-        visibleMarkers={visible}
-        renderMarker={(m) => <ResultCard key={m.markerId} marker={m} navState={navState} />}
-      />
 
       <div className="mt-14">
         <p className="eyebrow mb-4">Every marker on this report</p>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-x-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between lg:gap-x-6">
           <div className="flex flex-wrap items-center gap-4">
             <p className="text-sm text-espresso/80" role="status">
               {filterCountLabel(visible.length, byType.measured.length)}
@@ -424,21 +341,36 @@ export function ReportDetailView({
               </Button>
             )}
           </div>
-          {/* Search, status and health area sit above the view switch; sort is
-              a property of THIS arrangement and stays with it. */}
-          <Select
-            label="Sort by"
-            name="report-sort"
-            value={sort}
-            onChange={(e) => setSort(e.target.value as ResultSort)}
-            className="w-full sm:w-56"
-          >
-            {RESULT_SORTS.map((s) => (
-              <option key={s.value} value={s.value}>
-                {s.label}
-              </option>
-            ))}
-          </Select>
+          {/* Search, status and health area sit above the view switch; grouping
+              and sort are properties of THIS arrangement and stay with it. */}
+          <div className="flex flex-col gap-4 sm:flex-row sm:gap-3">
+            <Select
+              label="Group by"
+              name="report-grouping"
+              value={grouping}
+              onChange={(e) => setGrouping(e.target.value as ResultGrouping)}
+              className="w-full sm:w-44"
+            >
+              {RESULT_GROUPINGS.map((g) => (
+                <option key={g.value} value={g.value}>
+                  {g.label}
+                </option>
+              ))}
+            </Select>
+            <Select
+              label="Sort by"
+              name="report-sort"
+              value={sort}
+              onChange={(e) => setSort(e.target.value as ResultSort)}
+              className="w-full sm:w-52"
+            >
+              {RESULT_SORTS.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -458,26 +390,32 @@ export function ReportDetailView({
             action={filtersApplied ? <Button onClick={clearFilters}>Clear filters</Button> : undefined}
           />
         </div>
-      ) : sort === 'HEALTH_AREA' ? (
+      ) : grouping === 'HEALTH_AREA' ? (
         /* Under headings. Twenty short lists about twenty different things,
            rather than one 150-card wall — and the one arrangement in which a
            full Signature panel is a document somebody reads rather than
-           scrolls past. Areas overlap, and the note above the bars says so. */
+           scrolls past. Areas overlap, and each heading's note says so.
+           An area the filters have emptied has no heading: groupByHealthArea
+           never emits a group with nothing in it. */
         <div className="mt-6 flex flex-col gap-12">
           {grouped.map((g) => (
             <section key={g.key} aria-labelledby={`area-${g.key}`}>
-              <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-taupe pb-2">
-                <h2 id={`area-${g.key}`} className="font-display text-2xl leading-tight text-espresso">
-                  {g.name}
-                </h2>
-                <p className="tabular text-xs text-espresso/80">
-                  {g.markers.length} marker{g.markers.length === 1 ? '' : 's'}
-                </p>
-              </div>
-              <div className="grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3">
+              <AreaGroupHeading
+                id={`area-${g.key}`}
+                name={g.name}
+                note={areaNotes.get(g.key)}
+                markers={g.markers}
+                total={areaTotals.get(g.key) ?? g.markers.length}
+              />
+              <div className={MARKER_GRID_CLASS}>
                 {g.markers.map((m, i) => (
                   <Reveal key={m.markerId} delay={staggerDelay(i, 30)} className="h-full">
-                    <ResultCard marker={m} navState={navState} />
+                    <MarkerResultCard
+                      marker={m}
+                      navState={navState}
+                      note={m.gloss}
+                      meta={m.amendedAt ? `Amended ${formatDate(m.amendedAt)}` : undefined}
+                    />
                   </Reveal>
                 ))}
               </div>
@@ -485,13 +423,18 @@ export function ReportDetailView({
           ))}
         </div>
       ) : (
-      <div className="mt-6 grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3">
-        {visible.map((m, i) => (
-          <Reveal key={m.markerId} delay={staggerDelay(i, 30)} className="h-full">
-            <ResultCard marker={m} navState={navState} />
-          </Reveal>
-        ))}
-      </div>
+        <div className={`mt-6 ${MARKER_GRID_CLASS}`}>
+          {visible.map((m, i) => (
+            <Reveal key={m.markerId} delay={staggerDelay(i, 30)} className="h-full">
+              <MarkerResultCard
+                marker={m}
+                navState={navState}
+                note={m.gloss}
+                meta={m.amendedAt ? `Amended ${formatDate(m.amendedAt)}` : undefined}
+              />
+            </Reveal>
+          ))}
+        </div>
       )}
 
       {/* Everything that is not a blood measurement, below the results and

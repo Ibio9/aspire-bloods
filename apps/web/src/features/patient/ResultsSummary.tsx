@@ -1,12 +1,10 @@
-import { useId, useState, type ReactNode } from 'react';
 import { countable, type MarkerStatus, type MarkerStatusInput } from '@aspire-bloods/shared';
-import { statusBarClass, statusLabel, statusTintClass } from '../../lib/markerCopy';
-import { Collapsible } from '../../components/ui/Collapsible';
+import { filterCountLabel, statusBarClass, statusLabel, statusTintClass } from '../../lib/markerCopy';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 
 /**
- * The two summary elements at the top of a report: how many markers landed in
- * each state, and how that breaks down by health area.
+ * How a set of results is summarised: the counts strip over a whole report, and
+ * the status breakdown that sits in a health-area heading.
  *
  * Both count MEASURED markers only. A genetic risk indicator has no reference
  * range, so it cannot be in range or out of it, and including one in "42 in
@@ -15,8 +13,16 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
  * sections below the grid, with their own framing.
  *
  * Neither element is a score. There is no total, no percentage healthy, no
- * grade: four counts and a proportion bar per area, which is a description of
- * the report rather than a verdict on the person.
+ * grade: counts and a proportion bar, which is a description of the report
+ * rather than a verdict on the person.
+ *
+ * WHAT USED TO BE HERE. A "By health area" block of proportion bars, above the
+ * marker grid, each bar opening in place to show that area's markers. It said
+ * the same thing twice: the bars were a summary of the areas, and the grid
+ * below them was already grouped by area with all the same cards in it. The
+ * breakdown was the part worth keeping, so it moved into the group headings —
+ * where it sits directly above the markers it describes, rather than several
+ * screens above them.
  */
 
 export interface SummaryMarker {
@@ -111,7 +117,7 @@ export function CountsStrip({
 }
 
 // ---------------------------------------------------------------------------
-// Per-category proportion bars
+// Health-area group heading
 // ---------------------------------------------------------------------------
 
 export interface SummaryCategory {
@@ -122,188 +128,103 @@ export interface SummaryCategory {
 }
 
 /**
- * One bar per health area, showing the proportion of that area's markers in
- * each state — and, when opened, that area's markers directly beneath it.
+ * The proportion of a set of markers in each state, as a bar and as words.
  *
  * Three things carry the breakdown, and colour is the last of them: each
  * segment has its own hatch (flat in range, open hatch out of range, dense
- * hatch significantly out) so the bar survives greyscale; each bar carries a
- * written count beneath it; and the whole bar has an accessible label spelling
- * the counts out in words. Someone who cannot see any of the three colours
- * loses nothing.
+ * hatch significantly out) so the bar survives greyscale; the counts are
+ * repeated beneath it in words; and the whole bar has an accessible label
+ * spelling them out. Someone who cannot see any of the three colours loses
+ * nothing.
  *
- * WHY THESE OPEN IN PLACE. Clicking an area used to set the page's health-area
- * filter, which rewrote the grid at the bottom of the page and left the reader
- * looking at the summary they had just clicked, with no indication that the
- * thing they asked for was now several screens below. On a Signature panel that
- * is a long way down. An area is a section of the report, so it behaves like
- * one: it opens where it is, and what it contains appears under it.
- *
- * Several can be open at once, because comparing two areas is the obvious next
- * thing to want and an accordion that closes one to open another makes that
- * impossible. Nothing here is remembered between visits, in keeping with the
- * rest of the results filtering.
- *
- * The bars themselves count the WHOLE report, not the filtered set. A
- * proportion that moved every time you typed in the search box would be a
- * different statistic on every keystroke. What opens beneath is the filtered
- * set, so search and the status filter do what they always did: change what is
- * displayed, never what is counted.
+ * It describes the markers it is GIVEN, which — in a heading above a group of
+ * cards — is the set actually on screen. A bar that kept reporting the whole
+ * area while the cards under it were filtered down to three would be a
+ * statistic about something the reader cannot see. The heading states the
+ * filtered count beside it, so the relationship to the whole is never lost.
  */
-export function CategorySummaryBars<T extends SummaryMarker>({
+export function StatusBreakdown({
   markers,
-  categories,
-  visibleMarkers,
-  renderMarker,
-  emptyLabel = 'Nothing in this area matches the filters above.',
+  label,
+  className = '',
 }: {
-  /** Every measured marker on the report. The bars are a summary of all of them. */
-  markers: T[];
-  categories: SummaryCategory[];
-  /**
-   * The filtered, sorted set the page is currently showing. Only these appear
-   * inside an opened area — omit it and the areas are summary bars only, with
-   * nothing to open.
-   */
-  visibleMarkers?: T[];
-  /** How one marker renders. Kept out here so this file never has to know what a result card is. */
-  renderMarker?: (marker: T, index: number) => ReactNode;
-  emptyLabel?: string;
+  markers: SummaryMarker[];
+  /** Names the bar for a screen reader — the health area it belongs to. */
+  label: string;
+  className?: string;
 }) {
-  const [open, setOpen] = useState<Set<string>>(new Set());
-  const headingId = useId().replace(/:/g, '');
-  const expandable = !!renderMarker && !!visibleMarkers;
-
-  // MEASURED areas only — a bar of "proportion in range" over a set of genetic
-  // indicators would be a statement about nothing. And within those, only the
-  // results that were actually compared against a range: a bar is a proportion,
-  // and a segment can only be a share of something that was measured.
-  const areas = categories
-    .filter((c) => c.resultType === 'MEASURED')
-    .map((c) => ({ category: c, members: countable(markers.filter((m) => m.categoryKeys?.includes(c.key))) }))
-    .filter((a) => a.members.length > 0)
-    .sort((a, b) => b.members.length - a.members.length || a.category.name.localeCompare(b.category.name));
-
-  if (areas.length === 0) return null;
-
-  function toggle(key: string) {
-    setOpen((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }
+  // Only the results that were actually compared against a range: a bar is a
+  // proportion, and a segment can only be a share of something that was
+  // measured.
+  const counted = countable(markers);
+  if (counted.length === 0) return null;
+  const counts = countByStatus(counted);
+  const segments = BAR_ORDER.filter((s) => counts[s] > 0);
+  const spoken = segments.map((s) => `${counts[s]} ${statusLabel(s).toLowerCase()}`).join(', ');
 
   return (
-    <div className="mt-12">
-      <p className="eyebrow mb-5">By health area</p>
-      <ul className="flex flex-col gap-4">
-        {areas.map(({ category, members }) => {
-          const counts = countByStatus(members);
-          const segments = BAR_ORDER.filter((s) => counts[s] > 0);
-          const spoken = segments.map((s) => `${counts[s]} ${statusLabel(s).toLowerCase()}`).join(', ');
-          const isOpen = expandable && open.has(category.key);
-          const shown = (visibleMarkers ?? []).filter((m) => m.categoryKeys?.includes(category.key));
-          const buttonId = `${headingId}-area-${category.key}`;
-          const panelId = `${headingId}-panel-${category.key}`;
-          const Wrapper = expandable ? 'button' : 'div';
+    <div className={className}>
+      <div
+        className="flex h-2.5 w-full overflow-hidden rounded-full border border-taupe"
+        role="img"
+        aria-label={`${label}: ${spoken}.`}
+      >
+        {segments.map((s) => (
+          <span key={s} className={statusBarClass(s)} style={{ width: `${(counts[s] / counted.length) * 100}%` }} />
+        ))}
+      </div>
+      {/* The same breakdown in words, always present — the bar is the quick
+          read, this is the actual answer. */}
+      <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-espresso/80" aria-hidden="true">
+        {segments.map((s) => (
+          <span key={s} className="tabular inline-flex items-center gap-1.5">
+            <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-sm border border-taupe ${statusBarClass(s)}`} />
+            {counts[s]} {statusLabel(s).toLowerCase()}
+          </span>
+        ))}
+      </p>
+    </div>
+  );
+}
 
-          return (
-            <li key={category.key} className={`rounded-card border ${isOpen ? 'border-bronze bg-cream-100 shadow-card' : 'border-taupe bg-cream-50'} transition-colors duration-150 ease-out`}>
-              <Wrapper
-                {...(expandable
-                  ? {
-                      type: 'button' as const,
-                      id: buttonId,
-                      onClick: () => toggle(category.key),
-                      'aria-expanded': isOpen,
-                      'aria-controls': panelId,
-                    }
-                  : {})}
-                className={`w-full rounded-card p-4 text-left ${
-                  expandable
-                    ? 'cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze'
-                    : ''
-                }`}
-              >
-                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                  <p className="font-display text-lg leading-tight text-espresso">{category.name}</p>
-                  <span className="flex shrink-0 items-center gap-3">
-                    <span className="tabular text-xs text-espresso/80">
-                      {members.length} marker{members.length === 1 ? '' : 's'}
-                    </span>
-                    {/* Rotation is decoration; aria-expanded on the button is
-                        what actually reports the state. */}
-                    {expandable && (
-                      <svg
-                        width="12"
-                        height="8"
-                        viewBox="0 0 12 8"
-                        aria-hidden="true"
-                        className={`text-espresso/80 motion-safe:transition-transform motion-safe:duration-200 ${isOpen ? 'rotate-180' : ''}`}
-                      >
-                        <path d="M1 1L6 6L11 1" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    )}
-                  </span>
-                </div>
-
-                <div
-                  className="mt-3 flex h-3 w-full overflow-hidden rounded-full border border-taupe"
-                  role="img"
-                  aria-label={`${category.name}: ${spoken}.`}
-                >
-                  {segments.map((s) => (
-                    <span
-                      key={s}
-                      className={statusBarClass(s)}
-                      style={{ width: `${(counts[s] / members.length) * 100}%` }}
-                    />
-                  ))}
-                </div>
-
-                {/* The same breakdown in words, always present — the bar is the
-                    quick read, this is the actual answer. */}
-                <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-espresso/80" aria-hidden="true">
-                  {segments.map((s) => (
-                    <span key={s} className="tabular inline-flex items-center gap-1.5">
-                      <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-sm border border-taupe ${statusBarClass(s)}`} />
-                      {counts[s]} {statusLabel(s).toLowerCase()}
-                    </span>
-                  ))}
-                </p>
-                {category.note && <p className="mt-2 text-xs italic text-espresso/80">{category.note}</p>}
-              </Wrapper>
-
-              {expandable && (
-                <Collapsible open={isOpen} id={panelId} labelledBy={buttonId}>
-                  <div className="border-t border-taupe px-4 pb-5 pt-5">
-                    {shown.length === 0 ? (
-                      <p className="text-sm text-espresso/80">{emptyLabel}</p>
-                    ) : (
-                      <>
-                        {/* An area with twenty-one markers in it is the case
-                            this layout has to survive, so the cards go into the
-                            same responsive grid the flat results view uses
-                            rather than a single tall column. */}
-                        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                          {shown.map((m, i) => renderMarker!(m, i))}
-                        </div>
-                        {shown.length !== members.length && (
-                          <p className="mt-4 text-xs text-espresso/80" role="status">
-                            {shown.length} of {members.length} shown, by the filters above.
-                          </p>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </Collapsible>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+/**
+ * The heading over one health area's cards: the area's name, how many of its
+ * markers are showing, the status breakdown of those, and the catalogue's note
+ * about the area.
+ *
+ * This is where the old summary bars went. Grouping the grid by health area and
+ * ALSO listing the areas above it as bars was the same information twice, and
+ * the copy that was only in the bars — the counts, the note, the fact that areas
+ * overlap — is all here now, attached to the markers it is about.
+ *
+ * Used by both the report view and the marker list, so the two group identically.
+ */
+export function AreaGroupHeading({
+  id,
+  name,
+  note,
+  markers,
+  total,
+}: {
+  /** Labels the <section> this heading opens. */
+  id: string;
+  name: string;
+  note?: string | null;
+  /** The markers currently shown under this heading. */
+  markers: SummaryMarker[];
+  /** How many this area holds before the filters — so "3 of 21 markers" can be said. */
+  total: number;
+}) {
+  return (
+    <div className="mb-5 border-b border-taupe pb-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h2 id={id} className="font-display text-2xl leading-tight text-espresso">
+          {name}
+        </h2>
+        <p className="tabular text-xs text-espresso/80">{filterCountLabel(markers.length, total)}</p>
+      </div>
+      <StatusBreakdown markers={markers} label={name} className="mt-3" />
+      {note && <p className="mt-2 text-xs italic text-espresso/80">{note}</p>}
     </div>
   );
 }

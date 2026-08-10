@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { MarkerStatus } from '@aspire-bloods/shared';
 import { Breadcrumbs } from '../../components/nav/Breadcrumbs';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
@@ -52,6 +52,7 @@ export function ResultsPage() {
   // Present only on /reports/:id, which is the same page with one report open.
   const { id: reportId } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   // The three controls above the switch. Component state and nothing more:
   // not the URL, not localStorage, not the server. They change what is
@@ -69,19 +70,39 @@ export function ResultsPage() {
 
   const setView = useCallback(
     (next: ResultsView) => {
+      // Already where we are. Pressing "By report" inside an open report is
+      // pressing the selected tab, and a selected tab does nothing.
+      if (next === view) return;
       const params = new URLSearchParams(searchParams);
       if (next === 'by-report') params.delete('view');
       else params.set('view', next);
       // The comparison's own selection is meaningless anywhere else and would
       // otherwise sit in the URL of a page that ignores it.
       if (next !== 'compare') params.delete('markers');
-      setSearchParams(params, { replace: true });
       // Each view answers for its own areas and its own counts; until the new
       // one says otherwise, the page offers neither rather than the last one's.
       setAvailable([]);
       setStatusCounts(undefined);
+
+      /**
+       * Inside an open report the view is pinned by the ROUTE, not by the query
+       * string — /reports/:id IS the report view, whatever ?view= says. So
+       * writing the parameter here changed the URL and nothing else: the two
+       * other tabs were visibly there, took the click, and left the reader on
+       * the same report. A control that is on screen and does nothing is worse
+       * than one that is absent, and these two have somewhere real to go.
+       *
+       * A push rather than a replace: the report is where the reader just was
+       * and Back is how they expect to return to it.
+       */
+      if (reportId) {
+        const search = params.toString();
+        navigate({ pathname: '/results', search: search ? `?${search}` : '' });
+        return;
+      }
+      setSearchParams(params, { replace: true });
     },
-    [searchParams, setSearchParams],
+    [view, reportId, navigate, searchParams, setSearchParams],
   );
 
   const updateFilters = useCallback((next: Partial<ResultsFilters>) => {
