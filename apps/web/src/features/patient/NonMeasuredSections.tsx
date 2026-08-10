@@ -296,10 +296,28 @@ export function SensitivitySection({ markers }: { markers: NonMeasuredMarker[] }
   // blood analyte of the same name; the patient sees the food.
   const allGroups = useMemo(() => {
     const byName = new Map(markers.map((m) => [m.name, m]));
-    return FOOD_SENSITIVITY_GROUPS.map((g) => ({
-      ...g,
-      items: g.items.map((food) => ({ food, marker: byName.get(`${food} (IgG)`) })).filter((i) => i.marker),
+    const groups = FOOD_SENSITIVITY_GROUPS.map((g) => ({
+      key: g.key,
+      name: g.name,
+      items: g.items
+        .map((food) => ({ food, marker: byName.get(`${food} (IgG)`) }))
+        .filter((i): i is { food: string; marker: NonMeasuredMarker } => !!i.marker),
     })).filter((g) => g.items.length > 0);
+
+    // Anything the lab reported that isn't in our nine groups still has to
+    // appear. The shared group list is our own editorial arrangement of the
+    // panel, not a contract with the laboratory — a food added to their assay,
+    // or a spelling we haven't caught up with, would otherwise be paid for,
+    // reported, and rendered nowhere at all. Same rule as CategorisedSection's
+    // "Other" card above, and the same reason.
+    const placed = new Set(groups.flatMap((g) => g.items.map((i) => i.marker.markerId)));
+    const leftover = markers
+      .filter((m) => !placed.has(m.markerId))
+      .map((m) => ({ food: m.name.replace(/\s*\(IgG\)$/, ''), marker: m }))
+      .sort((a, b) => a.food.localeCompare(b.food));
+    if (leftover.length > 0) groups.push({ key: '__other', name: 'Other foods', items: leftover });
+
+    return groups;
   }, [markers]);
 
   const total = allGroups.reduce((n, g) => n + g.items.length, 0);
@@ -391,7 +409,7 @@ export function SensitivitySection({ markers }: { markers: NonMeasuredMarker[] }
               {isOpen && (
                 <div id={panelId} className="grid grid-cols-1 gap-x-8 border-t border-taupe px-5 py-2 sm:grid-cols-2 lg:grid-cols-3">
                   {g.items.map(({ food, marker }) => (
-                    <PlainResult key={marker!.markerId} marker={{ ...marker!, name: food }} />
+                    <PlainResult key={marker.markerId} marker={{ ...marker, name: food }} />
                   ))}
                 </div>
               )}
