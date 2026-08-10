@@ -1,5 +1,5 @@
 import { useId, useState, type ReactNode } from 'react';
-import { countable, type MarkerStatus } from '@aspire-bloods/shared';
+import { countable, type MarkerStatus, type MarkerStatusInput } from '@aspire-bloods/shared';
 import { statusBarClass, statusLabel, statusTintClass } from '../../lib/markerCopy';
 import { Collapsible } from '../../components/ui/Collapsible';
 import { StatusBadge } from '../../components/ui/StatusBadge';
@@ -26,9 +26,11 @@ export interface SummaryMarker {
    * elements below drop those entirely rather than counting them: a tile
    * saying "3 in range" that includes a marker nobody compared to a range is
    * the same false statement the status column itself used to make, moved into
-   * the summary. See countable() in packages/shared.
+   * the summary. See countable() in packages/shared, which now also treats a
+   * status this build has no entry for as no status — a phantom key would
+   * otherwise land in the tallies below as `NaN`.
    */
-  status: MarkerStatus | null;
+  status: MarkerStatusInput;
   value: number | null;
   valueText?: string | null;
   categoryKeys?: string[];

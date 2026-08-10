@@ -27,8 +27,17 @@ export type ReportStatus =
  * see MarkerStatusOrNone in resultPresence.ts. Adding NO_DATA here would make
  * absence look like a traffic light, and would give every status-defaulting
  * expression in the codebase somewhere to default TO.
+ *
+ * The five are a runtime list first and a type second, because the type alone
+ * is worth nothing at the wire: a payload is cast, never validated, so
+ * "this is a MarkerStatus" is an assertion the compiler makes and the network
+ * has no obligation to honour. Every lookup that turns a status into a colour,
+ * a label or a class goes through `asMarkerStatus` in resultPresence.ts, which
+ * is the one place that list is actually checked.
  */
-export type MarkerStatus = 'IN_RANGE' | 'HIGH' | 'LOW' | 'SIGNIFICANT_HIGH' | 'SIGNIFICANT_LOW';
+export const MARKER_STATUSES = ['IN_RANGE', 'HIGH', 'LOW', 'SIGNIFICANT_HIGH', 'SIGNIFICANT_LOW'] as const;
+
+export type MarkerStatus = (typeof MARKER_STATUSES)[number];
 
 export type EscalationSeverity = 'MILD' | 'SIGNIFICANT';
 

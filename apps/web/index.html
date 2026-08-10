@@ -10,25 +10,21 @@
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#e3dfd3" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#423c36" media="(prefers-color-scheme: dark)" />
+    <!-- Theme, resolved before the first paint rather than after React mounts.
+         A file rather than an inline block: the portal's CSP is script-src
+         'self', which blocks inline execution outright, and weakening it with
+         'unsafe-inline' to save one request on a page of medical results is
+         not a trade this product makes. Still parser-blocking and still in
+         <head>, which is what puts it ahead of the first paint — a deferred or
+         bundled version runs after the browser has painted the light default,
+         which is exactly the cream flash it exists to prevent.
+         Nothing in this document may be an inline script. src/lib/theme.test.ts
+         fails if one appears here, and e2e/route-console.spec.ts fails if one
+         reaches the served page. -->
+    <script src="/theme-bootstrap.js"></script>
   </head>
   <body>
     <div id="root"></div>
-    <!-- Theme, resolved before the first paint rather than after React mounts.
-         Kept inline and blocking on purpose: a deferred or bundled version
-         runs after the browser has already painted the light default, which
-         is exactly the cream flash this exists to prevent. The body of it is
-         generated from src/lib/theme.ts (THEME_BOOTSTRAP_SCRIPT) so
-         the storage key and the resolution rules are defined once. -->
-    <script>
-      (function () {
-        try {
-          var p = localStorage.getItem('aspire-theme');
-          var dark = p === 'dark' || (p !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-          if (dark) document.documentElement.classList.add('dark');
-          document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
-        } catch (e) {}
-      })();
-    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

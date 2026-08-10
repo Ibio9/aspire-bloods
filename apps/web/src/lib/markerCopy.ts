@@ -1,4 +1,13 @@
-import { status as statusTokens, formatOptimalRange, type MarkerStatus, type OptimalRangeDTO } from '@aspire-bloods/shared';
+import {
+  status as statusTokens,
+  asMarkerStatus,
+  brand,
+  formatOptimalRange,
+  NO_STATUS_LABEL,
+  type MarkerStatus,
+  type MarkerStatusInput,
+  type OptimalRangeDTO,
+} from '@aspire-bloods/shared';
 import type { MarkerMovement } from './patientPortal';
 
 /**
@@ -28,6 +37,20 @@ export const MOVEMENT_COPY: Record<MarkerMovement, MovementCopy> = {
   CHANGED_WITHIN_RANGE: { label: 'Changed, still within the usual range', tone: 'neutral' },
 };
 
+/**
+ * Status → design token, and the five lookups built on it.
+ *
+ * All five are TOTAL: absence of a status is an input, not a bug, and each of
+ * them has an answer for it. They used to index this record directly with
+ * whatever the payload carried, which is not a lookup so much as an assertion
+ * that the wire agrees with the type. When it didn't, `statusTokens[undefined]`
+ * came back `undefined` and the throw landed one property later — on `.cssVar`
+ * or `.label`, inside StatusBadge or a chart, several frames from the cause.
+ *
+ * What absence resolves to, in every case, is "no traffic light": the ordinary
+ * body colour, the words `NO_STATUS_LABEL`, and no tint class at all. Never a
+ * sixth state, never a default onto one of the five.
+ */
 const STATUS_KEY: Record<MarkerStatus, keyof typeof statusTokens> = {
   IN_RANGE: 'inRange',
   HIGH: 'high',
@@ -36,17 +59,26 @@ const STATUS_KEY: Record<MarkerStatus, keyof typeof statusTokens> = {
   SIGNIFICANT_LOW: 'significantLow',
 };
 
-export function statusLabel(status: MarkerStatus): string {
-  return statusTokens[STATUS_KEY[status]].label;
+/** The token for a status, or null where there isn't one. Every lookup below goes through this. */
+export function statusToken(status: MarkerStatusInput): (typeof statusTokens)[keyof typeof statusTokens] | null {
+  const known = asMarkerStatus(status);
+  return known ? statusTokens[STATUS_KEY[known]] : null;
 }
 
-export function statusHex(status: MarkerStatus): string {
-  return statusTokens[STATUS_KEY[status]].hex;
+export function statusLabel(status: MarkerStatusInput): string {
+  return statusToken(status)?.label ?? NO_STATUS_LABEL;
+}
+
+export function statusHex(status: MarkerStatusInput): string {
+  return statusToken(status)?.hex ?? brand.espresso;
 }
 
 /** The theme-aware colour for a status label or icon. Prefer this over statusHex anywhere it lands on a live element. */
-export function statusColor(status: MarkerStatus): string {
-  return statusTokens[STATUS_KEY[status]].cssVar;
+export function statusColor(status: MarkerStatusInput): string {
+  // Ordinary body colour for absence — the same thing StatusBadge already
+  // renders the words in, so a statusless label reads as a note about the
+  // record rather than as a state.
+  return statusToken(status)?.cssVar ?? 'rgb(var(--c-espresso))';
 }
 
 /**
@@ -67,8 +99,10 @@ const STATUS_TINT_CLASS: Record<MarkerStatus, string> = {
   SIGNIFICANT_LOW: 'bg-tint-significantLow',
 };
 
-export function statusTintClass(status: MarkerStatus): string {
-  return STATUS_TINT_CLASS[status];
+/** No wash where there is no status: the card keeps the ordinary cream surface. */
+export function statusTintClass(status: MarkerStatusInput): string {
+  const known = asMarkerStatus(status);
+  return known ? STATUS_TINT_CLASS[known] : '';
 }
 
 /** The stronger fill, for the category summary bars where a 12% wash would simply vanish. */
@@ -97,8 +131,13 @@ const STATUS_BAR_PATTERN: Record<MarkerStatus, string> = {
   SIGNIFICANT_LOW: 'bg-hatch-dense',
 };
 
-export function statusBarClass(status: MarkerStatus): string {
-  return `${STATUS_BAR_CLASS[status]} ${STATUS_BAR_PATTERN[status]}`.trim();
+export function statusBarClass(status: MarkerStatusInput): string {
+  const known = asMarkerStatus(status);
+  // A bar is a proportion of things that WERE compared against a range, so a
+  // statusless row has no segment in it (see countable). Returning nothing is
+  // therefore the honest answer rather than a fallback.
+  if (!known) return '';
+  return `${STATUS_BAR_CLASS[known]} ${STATUS_BAR_PATTERN[known]}`.trim();
 }
 
 /**
@@ -153,12 +192,17 @@ export type StatusFilter = (typeof STATUS_FILTERS)[number]['value'];
  * spelled, which quietly swept every statusless result into the list of things
  * a patient is being told to look at.
  */
-export function matchesStatusFilter(status: MarkerStatus | null, filter: StatusFilter): boolean {
+export function matchesStatusFilter(status: MarkerStatusInput, filter: StatusFilter): boolean {
   if (filter === 'ALL') return true;
-  if (status === null) return false;
-  if (filter === 'IN_RANGE') return status === 'IN_RANGE';
-  if (filter === 'ATTENTION') return status !== 'IN_RANGE';
-  return status === filter;
+  // Narrowed rather than `status === null`, so a status the client has no entry
+  // for is treated as no status here too. Otherwise `!== 'IN_RANGE'` would file
+  // it under "outside the usual range" — telling a patient to look at a result
+  // on the strength of a value we could not read.
+  const known = asMarkerStatus(status);
+  if (known === null) return false;
+  if (filter === 'IN_RANGE') return known === 'IN_RANGE';
+  if (filter === 'ATTENTION') return known !== 'IN_RANGE';
+  return known === filter;
 }
 
 /**
@@ -170,7 +214,7 @@ export function matchesStatusFilter(status: MarkerStatus | null, filter: StatusF
  * options, on every render, so a 350-marker report re-ran ~2,450 predicate
  * calls on each keystroke in the search box. One pass, memoised by the caller.
  */
-export function statusFilterCounts(markers: { status: MarkerStatus | null }[]): Record<StatusFilter, number> {
+export function statusFilterCounts(markers: { status: MarkerStatusInput }[]): Record<StatusFilter, number> {
   const counts: Record<StatusFilter, number> = {
     ALL: markers.length,
     IN_RANGE: 0,
@@ -180,10 +224,14 @@ export function statusFilterCounts(markers: { status: MarkerStatus | null }[]): 
     SIGNIFICANT_HIGH: 0,
     SIGNIFICANT_LOW: 0,
   };
-  for (const { status } of markers) {
+  for (const raw of markers) {
+    const status = asMarkerStatus(raw.status);
     // Counted toward ALL (it is a marker on the page) and toward nothing else.
     // A statusless result belongs in neither the in-range tally nor the
     // needs-attention one, and putting it in either is a claim about it.
+    // Narrowed first, because `counts[status] += 1` on an unrecognised value
+    // adds a key that is not a StatusFilter and reads back as NaN in the
+    // picker — "Above range (NaN)".
     if (status === null) {
       continue;
     } else if (status === 'IN_RANGE') {
@@ -283,11 +331,15 @@ export const ATTENTION_RANK: Record<MarkerStatus, number> = {
 
 const NO_STATUS_RANK = 3;
 
-export function attentionRank(status: MarkerStatus | null): number {
-  return status === null ? NO_STATUS_RANK : ATTENTION_RANK[status];
+export function attentionRank(status: MarkerStatusInput): number {
+  const known = asMarkerStatus(status);
+  // An unrecognised status used to give `undefined` here, and `undefined - 2`
+  // is NaN: a comparator returning NaN leaves the array in whatever order the
+  // sort happened to walk it, so one bad row silently unsorted the whole list.
+  return known === null ? NO_STATUS_RANK : ATTENTION_RANK[known];
 }
 
-export function byAttentionThenName<T extends { status: MarkerStatus | null; name: string }>(a: T, b: T): number {
+export function byAttentionThenName<T extends { status: MarkerStatusInput; name: string }>(a: T, b: T): number {
   return attentionRank(a.status) - attentionRank(b.status) || a.name.localeCompare(b.name);
 }
 

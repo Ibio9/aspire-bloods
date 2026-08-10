@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { MarkerStatus, OptimalRangeDTO } from '@aspire-bloods/shared';
+import type { MarkerStatusInput, OptimalRangeDTO } from '@aspire-bloods/shared';
 import { apiFetch } from './api';
 
 /**
@@ -8,6 +8,16 @@ import { apiFetch } from './api';
  * tiny hooks that more than one screen needs. Kept in one file so the
  * Overview / All markers / Trends screens agree on the contract without
  * three copies of the same interface drifting apart.
+ *
+ * Every `status` below is `MarkerStatusInput` — one of the five, or nothing.
+ * These interfaces describe a payload that arrives over a network and is CAST,
+ * never parsed, so declaring a field `MarkerStatus` here does not make it one;
+ * it only stops the compiler asking. The server sends `null` for a result it
+ * could not place against a range, an older or newer build may send a value
+ * this one has no entry for, and a field that stops being sent arrives as
+ * `undefined` because JSON has no way to carry the difference. All three are
+ * absence, and every lookup that turns one into a colour, a label or a class
+ * handles absence — see asMarkerStatus in packages/shared.
  */
 
 export type MarkerMovement =
@@ -22,7 +32,7 @@ export interface AttentionItem {
   name: string;
   value: number;
   unit: string;
-  status: MarkerStatus;
+  status: MarkerStatusInput;
   referenceLow: number;
   referenceHigh: number;
   /** Where significantly-out begins for this marker — the range bar's gradient turns here. */
@@ -45,10 +55,10 @@ export interface ChangeItem {
   name: string;
   unit: string;
   currentValue: number;
-  currentStatus: MarkerStatus;
+  currentStatus: MarkerStatusInput;
   currentDate: string;
   previousValue: number;
-  previousStatus: MarkerStatus;
+  previousStatus: MarkerStatusInput;
   previousDate: string;
   delta: number;
   direction: 'UP' | 'DOWN';
@@ -89,7 +99,7 @@ export interface PatientOverview {
 export interface SparkPoint {
   sampleDate: string;
   value: number;
-  status: MarkerStatus;
+  status: MarkerStatusInput;
 }
 
 export interface MarkerRow {
@@ -115,7 +125,7 @@ export interface MarkerRow {
    * Null where the latest result has no position on its reference range. Not a
    * sixth state: no tint, no mark, no place in a count, and never IN_RANGE.
    */
-  status: MarkerStatus | null;
+  status: MarkerStatusInput;
   referenceLow: number;
   referenceHigh: number;
   /** Where significantly-out begins for this marker — the sparkline's band edges sit here. */
@@ -145,7 +155,7 @@ export interface TrendSeries {
   points: {
     sampleDate: string;
     value: number;
-    status: MarkerStatus;
+    status: MarkerStatusInput;
     referenceLow: number;
     referenceHigh: number;
     /** Where significantly-out begins for this marker, in its own units. */

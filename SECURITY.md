@@ -43,6 +43,7 @@ Registration being open moves all the risk to one decision: whose results are th
 ## Transport & headers
 
 - `helmet` is applied globally with a strict Content-Security-Policy: `default-src 'self'`, no external script/font/style hosts (fonts are bundled via `@fontsource`, not loaded from a CDN), `frame-ancestors 'none'`, `object-src 'none'`. `style-src` allows `'unsafe-inline'` only (never `script-src`) because chart rendering (Recharts/SVG) sets inline style attributes — a documented, narrow exception.
+- The static web app carries the same policy from the edge (`vercel.json`), and `script-src 'self'` there means **no inline `<script>` anywhere in `index.html`** — the pre-paint theme resolver is `public/theme-bootstrap.js`, a parser-blocking file from this origin, precisely so the policy does not have to be relaxed for it. `'unsafe-inline'` is never added to `script-src` to quiet a console message; the thing injecting the script gets fixed instead. Guarded by `apps/web/src/lib/theme.test.ts` (the source) and `e2e/route-console.spec.ts` (the served page).
 - `X-Powered-By` is disabled.
 - `trust proxy` is enabled in production (Railway sits behind a reverse proxy) so `req.ip` and secure-cookie detection are correct.
 

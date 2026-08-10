@@ -8,6 +8,7 @@ import {
   statusTint,
   hueTint,
   chart,
+  NO_STATUS_PAINT,
   type StatusKey,
 } from '@aspire-bloods/shared';
 
@@ -230,6 +231,10 @@ describe('runtime colour tokens', () => {
     ...Object.entries(hueTint).flatMap(([k, roles]) =>
       Object.entries(roles).map(([r, v]) => [`hueTint.${k}.${r}`, v] as [string, string]),
     ),
+    // What a result with NO status paints as. It is reached by exactly the same
+    // style props, SVG fills and gradient stops as the five, so it fails in
+    // exactly the same silent way if it is ever written as a bare var().
+    ...Object.entries(NO_STATUS_PAINT).map(([r, v]) => [`NO_STATUS_PAINT.${r}`, v] as [string, string]),
     ...Object.entries(chart)
       .filter(([, v]) => typeof v === 'string')
       .map(([k, v]) => [`chart.${k}`, v as string] as [string, string]),

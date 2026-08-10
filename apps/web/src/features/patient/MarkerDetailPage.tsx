@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { formatDate, type MarkerReviewStatus, type MarkerStatus, type OptimalRangeDTO } from '@aspire-bloods/shared';
+import {
+  asMarkerStatus,
+  formatDate,
+  type MarkerReviewStatus,
+  type MarkerStatusInput,
+  type OptimalRangeDTO,
+} from '@aspire-bloods/shared';
 import { Breadcrumbs } from '../../components/nav/Breadcrumbs';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
@@ -22,7 +28,7 @@ interface TrendPoint {
   converted: boolean;
   originalValue: number;
   originalUnit: string;
-  status: MarkerStatus;
+  status: MarkerStatusInput;
   referenceLow: number;
   referenceHigh: number;
   /** Where significantly-out begins for this marker — the chart's band edges sit here. */
@@ -48,7 +54,7 @@ interface MarkerDetail {
     referenceHigh: number;
     severityThreshold?: number;
     /** Null where this result has no position on its reference range. Never IN_RANGE by default. */
-    status: MarkerStatus | null;
+    status: MarkerStatusInput;
     optimal?: OptimalRangeDTO | null;
     sourceLabel: string;
     amendedAt?: string | null;
@@ -132,6 +138,10 @@ export function MarkerDetailPage() {
     );
   }
 
+  // Narrowed once. Everything below that asks "was this result placed against
+  // its range" asks this, rather than comparing the raw field against null.
+  const latestStatus = asMarkerStatus(detail.latest.status);
+
   // Only present when arriving from a report's marker grid (see ReportView) — a direct/deep
   // link has no report context to page through, so the arrows simply don't render.
   const siblingIndex = navState?.markerIds.indexOf(markerId ?? '') ?? -1;
@@ -212,7 +222,7 @@ export function MarkerDetailPage() {
             />
           </p>
           <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-            <StatusBadge status={detail.latest.status} />
+            <StatusBadge status={latestStatus} />
             {detail.latest.amendedAt && (
               <span className="text-xs text-espresso/80">Amended {formatDate(detail.latest.amendedAt)}</span>
             )}
@@ -227,7 +237,7 @@ export function MarkerDetailPage() {
               a half-populated row stating something false. The report card and
               the All-markers row already guarded this; the marker's own page,
               which is where someone goes to read the range properly, did not. */}
-          {detail.latest.status !== null && detail.latest.referenceHigh > detail.latest.referenceLow && (
+          {latestStatus !== null && detail.latest.referenceHigh > detail.latest.referenceLow && (
             <p className="tabular mt-2 text-xs text-espresso/80">
               Lab reference range {detail.latest.referenceLow}–{detail.latest.referenceHigh} {detail.latest.unit}
             </p>
@@ -244,13 +254,13 @@ export function MarkerDetailPage() {
           {/* A textual result has no position on a numeric scale, and a result
               with no status was never placed on one — the bar would be a guess
               in both cases, so it is simply not drawn. */}
-          {detail.latest.value !== null && detail.latest.status !== null && (
+          {detail.latest.value !== null && latestStatus !== null && (
             <div className="mt-8">
               <RangeBar
                 value={detail.latest.value}
                 low={detail.latest.referenceLow}
                 high={detail.latest.referenceHigh}
-                status={detail.latest.status}
+                status={latestStatus}
                 severityThreshold={detail.latest.severityThreshold}
                 optimal={detail.optimal}
               />
@@ -267,7 +277,7 @@ export function MarkerDetailPage() {
       {/* Where a value sits inside the lab range but outside the optimal band,
           say so plainly and once. It is not an out-of-range result and must not
           borrow that treatment - no alert card, no status colour, no advice. */}
-      {detail.optimal && detail.optimal.within === false && detail.latest.status === 'IN_RANGE' && (
+      {detail.optimal && detail.optimal.within === false && latestStatus === 'IN_RANGE' && (
         <Card className="mt-7 max-w-3xl">
           <p className="text-sm leading-relaxed text-espresso/90">
             This result is in range against the lab's reference range, and outside the optimal range of{' '}

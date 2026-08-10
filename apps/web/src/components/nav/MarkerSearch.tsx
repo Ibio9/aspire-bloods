@@ -1,7 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { loadMarkerIndex, type MarkerRow } from '../../lib/patientPortal';
-import { NO_STATUS_LABEL } from '@aspire-bloods/shared';
 import { statusLabel } from '../../lib/markerCopy';
 import { SearchIcon } from './icons';
 
@@ -139,7 +138,10 @@ export function MarkerSearch({ onNavigate }: { onNavigate?: () => void }) {
               >
                 <span className="text-sm font-medium">{m.name}</span>
                 <span className={`tabular text-xs ${i === activeIndex ? 'text-onaccent/85' : 'text-espresso/80'}`}>
-                  {m.valueText ?? m.value} {m.unit} · {m.status === null ? NO_STATUS_LABEL : statusLabel(m.status)}
+                  {/* statusLabel says "not compared to a range" for a marker with
+                      no status, so there is one copy of that sentence rather than
+                      one per screen. */}
+                  {m.valueText ?? m.value} {m.unit} · {statusLabel(m.status)}
                 </span>
               </li>
             ))

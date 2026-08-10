@@ -11,15 +11,17 @@ import {
   YAxis,
 } from 'recharts';
 import {
+  asMarkerStatus,
+  bandLabel,
   chart as chartTokens,
   statusBands,
   statusPaint,
   bandGradientStops,
   severityThresholdFor,
-  BAND_LABEL,
   formatOptimalRange,
   formatDate,
   type MarkerStatus,
+  type MarkerStatusInput,
   type OptimalRangeDTO,
 } from '@aspire-bloods/shared';
 import { formatAxisDate } from '../../lib/patientPortal';
@@ -80,7 +82,11 @@ interface TrendPoint {
   sampleDate: string;
   value: number;
   unit?: string;
-  status: MarkerStatus;
+  /**
+   * Nullable because the wire is. A point with no status is dropped before
+   * anything is drawn — see the filter in TrendChart.
+   */
+  status: MarkerStatusInput;
   referenceLow: number;
   referenceHigh: number;
   /**
@@ -120,11 +126,17 @@ function markFill(status: MarkerStatus): string {
   return statusPaint(status).mark;
 }
 
-function StatusMark({ cx, cy, status, size = 1 }: { cx: number; cy: number; status: MarkerStatus; size?: number }) {
-  const fill = markFill(status);
+function StatusMark({ cx, cy, status, size = 1 }: { cx: number; cy: number; status: MarkerStatusInput; size?: number }) {
+  const known = asMarkerStatus(status);
+  // No status, no mark. Every shape here — level dot, triangle, doubled
+  // triangle — is a claim about where the value sits, and that is precisely
+  // what is unknown. Unreachable once the series is filtered below; stated so
+  // the lookup cannot be the thing that throws.
+  if (!known) return null;
+  const fill = markFill(known);
   const r = 5 * size;
   const common = { fill, stroke: chartTokens.pointRing, strokeWidth: 1.5 };
-  const shape = STATUS_SHAPE[status];
+  const shape = STATUS_SHAPE[known];
 
   if (shape === 'circle') return <circle cx={cx} cy={cy} r={r} {...common} />;
 
@@ -212,7 +224,7 @@ function ChartTooltip({
 }
 
 export function TrendChart({
-  data,
+  data: input,
   crossSourceComparable = true,
   optimal = null,
 }: {
@@ -227,6 +239,18 @@ export function TrendChart({
   const uid = useId().replace(/:/g, '');
   const hatchId = `optimal-hatch-${uid}`;
   const gradId = `band-${uid}`;
+
+  /**
+   * Only points that were actually placed against a range are plotted.
+   *
+   * A point's status decides its mark's shape, its colour and the words for it
+   * in the key and the accessible summary; a point with none has nothing to
+   * give any of the three, and inventing one would be a claim about a
+   * comparison nobody made. The server already refuses to send one
+   * (getMarkerTrendForPatient), and the empty-data message below is the right
+   * answer when that leaves nothing.
+   */
+  const data = input.filter((p) => asMarkerStatus(p.status) !== null);
 
   const singlePoint = data.length === 1;
   // Connecting a line means asserting these points belong on one trajectory.
@@ -582,7 +606,7 @@ function ChartKey({
   bands,
 }: {
   optimal: OptimalRangeDTO | null;
-  statuses: MarkerStatus[];
+  statuses: MarkerStatusInput[];
   bands: MarkerStatus[];
 }) {
   return (
@@ -604,7 +628,7 @@ function ChartKey({
               <rect x="0" y="2" width="18" height="8" fill={statusPaint(s).band} />
               <line x1="0" y1="2" x2="18" y2="2" stroke={chartTokens.referenceEdge} strokeWidth="1" strokeOpacity="0.85" />
             </svg>
-            {BAND_LABEL[s]}
+            {bandLabel(s)}
           </li>
         ))}
         {optimal && (

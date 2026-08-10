@@ -1,4 +1,5 @@
 import { hueTint, statusTint, type StatusKey } from './tokens.js';
+import { asMarkerStatus, NO_STATUS_LABEL, type MarkerStatusInput } from './resultPresence.js';
 import type { MarkerStatus } from './types.js';
 
 /**
@@ -69,9 +70,36 @@ const TINT_KEY: Record<MarkerStatus, StatusKey> = {
   SIGNIFICANT_LOW: 'significantLow',
 };
 
-/** The band fill / boundary line / point fill for a status, as theme-aware CSS variables. */
-export function statusPaint(status: MarkerStatus) {
-  return statusTint[TINT_KEY[status]];
+/**
+ * What absence looks like: the neutral surface and border tones, and not one of
+ * the three hues.
+ *
+ * A result nobody could place against a range has no traffic light, so it is
+ * given none — this is the ordinary card, the ordinary track and the ordinary
+ * taupe rule, exactly what the page looks like with the status layer removed.
+ * It exists so that every lookup below can be TOTAL: absence has an answer, so
+ * no caller has to remember to check first, and none of them can throw.
+ */
+export const NO_STATUS_PAINT = {
+  surface: 'rgb(var(--c-cream-50))',
+  bar: 'rgb(var(--c-cream-300))',
+  band: 'rgb(var(--c-cream-200))',
+  edge: 'rgb(var(--c-taupe-600))',
+  mark: 'rgb(var(--c-taupe-700))',
+} as const;
+
+/**
+ * The band fill / boundary line / point fill for a status, as theme-aware CSS
+ * variables.
+ *
+ * Total by construction. `statusTint[TINT_KEY[status]]` returned `undefined`
+ * for anything outside the five and threw on the next property access — in a
+ * chart, a sparkline or a range bar, none of which had any way to know that the
+ * status they were handed had never been checked.
+ */
+export function statusPaint(status: MarkerStatusInput): typeof statusTint[StatusKey] | typeof NO_STATUS_PAINT {
+  const known = asMarkerStatus(status);
+  return known ? statusTint[TINT_KEY[known]] : NO_STATUS_PAINT;
 }
 
 /**
@@ -87,8 +115,8 @@ export function statusPaint(status: MarkerStatus) {
  * `stops` run low-to-high in value space, which is TOP TO BOTTOM in a chart's
  * y-axis and LEFT TO RIGHT in a range bar — the caller orients them.
  */
-export function bandGradientStops(status: MarkerStatus): [string, string] {
-  switch (status) {
+export function bandGradientStops(status: MarkerStatusInput): [string, string] {
+  switch (asMarkerStatus(status)) {
     case 'SIGNIFICANT_LOW':
       return [hueTint.red.band, hueTint.orange.band];
     case 'LOW':
@@ -99,6 +127,11 @@ export function bandGradientStops(status: MarkerStatus): [string, string] {
       return [hueTint.yellow.band, hueTint.orange.band];
     case 'SIGNIFICANT_HIGH':
       return [hueTint.orange.band, hueTint.red.band];
+    default:
+      // Flat neutral. A switch with no default returned `undefined` here, which
+      // is not a colour: the browser dropped the gradient stop and the band
+      // rendered black or inherited — the silent half of the same failure.
+      return [NO_STATUS_PAINT.band, NO_STATUS_PAINT.band];
   }
 }
 
@@ -117,3 +150,13 @@ export const BAND_LABEL: Record<MarkerStatus, string> = {
   HIGH: 'Above the reference range',
   SIGNIFICANT_HIGH: 'Significantly above the reference range',
 };
+
+/**
+ * The same, as a total lookup. A key with no entry gave `undefined`, which
+ * renders as an empty list item — a coloured band in the key with no words
+ * beside it, which is the one thing the key exists to prevent.
+ */
+export function bandLabel(status: MarkerStatusInput): string {
+  const known = asMarkerStatus(status);
+  return known ? BAND_LABEL[known] : NO_STATUS_LABEL;
+}

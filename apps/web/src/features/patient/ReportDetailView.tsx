@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { formatDate, hasResultValue, NO_STATUS_LABEL, type MarkerStatus, type OptimalRangeDTO } from '@aspire-bloods/shared';
+import {
+  asMarkerStatus,
+  formatDate,
+  hasResultValue,
+  NO_STATUS_LABEL,
+  type MarkerStatus,
+  type MarkerStatusInput,
+  type OptimalRangeDTO,
+} from '@aspire-bloods/shared';
 import type { MarkerNavState } from './markerNavState';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -46,8 +54,13 @@ interface MarkerCard {
    * Null when this result has no position on its reference range. The card
    * then shows the value and says so in words, with no tint, no shape mark and
    * no place in any count. It is never rendered as "In range".
+   *
+   * `MarkerStatusInput` rather than `MarkerStatus | null`: absent and
+   * unrecognised are the same fact as null here, and writing the guard as
+   * `!== null` is exactly what let the first of those through to a token
+   * lookup. See asMarkerStatus.
    */
-  status: MarkerStatus | null;
+  status: MarkerStatusInput;
   /**
    * MEASURED / GENETIC / SENSITIVITY / COMPOSITION. Absent on a payload from
    * before result types existed, which is treated as MEASURED — that is what
@@ -92,6 +105,9 @@ function resultTypeOf(m: MarkerCard): string {
  * identical card — the sort changes the arrangement and nothing else.
  */
 function ResultCard({ marker: m, navState }: { marker: MarkerCard; navState: MarkerNavState }) {
+  // Narrowed once, and every "does this result have a status" question on the
+  // card asks this rather than comparing against null.
+  const status = asMarkerStatus(m.status);
   return (
     <Link
       to={`/markers/${m.markerId}`}
@@ -102,7 +118,7 @@ function ResultCard({ marker: m, navState }: { marker: MarkerCard; navState: Mar
           the shadow are the ordinary card's. The chevron shape and the word in
           StatusBadge below still carry the status on their own, in greyscale
           and to a colourblind reader. */}
-      <Card interactive tint={m.status} className="flex h-full flex-col">
+      <Card interactive tint={status} className="flex h-full flex-col">
         <p className="eyebrow">{m.name}</p>
         {/* flex-wrap: a textual result ("Not detected") at display size must
             wrap under itself, not push the unit out of the card. */}
@@ -121,12 +137,12 @@ function ResultCard({ marker: m, navState }: { marker: MarkerCard; navState: Mar
             with no status was not compared against it, so printing the range
             beside the value would invite the reader to do the comparison
             themselves — which is the thing nobody could do. */}
-        {m.status !== null && m.referenceHigh > m.referenceLow && (
+        {status !== null && m.referenceHigh > m.referenceLow && (
           <p className="tabular mt-3 text-xs text-espresso/80">
             Lab reference range {m.referenceLow}–{m.referenceHigh} {m.unit}
           </p>
         )}
-        {m.status === null && (
+        {status === null && (
           <p className="mt-3 text-xs text-espresso/80">{NO_STATUS_LABEL}</p>
         )}
         {m.optimal && (
@@ -139,7 +155,7 @@ function ResultCard({ marker: m, navState }: { marker: MarkerCard; navState: Mar
           {/* Absent, not blank, where there is no status: StatusBadge renders
               the words with no mark and no colour, and the tint above is not
               applied at all. */}
-          {m.status !== null && <StatusBadge status={m.status} />}
+          {status !== null && <StatusBadge status={status} />}
           {m.amendedAt && <span className="text-xs text-espresso/80">Amended {formatDate(m.amendedAt)}</span>}
         </div>
         {m.gloss && <p className="mt-5 text-sm leading-relaxed text-espresso/90">{m.gloss}</p>}

@@ -134,6 +134,42 @@ test.describe('Results', () => {
     await ctx.close();
   });
 
+  /**
+   * Choosing a marker to compare must not throw you out of Compare.
+   *
+   * The selection and the view now share one query string, and writing the
+   * selection used to replace the whole of it — so ticking the first marker
+   * dropped `view=compare`, the page fell back to the report list, and the
+   * picker vanished under the click that was using it. Invisible while Compare
+   * was its own route at /trends; a dead end the moment it became a view.
+   */
+  test('picking a marker to compare keeps you in Compare', async ({ browser }) => {
+    const ctx = await browser.newContext();
+    await loginAsDemoPatient(ctx.request);
+    const page = await ctx.newPage();
+    await page.setViewportSize({ width: 1280, height: 1000 });
+
+    await page.goto('/results?view=compare');
+    await expect(page.getByText('Choose markers')).toBeVisible({ timeout: 10_000 });
+
+    await page.locator('input[type="checkbox"]').first().click({ force: true });
+    await expect(page).toHaveURL(/view=compare/);
+    await expect(page).toHaveURL(/markers=/);
+    await expect(segment(page, 'Compare')).toHaveAttribute('aria-selected', 'true');
+    // Still the picker, with the tick still in it, rather than the report list.
+    await expect(page.getByText('Choose markers')).toBeVisible();
+    await expect(page.locator('input[type="checkbox"]:checked')).toHaveCount(1);
+
+    // And unticking the last one leaves the view where it was, empty picker
+    // and all — the selection going away is not a reason to change screens.
+    await page.locator('input[type="checkbox"]:checked').first().click({ force: true });
+    await expect(page).toHaveURL(/view=compare/);
+    await expect(page).not.toHaveURL(/markers=/);
+    await expect(segment(page, 'Compare')).toHaveAttribute('aria-selected', 'true');
+
+    await ctx.close();
+  });
+
   test('a report opens on its own URL and a marker still gets its own page', async ({ browser }) => {
     const ctx = await browser.newContext();
     await loginAsDemoPatient(ctx.request);

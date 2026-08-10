@@ -1,5 +1,5 @@
 import type { HTMLAttributes } from 'react';
-import type { MarkerStatus } from '@aspire-bloods/shared';
+import type { MarkerStatusInput } from '@aspire-bloods/shared';
 import { statusTintClass } from '../../lib/markerCopy';
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
@@ -28,7 +28,7 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
    * food sensitivity and microbiome composition have no reference range, so
    * there is no status to tint by and no tint is applied to them.
    */
-  tint?: MarkerStatus | null;
+  tint?: MarkerStatusInput;
 }
 
 const PADDING = {
@@ -43,7 +43,7 @@ export function Card({ interactive, inert, padding = 'default', tint, className 
     <div
       className={`card ${PADDING[padding]} ${interactive && !inert ? 'card-interactive' : ''} ${
         inert ? 'card-inert' : ''
-      } ${tint ? statusTintClass(tint) : ''} ${className}`}
+      } ${statusTintClass(tint)} ${className}`}
       {...props}
     />
   );

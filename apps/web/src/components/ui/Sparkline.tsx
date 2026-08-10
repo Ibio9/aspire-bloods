@@ -1,10 +1,12 @@
 import { useId } from 'react';
 import {
+  asMarkerStatus,
   chart as chartTokens,
   statusBands,
   statusPaint,
   bandGradientStops,
   type MarkerStatus,
+  type MarkerStatusInput,
   type OptimalRangeDTO,
 } from '@aspire-bloods/shared';
 import { statusLabel } from '../../lib/markerCopy';
@@ -12,7 +14,11 @@ import { statusLabel } from '../../lib/markerCopy';
 interface SparkPoint {
   sampleDate: string;
   value: number;
-  status: MarkerStatus;
+  /**
+   * Nullable, because the wire is. The server sends only evaluated points, and
+   * this filters again on arrival — see the note in the component.
+   */
+  status: MarkerStatusInput;
 }
 
 interface SparklineProps {
@@ -58,7 +64,7 @@ function markFill(status: MarkerStatus): string {
  * so nothing here depends on telling green from red.
  */
 export function Sparkline({
-  points,
+  points: input,
   referenceLow,
   referenceHigh,
   severityThreshold = null,
@@ -70,6 +76,19 @@ export function Sparkline({
   const uid = useId().replace(/:/g, '');
   const hatchId = `spark-hatch-${uid}`;
   const gradId = `spark-band-${uid}`;
+
+  /**
+   * A point with no status has no place on a scale of its own reference range.
+   *
+   * The whole geometry here — which band a value falls in, which shape the
+   * final mark takes, what the accessible label says — is derived from the
+   * point's status, so a point that was never compared against the range has
+   * nothing to contribute and is not plotted. The server already sends only
+   * evaluated points (see listAllMarkersForPatient); this is the second lock on
+   * the same door, and it is the one that was missing: an unevaluated point
+   * reaching `statusLabel` took the whole marker list down with it.
+   */
+  const points = input.filter((p): p is SparkPoint & { status: MarkerStatus } => asMarkerStatus(p.status) !== null);
   if (points.length === 0) return null;
 
   const values = points.map((p) => p.value);

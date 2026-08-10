@@ -2,13 +2,14 @@ import { useId } from 'react';
 import { CartesianGrid, ComposedChart, Line, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
   formatDate,
+  asMarkerStatus,
+  bandLabel,
   brand,
   scales,
   chart as chartTokens,
   statusPaint,
   bandGradientStops,
   severityThresholdFor,
-  BAND_LABEL,
   type MarkerStatus,
 } from '@aspire-bloods/shared';
 import { statusColor, statusLabel } from '../../lib/markerCopy';
@@ -103,7 +104,11 @@ function ChartTooltip({ active, payload, series }: { active?: boolean; payload?:
       <ul className="mt-1.5 flex flex-col gap-1">
         {series.map((s, i) => {
           const raw = row[`${s.markerId}__value`];
-          const st = row[`${s.markerId}__status`] as MarkerStatus | undefined;
+          // Narrowed, not cast. The row is a bag of dynamic keys, so whatever
+          // sits at `<id>__status` is genuinely unknown here — casting it to
+          // MarkerStatus told the compiler otherwise and left statusColor to
+          // find out at runtime.
+          const st = asMarkerStatus(row[`${s.markerId}__status`]);
           if (raw == null) return null;
           return (
             <li key={s.markerId} className="flex items-center gap-2">
@@ -147,10 +152,21 @@ function normalisedThreshold(s: TrendSeries): number | null {
 
 export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
   const gradId = `multi-band-${useId().replace(/:/g, '')}`;
-  // The legend and the accessible summary both read points[0] and the last
-  // point, so a series with none takes the whole screen down. The server no
-  // longer sends one; this is the belt to that braces.
-  const series = input.filter((s) => s.points.length > 0);
+  /**
+   * The legend and the accessible summary both read points[0] and the last
+   * point, so a series with none takes the whole screen down. The server no
+   * longer sends one; this is the belt to that braces.
+   *
+   * Points with no status go the same way, and for the same reason as in the
+   * single-marker chart: the legend colours and names the last point's state,
+   * so a series whose last point was never compared against a range has nothing
+   * to put there. Dropping the point is the honest answer; the alternative was
+   * `statusColor(last.status as MarkerStatus)`, where the cast was the only
+   * thing making it compile and nothing at all made it work.
+   */
+  const series = input
+    .map((s) => ({ ...s, points: s.points.filter((p) => asMarkerStatus(p.status) !== null) }))
+    .filter((s) => s.points.length > 0);
   const dates = [...new Set(series.flatMap((s) => s.points.map((p) => p.sampleDate)))].sort();
   const hasData = dates.length > 0;
 
@@ -169,7 +185,11 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
       if (!point) continue;
       row[s.markerId] = normalise(point.value, point.referenceLow, point.referenceHigh);
       row[`${s.markerId}__value`] = `${point.value} ${s.unit}`;
-      row[`${s.markerId}__status`] = point.status;
+      // Narrowed on the way IN as well as on the way out. A Recharts row is a
+      // bag of primitives, so this is the last place the value is still typed;
+      // storing it narrowed means the tooltip reads back exactly what was put
+      // in rather than a string nobody checked.
+      row[`${s.markerId}__status`] = asMarkerStatus(point.status) ?? undefined;
     }
     return row;
   });
@@ -345,9 +365,7 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
                 <span className="font-medium">{s.name}</span>{' '}
                 <span className="tabular text-espresso/80">
                   latest {last.value} {s.unit},{' '}
-                  <span style={{ color: statusColor(last.status as MarkerStatus) }}>
-                    {statusLabel(last.status as MarkerStatus)}
-                  </span>
+                  <span style={{ color: statusColor(last.status) }}>{statusLabel(last.status)}</span>
                 </span>
                 <span className="sr-only"> ({style.dashLabel})</span>
               </span>
@@ -366,7 +384,7 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
               <rect x="0" y="2" width="18" height="8" fill={statusPaint(b.status).band} />
               <line x1="0" y1="2" x2="18" y2="2" stroke={chartTokens.referenceEdge} strokeWidth="1" strokeOpacity="0.85" />
             </svg>
-            {BAND_LABEL[b.status]}
+            {bandLabel(b.status)}
           </li>
         ))}
       </ul>

@@ -1,4 +1,4 @@
-import { formatDate } from '@aspire-bloods/shared';
+import { asMarkerStatus, formatDate } from '@aspire-bloods/shared';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card } from '../../components/ui/Card';
@@ -61,11 +61,13 @@ function relativeMovement(m: MarkerRow): number {
 }
 
 function MarkerListRow({ marker }: { marker: MarkerRow }) {
+  // Narrowed once — absent and unrecognised are the same fact as null here.
+  const status = asMarkerStatus(marker.status);
   return (
     <Link to={`/markers/${marker.markerId}`} className="block rounded-card">
       {/* Same rule as the result cards: the tint is a surface wash only, and
           the StatusBadge inside still carries the status in shape and words. */}
-      <Card interactive tint={marker.status} padding="tight">
+      <Card interactive tint={status} padding="tight">
         {/* Stacked until lg: the four fixed columns total ~630px, which fits
             beside the sidebar only from lg up — at tablet widths the row was
             quietly crushing the marker name to nothing. */}
@@ -86,13 +88,13 @@ function MarkerListRow({ marker }: { marker: MarkerRow }) {
           </p>
 
           <div className="shrink-0 lg:w-52">
-            {/* Null is a real value here: the badge renders the words with no
-                mark and no colour, and the tint above is not applied. */}
-            <StatusBadge status={marker.status} />
+            {/* No status is a real value here: the badge renders the words
+                with no mark and no colour, and the tint above is not applied. */}
+            <StatusBadge status={status} />
             {/* A qualitative result has no numeric range behind it, and this
                 line used to render "Usual range 0–0" for one. Absent, not
                 zeroed — and absent too where the range was never applied. */}
-            {marker.status !== null && marker.referenceHigh > marker.referenceLow && (
+            {status !== null && marker.referenceHigh > marker.referenceLow && (
               <p className="tabular mt-1 text-xs text-espresso/80">
                 Usual range {marker.referenceLow}–{marker.referenceHigh}
               </p>

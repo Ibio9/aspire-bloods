@@ -2,8 +2,8 @@
   "buildCommand": "npm run build --workspace=packages/shared && npm run build --workspace=apps/web",
   "outputDirectory": "apps/web/dist",
   "installCommand": "npm ci",
-  "$comment_rewrites": "The SPA fallback deliberately does NOT cover /assets/. It used to be a bare /(.*) catch-all, which is what turned a missing hashed asset into 'Refused to apply style ... MIME type (text/html)': the request for a stale /assets/index-<hash>.css found no file, fell through to the rewrite, and was answered with index.html under Content-Type: text/html. Excluding /assets/ means a hash that is no longer deployed returns an honest 404 the browser can recover from on reload, instead of HTML pretending to be a stylesheet. Everything else still falls through, so client-side routes keep working.",
-  "rewrites": [{ "source": "/((?!assets/).*)", "destination": "/index.html" }],
+  "$comment_rewrites": "The SPA fallback deliberately does NOT cover /assets/ or /theme-bootstrap.js. It used to be a bare /(.*) catch-all, which is what turned a missing hashed asset into 'Refused to apply style ... MIME type (text/html)': the request for a stale /assets/index-<hash>.css found no file, fell through to the rewrite, and was answered with index.html under Content-Type: text/html. Excluding them means a file that is not deployed returns an honest 404 the browser can recover from, instead of HTML pretending to be a script or a stylesheet — which for the theme bootstrap would be a syntax error in <head> on every page rather than a missing style. Everything else still falls through, so client-side routes keep working.",
+  "rewrites": [{ "source": "/((?!assets/|theme-bootstrap\\.js).*)", "destination": "/index.html" }],
   "headers": [
     {
       "source": "/(.*)",
@@ -30,6 +30,11 @@
     },
     {
       "source": "/index.html",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+    },
+    {
+      "$comment": "The theme bootstrap is not content-hashed — it is referenced by a fixed path from index.html, which is the only way it can run before the bundle exists. Unhashed means it must revalidate, for the same reason index.html does: a cached copy from a previous deploy is a stale copy with nothing to bust it.",
+      "source": "/theme-bootstrap.js",
       "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
     }
   ]

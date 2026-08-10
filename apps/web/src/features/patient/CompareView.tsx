@@ -1,4 +1,4 @@
-import { formatDate, NO_STATUS_LABEL } from '@aspire-bloods/shared';
+import { formatDate } from '@aspire-bloods/shared';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Card } from '../../components/ui/Card';
@@ -95,8 +95,22 @@ export function CompareView({
       .finally(() => setLoadingSeries(false));
   }, [selected.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /**
+   * The selection goes into the URL WITHOUT taking the rest of it with it.
+   *
+   * This used to hand `setSearchParams` a fresh object, which replaces the
+   * whole query string — including `view=compare`, the parameter that is the
+   * only reason this component is mounted. So ticking the first marker rewrote
+   * the URL to `/results?markers=<id>`, the page fell back to its default
+   * arrangement, and the picker you had just used vanished mid-click. Harmless
+   * when Compare was its own route at /trends; not harmless now that the view
+   * lives in the same query string as the selection.
+   */
   function setSelected(next: string[]) {
-    setSearchParams(next.length ? { markers: next.join(',') } : {}, { replace: true });
+    const params = new URLSearchParams(searchParams);
+    if (next.length) params.set('markers', next.join(','));
+    else params.delete('markers');
+    setSearchParams(params, { replace: true });
   }
 
   function toggle(markerId: string) {
@@ -296,7 +310,10 @@ export function CompareView({
                             </p>
                             <p className="mt-1 text-xs text-espresso/80">
                               {formatDate(first.sampleDate)} to {formatDate(last.sampleDate)} ·{' '}
-                              {last.status === null ? NO_STATUS_LABEL : statusLabel(last.status)}
+                              {/* statusLabel is total: it says "not compared to a range"
+                                  for a point with no status, so the caller no longer
+                                  carries its own copy of that sentence. */}
+                              {statusLabel(last.status)}
                             </p>
                           </Card>
                         </Link>
