@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatDate } from '@aspire-bloods/shared';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Input } from '../../components/ui/Input';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { ErrorState } from '../../components/ui/ErrorState';
 import { Table, TableHead, TableBody, TableRow, TableHeaderCell, TableCell } from '../../components/ui/Table';
 import { apiFetch } from '../../lib/api';
 
@@ -31,13 +32,24 @@ function statusLabel(p: PatientRow): string {
 
 export function PatientsListPage() {
   const [patients, setPatients] = useState<PatientRow[] | null>(null);
+  // A failed load is not an empty practice. Without this the page held its
+  // skeleton for ever and rejected into an unhandled promise — the same fault
+  // the patient-side lists had, still here on the screen the clinic's own
+  // staff use every morning.
+  const [error, setError] = useState<unknown>(null);
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('displayName');
   const [sortAsc, setSortAsc] = useState(true);
 
-  useEffect(() => {
-    void apiFetch<PatientRow[]>('/admin/patients').then(setPatients);
+  const load = useCallback(() => {
+    setError(null);
+    setPatients(null);
+    apiFetch<PatientRow[]>('/admin/patients').then(setPatients).catch(setError);
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const filtered = useMemo(() => {
     if (!patients) return [];
@@ -77,7 +89,11 @@ export function PatientsListPage() {
         />
       </div>
 
-      {patients === null ? (
+      {error ? (
+        <div className="mt-8">
+          <ErrorState error={error} subject="the patient list" onRetry={load} backTo={{ to: '/admin', label: 'Back to the console' }} />
+        </div>
+      ) : patients === null ? (
         <div className="mt-6 flex flex-col gap-2" aria-busy="true" aria-label="Loading patients">
           {[0, 1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-12 w-full" />

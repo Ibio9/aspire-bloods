@@ -30,3 +30,22 @@ export function readRecentPatients(): RecentPatient[] {
     return [];
   }
 }
+
+/**
+ * Dropped on sign-out, for the same reason the sidebar's marker index is
+ * (see resetPatientPortalCaches).
+ *
+ * This is six real patients' names, written to disk on a clinic workstation.
+ * Signing out doesn't reload the page and localStorage outlives the session
+ * regardless, so without this the next person to use that browser opened the
+ * admin dashboard onto the previous clinician's list of who they had just
+ * been looking at — and the names sat on the disk indefinitely afterwards.
+ */
+export function clearRecentPatients(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Same reasoning as recordPatientView: storage can be unavailable, and
+    // this is never worth surfacing an error for.
+  }
+}

@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { ErrorState } from '../../components/ui/ErrorState';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { apiFetch } from '../../lib/api';
 import { useAuth } from '../../lib/AuthContext';
@@ -206,11 +207,25 @@ export function AdminDashboard() {
   const { user } = useAuth();
   const [recent, setRecent] = useState<RecentPatient[]>([]);
   const [buckets, setBuckets] = useState<AwaitingActionBucket[] | null>(null);
+  // "Nothing waiting" and "we couldn't ask" are opposite facts and this
+  // screen showed neither: a failed load left the skeleton up for ever and
+  // rejected unhandled. Telling an admin on a Monday morning that there is
+  // nothing to publish, when in fact the request failed, is the worse of the
+  // two ways to get this wrong.
+  const [error, setError] = useState<unknown>(null);
+
+  const loadBuckets = useCallback(() => {
+    setError(null);
+    setBuckets(null);
+    apiFetch<ReportSummary[]>('/reports')
+      .then((reports) => setBuckets(bucketAwaitingAction(reports)))
+      .catch(setError);
+  }, []);
 
   useEffect(() => {
     setRecent(readRecentPatients());
-    void apiFetch<ReportSummary[]>('/reports').then((reports) => setBuckets(bucketAwaitingAction(reports)));
-  }, []);
+    loadBuckets();
+  }, [loadBuckets]);
 
   const totalAwaitingAction = buckets?.reduce((sum, b) => sum + b.count, 0) ?? 0;
 
@@ -223,7 +238,9 @@ export function AdminDashboard() {
           time-sensitive first. */}
       <div className="mt-10">
         <p className="eyebrow mb-4">Reports awaiting action{totalAwaitingAction > 0 ? ` (${totalAwaitingAction})` : ''}</p>
-        {buckets === null ? (
+        {error ? (
+          <ErrorState error={error} subject="the report queue" onRetry={loadBuckets} />
+        ) : buckets === null ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {[0, 1, 2].map((i) => (
               <Card key={i}>

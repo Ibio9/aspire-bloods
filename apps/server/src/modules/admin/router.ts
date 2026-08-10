@@ -44,13 +44,26 @@ function handleAdminError(e: unknown, res: import('express').Response) {
   return false;
 }
 
+// Every patient the practice has, by name and email address. That is a view
+// of patient data — the most complete one in the product — so it is audited
+// like the linking queue and the individual profile, not exempted for being
+// "just a list". No targetId, because the target is all of them; the count
+// goes in the metadata so the entry says how much was disclosed.
 adminRouter.get(
   '/patients',
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
     const patients = await prisma.user.findMany({
       where: { role: 'PATIENT' },
       include: { patientProfile: true },
       orderBy: { createdAt: 'desc' },
+    });
+
+    await recordAuditLog({
+      actorUserId: req.user!.id,
+      action: 'PATIENT_DATA_VIEWED',
+      targetType: 'User',
+      ipAddress: req.ip ?? null,
+      metadata: { view: 'patient_list', patientCount: patients.length },
     });
 
     res.json(

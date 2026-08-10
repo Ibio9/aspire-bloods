@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import type { UserRole } from '@aspire-bloods/shared';
 import { apiFetch, ApiError, isIdleTimeoutError } from './api';
 import { resetPatientPortalCaches } from './patientPortal';
+import { clearRecentPatients } from './recentPatients';
 
 interface CurrentUser {
   id: string;
@@ -58,10 +59,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // showing an authenticated view nobody can actually use.
     }
     if (reason) sessionStorage.setItem(LOGOUT_REASON_KEY, reason);
-    // Module-scoped patient data (sidebar marker index) must not survive into
-    // the next person's session on a shared machine — signing out doesn't
-    // reload the page, so nothing else clears it.
+    // Patient data held client-side must not survive into the next person's
+    // session on a shared machine — signing out doesn't reload the page, so
+    // nothing else clears it. The marker index is module state; the admin's
+    // recently-viewed patients are on disk in localStorage and outlive the
+    // session entirely unless removed.
     resetPatientPortalCaches();
+    clearRecentPatients();
     setUser(null);
   }, []);
 
