@@ -5,6 +5,7 @@ import { Button } from '../../components/ui/Button';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
+import { staggerDelay } from '../../components/motion/stagger';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { apiFetch } from '../../lib/api';
 import { useAuth } from '../../lib/AuthContext';
@@ -258,7 +259,7 @@ export function AdminDashboard() {
                 key={b.status}
                 to={`/admin?status=${b.status}`}
                 className="stagger-item motion-safe:animate-riseIn rounded-card"
-                style={{ animationDelay: `${i * 30}ms` }}
+                style={{ animationDelay: `${staggerDelay(i, 30)}ms` }}
               >
                 <Card interactive className="h-full">
                   <p className="tabular text-3xl font-medium text-espresso">{b.count}</p>
@@ -276,7 +277,7 @@ export function AdminDashboard() {
             key={card.to}
             to={card.to}
             className="stagger-item motion-safe:animate-riseIn rounded-card"
-            style={{ animationDelay: `${i * 30}ms` }}
+            style={{ animationDelay: `${staggerDelay(i, 30)}ms` }}
           >
             <Card interactive className="h-full">
               <p className="text-lg font-medium text-espresso">{card.title}</p>

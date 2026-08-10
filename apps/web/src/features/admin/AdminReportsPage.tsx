@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { formatDate } from '@aspire-bloods/shared';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
+import { Input } from '../../components/ui/Input';
+import { ErrorState } from '../../components/ui/ErrorState';
 import { FileDropzone } from '../../components/ui/FileDropzone';
 import { DateField } from '../../components/ui/DateField';
 import { Tabs } from '../../components/ui/Tabs';
@@ -13,6 +15,7 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { apiFetch, ApiError, extractErrorMessage } from '../../lib/api';
 import { API_BASE_URL } from '../../lib/apiBase';
 import { statusLabel, stageIndex, type ReportStatus } from '../../lib/reportStatus';
+import { staggerDelay } from '../../components/motion/stagger';
 
 interface PatientOption {
   id: string;
@@ -518,32 +521,79 @@ export function AdminReportsPage() {
   // "no patients yet" hint) for as long as the fetch took — a confidently
   // wrong screen that then flipped to the real one.
   const [reports, setReports] = useState<ReportRow[] | null>(null);
+  // Five requests behind one Promise.all: any one of them rejecting used to
+  // leave the skeleton up for ever and throw unhandled. This is the screen the
+  // clinic's staff spend their morning on.
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const statusFilter = searchParams.get('status');
+  const [query, setQuery] = useState('');
 
-  async function loadAll() {
-    const [p, pan, src, mk, r] = await Promise.all([
-      apiFetch<PatientOption[]>('/admin/patients'),
-      apiFetch<PanelOption[]>('/panels'),
-      apiFetch<SourceOption[]>('/panels/sources'),
-      apiFetch<MarkerOption[]>('/panels/markers'),
-      apiFetch<ReportRow[]>('/reports'),
-    ]);
-    setPatients(p);
-    setPanels(pan);
-    setSources(src);
-    setMarkers(mk);
-    setReports(r);
-  }
+  const loadAll = useCallback(async () => {
+    setLoadError(null);
+    try {
+      const [p, pan, src, mk, r] = await Promise.all([
+        apiFetch<PatientOption[]>('/admin/patients'),
+        apiFetch<PanelOption[]>('/panels'),
+        apiFetch<SourceOption[]>('/panels/sources'),
+        apiFetch<MarkerOption[]>('/panels/markers'),
+        apiFetch<ReportRow[]>('/reports'),
+      ]);
+      setPatients(p);
+      setPanels(pan);
+      setSources(src);
+      setMarkers(mk);
+      setReports(r);
+    } catch (e) {
+      setLoadError(e);
+    }
+  }, []);
 
   useEffect(() => {
     void loadAll();
-  }, []);
+  }, [loadAll]);
+
+  /**
+   * The stages this practice's reports are actually in, with counts, ordered
+   * along the pipeline. Derived rather than listed, so the picker can never
+   * offer a filter that returns nothing — and so CHANGES_REQUESTED appears
+   * when it applies without being a sixth stage in PIPELINE_STAGES, which it
+   * is deliberately not.
+   */
+  const stageOptions = useMemo(() => {
+    const counts = new Map<ReportStatus, number>();
+    for (const r of reports ?? []) {
+      if (r.voidedAt) continue;
+      counts.set(r.status, (counts.get(r.status) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .map(([status, count]) => ({ status, count }))
+      .sort((a, b) => stageIndex(a.status) - stageIndex(b.status));
+  }, [reports]);
 
   const visibleReports = useMemo(() => {
     const sorted = sortReports(reports ?? []);
-    return statusFilter ? sorted.filter((r) => r.status === statusFilter) : sorted;
-  }, [reports, statusFilter]);
+    const byStatus = statusFilter ? sorted.filter((r) => r.status === statusFilter) : sorted;
+    // Name, email and the report's own title. The admin looking for "the one I
+    // uploaded for Mrs Okafor this morning" was previously scrolling a flat
+    // list of every report the practice has ever produced to find it.
+    const q = query.trim().toLowerCase();
+    if (!q) return byStatus;
+    return byStatus.filter((r) => {
+      const name = r.patient.patientProfile
+        ? `${r.patient.patientProfile.firstName} ${r.patient.patientProfile.lastName}`
+        : '';
+      return (
+        name.toLowerCase().includes(q) ||
+        r.patient.email.toLowerCase().includes(q) ||
+        r.title.toLowerCase().includes(q)
+      );
+    });
+  }, [reports, statusFilter, query]);
+
+  function setStatusFilter(next: string) {
+    setSearchParams(next ? { status: next } : {}, { replace: true });
+  }
 
   return (
     <>
@@ -569,16 +619,59 @@ export function AdminReportsPage() {
       <div className="mt-10">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="eyebrow">{statusFilter ? `Reports · ${statusLabel(statusFilter as ReportStatus)}` : 'All reports'}</p>
-          {statusFilter && (
-            <Button variant="ghost" onClick={() => setSearchParams({})}>
+          {(statusFilter || query) && (
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setStatusFilter('');
+                setQuery('');
+              }}
+            >
               Clear filter
             </Button>
           )}
         </div>
-        <p className="mt-1 mb-4 text-xs text-espresso/80">
+        <p className="mt-1 text-xs text-espresso/80">
           Still in the pipeline first, closest to release; released reports follow, most recent first.
         </p>
-        {reports === null && (
+
+        {/* The status filter existed but had no control: it could only be set
+            by following a link from the dashboard, and only cleared here. On a
+            Monday morning the question is "what needs verifying", and the
+            answer was several screens of scrolling past everything already
+            released. Counts on the options, so a filter that would return
+            nothing is visibly one that would return nothing. */}
+        <div className="mb-4 mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:max-w-3xl">
+          <Input
+            label="Find a report"
+            name="report-search"
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Patient name, email or panel…"
+            required={false}
+          />
+          <Select label="Stage" name="report-status" value={statusFilter ?? ''} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="">All stages ({(reports ?? []).length})</option>
+            {stageOptions.map(({ status, count }) => (
+              <option key={status} value={status}>
+                {statusLabel(status)} ({count})
+              </option>
+            ))}
+          </Select>
+        </div>
+        {reports !== null && (
+          <p className="mb-4 text-sm text-espresso/80" role="status">
+            {visibleReports.length === (reports ?? []).length
+              ? `${visibleReports.length} report${visibleReports.length === 1 ? '' : 's'}`
+              : `${visibleReports.length} of ${reports.length} reports`}
+          </p>
+        )}
+
+        {loadError != null && (
+          <ErrorState error={loadError} subject="the report queue" onRetry={() => void loadAll()} />
+        )}
+        {reports === null && !loadError && (
           <div className="flex flex-col gap-3" aria-busy="true" aria-label="Loading reports">
             {[0, 1, 2, 3].map((i) => (
               <Card key={i} padding="tight">
@@ -594,9 +687,14 @@ export function AdminReportsPage() {
               key={r.id}
               to={`/admin/reports/${r.id}`}
               className="stagger-item motion-safe:animate-riseIn rounded-card"
-              style={{ animationDelay: `${i * 30}ms` }}
+              // Capped. Uncapped at 30ms a step, the 66th report on this
+              // practice's list appeared two seconds late and a list of a few
+              // hundred — which this becomes — would have left its tail blank
+              // for a minute. staggerDelay is the shared cap the patient-side
+              // lists already use.
+              style={{ animationDelay: `${staggerDelay(i, 30)}ms` }}
             >
-              <Card interactive className="flex items-center justify-between">
+              <Card interactive className="flex items-center justify-between gap-4">
                 <div>
                   <p className="font-medium text-espresso">
                     {r.patient.patientProfile
