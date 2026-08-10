@@ -6,6 +6,7 @@ import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Skeleton } from '../../components/ui/Skeleton';
+import { ErrorState } from '../../components/ui/ErrorState';
 import { Table, TableHead, TableBody, TableRow, TableHeaderCell, TableCell } from '../../components/ui/Table';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
 import { useToast } from '../../components/ui/Toast';
@@ -77,26 +78,49 @@ export function PatientDetailPage() {
   const [reports, setReports] = useState<ReportRow[] | null>(null);
   const [auditTrail, setAuditTrail] = useState<AuditRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** A failed load, as opposed to `error`, which is an action that failed. */
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [modal, setModal] = useState<ModalKind>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
-    const [p, c, r, a] = await Promise.all([
-      apiFetch<PatientProfileDetail>(`/admin/patients/${id}`),
-      apiFetch<ConsentRow[]>(`/admin/patients/${id}/consents`),
-      apiFetch<ReportRow[]>(`/admin/patients/${id}/reports`),
-      apiFetch<{ total: number; entries: AuditRow[] }>(`/admin/patients/${id}/audit-trail?limit=25`),
-    ]);
-    setProfile(p);
-    setConsents(c);
-    setReports(r);
-    setAuditTrail(a.entries);
-    recordPatientView(id, p.profile ? `${p.profile.firstName} ${p.profile.lastName}` : p.email);
+    setLoadError(null);
+    try {
+      const [p, c, r, a] = await Promise.all([
+        apiFetch<PatientProfileDetail>(`/admin/patients/${id}`),
+        apiFetch<ConsentRow[]>(`/admin/patients/${id}/consents`),
+        apiFetch<ReportRow[]>(`/admin/patients/${id}/reports`),
+        apiFetch<{ total: number; entries: AuditRow[] }>(`/admin/patients/${id}/audit-trail?limit=25`),
+      ]);
+      setProfile(p);
+      setConsents(c);
+      setReports(r);
+      setAuditTrail(a.entries);
+      recordPatientView(id, p.profile ? `${p.profile.firstName} ${p.profile.lastName}` : p.email);
+    } catch (e) {
+      setLoadError(e);
+    }
   }, [id]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  if (loadError != null) {
+    return (
+      <>
+        <Breadcrumbs items={[{ label: 'Patients', to: '/admin/patients' }, { label: 'Not available' }]} />
+        <div className="mt-8">
+          <ErrorState
+            error={loadError}
+            subject="this patient"
+            onRetry={() => void load()}
+            backTo={{ to: '/admin/patients', label: 'Back to patients' }}
+          />
+        </div>
+      </>
+    );
+  }
 
   if (!profile) {
     return (

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { ErrorState } from '../../components/ui/ErrorState';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
@@ -71,6 +72,7 @@ const RESULT_TYPE_LABEL: Record<MarkerRow['resultType'], string> = {
 function MarkersTab() {
   const { show } = useToast();
   const [markers, setMarkers] = useState<MarkerRow[] | null>(null);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [newMarkerKey, setNewMarkerKey] = useState('');
   const [newMarkerName, setNewMarkerName] = useState('');
   const [newMarkerUnit, setNewMarkerUnit] = useState('');
@@ -78,7 +80,14 @@ function MarkersTab() {
   const [showRetired, setShowRetired] = useState(false);
 
   async function load() {
-    setMarkers(await apiFetch<MarkerRow[]>('/panels/markers?all=true'));
+    setLoadError(null);
+    try {
+      setMarkers(await apiFetch<MarkerRow[]>('/panels/markers?all=true'));
+    } catch (e) {
+      // A failed load used to render as an empty catalogue, which reads as
+      // "there are no markers" rather than "we couldn't ask".
+      setLoadError(e);
+    }
   }
 
   useEffect(() => {
@@ -120,6 +129,10 @@ function MarkersTab() {
     } catch (e) {
       show(e instanceof ApiError ? e.message : 'Could not update marker.', 'error');
     }
+  }
+
+  if (loadError != null) {
+    return <ErrorState error={loadError} subject="the marker catalogue" onRetry={() => void load()} />;
   }
 
   if (!markers) {

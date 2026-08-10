@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { formatDateTime } from '@aspire-bloods/shared';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
+import { ErrorState } from '../../components/ui/ErrorState';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
@@ -36,17 +37,25 @@ export function AuditLogPage() {
   const [actorEmail, setActorEmail] = useState('');
   const [action, setAction] = useState('');
   const [targetType, setTargetType] = useState('');
+  const [error, setError] = useState<unknown>(null);
 
+  // This page's whole claim is "nothing is filtered out for anyone". An empty
+  // table where the request actually failed makes that claim falsely.
   async function load(nextOffset = 0) {
     setRows(null);
-    const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(nextOffset) });
-    if (actorEmail.trim()) params.set('actorEmail', actorEmail.trim());
-    if (action.trim()) params.set('action', action.trim());
-    if (targetType.trim()) params.set('targetType', targetType.trim());
-    const result = await apiFetch<{ total: number; entries: AuditRow[] }>(`/admin/audit-log?${params.toString()}`);
-    setRows(result.entries);
-    setTotal(result.total);
-    setOffset(nextOffset);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(nextOffset) });
+      if (actorEmail.trim()) params.set('actorEmail', actorEmail.trim());
+      if (action.trim()) params.set('action', action.trim());
+      if (targetType.trim()) params.set('targetType', targetType.trim());
+      const result = await apiFetch<{ total: number; entries: AuditRow[] }>(`/admin/audit-log?${params.toString()}`);
+      setRows(result.entries);
+      setTotal(result.total);
+      setOffset(nextOffset);
+    } catch (e) {
+      setError(e);
+    }
   }
 
   useEffect(() => {
@@ -79,7 +88,11 @@ export function AuditLogPage() {
         </form>
       </Card>
 
-      {rows === null ? (
+      {error != null ? (
+        <div className="mt-6">
+          <ErrorState error={error} subject="the audit log" onRetry={() => void load(offset)} />
+        </div>
+      ) : rows === null ? (
         <div className="mt-6 flex flex-col gap-2" aria-busy="true" aria-label="Loading audit log">
           {[0, 1, 2, 3, 4].map((i) => (
             <Skeleton key={i} className="h-10 w-full" />

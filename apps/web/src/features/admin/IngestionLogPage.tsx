@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatDateTime } from '@aspire-bloods/shared';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
+import { ErrorState } from '../../components/ui/ErrorState';
 import { Button } from '../../components/ui/Button';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -40,15 +41,24 @@ export function IngestionLogPage() {
   const [rows, setRows] = useState<IngestionLogRow[] | null>(null);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
+  const [error, setError] = useState<unknown>(null);
 
+  // "Nothing has come in from Randox" and "we couldn't ask" are opposite
+  // facts, and this screen exists precisely so a silently failed import is
+  // noticed. Reporting the second as the first would defeat the whole page.
   async function load(nextOffset = 0) {
     setRows(null);
-    const result = await apiFetch<{ total: number; entries: IngestionLogRow[] }>(
-      `/admin/ingestion-log?limit=${PAGE_SIZE}&offset=${nextOffset}`,
-    );
-    setRows(result.entries);
-    setTotal(result.total);
-    setOffset(nextOffset);
+    setError(null);
+    try {
+      const result = await apiFetch<{ total: number; entries: IngestionLogRow[] }>(
+        `/admin/ingestion-log?limit=${PAGE_SIZE}&offset=${nextOffset}`,
+      );
+      setRows(result.entries);
+      setTotal(result.total);
+      setOffset(nextOffset);
+    } catch (e) {
+      setError(e);
+    }
   }
 
   useEffect(() => {
@@ -63,7 +73,11 @@ export function IngestionLogPage() {
         admin-verified — a clinician still reviews and releases before a patient sees anything.
       </p>
 
-      {rows === null ? (
+      {error != null ? (
+        <div className="mt-6">
+          <ErrorState error={error} subject="the ingestion log" onRetry={() => void load(offset)} />
+        </div>
+      ) : rows === null ? (
         <div className="mt-6 flex flex-col gap-2" aria-busy="true" aria-label="Loading ingestion log">
           {[0, 1, 2, 3, 4].map((i) => (
             <Skeleton key={i} className="h-10 w-full" />

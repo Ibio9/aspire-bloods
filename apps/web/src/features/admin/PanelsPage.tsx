@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { ErrorState } from '../../components/ui/ErrorState';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
@@ -76,6 +77,7 @@ function panelRank(p: PanelRow): number {
 export function PanelsPage() {
   const { show } = useToast();
   const [panels, setPanels] = useState<PanelRow[] | null>(null);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [markers, setMarkers] = useState<MarkerRow[] | null>(null);
   const [newPanelKey, setNewPanelKey] = useState('');
   const [newPanelName, setNewPanelName] = useState('');
@@ -83,13 +85,22 @@ export function PanelsPage() {
   const [addToPanel, setAddToPanel] = useState<Record<string, string>>({});
   const [renaming, setRenaming] = useState<Record<string, string>>({});
 
+  // Without this, a failed load left the skeleton up for ever AND every
+  // picker on the page reading "no panels configured yet" — which is a
+  // confidently wrong answer, and one that invites someone to create a
+  // duplicate of a panel that already exists.
   async function load() {
-    const [p, m] = await Promise.all([
-      apiFetch<PanelRow[]>('/panels/all'),
-      apiFetch<MarkerRow[]>('/panels/markers?all=true'),
-    ]);
-    setPanels(p);
-    setMarkers(m);
+    setLoadError(null);
+    try {
+      const [p, m] = await Promise.all([
+        apiFetch<PanelRow[]>('/panels/all'),
+        apiFetch<MarkerRow[]>('/panels/markers?all=true'),
+      ]);
+      setPanels(p);
+      setMarkers(m);
+    } catch (e) {
+      setLoadError(e);
+    }
   }
 
   useEffect(() => {
@@ -200,6 +211,10 @@ export function PanelsPage() {
     } catch (e) {
       show(e instanceof ApiError ? e.message : 'Could not remove.', 'error');
     }
+  }
+
+  if (loadError != null) {
+    return <ErrorState error={loadError} subject="the panel catalogue" onRetry={() => void load()} />;
   }
 
   if (!panels || !markers) {

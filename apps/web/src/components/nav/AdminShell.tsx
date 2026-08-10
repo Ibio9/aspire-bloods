@@ -8,6 +8,7 @@ import { useAuth } from '../../lib/AuthContext';
 import { Wordmark } from '../Wordmark';
 import { useDialogFocus } from '../../lib/useDialogFocus';
 import {
+  AdminConsoleIcon,
   ReportsIcon,
   PatientsIcon,
   PanelsIcon,
@@ -35,6 +36,13 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
+  // The console is where an admin lands after signing in, and it is the only
+  // screen that answers "what is waiting for me" — but it had no entry here at
+  // all. Getting back to it meant clicking the wordmark, which is a
+  // convention rather than a signposted destination, carries no active state,
+  // and whose accessible name doesn't mention the console. The patient
+  // sidebar's first item is Overview for exactly the same reason.
+  { to: '/', label: 'Console', hint: 'What is waiting for you', icon: AdminConsoleIcon },
   { to: '/admin', label: 'Reports & entry', hint: 'Upload, verify, review, release', icon: ReportsIcon },
   { to: '/admin/patients', label: 'Patients', icon: PatientsIcon },
   // Sits directly under Patients: it's the same subject (who is who) at the
@@ -51,7 +59,9 @@ function SidebarLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed
   return (
     <NavLink
       to={item.to}
-      end={item.to === '/admin'}
+      // "/" and "/admin" are both prefixes of every other admin route, so
+      // without `end` they would both read as active everywhere.
+      end={item.to === '/admin' || item.to === '/'}
       onClick={onNavigate}
       className={({ isActive }) =>
         `group relative flex items-start gap-3 rounded-input px-3 py-1.5 transition-colors duration-150 ease-out ${
