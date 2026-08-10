@@ -624,20 +624,13 @@ export async function runDemoSeed(opts: { trigger: DemoSeedTrigger; allowProduct
     const removed = await deleteDemoReports(patient.id, previousIds);
     if (removed > 0) slog('previous-reports-replaced', { count: removed });
 
-    // Dev-only: publish the explanation copy for markers used above so the
-    // marker detail pages show authored copy rather than the "being
-    // finalised" placeholder. Deliberately skipped in production —
-    // attributing clinical sign-off to a placeholder clinician who reviewed
-    // nothing is not a thing to do to a live record, and prisma/seed.ts
-    // already promotes untouched seed copy to REVIEWED under a SYSTEM actor.
-    if (!isProduction) {
-      for (const markerId of usedMarkerIds) {
-        await prisma.markerExplanation.updateMany({
-          where: { markerId, reviewStatus: { in: ['DRAFT', 'REVIEWED'] } },
-          data: { reviewStatus: 'PUBLISHED', reviewedById: clinician.id, reviewedAt: new Date() },
-        });
-      }
-    }
+    // This used to publish the explanation copy for every marker it touched,
+    // in dev only, so the marker pages showed authored copy instead of the
+    // "being finalised" placeholder. Both halves of that are gone: there is no
+    // placeholder any more, and patient visibility no longer depends on review
+    // status. Marking the demo data's copy PUBLISHED under a demo clinician
+    // would now only make dev disagree with production about who has read
+    // what, which is the one thing this field exists to answer.
 
     const dates = generated.map((r) => r.sampleDate.getTime());
     const spanMonths = Math.round((Math.max(...dates) - Math.min(...dates)) / (1000 * 60 * 60 * 24 * 30.44));

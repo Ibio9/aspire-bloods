@@ -168,15 +168,22 @@ export interface TrendSeries {
 export interface LibraryEntry {
   markerId: string;
   name: string;
+  /** Empty for everything that is not a measured blood analyte, and for qualitative ones. */
   unit: string;
+  /** MEASURED / GENETIC / SENSITIVITY / COMPOSITION. Absent on an older payload. */
+  resultType?: string;
   hasResults: boolean;
   panels: string[];
+  /**
+   * Always present: the library only lists markers that have copy. There is
+   * deliberately no review status here — whether a clinician has read the
+   * wording is an internal editorial fact and never reaches a patient.
+   */
   explanation: {
     whatItIs: string;
     highMeans: string | null;
     lowMeans: string | null;
     lifestyleContext: string | null;
-    pending: boolean;
   };
 }
 

@@ -504,21 +504,27 @@ export async function getMultiMarkerTrends(patientId: string, markerIds: string[
 // Marker library — browsable plain-English explanations
 // ---------------------------------------------------------------------------
 
-const EXPLANATION_PENDING =
-  'An explanation for this marker is being finalised and will appear here soon.';
-
 /**
- * The explanation library as a destination, not a leaf node. Shows every
- * marker with clinician-approved copy, plus any marker the patient actually
- * has a result for (even if its copy is still in draft — they can already
- * reach that marker from their report, so hiding it here would just be a
- * dead end). Draft copy is never shown; those entries carry the same
- * pending line the marker detail page uses.
+ * The explanation library as a destination, not a leaf node. Someone who wants
+ * to read what ferritin measures should not first have to find a ferritin
+ * result.
+ *
+ * Every active marker that has copy written against it, whatever its review
+ * status. This used to be gated on REVIEWED/PUBLISHED, with anything else
+ * carrying a "being finalised" line; the gate is gone, because a library whose
+ * entries say the library is not ready yet is not a library. reviewStatus is
+ * still recorded and still drives the admin review queue, and it is
+ * deliberately not on this payload at all: the surest way not to leak an
+ * internal editorial state to a patient is not to send it.
+ *
+ * A marker with no copy is not listed. It is still reachable from the
+ * patient's own report and from its own marker page, and an entry that expands
+ * to nothing would be the placeholder in another costume.
  */
 export async function getMarkerLibraryForPatient(patientId: string) {
   const [markers, ownResults] = await Promise.all([
     prisma.marker.findMany({
-      where: { isActive: true },
+      where: { isActive: true, explanation: { isNot: null } },
       include: { explanation: true, panels: { include: { panel: true } } },
       orderBy: { name: 'asc' },
     }),
@@ -531,30 +537,23 @@ export async function getMarkerLibraryForPatient(patientId: string) {
 
   const ownMarkerIds = new Set(ownResults.map((r) => r.markerId));
 
-  return markers
-    .filter((m) => {
-      const visible = m.explanation && ['REVIEWED', 'PUBLISHED'].includes(m.explanation.reviewStatus);
-      return visible || ownMarkerIds.has(m.id);
-    })
-    .map((m) => {
-      const visible = m.explanation && ['REVIEWED', 'PUBLISHED'].includes(m.explanation.reviewStatus);
-      return {
-        markerId: m.id,
-        name: m.name,
-        unit: m.defaultUnit,
-        hasResults: ownMarkerIds.has(m.id),
-        panels: [...new Set(m.panels.map((pm) => pm.panel.name))].sort(),
-        explanation: visible
-          ? {
-              whatItIs: m.explanation!.whatItIs,
-              highMeans: m.explanation!.highMeans,
-              lowMeans: m.explanation!.lowMeans,
-              lifestyleContext: m.explanation!.lifestyleContext,
-              pending: false,
-            }
-          : { whatItIs: EXPLANATION_PENDING, highMeans: null, lowMeans: null, lifestyleContext: null, pending: true },
-      };
-    });
+  return markers.map((m) => ({
+    markerId: m.id,
+    name: m.name,
+    // Empty for everything that is not a blood measurement, and for the
+    // qualitative measured ones (a UTI organism, an ECG). The web decides what
+    // to say about a marker from resultType rather than guessing from a blank.
+    unit: m.defaultUnit,
+    resultType: m.resultType,
+    hasResults: ownMarkerIds.has(m.id),
+    panels: [...new Set(m.panels.map((pm) => pm.panel.name))].sort(),
+    explanation: {
+      whatItIs: m.explanation!.whatItIs,
+      highMeans: m.explanation!.highMeans,
+      lowMeans: m.explanation!.lowMeans,
+      lifestyleContext: m.explanation!.lifestyleContext,
+    },
+  }));
 }
 
 // ---------------------------------------------------------------------------

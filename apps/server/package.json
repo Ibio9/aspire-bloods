@@ -16,8 +16,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "tsx prisma/seed.ts",
     "prisma:seed:demo": "tsx prisma/seedDemo.ts",
-    "prisma:seed:demo:purge": "tsx prisma/seedDemo.ts --purge",
-    "approve-seed-explanations": "tsx scripts/approveSeedExplanations.ts"
+    "prisma:seed:demo:purge": "tsx prisma/seedDemo.ts --purge"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

@@ -1,12 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import {
-  asMarkerStatus,
-  formatDate,
-  type MarkerReviewStatus,
-  type MarkerStatusInput,
-  type OptimalRangeDTO,
-} from '@aspire-bloods/shared';
+import { asMarkerStatus, formatDate, type MarkerStatusInput, type OptimalRangeDTO } from '@aspire-bloods/shared';
 import { Breadcrumbs } from '../../components/nav/Breadcrumbs';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
@@ -61,13 +55,17 @@ interface MarkerDetail {
   };
   trend: TrendPoint[];
   outOfRangeNotice: string | null;
+  /**
+   * Null only where a marker has no copy written against it at all. There is
+   * no placeholder: the card is simply not rendered, in keeping with the rest
+   * of the product, and no review status reaches the patient either way.
+   */
   explanation: {
     whatItIs: string;
     highMeans: string | null;
     lowMeans: string | null;
     lifestyleContext: string | null;
-    reviewStatus: MarkerReviewStatus;
-  };
+  } | null;
 }
 
 export function MarkerDetailPage() {
@@ -299,28 +297,30 @@ export function MarkerDetailPage() {
         </Card>
       )}
 
-      <Card className="mt-7 max-w-3xl" padding="roomy">
-        <p className="eyebrow mb-4">What this marker means</p>
-        <p className="text-lg leading-relaxed text-espresso">{detail.explanation.whatItIs}</p>
-        {detail.explanation.highMeans && (
-          <>
-            <p className="mt-7 font-medium text-espresso">If it's high</p>
-            <p className="mt-1.5 leading-relaxed text-espresso/90">{detail.explanation.highMeans}</p>
-          </>
-        )}
-        {detail.explanation.lowMeans && (
-          <>
-            <p className="mt-7 font-medium text-espresso">If it's low</p>
-            <p className="mt-1.5 leading-relaxed text-espresso/90">{detail.explanation.lowMeans}</p>
-          </>
-        )}
-        {detail.explanation.lifestyleContext && (
-          <>
-            <p className="mt-7 font-medium text-espresso">Lifestyle context</p>
-            <p className="mt-1.5 leading-relaxed text-espresso/90">{detail.explanation.lifestyleContext}</p>
-          </>
-        )}
-      </Card>
+      {detail.explanation && (
+        <Card className="mt-7 max-w-3xl" padding="roomy">
+          <p className="eyebrow mb-4">What this marker means</p>
+          <p className="text-lg leading-relaxed text-espresso">{detail.explanation.whatItIs}</p>
+          {detail.explanation.highMeans && (
+            <>
+              <p className="mt-7 font-medium text-espresso">If it's high</p>
+              <p className="mt-1.5 leading-relaxed text-espresso/90">{detail.explanation.highMeans}</p>
+            </>
+          )}
+          {detail.explanation.lowMeans && (
+            <>
+              <p className="mt-7 font-medium text-espresso">If it's low</p>
+              <p className="mt-1.5 leading-relaxed text-espresso/90">{detail.explanation.lowMeans}</p>
+            </>
+          )}
+          {detail.explanation.lifestyleContext && (
+            <>
+              <p className="mt-7 font-medium text-espresso">Lifestyle context</p>
+              <p className="mt-1.5 leading-relaxed text-espresso/90">{detail.explanation.lifestyleContext}</p>
+            </>
+          )}
+        </Card>
+      )}
     </div>
   );
 }

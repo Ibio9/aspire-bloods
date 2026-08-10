@@ -22,6 +22,7 @@ import { hashPassword } from '../src/lib/password.js';
 import { hashToken, generateToken } from '../src/lib/crypto.js';
 import { seedRandoxCatalogue, formatCatalogueReport } from './seedCatalogue.js';
 import { removeEmDashes, sameWords } from '../src/lib/houseStyle.js';
+import { explanationFor } from './markerExplanations.js';
 
 interface MarkerSeed {
   key: string;
@@ -322,6 +323,90 @@ async function removeEmDashesFromStoredCopy() {
   }
 }
 
+/**
+ * Write patient-facing copy for every catalogue marker that has none.
+ *
+ * The catalogue import creates several hundred markers (food sensitivity items,
+ * genetic indicators, microbiome proportions, the long tail of measured
+ * analytes) with no explanation attached. Until this ran, every one of them
+ * rendered a placeholder line telling the patient the wording was still being
+ * finalised, which on a report someone paid four figures for is the worst
+ * sentence on the page.
+ *
+ * Three properties this deliberately has:
+ *
+ *  - CREATE ONLY. `markerExplanation.create` inside an existence check, never
+ *    an update. Copy an admin or a clinician has since edited is not this
+ *    file's to touch, and neither is the older seed copy above.
+ *  - reviewStatus STAYS DRAFT. Nobody clinical has read this wording. The
+ *    field records who checked what, and writing REVIEWED here would be a lie
+ *    told to the one team that relies on it. Patients see the copy either way
+ *    (see patients/service.ts) and cannot tell the difference, which is the
+ *    correct division: draft is an internal fact about review, not a warning
+ *    to hang in front of somebody reading about their ferritin.
+ *  - ONE AUDIT ROW PER EXPLANATION, under a SYSTEM actor. Bulk write, per-copy
+ *    record, exactly as the review queue does for bulk approval.
+ *
+ * A marker this has no honest copy for gets NO explanation row and is named in
+ * the run's output. A visible gap somebody can fill beats a sentence that
+ * sounds finished and says nothing.
+ */
+async function writeMissingExplanations() {
+  const markers = await prisma.marker.findMany({
+    where: { isActive: true, explanation: null },
+    select: { id: true, key: true, name: true, resultType: true },
+    orderBy: { name: 'asc' },
+  });
+  if (markers.length === 0) {
+    console.log('  Every active marker already has explanation copy.');
+    return;
+  }
+
+  const written: Record<string, number> = { MEASURED: 0, GENETIC: 0, SENSITIVITY: 0, COMPOSITION: 0 };
+  const unwritten: string[] = [];
+
+  for (const marker of markers) {
+    const copy = explanationFor(marker);
+    if (!copy) {
+      unwritten.push(`${marker.key} (${marker.resultType})`);
+      continue;
+    }
+
+    // highMeans / lowMeans / lifestyleContext stay null on purpose. A sentence
+    // beginning "if it's high" is a statement about the reader rather than
+    // about the analyte, and none of this copy has been near a clinician.
+    const explanation = await prisma.markerExplanation.create({
+      data: { markerId: marker.id, whatItIs: copy.whatItIs, reviewStatus: 'DRAFT' },
+    });
+
+    await prisma.auditLogEntry.create({
+      data: {
+        actorType: 'SYSTEM',
+        action: 'MARKER_EXPLANATION_CREATED',
+        targetType: 'MarkerExplanation',
+        targetId: explanation.id,
+        metadata: {
+          markerId: marker.id,
+          markerKey: marker.key,
+          resultType: marker.resultType,
+          reviewStatus: 'DRAFT',
+          source: 'seed: prisma/markerExplanations.ts (Aspire-authored, not clinician-reviewed)',
+        },
+      },
+    });
+
+    written[marker.resultType] = (written[marker.resultType] ?? 0) + 1;
+  }
+
+  const total = Object.values(written).reduce((a, b) => a + b, 0);
+  console.log(`  Wrote ${total} explanation(s), all DRAFT and all recorded in the audit log:`);
+  for (const [type, n] of Object.entries(written)) if (n > 0) console.log(`    ${type.padEnd(12)} ${n}`);
+  if (unwritten.length > 0) {
+    console.log(`  ${unwritten.length} marker(s) have NO copy in markerExplanations.ts and were left without one:`);
+    for (const k of unwritten) console.log(`    - ${k}`);
+  }
+}
+
 async function main() {
   console.log('Removing excluded markers (Randox cannot supply)...');
   for (const key of EXCLUDED_MARKER_KEYS) {
@@ -339,7 +424,6 @@ async function main() {
 
   console.log('Seeding markers...');
   const markerIdByKey = new Map<string, string>();
-  let approvedExplanations = 0;
   let restyledExplanations = 0;
   for (const m of markers) {
     const marker = await prisma.marker.upsert({
@@ -402,48 +486,17 @@ async function main() {
       restyledExplanations += 1;
     }
 
-    // Approve the seeded copy. The DRAFT gate is correct and stays — the
-    // patient read path still only returns REVIEWED/PUBLISHED — but copy
-    // that seeds as DRAFT and is never approved is copy no patient ever
-    // sees, which made the most valuable content in the product invisible.
+    // No auto-approve. This used to promote untouched seed copy to REVIEWED,
+    // because patient visibility hung off reviewStatus and copy that seeded as
+    // DRAFT was copy nobody ever saw. Visibility no longer hangs off it (see
+    // writeMissingExplanations below, and patients/service.ts), so the only
+    // thing a promotion here would achieve is a record saying a clinician
+    // checked wording no clinician has read. reviewStatus is a factual record
+    // of who checked what, and a seed cannot truthfully write to it.
     //
-    // Deliberately narrow: only an explanation that is still DRAFT *and*
-    // whose text is still byte-identical to what this file seeds gets
-    // promoted. The moment a human edits the wording (which resets it to
-    // DRAFT, by design) this stops matching and the edit waits for a real
-    // reviewer in the admin queue, exactly as it should. So this approves
-    // the seeded copy and only ever the seeded copy — it is not a blanket
-    // auto-approve, and re-running the seed can't rubber-stamp an edit.
-    const isUntouchedSeedCopy =
-      explanation.reviewStatus === 'DRAFT' &&
-      explanation.whatItIs === m.whatItIs &&
-      explanation.highMeans === (m.highMeans ?? null) &&
-      explanation.lowMeans === (m.lowMeans ?? null) &&
-      explanation.lifestyleContext === (m.lifestyleContext ?? null);
-
-    if (isUntouchedSeedCopy) {
-      await prisma.markerExplanation.update({
-        where: { id: explanation.id },
-        data: { reviewStatus: 'REVIEWED', reviewedAt: new Date() },
-      });
-      // reviewedById stays null — no human approved this, the seed did, and
-      // the audit entry records that as a SYSTEM actor rather than
-      // attributing clinical sign-off to a staff member who never gave it.
-      await prisma.auditLogEntry.create({
-        data: {
-          actorType: 'SYSTEM',
-          action: 'MARKER_EXPLANATION_REVIEW_STATUS_CHANGED',
-          targetType: 'MarkerExplanation',
-          targetId: explanation.id,
-          metadata: { markerKey: m.key, from: 'DRAFT', reviewStatus: 'REVIEWED', source: 'seed_baseline_copy' },
-        },
-      });
-      approvedExplanations += 1;
-    }
-  }
-
-  if (approvedExplanations > 0) {
-    console.log(`Approved ${approvedExplanations} untouched seed explanation(s) to REVIEWED.`);
+    // Rows already REVIEWED in an existing database are left exactly as they
+    // are: this changes what a fresh install records, not history.
+    void explanation;
   }
 
   if (restyledExplanations > 0) {
@@ -461,6 +514,11 @@ async function main() {
   console.log('Importing the Randox catalogue (Core, Insight 360, Signature)...');
   const catalogueReport = await seedRandoxCatalogue();
   console.log(formatCatalogueReport(catalogueReport));
+
+  // After the catalogue, because the catalogue is what creates the markers
+  // this writes copy for.
+  console.log('Writing explanation copy for markers that have none...');
+  await writeMissingExplanations();
 
   // Anything else still active is either an older seed's guess that predates
   // SUPERSEDED_PANEL_KEYS, or a panel an admin deliberately created. Those two

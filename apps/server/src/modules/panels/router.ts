@@ -39,13 +39,16 @@ panelsRouter.get(
 );
 
 /**
- * The review queue behind the marker-explanation gate.
+ * The clinical team's worklist of marker copy awaiting sign-off.
  *
- * Every explanation seeds as DRAFT and the patient read path only returns
- * REVIEWED or PUBLISHED (patients/service.ts getMarkerTrendForPatient), so
- * without a way to approve in bulk the most valuable content in the product
- * is written, shipped, and never seen. The gate is correct and stays — what
- * was missing was the queue, not a looser rule.
+ * reviewStatus no longer gates whether a patient sees the copy — written copy
+ * is shown, and the alternative was a placeholder line on the most-read card
+ * of the report (see patients/service.ts and portalService.ts). What it
+ * records is who has actually read which wording, which is a genuine clinical
+ * fact and is exactly what this queue is a view of: everything still DRAFT is
+ * everything no clinician has yet checked. Approving here is still the only
+ * way anything leaves DRAFT, still per-marker in the audit log, and still
+ * restricted to ADMIN and CLINICIAN.
  *
  * Declared above '/markers/:markerId/...' so 'explanations' is never
  * captured as a marker id.
@@ -483,11 +486,11 @@ const updateExplanationSchema = z.object({
   lifestyleContext: z.string().max(5000).nullable().optional(),
 });
 
-// Editing content resets reviewStatus to DRAFT — a clinician/admin must
-// re-approve before edited copy is patient-visible again (getMarkerTrendForPatient
-// only shows REVIEWED/PUBLISHED explanations). Prevents a text edit from
-// silently staying "published" without anyone having actually looked at
-// the new wording.
+// Editing content resets reviewStatus to DRAFT: whoever signed the previous
+// wording off did not sign this one off, so the record must stop claiming they
+// did and the marker returns to the review queue. Patients see the edited copy
+// straight away, as they do all written copy, which is why the reset matters
+// as a record rather than as a gate.
 panelsRouter.patch(
   '/markers/:markerId/explanation',
   roleGuard('ADMIN', 'CLINICIAN'),
@@ -621,10 +624,9 @@ const reviewExplanationSchema = z.object({
   reviewStatus: z.enum(['DRAFT', 'REVIEWED', 'PUBLISHED']),
 });
 
-// Clinician sign-off gate for patient-facing marker copy (brief §4: draft
-// explanation content must not reach patients until a clinician reviews
-// it). Kept minimal — a text-editing UI is a natural follow-up, not core
-// to the release-safety requirement this endpoint exists for.
+// Clinician sign-off for patient-facing marker copy. Records that a named
+// clinician read a particular wording on a particular date; it does not
+// control whether the wording is on screen.
 panelsRouter.patch(
   '/markers/:markerId/explanation/review-status',
   roleGuard('ADMIN', 'CLINICIAN'),

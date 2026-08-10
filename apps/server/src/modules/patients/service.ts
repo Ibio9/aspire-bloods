@@ -239,7 +239,15 @@ export async function getMarkerTrendForPatient(patientId: string, markerId: stri
 
   if (results.length === 0) throw new PatientAccessError();
 
-  const explanationVisible = marker.explanation && ['REVIEWED', 'PUBLISHED'].includes(marker.explanation.reviewStatus);
+  // Written copy is shown, full stop. reviewStatus used to gate this, and the
+  // result was that every marker whose copy had not yet been through the
+  // review queue showed a line saying its explanation was still being
+  // finalised — on the most-read card of a report someone paid four figures
+  // for. reviewStatus is still recorded, still audited and still drives the
+  // admin review queue; it is a fact about who has checked the wording, which
+  // is a thing the clinical team needs and a thing no patient should be shown.
+  // A marker with no copy at all returns null and the section simply is not
+  // rendered: no placeholder, in keeping with the rest of the product.
 
   // Phase 2 §2.3/§2.4: normalise to one display unit (the marker's own
   // default) for plotting, via an explicit, named conversion — never a
@@ -355,21 +363,14 @@ export async function getMarkerTrendForPatient(patientId: string, markerId: stri
     },
     trend,
     outOfRangeNotice,
-    explanation: explanationVisible
+    explanation: marker.explanation
       ? {
-          whatItIs: marker.explanation!.whatItIs,
-          highMeans: marker.explanation!.highMeans,
-          lowMeans: marker.explanation!.lowMeans,
-          lifestyleContext: marker.explanation!.lifestyleContext,
-          reviewStatus: marker.explanation!.reviewStatus,
+          whatItIs: marker.explanation.whatItIs,
+          highMeans: marker.explanation.highMeans,
+          lowMeans: marker.explanation.lowMeans,
+          lifestyleContext: marker.explanation.lifestyleContext,
         }
-      : {
-          whatItIs: 'An explanation for this marker is being finalised and will appear here soon.',
-          highMeans: null,
-          lowMeans: null,
-          lifestyleContext: null,
-          reviewStatus: marker.explanation?.reviewStatus ?? 'DRAFT',
-        },
+      : null,
   };
 }
 
