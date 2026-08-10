@@ -23,12 +23,10 @@ import { IngestionLogPage } from './features/admin/IngestionLogPage';
 import { PanelsPage } from './features/admin/PanelsPage';
 import { AdminMarkerLibraryPage } from './features/admin/AdminMarkerLibraryPage';
 import { PatientOverview } from './features/patient/PatientOverview';
-import { PatientHome } from './features/patient/PatientHome';
-import { AllMarkersPage } from './features/patient/AllMarkersPage';
-import { TrendsPage } from './features/patient/TrendsPage';
+import { ResultsPage } from './features/patient/ResultsPage';
+import { LegacyResultsRedirect } from './features/patient/LegacyResultsRedirect';
 import { MarkerLibraryPage } from './features/patient/MarkerLibraryPage';
 import { DocumentsPage } from './features/patient/DocumentsPage';
-import { ReportView } from './features/patient/ReportView';
 import { MarkerDetailPage } from './features/patient/MarkerDetailPage';
 import { AccountPage } from './features/patient/AccountPage';
 import { BookingPage } from './features/booking/BookingPage';
@@ -107,12 +105,23 @@ export default function App() {
                 <Route path="/appointments" element={<AppointmentsPage />} />
                 <Route path="/appointments/:id" element={<AppointmentDetailPage />} />
                 <Route path="/appointments/:id/reschedule" element={<ReschedulePage />} />
-                <Route path="/my-results" element={<PatientHome />} />
-                <Route path="/markers" element={<AllMarkersPage />} />
-                <Route path="/trends" element={<TrendsPage />} />
+                {/* Results — one destination, three views chosen by the
+                    segmented control at the top of it. An opened report keeps
+                    /reports/:id so every link already sent out still lands on
+                    the report it names. */}
+                <Route path="/results" element={<ResultsPage />} />
+                <Route path="/reports/:id" element={<ResultsPage />} />
+                {/* The three destinations this replaced. Redirects rather than
+                    removals: they are in bookmarks and in browser histories,
+                    and /trends carries its ?markers= selection across. */}
+                <Route path="/my-results" element={<LegacyResultsRedirect view="by-report" />} />
+                <Route path="/markers" element={<LegacyResultsRedirect view="by-marker" />} />
+                <Route path="/trends" element={<LegacyResultsRedirect view="compare" />} />
                 <Route path="/library" element={<MarkerLibraryPage />} />
                 <Route path="/documents" element={<DocumentsPage />} />
-                <Route path="/reports/:id" element={<ReportView />} />
+                {/* A marker's own page is not folded into any of the three —
+                    it is what somebody reads carefully when a result is out of
+                    range, and it stays its own route. */}
                 <Route path="/markers/:markerId" element={<MarkerDetailPage />} />
                 <Route path="/account" element={<AccountPage />} />
               </Route>

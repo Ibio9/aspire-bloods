@@ -138,7 +138,11 @@ test('nothing patient-visible until a report is RELEASED', async ({ page, browse
   // Scoped to the nav: the sidebar wordmark's accessible name ("Aspire
   // Bloods, my results") also matches, sits earlier in the DOM, and links to
   // /overview — .first() was clicking that and never leaving the page.
-  await patientPage.getByRole('navigation', { name: 'Patient portal' }).getByRole('link', { name: 'My results' }).click();
+  // exact: "Understanding your results" also contains the word.
+  await patientPage
+    .getByRole('navigation', { name: 'Patient portal' })
+    .getByRole('link', { name: 'Results', exact: true })
+    .click();
   await expect(patientPage.getByText('Your results are with the clinical team')).toBeVisible();
   await expect(patientPage.getByText('in range')).not.toBeVisible();
 

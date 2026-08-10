@@ -1,26 +1,32 @@
-import { formatDate } from '@aspire-bloods/shared';
+import { formatDate, NO_STATUS_LABEL } from '@aspire-bloods/shared';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { Checkbox } from '../../components/ui/Checkbox';
-import { Input } from '../../components/ui/Input';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
-import { LinkButton } from '../../components/ui/LinkButton';
 import { MultiTrendChart } from '../../components/ui/MultiTrendChart';
 import { Reveal } from '../../components/motion/Reveal';
 import { staggerDelay } from '../../components/motion/stagger';
 import { apiFetch } from '../../lib/api';
-import { matchesMarkerQuery, statusLabel } from '../../lib/markerCopy';
+import { matchesMarkerQuery, matchesStatusFilter, statusFilterCounts, statusLabel, type StatusFilter } from '../../lib/markerCopy';
 import { type MarkerRow, type TrendSeries } from '../../lib/patientPortal';
+import type { ResultsFilters, ViewReportsCategories } from './resultsView';
 
 /**
- * Pick two or three markers, see them on one timeline. Someone paying £575
- * for a panel is buying the relationships between numbers, not the numbers —
- * ferritin against haemoglobin, HbA1c against fasting insulin — and until now
- * the portal could only ever show one marker at a time.
+ * Pick two or three markers, see them on one timeline — the "Compare" view.
+ *
+ * This is what Trends did that a sparkline in the marker list cannot: a
+ * deliberate comparison between markers. Someone paying £575 for a panel is
+ * buying the relationships between numbers, not the numbers — ferritin against
+ * haemoglobin, HbA1c against fasting insulin — and a row of sparklines shows
+ * each marker's own shape while saying nothing about how two of them move
+ * together.
+ *
+ * It is an action rather than a browsing destination, which is why it is the
+ * third segment rather than a sidebar entry of its own: you arrive here having
+ * already decided what you want to compare.
  *
  * Selection lives in the URL, so a chart someone finds useful is a link they
  * can bookmark or send to their GP rather than something they have to
@@ -37,12 +43,20 @@ const SUGGESTED_PAIRS: { label: string; markers: string[] }[] = [
   { label: 'Thyroid', markers: ['TSH', 'Free T4'] },
 ];
 
-export function TrendsPage() {
+export function CompareView({
+  filters,
+  onCategoriesAvailable,
+  onStatusCounts,
+}: {
+  filters: ResultsFilters;
+  onStatusCounts?: (counts: Record<StatusFilter, number>) => void;
+} & ViewReportsCategories) {
   const [markers, setMarkers] = useState<MarkerRow[] | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [series, setSeries] = useState<TrendSeries[] | null>(null);
   const [loadingSeries, setLoadingSeries] = useState(false);
-  const [query, setQuery] = useState('');
+  const [categories, setCategories] = useState<{ key: string; name: string }[]>([]);
+  const { query, statusFilter, categoryFilter } = filters;
   const [searchParams, setSearchParams] = useSearchParams();
 
   const selected = useMemo(
@@ -58,6 +72,11 @@ export function TrendsPage() {
     apiFetch<MarkerRow[]>('/patient/markers')
       .then(setMarkers)
       .catch(setError);
+    // Health areas for the shared picker. A failure here costs the category
+    // filter and nothing else, so it degrades rather than blocking the view.
+    apiFetch<{ key: string; name: string }[]>('/content/marker-categories')
+      .then(setCategories)
+      .catch(() => setCategories([]));
   }, []);
 
   useEffect(() => {
@@ -101,13 +120,35 @@ export function TrendsPage() {
     [markers],
   );
 
-  // The same name-and-alias search every other results screen uses. Matching
-  // the printed name alone meant "ALT" and "TSH" — the only names most people
-  // know these by — found nothing here while working everywhere else.
+  // The page's three controls narrow the picker, exactly as they narrow the
+  // other two views. Search matches names AND aliases, because "ALT" and "TSH"
+  // are the only names most people know these by.
   const matching = useMemo(
-    () => plottable.filter((m) => matchesMarkerQuery(m, query)),
-    [plottable, query],
+    () =>
+      plottable.filter(
+        (m) =>
+          matchesMarkerQuery(m, query) &&
+          matchesStatusFilter(m.status, statusFilter) &&
+          (categoryFilter === 'ALL' || (m.categoryKeys ?? []).includes(categoryFilter)),
+      ),
+    [plottable, query, statusFilter, categoryFilter],
   );
+
+  const statusCounts = useMemo(() => statusFilterCounts(plottable), [plottable]);
+
+  // Only the areas something plottable actually sits in — see the same rule on
+  // the marker list.
+  const filterableCategories = useMemo(() => {
+    const present = new Set(plottable.flatMap((m) => m.categoryKeys ?? []));
+    return categories.filter((c) => present.has(c.key));
+  }, [categories, plottable]);
+
+  useEffect(() => {
+    onCategoriesAvailable?.(filterableCategories);
+  }, [filterableCategories, onCategoriesAvailable]);
+  useEffect(() => {
+    onStatusCounts?.(statusCounts);
+  }, [statusCounts, onStatusCounts]);
 
   const suggestions = useMemo(() => {
     if (plottable.length === 0) return [];
@@ -121,21 +162,16 @@ export function TrendsPage() {
 
   return (
     <>
-      <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="Trends" />
-
       {error ? (
-        <div className="mt-10">
-          <ErrorState
-            error={error}
-            subject="your markers"
-            onRetry={load}
-            backTo={{ to: '/overview', label: 'Back to overview' }}
-          />
-        </div>
+        <ErrorState
+          error={error}
+          subject="your markers"
+          onRetry={load}
+          backTo={{ to: '/overview', label: 'Back to overview' }}
+        />
       ) : markers === null ? (
-        // The header stays put while this loads — only the content arrives.
         // Shaped like what replaces it: the picker column and the chart panel.
-        <div className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-10" aria-busy="true" aria-label="Loading your markers">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-10" aria-busy="true" aria-label="Loading your markers">
           <Card padding="tight">
             <Skeleton className="h-4 w-32" />
             <Skeleton className="mt-5 h-10 w-full" />
@@ -148,15 +184,14 @@ export function TrendsPage() {
           </Card>
         </div>
       ) : plottable.length === 0 ? (
-        <div className="mt-10 max-w-2xl">
+        <div className="max-w-2xl">
           <EmptyState
             title="Not enough history yet"
-            description="A trend needs at least two results for the same marker. Once you've had a second test, everything measured on both appears here."
-            action={<LinkButton to="/markers">See all markers</LinkButton>}
+            description="A comparison needs at least two results for the same marker. Once you've had a second test, everything measured on both appears here."
           />
         </div>
       ) : (
-        <div className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-10">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-10">
           <div className="lg:sticky lg:top-8 lg:self-start">
             <Card padding="tight">
               <p className="eyebrow mb-4">Choose markers</p>
@@ -179,22 +214,14 @@ export function TrendsPage() {
                 </div>
               )}
 
-              <Input
-                label="Find a marker"
-                name="trend-filter"
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Ferritin, HbA1c…"
-                required={false}
-              />
-
-              <p className="mt-4 text-xs text-espresso/80" role="status">
+              <p className="text-xs text-espresso/80" role="status">
                 {selected.length} of {MAX_SELECTED} selected
               </p>
 
               <div className="scroll-thin mt-3 flex max-h-96 flex-col gap-1 overflow-y-auto pr-1">
-                {matching.length === 0 && <p className="py-3 text-sm text-espresso/80">No marker matches that.</p>}
+                {matching.length === 0 && (
+                  <p className="py-3 text-sm text-espresso/80">No marker with more than one result matches those filters.</p>
+                )}
                 {matching.map((m) => {
                   const isSelected = selected.includes(m.markerId);
                   const atLimit = !isSelected && selected.length >= MAX_SELECTED;
@@ -275,7 +302,8 @@ export function TrendsPage() {
                               {first.value} → {last.value} {s.unit}
                             </p>
                             <p className="mt-1 text-xs text-espresso/80">
-                              {formatDate(first.sampleDate)} to {formatDate(last.sampleDate)} · {statusLabel(last.status)}
+                              {formatDate(first.sampleDate)} to {formatDate(last.sampleDate)} ·{' '}
+                              {last.status === null ? NO_STATUS_LABEL : statusLabel(last.status)}
                             </p>
                           </Card>
                         </Link>

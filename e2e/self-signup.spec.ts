@@ -102,7 +102,10 @@ test('self-signup -> email verification -> 2FA -> empty portal', async ({ page, 
   await expect(page.getByRole('heading', { name: 'What happens next' })).toBeVisible();
   await expect(page.getByText('a new account simply starts empty')).toBeVisible();
 
+  // The old destination still lands somewhere real — it redirects into the
+  // consolidated Results page rather than 404ing on a bookmark.
   await page.goto('/my-results');
+  await expect(page).toHaveURL(/\/results$/);
   await expect(page.getByText("Nothing here yet, and that's exactly right")).toBeVisible();
   await expect(page.getByText('the clinic matches the result to you')).toBeVisible();
 });

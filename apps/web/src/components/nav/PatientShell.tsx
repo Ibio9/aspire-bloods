@@ -9,17 +9,7 @@ import { useDialogFocus } from '../../lib/useDialogFocus';
 import { ClinicContactPanel } from '../patient/ClinicContact';
 import { MarkerSearch } from './MarkerSearch';
 import { AdminConsoleIcon, CloseIcon, CollapseIcon, MenuIcon, SearchIcon } from './icons';
-import {
-  AccountIcon,
-  BookTestIcon,
-  DocumentsIcon,
-  LibraryIcon,
-  MarkersIcon,
-  OverviewIcon,
-  PanelsIcon,
-  PhoneIcon,
-  TrendsIcon,
-} from './patientIcons';
+import { AccountIcon, BookTestIcon, DocumentsIcon, LibraryIcon, OverviewIcon, PanelsIcon, PhoneIcon } from './patientIcons';
 
 const COLLAPSE_KEY = 'aspire_patient_sidebar_collapsed';
 
@@ -28,8 +18,7 @@ interface NavItem {
   label: string;
   /**
    * One line under the label, only where the label alone is genuinely
-   * ambiguous. "Trends" and "Documents" explain themselves; "All markers"
-   * next to "My results" and "Understanding your results" does not.
+   * ambiguous. None of the six currently needs one — each says what it is.
    */
   hint?: string;
   icon: (props: React.SVGProps<SVGSVGElement>) => JSX.Element;
@@ -41,13 +30,23 @@ interface NavItem {
   alsoActiveOn?: string[];
 }
 
+/**
+ * Six destinations. My results, All markers and Trends were three of them and
+ * are now one: they were three overlapping answers about the same data, and
+ * choosing between them in a sidebar meant guessing which one held the thing
+ * you were after. Results holds all three, chosen by a control at the top of
+ * the page where the difference between them is visible.
+ *
+ * `alsoActiveOn` carries the routes each item owns but isn't the URL for. An
+ * opened report and a marker's own page both belong to Results as far as a
+ * patient is concerned, so the sidebar must not go blank the moment they open
+ * one — the same reason booking owns /appointments.
+ */
 const NAV_ITEMS: NavItem[] = [
   { to: '/overview', label: 'Overview', icon: OverviewIcon },
   { to: '/book', label: 'Book a test', icon: BookTestIcon, alsoActiveOn: ['/appointments'] },
-  { to: '/my-results', label: 'My results', icon: PanelsIcon },
-  { to: '/markers', label: 'All markers', hint: 'Every marker you’ve had tested', icon: MarkersIcon },
-  { to: '/trends', label: 'Trends', icon: TrendsIcon },
-  { to: '/library', label: 'Understanding your results', hint: 'What each marker means', icon: LibraryIcon },
+  { to: '/results', label: 'Results', icon: PanelsIcon, alsoActiveOn: ['/reports/', '/markers/'] },
+  { to: '/library', label: 'Understanding your results', icon: LibraryIcon },
   { to: '/documents', label: 'Documents', icon: DocumentsIcon },
   { to: '/account', label: 'Account & privacy', icon: AccountIcon },
 ];

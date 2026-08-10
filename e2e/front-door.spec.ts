@@ -141,13 +141,13 @@ test('a deep link followed while signed out returns you to it after signing in',
   const { email, password } = await registerAndVerify(page, request);
   await expect(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })).toBeVisible({ timeout: 10000 });
 
-  // Sign out, then follow a link into a guarded patient route. /markers is
+  // Sign out, then follow a link into a guarded patient route. /results is
   // inside RoleProtectedRoute — the guard that used to forget where you were
   // going, so sign-in dumped you on the home page instead.
   await request.post('/api/auth/logout');
   await page.context().clearCookies();
 
-  await page.goto('/markers');
+  await page.goto('/results');
   await expect(page).toHaveURL(/\/login$/);
 
   const [loginResponse] = await Promise.all([
@@ -162,7 +162,7 @@ test('a deep link followed while signed out returns you to it after signing in',
   await page.locator('#otp-0').click();
   await page.keyboard.type(otp);
 
-  await expect(page).toHaveURL(/\/markers$/, { timeout: 10000 });
+  await expect(page).toHaveURL(/\/results$/, { timeout: 10000 });
 });
 
 test('a test cannot be ordered until biological sex is on file, and the prompt explains why', async ({

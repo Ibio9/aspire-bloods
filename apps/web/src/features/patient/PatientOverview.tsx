@@ -77,9 +77,9 @@ function ChangeCard({ change }: { change: ChangeItem }) {
 }
 
 const QUICK_ROUTES = [
-  { to: '/markers', label: 'All markers', body: 'Every marker you have ever had tested, with its direction of travel.', icon: MarkersIcon },
-  { to: '/trends', label: 'Trends', body: 'Two or three markers on one timeline.', icon: TrendsIcon },
-  { to: '/library', label: 'Understanding your results', body: 'Plain-English explanations of what each marker measures.', icon: LibraryIcon },
+  { to: '/results?view=by-marker', label: 'Every marker', body: 'All of them, with direction of travel.', icon: MarkersIcon },
+  { to: '/results?view=compare', label: 'Compare markers', body: 'Two or three on one timeline.', icon: TrendsIcon },
+  { to: '/library', label: 'Understanding your results', body: 'What each marker measures.', icon: LibraryIcon },
 ];
 
 export function PatientOverview() {

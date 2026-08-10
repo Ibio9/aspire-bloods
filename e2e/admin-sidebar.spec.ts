@@ -115,7 +115,7 @@ test('an admin who crosses into the patient portal has a way back', async ({ pag
   await expect(back).toBeVisible();
 
   // And it is there on every patient screen, not just the one they landed on.
-  await page.goto('/trends');
+  await page.goto('/results?view=compare');
   await expect(page.getByRole('link', { name: 'Back to the admin console' })).toBeVisible();
 
   await page.getByRole('link', { name: 'Back to the admin console' }).click();

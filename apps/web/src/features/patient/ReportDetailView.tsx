@@ -1,12 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { formatDate, hasResultValue, NO_STATUS_LABEL, type MarkerStatus, type OptimalRangeDTO } from '@aspire-bloods/shared';
-import { Breadcrumbs } from '../../components/nav/Breadcrumbs';
-import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import type { MarkerNavState } from './markerNavState';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { LinkButton } from '../../components/ui/LinkButton';
 import { StatusBadge } from '../../components/ui/StatusBadge';
@@ -19,7 +16,6 @@ import { apiFetch } from '../../lib/api';
 import { downloadSignedFile } from '../../lib/download';
 import {
   RESULT_SORTS,
-  STATUS_FILTERS,
   byAttentionThenName,
   filterCountLabel,
   groupByHealthArea,
@@ -34,6 +30,7 @@ import {
 import { ReportBookingLink } from '../booking/ReportBookingLink';
 import { CategorySummaryBars, CountsStrip, type SummaryCategory } from './ResultsSummary';
 import { CompositionSection, GeneticSection, SensitivitySection } from './NonMeasuredSections';
+import type { ResultsFilters, ViewReportsCategories } from './resultsView';
 
 interface MarkerCard {
   markerId: string;
@@ -151,19 +148,40 @@ function ResultCard({ marker: m, navState }: { marker: MarkerCard; navState: Mar
   );
 }
 
-export function ReportView() {
-  const { id } = useParams<{ id: string }>();
+/**
+ * One report, opened — the counts strip, the health areas that open in place,
+ * and the marker cards.
+ *
+ * Search, the status filter and the health-area filter now arrive from the
+ * Results page above rather than being three more controls on this screen. The
+ * SORT stays here, because "health area / name / needs attention first" is the
+ * set that means something about a single panel; the marker list has its own,
+ * wider set, and flattening the two into one control would have been a
+ * redesign rather than a consolidation.
+ */
+export function ReportDetailView({
+  reportId,
+  filters,
+  onStatusFilter,
+  onClearFilters,
+  onCategoriesAvailable,
+  onStatusCounts,
+}: {
+  reportId: string;
+  filters: ResultsFilters;
+  /** The counts strip doubles as a status filter, and writes to the shared one. */
+  onStatusFilter: (status: MarkerStatus | 'ALL') => void;
+  onClearFilters: () => void;
+  onStatusCounts?: (counts: Record<StatusFilter, number>) => void;
+} & ViewReportsCategories) {
+  const id = reportId;
   const [report, setReport] = useState<ReportDetail | null>(null);
   const [failed, setFailed] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
-  // Filter state is deliberately component state and nothing more: not the
-  // URL, not localStorage, not the server. It changes what is displayed and
-  // never what is fetched, and it starts clean on every visit — a report you
-  // opened last month should not still be hiding two thirds of itself because
-  // of something you clicked then.
-  const [query, setQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
-  const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
+  const { query, statusFilter, categoryFilter } = filters;
+  // Sort is deliberately component state and nothing more: not the URL, not
+  // localStorage, not the server. It changes what is displayed and never what
+  // is fetched, and it starts clean on every visit.
   const [sort, setSort] = useState<ResultSort>('HEALTH_AREA');
   const { show } = useToast();
 
@@ -238,13 +256,18 @@ export function ReportView() {
     [sort, visible, filterableCategories],
   );
 
-  const filtersApplied = query.trim() !== '' || statusFilter !== 'ALL' || categoryFilter !== 'ALL';
+  // The page's health-area picker offers exactly the areas this report has
+  // markers in — an option that can only ever produce nothing is worse than no
+  // option — and its status counts come from this report's own markers.
+  useEffect(() => {
+    onCategoriesAvailable?.(filterableCategories.map((c) => ({ key: c.key, name: c.name })));
+  }, [filterableCategories, onCategoriesAvailable]);
+  useEffect(() => {
+    onStatusCounts?.(statusCounts);
+  }, [statusCounts, onStatusCounts]);
 
-  function clearFilters() {
-    setQuery('');
-    setStatusFilter('ALL');
-    setCategoryFilter('ALL');
-  }
+  const filtersApplied = query.trim() !== '' || statusFilter !== 'ALL' || categoryFilter !== 'ALL';
+  const clearFilters = onClearFilters;
 
   // Prev/next on the marker detail page walks the list the patient is actually
   // looking at, in the order they are looking at it — so it has to be the
@@ -280,19 +303,16 @@ export function ReportView() {
   // used to sit on the loading skeleton for ever.
   if (failed) {
     return (
-      <>
-        <Breadcrumbs items={[{ label: 'Overview', to: '/overview' }, { label: 'My results', to: '/my-results' }, { label: 'Not available' }]} />
-        <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="We couldn't open that panel" />
-        <Card className="mt-10 max-w-xl">
-          <p className="text-sm leading-relaxed text-espresso/90">
-            This report may no longer be available, or the link may be out of date. Everything currently released to
-            you is listed under My results.
-          </p>
-          <LinkButton to="/my-results" className="mt-6">
-            Back to my results
-          </LinkButton>
-        </Card>
-      </>
+      <Card className="max-w-xl">
+        <p className="font-display text-2xl text-espresso">We couldn't open that panel</p>
+        <p className="mt-2 text-sm leading-relaxed text-espresso/90">
+          This report may no longer be available, or the link may be out of date. Everything released to you is listed
+          under Results.
+        </p>
+        <LinkButton to="/results" className="mt-6">
+          Back to all reports
+        </LinkButton>
+      </Card>
     );
   }
 
@@ -319,17 +339,19 @@ export function ReportView() {
 
   return (
     <>
-      {/* Three levels now the portal has an Overview above the report list —
-          the trail has to show the whole way back, not just one step. */}
-      <Breadcrumbs
-        items={[
-          { label: 'Overview', to: '/overview' },
-          { label: 'My results', to: '/my-results' },
-          { label: `${title}, ${sampleDate}` },
-        ]}
-      />
-      <TwoTierHeading eyebrow={`Sample date ${sampleDate}`} title={title} />
-      {report.sourceLabel && <p className="mt-3 text-sm text-espresso/80">{report.sourceLabel}</p>}
+      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+        <div>
+          <p className="eyebrow mb-2">Sample date {sampleDate}</p>
+          <h2 className="font-display text-3xl leading-tight text-espresso sm:text-4xl">{title}</h2>
+          {report.sourceLabel && <p className="mt-2 text-sm text-espresso/80">{report.sourceLabel}</p>}
+        </div>
+        <Link
+          to="/results"
+          className="rounded-input text-sm font-medium text-bronze-700 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
+        >
+          All reports
+        </Link>
+      </div>
       {/* Provenance — the appointment this sample came from, when the booking
           system knows of one. Renders nothing for reports that pre-date it. */}
       <ReportBookingLink reportId={report.reportId} />
@@ -360,11 +382,7 @@ export function ReportView() {
       {/* Two summaries, both MEASURED-only: how many markers landed in each
           state, then how that breaks down by health area. Both double as
           filters for the grid below. */}
-      <CountsStrip
-        markers={byType.measured}
-        activeStatus={statusFilter}
-        onSelectStatus={(s) => setStatusFilter(s as StatusFilter)}
-      />
+      <CountsStrip markers={byType.measured} activeStatus={statusFilter} onSelectStatus={onStatusFilter} />
       {/* Each area opens where it is, showing its own markers underneath its
           own bar, rather than rewriting the grid several screens below and
           leaving the reader where they clicked. */}
@@ -376,53 +394,26 @@ export function ReportView() {
       />
 
       <div className="mt-14">
-        <p className="eyebrow mb-4">Results</p>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Input
-            label="Find a marker"
-            name="report-marker-search"
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            // The abbreviation is the only name most people know, and search
-            // matches aliases as well as the printed name — so "ALT" finds
-            // Alanine Aminotransferase and "TSH" finds Thyroid Stimulating
-            // Hormone. The placeholder says so by example.
-            placeholder="Ferritin, ALT, TSH…"
-            // A filter, not a form field — Input marks required by default, which
-            // would be wrong on something you can legitimately leave blank.
-            required={false}
-          />
-          <Select
-            label="Show"
-            name="report-status-filter"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-          >
-            {STATUS_FILTERS.map((f) => (
-              <option key={f.value} value={f.value}>
-                {f.value === 'ALL' ? f.label : `${f.label} (${statusCounts[f.value]})`}
-              </option>
-            ))}
-          </Select>
-          <Select
-            label="Health area"
-            name="report-category-filter"
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-          >
-            <option value="ALL">All health areas</option>
-            {filterableCategories.map((c) => (
-              <option key={c.key} value={c.key}>
-                {c.name}
-              </option>
-            ))}
-          </Select>
+        <p className="eyebrow mb-4">Every marker on this report</p>
+        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+          <div className="flex flex-wrap items-center gap-4">
+            <p className="text-sm text-espresso/80" role="status">
+              {filterCountLabel(visible.length, byType.measured.length)}
+            </p>
+            {filtersApplied && (
+              <Button variant="secondary" onClick={clearFilters}>
+                Clear filters
+              </Button>
+            )}
+          </div>
+          {/* Search, status and health area sit above the view switch; sort is
+              a property of THIS arrangement and stays with it. */}
           <Select
             label="Sort by"
             name="report-sort"
             value={sort}
             onChange={(e) => setSort(e.target.value as ResultSort)}
+            className="w-full sm:w-56"
           >
             {RESULT_SORTS.map((s) => (
               <option key={s.value} value={s.value}>
@@ -430,17 +421,6 @@ export function ReportView() {
               </option>
             ))}
           </Select>
-        </div>
-
-        <div className="mt-6 flex flex-wrap items-center gap-4">
-          <p className="text-sm text-espresso/80" role="status">
-            {filterCountLabel(visible.length, byType.measured.length)}
-          </p>
-          {filtersApplied && (
-            <Button variant="secondary" onClick={clearFilters}>
-              Clear filters
-            </Button>
-          )}
         </div>
       </div>
 

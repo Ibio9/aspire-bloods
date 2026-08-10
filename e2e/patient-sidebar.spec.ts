@@ -71,7 +71,10 @@ async function expectNavFitsWhole(page: import('@playwright/test').Page, at: str
   // item is what this is really guarding against.
   const navBox = (await nav.boundingBox())!;
   const links = await nav.getByRole('link').all();
-  expect(links.length).toBe(8);
+  // Six, not eight: My results, All markers and Trends were three answers to
+  // overlapping questions and are now one Results destination with the three
+  // as views inside it.
+  expect(links.length).toBe(6);
   for (const link of links) {
     const box = (await link.boundingBox())!;
     const label = (await link.textContent())?.trim().slice(0, 24);
@@ -157,7 +160,7 @@ test('the patient sidebar gives navigation the room, and keeps contact one row a
   await expect(page.locator('#clinic-contact-details').getByRole('link', { name: /@/ })).toBeVisible();
 
   // Across a navigation...
-  await page.getByRole('navigation', { name: 'Patient portal' }).getByRole('link', { name: /All markers/ }).click();
+  await page.getByRole('navigation', { name: 'Patient portal' }).getByRole('link', { name: /Results/ }).click();
   await expect(page.locator('#clinic-contact-details')).toBeVisible();
 
   // ...and across a reload, which is what "persist" has to mean for someone
@@ -171,12 +174,13 @@ test('the patient sidebar gives navigation the room, and keeps contact one row a
 
   // --- A window genuinely too short scrolls the column, never the nav ---
   //
-  // 460px, not 560px. Six of the eight nav rows lost their sublabel in the
-  // copy pass and the panel got about 80px shorter with them, so 560 stopped
-  // being "too short" and this check started proving nothing — which is
-  // exactly what the assertion below is worded to catch. The number is a
-  // property of the panel's content height, so it has to move when that does.
-  await page.setViewportSize({ width: 1280, height: 460 });
+  // 380px, not 460px, and before that not 560px. The number is a property of
+  // the panel's own content height, so it moves every time that does: first
+  // when six of the eight rows lost their sublabel, and now again because My
+  // results, All markers and Trends became one Results row. Whenever this
+  // stops being "too short" the assertion below says so rather than passing
+  // while proving nothing.
+  await page.setViewportSize({ width: 1280, height: 380 });
 
   // The nav is still not a scrolling box and still has no clipped rows — the
   // difference at this height is only that the panel as a whole outgrows the

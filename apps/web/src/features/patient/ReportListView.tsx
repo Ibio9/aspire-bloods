@@ -1,7 +1,6 @@
 import { useEffect, useState, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatDate, formatReportHeading } from '@aspire-bloods/shared';
-import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -99,7 +98,17 @@ function PendingReportCard({ report }: { report: ReportSummary }) {
   );
 }
 
-export function PatientHome() {
+/**
+ * Every report, newest first — the "By report" view of the Results page and
+ * the common case it opens on.
+ *
+ * Most visits are somebody coming back to the panel they were just emailed
+ * about, which is why this is the default arrangement rather than the flat list
+ * of every marker. Opening one keeps its own URL (/reports/:id), so the links
+ * already sent out, bookmarked and printed on a summary still land exactly
+ * where they always did.
+ */
+export function ReportListView() {
   const [reports, setReports] = useState<ReportSummary[] | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -111,59 +120,58 @@ export function PatientHome() {
 
   if (failed) {
     return (
-      <>
-        <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="My results" />
-        <Card className="mt-10 max-w-xl">
-          <p className="font-display text-2xl text-espresso">We couldn't load your results</p>
-          <p className="mt-2 text-sm text-espresso/80">
-            Please refresh the page. If it keeps happening, get in touch and we'll sort it out.
-          </p>
-        </Card>
-      </>
+      <Card className="max-w-xl">
+        <p className="font-display text-2xl text-espresso">We couldn't load your results</p>
+        <p className="mt-2 text-sm text-espresso/80">
+          Please refresh the page. If it keeps happening, get in touch and we'll sort it out.
+        </p>
+      </Card>
+    );
+  }
+
+  if (reports === null) {
+    return (
+      <div
+        className="grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3"
+        aria-busy="true"
+        aria-label="Loading your results"
+      >
+        {[0, 1, 2].map((i) => (
+          <Card key={i}>
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="mt-3 h-6 w-40" />
+            <Skeleton className="mt-6 h-4 w-32" />
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  if (reports.length === 0) {
+    return (
+      <div className="max-w-2xl">
+        {/* A brand-new self-registered account is empty by design, and this
+            is where that becomes visible. Said warmly and completely:
+            nothing is missing, nothing has gone wrong, and the sentence
+            names the actual step — the clinic matching a result to you —
+            rather than leaving a new patient to wonder whether they did
+            the sign-up right. */}
+        <EmptyState
+          title="Nothing here yet, and that's exactly right"
+          description="Once you've had a sample taken, the clinic matches the result to you and a clinician reviews it. Then your first panel appears here."
+          action={<LinkButton to="/overview">What happens next</LinkButton>}
+        />
+      </div>
     );
   }
 
   return (
-    <>
-      <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="My results" />
-
-      {reports === null ? (
-        <div
-          className="mt-10 grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3"
-          aria-busy="true"
-          aria-label="Loading your results"
-        >
-          {[0, 1, 2].map((i) => (
-            <Card key={i}>
-              <Skeleton className="h-3 w-24" />
-              <Skeleton className="mt-3 h-6 w-40" />
-              <Skeleton className="mt-6 h-4 w-32" />
-            </Card>
-          ))}
-        </div>
-      ) : reports.length === 0 ? (
-        <div className="mt-10 max-w-2xl">
-          {/* A brand-new self-registered account is empty by design, and this
-              is where that becomes visible. Said warmly and completely:
-              nothing is missing, nothing has gone wrong, and the sentence
-              names the actual step — the clinic matching a result to you —
-              rather than leaving a new patient to wonder whether they did
-              the sign-up right. */}
-          <EmptyState
-            title="Nothing here yet, and that's exactly right"
-            description="Once you've had a sample taken, the clinic matches the result to you and a clinician reviews it. Then your first panel appears here."
-            action={<LinkButton to="/overview">What happens next</LinkButton>}
-          />
-        </div>
-      ) : (
-        <div className="mt-10 grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3">
-          {reports.map((r, i) => (
-            <Reveal key={r.reportId} delay={staggerDelay(i)} className="h-full">
-              {r.patientStatus === 'RELEASED' ? <ReleasedReportCard report={r} /> : <PendingReportCard report={r} />}
-            </Reveal>
-          ))}
-        </div>
-      )}
-    </>
+    <div className="grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3">
+      {reports.map((r, i) => (
+        <Reveal key={r.reportId} delay={staggerDelay(i)} className="h-full">
+          {r.patientStatus === 'RELEASED' ? <ReleasedReportCard report={r} /> : <PendingReportCard report={r} />}
+        </Reveal>
+      ))}
+    </div>
   );
 }

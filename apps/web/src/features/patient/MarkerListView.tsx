@@ -1,9 +1,7 @@
 import { formatDate } from '@aspire-bloods/shared';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
-import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { StatusBadge } from '../../components/ui/StatusBadge';
@@ -17,7 +15,6 @@ import { ArrowRightIcon } from '../../components/nav/patientIcons';
 import { apiFetch } from '../../lib/api';
 import { type MarkerRow } from '../../lib/patientPortal';
 import {
-  STATUS_FILTERS,
   byAttentionThenName,
   filterCountLabel,
   groupByHealthArea,
@@ -29,13 +26,16 @@ import {
   type StatusFilter,
 } from '../../lib/markerCopy';
 import { Button } from '../../components/ui/Button';
+import type { ResultsFilters, ViewReportsCategories } from './resultsView';
 
 /**
- * Every marker the patient has ever had tested, in one list, independent of
- * which report it arrived on. The brief's example is the whole point:
- * someone wondering "how's my vitamin D doing" has no reason to remember
- * which panel it was part of, and until now had no way to find out without
- * opening reports one at a time.
+ * Every marker ever tested, one row each — the "By marker" view.
+ *
+ * The point is the one the report list structurally cannot answer: someone
+ * wondering "how's my vitamin D doing" has no reason to remember which panel
+ * it was on. Each row carries the latest value, its status and a sparkline of
+ * its history, so which markers are MOVING is legible without opening a single
+ * one of them.
  *
  * Sorting defaults to "needs attention first" rather than alphabetical — the
  * first question this list gets asked is almost never "what begins with A".
@@ -129,13 +129,20 @@ function MarkerListRow({ marker }: { marker: MarkerRow }) {
   );
 }
 
-export function AllMarkersPage() {
+export function MarkerListView({
+  filters,
+  onClearFilters,
+  onCategoriesAvailable,
+  onStatusCounts,
+}: {
+  filters: ResultsFilters;
+  onClearFilters: () => void;
+  onStatusCounts?: (counts: Record<StatusFilter, number>) => void;
+} & ViewReportsCategories) {
   const [markers, setMarkers] = useState<MarkerRow[] | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [categories, setCategories] = useState<{ key: string; name: string }[]>([]);
-  const [query, setQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
-  const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
+  const { query, statusFilter, categoryFilter } = filters;
   const [sort, setSort] = useState<SortKey>('ATTENTION');
 
   const load = useCallback(() => {
@@ -203,29 +210,28 @@ export function AllMarkersPage() {
     [sort, visible, filterableCategories],
   );
 
-  const filtersApplied = query.trim() !== '' || statusFilter !== 'ALL' || categoryFilter !== 'ALL';
+  // The page's pickers offer exactly what this view can answer for.
+  useEffect(() => {
+    onCategoriesAvailable?.(filterableCategories);
+  }, [filterableCategories, onCategoriesAvailable]);
+  useEffect(() => {
+    onStatusCounts?.(statusCounts);
+  }, [statusCounts, onStatusCounts]);
 
-  function clearFilters() {
-    setQuery('');
-    setStatusFilter('ALL');
-    setCategoryFilter('ALL');
-  }
+  const filtersApplied = query.trim() !== '' || statusFilter !== 'ALL' || categoryFilter !== 'ALL';
+  const clearFilters = onClearFilters;
 
   return (
     <>
-      <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="All markers" />
-
       {error ? (
-        <div className="mt-10">
-          <ErrorState
-            error={error}
-            subject="your markers"
-            onRetry={load}
-            backTo={{ to: '/overview', label: 'Back to overview' }}
-          />
-        </div>
+        <ErrorState
+          error={error}
+          subject="your markers"
+          onRetry={load}
+          backTo={{ to: '/overview', label: 'Back to overview' }}
+        />
       ) : markers === null ? (
-        <div className="mt-10 flex flex-col gap-4" aria-busy="true" aria-label="Loading your markers">
+        <div className="flex flex-col gap-4" aria-busy="true" aria-label="Loading your markers">
           {[0, 1, 2, 3, 4].map((i) => (
             <Card key={i} padding="tight">
               <Skeleton className="h-5 w-48" />
@@ -234,7 +240,7 @@ export function AllMarkersPage() {
           ))}
         </div>
       ) : markers.length === 0 ? (
-        <div className="mt-10 max-w-2xl">
+        <div className="max-w-2xl">
           <EmptyState
             title="Nothing tested yet"
             description="Once your first results have been released, every marker in them is listed here. From your second test onwards, each one shows which way it's heading."
@@ -243,60 +249,33 @@ export function AllMarkersPage() {
         </div>
       ) : (
         <>
-          <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Input
-              label="Find a marker"
-              name="marker-filter"
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              // The abbreviation is the only name most people know, and search
-              // matches aliases as well as the printed name — so "ALT" finds
-              // Alanine Aminotransferase and "TSH" finds Thyroid Stimulating
-              // Hormone. The placeholder says so by example.
-              placeholder="Ferritin, ALT, TSH…"
-              // A filter, not a form field — Input marks required by default (see its comment on
-              // the inverted asterisk convention), which would be wrong on something you can leave blank.
-              required={false}
-            />
-            <Select label="Show" name="status-filter" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}>
-              {STATUS_FILTERS.map((f) => (
-                <option key={f.value} value={f.value}>
-                  {f.value === 'ALL' ? f.label : `${f.label} (${statusCounts[f.value]})`}
-                </option>
-              ))}
-            </Select>
+          {/* The count and the sort share a row: search and the two filters
+              live above the view switch, and sort is the one control that
+              belongs to this arrangement rather than to all three. */}
+          <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+            <div className="flex flex-wrap items-center gap-4">
+              <p className="text-sm text-espresso/80" role="status">
+                {filterCountLabel(visible.length, measured.length)}
+              </p>
+              {filtersApplied && (
+                <Button variant="secondary" onClick={clearFilters}>
+                  Clear filters
+                </Button>
+              )}
+            </div>
             <Select
-              label="Health area"
-              name="category-filter"
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
+              label="Sort by"
+              name="marker-sort"
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortKey)}
+              className="w-full sm:w-64"
             >
-              <option value="ALL">All health areas</option>
-              {filterableCategories.map((c) => (
-                <option key={c.key} value={c.key}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
-            <Select label="Sort by" name="sort" value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
               {SORTS.map((s) => (
                 <option key={s.value} value={s.value}>
                   {s.label}
                 </option>
               ))}
             </Select>
-          </div>
-
-          <div className="mt-6 flex flex-wrap items-center gap-4">
-            <p className="text-sm text-espresso/80" role="status">
-              {filterCountLabel(visible.length, measured.length)}
-            </p>
-            {filtersApplied && (
-              <Button variant="secondary" onClick={clearFilters}>
-                Clear filters
-              </Button>
-            )}
           </div>
 
           {visible.length === 0 ? (

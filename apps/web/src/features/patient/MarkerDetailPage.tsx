@@ -98,15 +98,15 @@ export function MarkerDetailPage() {
   if (failed) {
     return (
       <>
-        <Breadcrumbs items={[{ label: 'Overview', to: '/overview' }, { label: 'All markers', to: '/markers' }, { label: 'Not available' }]} />
+        <Breadcrumbs items={[{ label: 'Overview', to: '/overview' }, { label: 'Results', to: '/results?view=by-marker' }, { label: 'Not available' }]} />
         <TwoTierHeading eyebrow="Marker detail" title="We couldn't open that marker" />
         <Card className="mt-10 max-w-xl">
           <p className="text-sm leading-relaxed text-espresso/90">
             You may not have a released result for this marker yet, or the link may be out of date. Everything you
-            have had tested is listed under All markers.
+            have had tested is listed under Results.
           </p>
-          <LinkButton to="/markers" className="mt-6">
-            See all markers
+          <LinkButton to="/results?view=by-marker" className="mt-6">
+            See every marker
           </LinkButton>
         </Card>
       </>
@@ -152,9 +152,13 @@ export function MarkerDetailPage() {
                 { label: navState.title, to: `/reports/${navState.reportId}` },
                 { label: detail.name },
               ]
-            : // Reached from All markers, Trends, the library or the sidebar search — none of which
-              // is a report, so the trail goes back to the marker list rather than to a panel.
-              [{ label: 'Overview', to: '/overview' }, { label: 'All markers', to: '/markers' }, { label: detail.name }]
+            : // Reached from the marker list, a comparison, the library or the sidebar search — none
+              // of which is a report, so the trail goes back to the marker list rather than to a panel.
+              [
+                { label: 'Overview', to: '/overview' },
+                { label: 'Results', to: '/results?view=by-marker' },
+                { label: detail.name },
+              ]
         }
       />
 
