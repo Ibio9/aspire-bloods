@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { formatDate, formatDateShort, formatReportHeading, formatReportTitle, maskEmail } from '@aspire-bloods/shared';
+import {
+  formatDate,
+  formatDateShort,
+  formatDateTime,
+  formatReportHeading,
+  formatReportTitle,
+  maskEmail,
+} from '@aspire-bloods/shared';
 
 describe('formatDate', () => {
   it('renders the house format, never ISO', () => {
@@ -17,6 +24,23 @@ describe('formatDate', () => {
 
   it('handles full ISO timestamps as well as bare dates', () => {
     expect(formatDate('2026-08-05T14:32:11.000Z')).toBe('5 August 2026');
+  });
+
+  it('agrees with formatDateTime about which day a timestamp falls on', () => {
+    // A bare date is a calendar date and must not shift; a timestamp is an
+    // instant and renders in the reader's own day. Reading a timestamp's UTC
+    // parts put the two functions a day apart for anything stamped between
+    // midnight and 01:00 UK time in summer — so a patient saw "Amended 5
+    // August" for an amendment the audit log recorded as "6 August at 00:30".
+    const instants = [
+      '2026-08-05T23:30:00.000Z',
+      '2026-01-01T00:30:00.000Z',
+      '2026-12-31T23:59:00.000Z',
+      '2026-06-15T12:00:00.000Z',
+    ];
+    for (const iso of instants) {
+      expect(formatDateTime(iso).startsWith(`${formatDate(iso)} at `), iso).toBe(true);
+    }
   });
 
   it('renders an em dash for absent dates rather than "Invalid Date"', () => {

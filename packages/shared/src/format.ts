@@ -26,15 +26,27 @@ const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'S
 function parts(value: string | Date): { y: number; m: number; d: number } | null {
   if (value instanceof Date) {
     if (Number.isNaN(value.getTime())) return null;
+    // A Date from Prisma for a date-only column is UTC midnight; reading it
+    // locally west of Greenwich would render the day before.
     return { y: value.getUTCFullYear(), m: value.getUTCMonth(), d: value.getUTCDate() };
   }
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
-  if (!match) {
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return null;
-    return { y: parsed.getUTCFullYear(), m: parsed.getUTCMonth(), d: parsed.getUTCDate() };
+  // A bare 'YYYY-MM-DD' is a calendar date — read the parts directly, so no
+  // timezone can shift it.
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+  if (dateOnly) {
+    return { y: Number(dateOnly[1]), m: Number(dateOnly[2]) - 1, d: Number(dateOnly[3]) };
   }
-  return { y: Number(match[1]), m: Number(match[2]) - 1, d: Number(match[3]) };
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  // A full timestamp is an INSTANT, and an instant renders in the reader's own
+  // day. This used to take the UTC parts, which put it a day out for anything
+  // stamped between midnight and 01:00 UK time in summer: an amendment made at
+  // 00:30 BST on the 6th showed the patient "Amended 5 August" while the audit
+  // log — which has always used formatDateTime, and local time — recorded it as
+  // "6 August 2026 at 00:30". A clinical record disagreeing with its own audit
+  // trail about the date is exactly the kind of discrepancy the amendment
+  // stamp exists to prevent.
+  return { y: parsed.getFullYear(), m: parsed.getMonth(), d: parsed.getDate() };
 }
 
 /** "5 August 2026" — the house format for every user-facing date. */
