@@ -268,8 +268,28 @@ export async function runRandoxPollingSweep(): Promise<{ polled: number; ingeste
   return { polled: due.length, ingested, failed };
 }
 
+/**
+ * Whether a sweep is in flight. A sweep polls its batch one order at a time
+ * against a third-party API, so it can easily outrun the cron interval that
+ * started it — and because an order's nextPollAt is only moved forward AFTER
+ * its poll returns, a second sweep starting mid-flight selects the same
+ * orders and polls them again. Randox ask for one poll per outstanding order
+ * per hour; a slow morning would quietly have made it two or three.
+ *
+ * In-process only, which is the right scope for the single-service Railway
+ * deployment this runs on. Running the API at more than one replica would
+ * need a database advisory lock here instead — noted rather than built,
+ * because that is a deployment decision, not a code one.
+ */
+let sweepInFlight = false;
+
 /** Cron entry point. Never throws — a bad sweep must not kill the scheduler. */
 export async function runRandoxPollingJob(): Promise<void> {
+  if (sweepInFlight) {
+    console.warn('[randox] polling sweep still running from the previous tick — skipping this one.');
+    return;
+  }
+  sweepInFlight = true;
   try {
     const summary = await runRandoxPollingSweep();
     if (summary.polled > 0) {
@@ -279,5 +299,9 @@ export async function runRandoxPollingJob(): Promise<void> {
     }
   } catch (e) {
     console.error('[randox] polling sweep failed:', e);
+  } finally {
+    // finally, not the end of try: a throw here must release the guard, or a
+    // single bad sweep would stop polling for the lifetime of the process.
+    sweepInFlight = false;
   }
 }
