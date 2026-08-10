@@ -252,7 +252,9 @@ export function MarkerListView({
           {/* The count and the sort share a row: search and the two filters
               live above the view switch, and sort is the one control that
               belongs to this arrangement rather than to all three. */}
-          <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+          {/* Stacked under sm, where the sort picker takes the full width and
+              the count would otherwise sit awkwardly beside its label. */}
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-x-6">
             <div className="flex flex-wrap items-center gap-4">
               <p className="text-sm text-espresso/80" role="status">
                 {filterCountLabel(visible.length, measured.length)}

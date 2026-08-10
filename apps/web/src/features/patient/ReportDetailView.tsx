@@ -395,7 +395,7 @@ export function ReportDetailView({
 
       <div className="mt-14">
         <p className="eyebrow mb-4">Every marker on this report</p>
-        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-x-6">
           <div className="flex flex-wrap items-center gap-4">
             <p className="text-sm text-espresso/80" role="status">
               {filterCountLabel(visible.length, byType.measured.length)}
