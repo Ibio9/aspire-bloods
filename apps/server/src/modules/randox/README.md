@@ -73,7 +73,28 @@ Where they disagree the disagreement is raised for an admin rather than
 either being silently preferred — a mismatch usually means the range we
 parsed is not the range the laboratory applied.
 
-**Ingestion is not publication.** Results land at `ADMIN_VERIFIED` and stop.
+**A link is a reference, never a resemblance.** We create every order
+ourselves against a known patient record, and Randox echo that order number
+back on the result. That reference — the one we wrote down at the time — is
+the *only* thing a result is ever attached on. Before the write, the identity
+is corroborated: against the name and date of birth Randox return where they
+supply them, and against the identity the order was placed under, snapshotted
+on the order row at the moment `CreatePendingOrder` was sent. Anything that
+disagrees, or that has nothing to corroborate it, goes to the exception queue
+with the disagreement named. There is no code path in this module that
+matches on name similarity, on a partial match, or on a probability. See
+`identityCheck.ts`; the comparison functions are shared with the manual
+linking flow (`lib/identityMatch.ts`) so the automatic bar can never end up
+lower than the one a person is held to.
+
+**Ingestion is not publication.** A clean parse lands at `ADMIN_VERIFIED` and
+stops. An unclean one — an unmatched marker, a missing or one-sided range, a
+disagreement with `lowHigh`, a lab that has not finished — lands at `PARSED`
+and says why. That asymmetry is the safety property: `review` may only be
+performed from `ADMIN_VERIFIED` and there is no other route into
+`CLINICIAN_REVIEWED`, so a delivery with a hole in it cannot reach a
+clinician's queue looking complete. Neither status is release; release is a
+clinician's explicit act, enforced server-side.
 
 ## Shape
 
@@ -83,13 +104,16 @@ codes.ts            void/caveat classification — unknown codes fail closed
 types.ts            wire contracts; Nexus verified, Booking marked unverified
 errors.ts           RandoxApiError / RandoxAuthError / RandoxWindowExpiredError
 auth/               Azure B2C ROPC token client — cached, one per API
-http/               bearer + Ocp-Apim-Subscription-Key on every call, 401 retry
+http/               bearer + subscription key on every call, 401 retry,
+                    transient retry with backoff, outbound rate limiting
 clients/parse.ts    tolerant readers + the two timezone converters
 clients/parseResult.ts  the string-value rules. Read this one.
 clients/            live Nexus + Booking clients, and the mock/live factory
 mock/               in-memory implementations + six result fixtures
 orderService.ts     CreatePendingOrder / UpdatePendingOrder / CancelOrder
 bookingService.ts   locations → availability → hold → book / cancel / reschedule
+identityCheck.ts    may this be linked without anyone looking at it?
+autoLink.ts         records the link and its evidence, or holds it with a reason
 ingestionService.ts Randox payload → ParsedReport → the shared writer
 referenceDataService.ts  the seven self-serve endpoints, cached + reconciled
 catalogueLookup.ts  our catalogue key → Randox's integer id
@@ -120,7 +144,9 @@ Six fixtures, all shaped as the real payload:
 | partial results | analytes on the order not yet reported |
 | awkward values | one-sided ranges, a comparator result, a qualitative result, and a `lowHigh` that disagrees with the range |
 
-Going live is `RANDOX_TRANSPORT=live`. No code changes.
+Going live is `RANDOX_TRANSPORT=live` plus the settings it needs. No code
+changes. The full ordered checklist — which variable, where it comes from,
+and where it goes — is in **DEPLOYMENT.md → Randox Nexus, going live**.
 
 ## Webhooks
 
@@ -137,8 +163,8 @@ same function and nothing else changes.
 - **Our clinic id and test-clinic-location id.** Readable from
   `GET /Clinic/GetMyClinicDetails` the moment access exists.
 - **The panel and test ids.** Fetched live by the reference-data service and
-  mapped to ours on the admin catalogue screen — no hardcoding needed, but
-  nothing can be ordered until an admin maps them.
+  mapped to ours under **Panels → Randox panel mapping** — no hardcoding
+  needed, but nothing can be ordered until an admin maps them.
 - **The void/caveat code list.** The flow PDF says it comes from the Randox
   Business Team. Until then every code is unrecognised, and therefore void.
   The fixture codes are invented placeholders.

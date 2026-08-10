@@ -782,6 +782,37 @@ enum UnmatchedResultStatus {
   DISMISSED
 }
 
+// Why a result is in the queue instead of on a patient's record. The queue is
+// the EXCEPTION path — in normal operation a result arrives against an order
+// we placed ourselves and links automatically — so every row in it has to say
+// what stopped it, or the queue is just a list of things to guess about.
+enum UnmatchedReason {
+  // Randox returned an order number we have no local record of. Either it was
+  // placed outside this system or our own write failed at order time.
+  NO_MATCHING_ORDER
+  // The order is ours, but the name or date of birth does not agree with the
+  // patient on it. reasonDetail names exactly what disagreed.
+  IDENTITY_MISMATCH
+  // The order is ours and the identity is not in dispute, but the account
+  // cannot receive results: no profile yet, deactivated, or not a patient.
+  NO_PATIENT_ACCOUNT
+  // The order is ours and nothing contradicts, but there is no full name and
+  // date of birth from either the lab or the order to corroborate against.
+  // Reference alone is not enough to link on unwatched.
+  UNCORROBORATED_IDENTITY
+  // Somebody unlinked this result from a patient. It never re-links itself:
+  // an automatic decision a human reversed is not one to make again.
+  PREVIOUSLY_UNLINKED
+  // Two or more accounts are equally good candidates. Never auto-resolved.
+  DUPLICATE_CANDIDATES
+}
+
+// Whether a link was made by the system on evidence, or by a person.
+enum ResultLinkMode {
+  AUTOMATIC
+  MANUAL
+}
+
 model UnmatchedResult {
   id         String  @id @default(uuid())
   sourceKey  String
@@ -805,13 +836,41 @@ model UnmatchedResult {
 
   status UnmatchedResultStatus @default(PENDING)
 
+  // Why this is not on a patient's record. Null only on rows written before
+  // the reason was captured. reasonDetail carries the specifics — which field
+  // disagreed, which account was involved — in words an admin can act on.
+  reason       UnmatchedReason?
+  reasonDetail String?
+
   // Set on link; cleared again on unlink, which returns the row to PENDING so
   // it goes straight back into the queue rather than disappearing. No hard
   // deletes — a dismissed row keeps its reason and its dismisser forever.
+  //
+  // An AUTOMATIC link writes a row here too, already LINKED. It is not queue
+  // work and never appears in the pending list, but it means there is exactly
+  // ONE record of "this result belongs to this person, on this evidence" and
+  // exactly ONE way to undo it, whether a machine or a person decided it.
   linkedReportId  String?
   linkedPatientId String?
+  // Null for an automatic link — no person decided it. linkMode, not a null
+  // check, is what distinguishes "the system linked this" from "a person did
+  // and we lost the record of who".
   linkedById      String?
   linkedAt        DateTime?
+  linkMode        ResultLinkMode?
+  // What the link was made on: the order reference, and which statements of
+  // identity corroborated it. A wrong link has to be explainable afterwards,
+  // not just reversible.
+  linkEvidence    Json?
+
+  // Set when a link is undone. An unlinked result returns to PENDING but must
+  // never be re-linked automatically on the next poll — a human reversed that
+  // decision and the system does not overrule them.
+  unlinkedAt     DateTime?
+  unlinkedById   String?
+  unlinkReason   String?
+  autoLinkBlocked Boolean @default(false)
+
   dismissedAt     DateTime?
   dismissedById   String?
   dismissReason   String?
@@ -821,6 +880,7 @@ model UnmatchedResult {
 
   @@index([status])
   @@index([sourceKey])
+  @@index([status, reason])
 }
 
 // ---------------------------------------------------------------------------
@@ -995,6 +1055,23 @@ model RandoxOrder {
   randoxPanelIds String[]       @default([])
   randoxTestIds  String[]       @default([])
 
+  // The identity this order was PLACED under, captured at the moment
+  // CreatePendingOrder was sent — not read back off the profile later.
+  //
+  // This is what the laboratory holds against this order number, and it is
+  // half of the corroboration an automatic link needs (see
+  // modules/randox/identityCheck.ts). Reading the profile at ingestion time
+  // instead would be circular: it would compare the account to itself and
+  // agree by construction, including in the one case that matters, where the
+  // account has been edited since the sample was taken.
+  //
+  // Nullable for orders placed before this was captured. Those cannot be
+  // corroborated and are therefore held for an admin rather than linked.
+  orderedFirstName    String?
+  orderedLastName     String?
+  // Encrypted like every other date of birth we hold.
+  orderedDobEncrypted String?
+
   collectionMethod RandoxCollectionMethod
   status           RandoxOrderStatus @default(INCOMPLETE)
   // The raw numeric status last seen on the wire, including values we don't
@@ -1112,9 +1189,18 @@ model RandoxUnknownCode {
 // Kept in their own table rather than as columns on Report: every field is
 // optional, most reports have none of them, and they are a different KIND
 // of data from a lab result (self-reported or clinic-measured, not
-// assayed). No patient-facing UI reads this yet — it is stored because
-// discarding data the lab has already sent us means it cannot be recovered
-// later, and because IsCvScoreRequired depends on several of these fields.
+// assayed).
+//
+// The measured ones — height, weight, the two circumferences, pulse and both
+// blood pressures — are shown to the patient under the catalogue's "Personal
+// Health Measurements" health area (lib/personalMeasurements.ts), as values
+// with units and nothing else. Never as ReportResults: a ReportResult
+// requires a reference range, none of these has one, and the published
+// thresholds that exist for blood pressure are diagnostic thresholds acted
+// on in a consultation, not a band to print beside a single clinic reading.
+// The rest (smoking, diabetes, ethnicity, biological sex) are context for
+// the optimal-range resolver and for IsCvScoreRequired, and are not
+// displayed as results at all.
 model ReportMeasurements {
   id       String @id @default(uuid())
   reportId String @unique

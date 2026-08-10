@@ -30,7 +30,22 @@ interface MockOrder {
   statusId: number;
   amendableUntil: number;
   cancelled: boolean;
+  /** The identity the order was created with, as the real API would hold it. */
+  identity: { firstName: string; lastName: string; dateOfBirth: string } | null;
 }
+
+/**
+ * Whether, and how truthfully, the mock echoes patient identity back on the
+ * result payload.
+ *
+ * 'none' is the default because it is what Randox's published response
+ * example does — the field set simply isn't there. The other three exist so
+ * the corroboration rules in identityCheck.ts can be exercised end to end
+ * through the ordinary flow rather than only in a unit test: a laboratory
+ * that confirms the identity, one that returns somebody else's date of
+ * birth, and one that returns somebody else's name.
+ */
+export type IdentityEcho = 'none' | 'matching' | 'mismatched-dob' | 'mismatched-name';
 
 /**
  * In-memory Nexus Lab implementing the documented contracts from
@@ -56,6 +71,9 @@ export class MockNexusLabClient implements NexusLabClient {
 
   /** Test hook: force the next created order onto a given scenario. */
   scenarioOverride: FixtureScenario | null = null;
+
+  /** Test hook: what the lab claims about identity on the result payload. */
+  identityEcho: IdentityEcho = 'none';
 
   async createPendingOrder(request: CreatePendingOrderRequest): Promise<CreateOrderResponse> {
     // Required by the CreatePendingOrderRequest schema in the spec.
@@ -91,6 +109,11 @@ export class MockNexusLabClient implements NexusLabClient {
       // only exists to exercise the window-expired path.
       amendableUntil: Date.now() + 30 * 60 * 1000,
       cancelled: false,
+      identity: {
+        firstName: request.FirstName,
+        lastName: request.LastName,
+        dateOfBirth: request.DateOfBirth,
+      },
     });
     this.scenarioOverride = null;
 
@@ -157,7 +180,26 @@ export class MockNexusLabClient implements NexusLabClient {
     if (!Number.isInteger(ref.clinicId)) {
       throw new Error('GetOrderResultDetail requires a clinicId.');
     }
-    return FIXTURE_BUILDERS[order.scenario](order.orderId, order.orderNumber);
+    const detail = FIXTURE_BUILDERS[order.scenario](order.orderId, order.orderNumber);
+    return { ...detail, ...this.identityFields(order) };
+  }
+
+  /**
+   * The identity block, as the configured echo mode would have Randox report
+   * it. A mismatch is a DIFFERENT person's details, not a typo — the rule
+   * being exercised is exact agreement, and a near-miss would test nothing
+   * the exact case doesn't.
+   */
+  private identityFields(order: MockOrder): Partial<GetOrderResultDetailResponse> {
+    if (this.identityEcho === 'none' || !order.identity) return {};
+    const { firstName, lastName, dateOfBirth } = order.identity;
+    if (this.identityEcho === 'mismatched-dob') {
+      return { patientFirstName: firstName, patientLastName: lastName, patientDateOfBirth: '1970-01-01' };
+    }
+    if (this.identityEcho === 'mismatched-name') {
+      return { patientFirstName: 'Someone', patientLastName: 'Else', patientDateOfBirth: dateOfBirth };
+    }
+    return { patientFirstName: firstName, patientLastName: lastName, patientDateOfBirth: dateOfBirth };
   }
 
   async getOrderResultReports(ref: OrderRef): Promise<string | null> {
@@ -264,7 +306,13 @@ export class MockNexusLabClient implements NexusLabClient {
   }
 
   /** Registers an order without going through create. */
-  seedOrder(orderNumber: string, scenario: FixtureScenario, statusId = 4, orderId = 999): void {
+  seedOrder(
+    orderNumber: string,
+    scenario: FixtureScenario,
+    statusId = 4,
+    orderId = 999,
+    identity: MockOrder['identity'] = null,
+  ): void {
     this.byNumber.set(orderNumber, {
       orderId,
       orderNumber,
@@ -272,6 +320,7 @@ export class MockNexusLabClient implements NexusLabClient {
       statusId,
       amendableUntil: Date.now() + 30 * 60 * 1000,
       cancelled: statusId === 5,
+      identity,
     });
   }
 
@@ -279,6 +328,7 @@ export class MockNexusLabClient implements NexusLabClient {
     this.byNumber.clear();
     this.pollCounts.clear();
     this.scenarioOverride = null;
+    this.identityEcho = 'none';
     this.nextOrderId = 10300;
   }
 }

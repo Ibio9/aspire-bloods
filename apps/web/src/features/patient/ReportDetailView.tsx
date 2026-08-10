@@ -222,9 +222,66 @@ export function ReportDetailView({
           and is not. Filters above do not touch these — they are answers to a
           different question and hiding them behind a status filter they can
           never satisfy would just make them look broken. */}
+      <PersonalMeasurementsSection
+        measurements={report.personalMeasurements ?? []}
+        note={report.personalMeasurementsNote ?? null}
+      />
       <GeneticSection markers={byType.genetic} categories={report.categories ?? []} />
       <CompositionSection markers={byType.composition} categories={report.categories ?? []} />
       <SensitivitySection markers={byType.sensitivity} />
     </>
+  );
+}
+
+/**
+ * Height, weight, the two circumferences, the ratio between them, pulse and
+ * both blood pressures — recorded at the clinic visit and returned by the
+ * laboratory alongside the analytes.
+ *
+ * Values and units, and nothing else. No status, no tint, no range bar, no
+ * optimal band, because not one of these has a reference range: Randox supply
+ * none, and the published thresholds that exist for blood pressure are
+ * DIAGNOSTIC thresholds acted on in a consultation with a repeat reading, not
+ * a band to print beside a single number. A traffic light here would be this
+ * system making a diagnosis, which it does not do.
+ *
+ * No search or group filter either, unlike the food-sensitivity section: that
+ * one has 197 rows and is unusable without one. This has at most eight, and a
+ * filter over eight rows is furniture.
+ */
+function PersonalMeasurementsSection({
+  measurements,
+  note,
+}: {
+  measurements: { key: string; name: string; value: number; unit: string }[];
+  note: string | null;
+}) {
+  // Nothing measured, nothing rendered — never an empty section, never a
+  // placeholder row. Manual entry and PDF upload carry none of these at all.
+  if (measurements.length === 0) return null;
+
+  return (
+    <section className="mt-14" aria-labelledby="personal-measurements-heading">
+      <h2 id="personal-measurements-heading" className="font-display text-2xl text-espresso">
+        Personal health measurements
+      </h2>
+      <p className="mt-2 max-w-2xl text-sm leading-relaxed text-espresso/85">
+        {note ?? 'Recorded at your clinic visit, not measured from your blood sample.'} They are shown as they were
+        taken, without a range — a single reading is not something to read against one.
+      </p>
+      <dl className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        {measurements.map((m, i) => (
+          <Reveal key={m.key} delay={staggerDelay(i, 24)}>
+            <Card className="h-full py-4">
+              <dt className="text-sm leading-snug text-espresso/85">{m.name}</dt>
+              <dd className="tabular mt-1.5 text-2xl font-medium text-espresso">
+                {m.value}
+                {m.unit && <span className="ml-1 text-base font-normal text-espresso/80">{m.unit}</span>}
+              </dd>
+            </Card>
+          </Reveal>
+        ))}
+      </dl>
+    </section>
   );
 }

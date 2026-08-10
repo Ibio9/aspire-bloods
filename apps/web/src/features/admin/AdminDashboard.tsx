@@ -12,22 +12,18 @@ import { useAuth } from '../../lib/AuthContext';
 import { readRecentPatients, type RecentPatient } from '../../lib/recentPatients';
 import { bucketAwaitingAction, type AwaitingActionBucket } from '../../lib/reportStatus';
 
-interface NavCard {
-  to: string;
-  title: string;
-  description: string;
-  adminOnly?: boolean;
-}
-
-// Same destinations as the sidebar, so the descriptions say the same thing the
-// sublabels there do — short, and once.
-const CARDS: NavCard[] = [
-  { to: '/admin', title: 'Reports', description: 'Upload, enter, verify, review, release.' },
-  { to: '/admin/patients', title: 'Patients', description: 'Profiles, invites, access, erasure.' },
-  { to: '/admin/panels', title: 'Panels', description: 'Test levels and their contents.' },
-  { to: '/admin/markers', title: 'Marker library', description: 'Analytes and the explanation copy patients read.' },
-  { to: '/admin/audit-log', title: 'Audit log', description: 'Every action and view, by whom.', adminOnly: true },
-];
+/*
+ * The grid of five navigation cards that used to sit here is gone.
+ *
+ * It listed the same five destinations as the sidebar, with descriptions that
+ * were paraphrases of the sidebar's own sublabels — and it listed them
+ * INCOMPLETELY, missing result linking and the ingestion log, so the one
+ * screen an admin lands on offered a smaller map than the panel permanently
+ * beside it. Two navigations, disagreeing, one of them wrong.
+ *
+ * What is left is the thing the sidebar cannot do: say what is waiting. The
+ * console is a queue, not a menu.
+ */
 
 function timeAgo(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime();
@@ -204,6 +200,163 @@ function DemoSeedCard() {
   );
 }
 
+/**
+ * The exception queue, counted, on the screen an admin lands on.
+ *
+ * Results attach themselves to patients now, so this number is normally zero
+ * — and a queue that is normally zero is a queue nobody thinks to open. That
+ * is precisely why it belongs here: the failure mode of automatic linking is
+ * not a wrong link, it is a result sitting unnoticed for a fortnight because
+ * the screen that would have shown it was never visited.
+ */
+function ExceptionsCard() {
+  const [count, setCount] = useState<number | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    // The count endpoint, not the queue itself. The queue returns claimed
+    // names and dates of birth and is audited as a view of patient data —
+    // fetching it to render a number would have written an entry saying
+    // somebody read it every time anyone opened this page.
+    apiFetch<{ pending: number }>('/admin/linking/count')
+      .then((q) => setCount(q.pending))
+      .catch(() => setFailed(true));
+  }, []);
+
+  if (failed) return null;
+
+  return (
+    <div className="mt-14">
+      <p className="eyebrow mb-4">Results that could not be placed</p>
+      <Card className="max-w-2xl">
+        {count === null ? (
+          <Skeleton className="h-6 w-40" />
+        ) : count === 0 ? (
+          <>
+            <p className="text-lg font-medium text-espresso">Nothing waiting</p>
+            <p className="mt-2 text-sm leading-relaxed text-espresso/80">
+              Every result that arrived was attached to the patient its order was placed for, on the order reference,
+              with the name and date of birth checked. Anything that cannot be placed that way appears here.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="tabular text-3xl font-medium text-espresso">{count}</p>
+            <p className="mt-1.5 text-sm text-espresso">
+              result{count === 1 ? '' : 's'} waiting to be placed, each with the reason it stopped.
+            </p>
+            <div className="mt-5 border-t border-taupe pt-4">
+              <Link to="/admin/linking" className="text-sm font-medium text-bronze-600 underline underline-offset-2">
+                Open result linking
+              </Link>
+            </div>
+          </>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+interface ErasureRequest {
+  id: string;
+  status: string;
+  requestedAt: string;
+  purgeScheduledAt: string | null;
+  patientId: string;
+  patientName: string | null;
+  patientEmail: string;
+}
+
+const ERASURE_STATUS_LABEL: Record<string, string> = {
+  REQUESTED: 'Awaiting a decision',
+  SCHEDULED: 'Purge scheduled',
+  COMPLETED: 'Purged',
+  REJECTED: 'Declined',
+};
+
+/**
+ * Erasure requests, and the decision on them.
+ *
+ * This is a RELOCATION, not a new feature. A patient could raise an erasure
+ * request from their own account and an admin could raise one from a patient's
+ * profile, and the server has always had both the list and the approval — but
+ * nothing in the console ever called either. A request went in and stopped: no
+ * screen listed it, so a request raised by a patient could not be found at all
+ * without knowing whose it was. That is a legal obligation dead-ending in a
+ * table nobody could read.
+ *
+ * Scheduling sets a purge date rather than deleting anything. The job
+ * de-identifies the profile; clinical results are retained under the
+ * practice's records obligation. Both facts are said on the card, because an
+ * admin approving this needs to know what it does and does not remove.
+ */
+function ErasureRequestsCard() {
+  const [requests, setRequests] = useState<ErasureRequest[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [scheduling, setScheduling] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    apiFetch<ErasureRequest[]>('/admin/erasure-requests')
+      .then(setRequests)
+      .catch(() => setFailed(true));
+  }, []);
+
+  useEffect(load, [load]);
+
+  async function schedule(id: string) {
+    setScheduling(id);
+    try {
+      await apiFetch(`/admin/erasure-requests/${id}/schedule`, {
+        method: 'PATCH',
+        body: JSON.stringify({ purgeInDays: 30 }),
+      });
+      load();
+    } finally {
+      setScheduling(null);
+    }
+  }
+
+  if (failed || requests === null) return null;
+
+  // Outstanding decisions lead; anything already settled is history and lives
+  // in the audit log rather than on the screen an admin opens every morning.
+  const outstanding = requests.filter((r) => r.status === 'REQUESTED');
+  if (outstanding.length === 0) return null;
+
+  return (
+    <div className="mt-14">
+      <p className="eyebrow mb-4">Erasure requests</p>
+      <Card className="max-w-2xl">
+        <p className="text-sm leading-relaxed text-espresso/85">
+          Approving one schedules a purge in 30 days. It de-identifies the patient's profile; clinical results are
+          kept under the practice's records retention obligation. Nothing is deleted immediately and every step is
+          audited.
+        </p>
+        <ul className="mt-4 border-t border-taupe">
+          {outstanding.map((r) => (
+            <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-taupe py-3">
+              <div>
+                <Link
+                  to={`/admin/patients/${r.patientId}`}
+                  className="text-sm font-medium text-bronze-600 underline underline-offset-2"
+                >
+                  {r.patientName ?? r.patientEmail}
+                </Link>
+                <p className="tabular text-xs text-espresso/80">
+                  {ERASURE_STATUS_LABEL[r.status] ?? r.status} · requested {timeAgo(r.requestedAt)}
+                </p>
+              </div>
+              <Button variant="secondary" loading={scheduling === r.id} onClick={() => void schedule(r.id)}>
+                Schedule the purge
+              </Button>
+            </li>
+          ))}
+        </ul>
+      </Card>
+    </div>
+  );
+}
+
 export function AdminDashboard() {
   const { user } = useAuth();
   const [recent, setRecent] = useState<RecentPatient[]>([]);
@@ -271,22 +424,8 @@ export function AdminDashboard() {
         )}
       </div>
 
-      <div className="mt-14 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {CARDS.filter((c) => !c.adminOnly || user?.role === 'ADMIN').map((card, i) => (
-          <Link
-            key={card.to}
-            to={card.to}
-            className="stagger-item motion-safe:animate-riseIn rounded-card"
-            style={{ animationDelay: `${staggerDelay(i, 30)}ms` }}
-          >
-            <Card interactive className="h-full">
-              <p className="text-lg font-medium text-espresso">{card.title}</p>
-              <p className="mt-2.5 text-sm text-espresso/80">{card.description}</p>
-            </Card>
-          </Link>
-        ))}
-      </div>
-
+      {user?.role === 'ADMIN' && <ExceptionsCard />}
+      {user?.role === 'ADMIN' && <ErasureRequestsCard />}
       {user?.role === 'ADMIN' && <DemoSeedCard />}
 
       {recent.length > 0 && (

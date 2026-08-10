@@ -10,6 +10,7 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { useToast } from '../../components/ui/Toast';
 import { apiFetch, ApiError } from '../../lib/api';
+import { RandoxMappingSection } from './RandoxMappingSection';
 
 /**
  * Panel configuration, and only panel configuration.
@@ -323,6 +324,11 @@ export function PanelsPage() {
           </div>
         </div>
       )}
+
+      {/* Which of these panels Randox can actually be asked for. Moved here
+          from the standalone catalogue screen — see RandoxMappingSection for
+          why the rest of that screen is gone and this part could not be. */}
+      <RandoxMappingSection ourPanels={(panels ?? []).map((p) => ({ key: p.key, name: p.name }))} />
     </>
   );
 }

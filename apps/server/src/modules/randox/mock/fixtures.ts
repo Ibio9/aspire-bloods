@@ -73,6 +73,16 @@ function baseDetail(orderId: number, orderNumber: string): GetOrderResultDetailR
     patientKnownVascularDisease: false,
     patientOnMedicationforHypertension: false,
     patientEthnicity: 'White',
+    patientBiologicalSex: 'Male',
+    // Null by default, and deliberately so: the spec's own response example
+    // for GetOrderResultDetail carries no patient name or date of birth, so
+    // the DEFAULT fixture is the payload we should expect. The mock client
+    // overlays real values when a test asks it to (see identityEcho), which
+    // is how both halves — "Randox told us who this is" and "Randox told us
+    // nothing" — get exercised without pretending either is the normal case.
+    patientFirstName: null,
+    patientLastName: null,
+    patientDateOfBirth: null,
   };
 }
 

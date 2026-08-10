@@ -1,4 +1,3 @@
-import type { Prisma } from '@prisma/client';
 import { prisma } from '../../db/client.js';
 import { encryptField } from '../../lib/crypto.js';
 import { computeMarkerStatus } from '../../lib/markerStatus.js';
@@ -55,6 +54,14 @@ export interface MaterialiseResult {
   /** Rows where the lab's own high/low flag disagreed with our computed status. */
   disagreementCount: number;
   mappingFailures: MappingFailure[];
+  /**
+   * True when the delivery was clean enough to advance to ADMIN_VERIFIED on
+   * its own. False means it stopped at PARSED and an admin has something to
+   * look at — see holdReasons.
+   */
+  verified: boolean;
+  /** Why it stopped, in words. Empty when verified. */
+  holdReasons: string[];
 }
 
 export async function materialiseParsedReport(input: {
@@ -163,6 +170,35 @@ export async function materialiseParsedReport(input: {
     );
   }
 
+  // ---------------------------------------------------------------------
+  // May this advance on its own, or does it need an admin?
+  //
+  // Computed before the write, because it decides what status the write
+  // lands on. Clean means: every row in the delivery became a result, every
+  // one had a usable two-sided range, the lab's own high/low flag agreed
+  // with the status we computed for every one of them, and the lab has
+  // finished — nothing is still being processed.
+  //
+  // Anything else is not a failure and is not discarded; it is a report an
+  // admin has to look at before a clinician is asked to review it.
+  // ---------------------------------------------------------------------
+  const disagreementCount = matchedRows.filter((r) => r.labStatusDisagrees).length;
+  const holdReasons: string[] = [];
+  if (mappingFailures.length > 0) {
+    holdReasons.push(
+      `${mappingFailures.length} result(s) could not be filed automatically (${[...new Set(mappingFailures.map((f) => f.markerName))].slice(0, 5).join(', ')}${mappingFailures.length > 5 ? ', …' : ''})`,
+    );
+  }
+  if (disagreementCount > 0) {
+    holdReasons.push(
+      `${disagreementCount} result(s) where the laboratory's own high/low flag disagrees with the reference range they sent`,
+    );
+  }
+  if (parsed.isPartial) {
+    holdReasons.push('the laboratory has not finished reporting this order');
+  }
+  const verified = holdReasons.length === 0;
+
   const reportId = await prisma.$transaction(async (tx) => {
     const report = existing
       ? await tx.report.update({
@@ -267,16 +303,27 @@ export async function materialiseParsedReport(input: {
     }
 
     // Machine-sourced, structured data — there's no OCR ambiguity for an
-    // admin to eyeball the way a PDF parse has, so ingestion can safely
-    // land the report at ADMIN_VERIFIED (data is in and computed) rather
-    // than stopping at PARSED. verifiedById stays null (no staff user
-    // verified it) — the audit log entry is the record of what happened and
-    // when. Clinician review and release remain untouched, explicit, human
-    // actions: automatic ingestion is not automatic publication, and
+    // admin to eyeball the way a PDF parse has, so a CLEAN delivery advances
+    // to ADMIN_VERIFIED (data is in and computed) rather than stopping at
+    // PARSED. verifiedById stays null (no staff user verified it) — the
+    // audit log entry is the record of what happened and when.
+    //
+    // An unclean one does NOT advance, and that asymmetry is the whole
+    // safety property of automatic ingestion. "Anything ambiguous stops and
+    // is surfaced" cannot be enforced by an admin screen, because the
+    // failure mode is nobody opening it: a report that had an unmatched
+    // marker, a missing range or a disagreement with the lab's own high/low
+    // flag would sail through to clinician review carrying a hole nobody had
+    // been told about. Stopping at PARSED puts it in the "needs an admin"
+    // bucket by construction, because `review` may only be performed from
+    // ADMIN_VERIFIED (lib/reportTransitions.ts) and there is no other route.
+    //
+    // Clinician review and release remain untouched, explicit, human actions
+    // either way. Automatic ingestion is not automatic publication, and
     // neither is an admin linking a result to an account.
     await tx.report.update({
       where: { id: report.id },
-      data: { status: 'ADMIN_VERIFIED', verifiedAt: new Date() },
+      data: verified ? { status: 'ADMIN_VERIFIED', verifiedAt: new Date() } : { status: 'PARSED' },
     });
 
     return report.id;
@@ -286,43 +333,19 @@ export async function materialiseParsedReport(input: {
     reportId,
     markerCount: matchedRows.length,
     excludedCount: exclusions.length,
-    disagreementCount: matchedRows.filter((r) => r.labStatusDisagrees).length,
+    disagreementCount,
     mappingFailures,
+    verified,
+    holdReasons,
   };
 }
 
-/**
- * Holds a result nobody can be attached to yet, for an admin to link
- * explicitly. Upsert by externalId so a redelivery refreshes the same queue
- * row instead of giving the admin two copies of the same order to choose
- * between.
- *
- * A row that has already been linked or dismissed is left alone — a later
- * poll must not silently resurrect a decision an admin has already made.
+/*
+ * parkAsUnmatched() used to live here. It moved to
+ * modules/randox/autoLink.ts as holdForReview(), because a result held for
+ * an admin now has to carry WHY it was held — and the reasons are all
+ * facts about the link decision (no matching order, identity mismatch, no
+ * account yet, previously unlinked), which is that file's subject and not
+ * this one's. This file writes reports; it has no opinion about whose they
+ * are.
  */
-export async function parkAsUnmatched(
-  sourceKey: string,
-  externalId: string,
-  parsed: ParsedReport,
-): Promise<void> {
-  const claimed = parsed.claimedPatient ?? null;
-  const data = {
-    sourceKey,
-    claimedFirstName: claimed?.firstName ?? null,
-    claimedLastName: claimed?.lastName ?? null,
-    claimedDobEncrypted: claimed?.dob ? encryptField(claimed.dob) : null,
-    claimedContactNumberEncrypted: claimed?.contactNumber ? encryptField(claimed.contactNumber) : null,
-    sampleDate: parsed.sampleDate ? new Date(parsed.sampleDate) : null,
-    markerCount: parsed.rows.length,
-    payload: parsed as unknown as Prisma.InputJsonValue,
-  };
-
-  const existing = await prisma.unmatchedResult.findUnique({ where: { externalId } });
-  if (existing && existing.status !== 'PENDING') return;
-
-  await prisma.unmatchedResult.upsert({
-    where: { externalId },
-    create: { externalId, ...data },
-    update: data,
-  });
-}

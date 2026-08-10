@@ -3,12 +3,14 @@ import { prisma } from '../../db/client.js';
 import { computeMarkerStatus } from '../../lib/markerStatus.js';
 import { recordAuditLog } from '../../lib/auditLog.js';
 import { storageAdapter } from '../storage/LocalDiskStorageAdapter.js';
+import { decryptField } from '../../lib/crypto.js';
 import {
   materialiseParsedReport,
-  parkAsUnmatched,
   MaterialiseError,
   type MappingFailure,
 } from '../reports/materialiseReport.js';
+import { holdForReview, recordAutoLink, existingQueueRow } from './autoLink.js';
+import { payloadIdentity, verifyOrderIdentity, type PersonIdentity } from './identityCheck.js';
 import type {
   ParsedReport,
   ParsedMarkerRow,
@@ -324,32 +326,108 @@ export async function ingestOrderResults(ref: OrderRef): Promise<IngestResult> {
     return { outcome: 'FAILED', reportId: null, markersIngested: 0, markersExcluded: 0, message };
   }
 
-  // Which patient this belongs to comes from OUR order record, not from the
-  // payload: CreatePendingOrder has no field for a client-side patient
-  // reference, so Randox have nothing of ours to echo back. The order row we
-  // wrote when we placed it is the only link, which is why placeOrder()
-  // persists it in the same breath as the call returning.
+  // ---------------------------------------------------------------------
+  // Whose results are these?
+  //
+  // The answer is the order number, and only the order number. We created
+  // this order ourselves through CreatePendingOrder against a known patient
+  // record, and Randox have echoed that exact reference back on the result.
+  // That is a direct reference, not a match — nothing below compares names to
+  // find a patient, and there is no fuzzy, partial or probabilistic path into
+  // a patient's record anywhere in this file.
+  //
+  // Having found the account by reference, the identity is then corroborated
+  // before anything is written (identityCheck.ts). Everything that does not
+  // corroborate goes to the queue with the reason on it. In normal operation
+  // that queue is empty.
+  // ---------------------------------------------------------------------
   const order = await prisma.randoxOrder.findUnique({
     where: { orderNumber },
     include: { patient: { include: { patientProfile: true } } },
   });
 
+  const labIdentity = payloadIdentity(detail);
+
   const { parsed, pendingCount } = await normaliseResultDetail(detail, {
     patientRef: order?.patientId ?? null,
-    claimedName: order?.patient.patientProfile
-      ? { firstName: order.patient.patientProfile.firstName, lastName: order.patient.patientProfile.lastName }
-      : null,
+    // What the LAB said, in preference to what we already believe — a queue
+    // row that restates our own record back at the admin is no evidence at
+    // all. Falls back to the order's account only when Randox sent nothing.
+    claimedName:
+      labIdentity.firstName || labIdentity.lastName || labIdentity.dob
+        ? labIdentity
+        : order?.patient.patientProfile
+          ? { firstName: order.patient.patientProfile.firstName, lastName: order.patient.patientProfile.lastName }
+          : null,
   });
 
+  const hold = async (
+    reason: Parameters<typeof holdForReview>[0]['reason'],
+    detailText: string,
+  ): Promise<IngestResult> => {
+    await holdForReview({
+      sourceKey: SOURCE_KEY,
+      externalId: orderNumber,
+      parsed,
+      reason,
+      detail: detailText,
+      claimed: labIdentity,
+    });
+    await logAttempt({ orderNumber, outcome: 'UNMATCHED_PATIENT', message: detailText });
+    return { outcome: 'UNMATCHED_PATIENT', reportId: null, markersIngested: 0, markersExcluded: 0, message: detailText };
+  };
+
   if (!order || order.patient.role !== 'PATIENT') {
-    // No local order record for a result Randox are returning. This is the
-    // case the unmatched queue exists for: park it with whatever identity we
-    // have and let an admin link it explicitly. Nothing is matched on a name
-    // here — see modules/admin/linkingService.ts.
-    await parkAsUnmatched(SOURCE_KEY, orderNumber, parsed);
-    const message = `No local record of Randox order ${orderNumber}, so it cannot be attributed to an account automatically. Held for an admin to link: see Result linking.`;
-    await logAttempt({ orderNumber, outcome: 'UNMATCHED_PATIENT', message });
-    return { outcome: 'UNMATCHED_PATIENT', reportId: null, markersIngested: 0, markersExcluded: 0, message };
+    return hold(
+      'NO_MATCHING_ORDER',
+      `No local record of Randox order ${orderNumber}, so there is no reference tying it to an account. Held for an admin to link: see Result linking.`,
+    );
+  }
+
+  // A result a person has already unlinked from a patient. It never re-links
+  // itself — reversing an automatic decision has to stay reversed, or the
+  // next poll simply undoes the correction.
+  const queued = await existingQueueRow(orderNumber);
+  if (queued?.autoLinkBlocked) {
+    return hold(
+      'PREVIOUSLY_UNLINKED',
+      `Order ${orderNumber} was unlinked from a patient${queued.unlinkReason ? ` (${queued.unlinkReason})` : ''}, so it is not linked again automatically. An admin decides where it belongs.`,
+    );
+  }
+
+  const profile = order.patient.patientProfile;
+  if (!profile || order.patient.deactivatedAt) {
+    return hold(
+      'NO_PATIENT_ACCOUNT',
+      !profile
+        ? `Order ${orderNumber} is against an account with no registration details, so there is nothing to check the result against. The result is held until the account is complete.`
+        : `Order ${orderNumber} is against an account that has been deactivated. The result is held rather than attached to it.`,
+    );
+  }
+
+  // The three statements of identity: what the lab returned, what the order
+  // was placed under, and what the account says now.
+  const orderSnapshot: PersonIdentity = {
+    firstName: order.orderedFirstName,
+    lastName: order.orderedLastName,
+    dob: order.orderedDobEncrypted ? safeDecrypt(order.orderedDobEncrypted) : null,
+  };
+  const account: PersonIdentity = {
+    firstName: profile.firstName,
+    lastName: profile.lastName,
+    dob: safeDecrypt(profile.dobEncrypted),
+  };
+
+  const identity = verifyOrderIdentity({ lab: labIdentity, orderSnapshot, account });
+
+  if (identity.verdict === 'DISAGREES') {
+    return hold(
+      'IDENTITY_MISMATCH',
+      `Order ${orderNumber} matches an order we placed, but the identity does not agree with the patient on it: ${identity.disagreements.join('; ')}. It has NOT been attached to anyone.`,
+    );
+  }
+  if (identity.verdict === 'UNCORROBORATED') {
+    return hold('UNCORROBORATED_IDENTITY', `Order ${orderNumber}: ${identity.summary}`);
   }
 
   // Every reportable analyte was voided. Randox move the order to status 5
@@ -405,6 +483,19 @@ export async function ingestOrderResults(ref: OrderRef): Promise<IngestResult> {
   await storeArtefacts(ref, outcome.reportId, detail);
   await prisma.randoxOrder.update({ where: { id: order.id }, data: { reportId: outcome.reportId } });
 
+  // The link, and what it was made on. Written after the report exists so a
+  // failed materialise can never leave a link recorded against nothing.
+  await recordAutoLink({
+    sourceKey: SOURCE_KEY,
+    externalId: orderNumber,
+    parsed,
+    patientId: order.patientId,
+    reportId: outcome.reportId,
+    markerCount: outcome.markerCount,
+    identity,
+    claimed: labIdentity.dob || labIdentity.lastName ? labIdentity : orderSnapshot,
+  });
+
   const isPartial = pendingCount > 0;
   const parts = [`${outcome.markerCount} marker(s) ingested`];
   if (outcome.excludedCount > 0) parts.push(`${outcome.excludedCount} could not be reported`);
@@ -412,6 +503,16 @@ export async function ingestOrderResults(ref: OrderRef): Promise<IngestResult> {
   if (outcome.disagreementCount > 0) {
     parts.push(`${outcome.disagreementCount} where Randox's own high/low flag disagrees with the range they sent`);
   }
+  // Where it stopped, and why. A report that advanced on its own to
+  // admin-verified needs no admin at all before the clinician sees it; one
+  // that did not has to say what an admin is being asked to look at, or the
+  // "automatic up to release" promise quietly becomes "sometimes automatic,
+  // and you find out by noticing".
+  parts.push(
+    outcome.verified
+      ? 'parse clean, advanced to admin-verified and waiting on clinician review'
+      : `held at parsed for an admin: ${outcome.holdReasons.join('; ')}`,
+  );
   const message = `Order ${orderNumber}: ${parts.join(', ')}.`;
 
   await logAttempt({
@@ -491,6 +592,20 @@ async function storeArtefacts(ref: OrderRef, reportId: string, detail: GetOrderR
     }
   } catch (e) {
     console.error(`[randox] failed to store result PDF for order ${ref.orderNumber}:`, e);
+  }
+}
+
+/**
+ * A stored date of birth that cannot be decrypted is not a date of birth.
+ * Returning null routes the result to the queue as uncorroborated, which is
+ * the right outcome — the alternative is throwing inside a poll sweep and
+ * losing the order to a retry loop over a fault no retry can fix.
+ */
+function safeDecrypt(value: string): string | null {
+  try {
+    return decryptField(value);
+  } catch {
+    return null;
   }
 }
 

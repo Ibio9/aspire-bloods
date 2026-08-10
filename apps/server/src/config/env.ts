@@ -146,6 +146,27 @@ const envSchema = z.object({
   // How long cached Randox reference data is trusted before being refetched.
   RANDOX_REFERENCE_DATA_TTL_MINUTES: z.coerce.number().default(720),
 
+  // Which HTTP verb the seven reference-data endpoints take.
+  //
+  // The checked-in OpenAPI document declares them GET and declares every
+  // /Order/* endpoint POST (including the Get* ones). Randox's own
+  // integration guidance has been given verbally as "everything is POST".
+  // Rather than bet on either, 'auto' sends the verb the spec declares and,
+  // if the gateway answers 404/405/501 — the three ways an API says "not
+  // that verb" — repeats the call as POST with an empty body and remembers
+  // which one worked for the life of the process. 'get' and 'post' pin it
+  // explicitly once we know, with no code change.
+  RANDOX_REFERENCE_DATA_METHOD: z.enum(['auto', 'get', 'post']).default('auto'),
+
+  // Client-side pacing on outbound Randox calls, per API. A poll sweep makes
+  // two or three calls per order in a tight loop; spacing them is what keeps
+  // us under the gateway's limiter rather than discovering it. 0 disables.
+  RANDOX_MAX_REQUESTS_PER_MINUTE: z.coerce.number().default(60),
+  // Transient failures only (429, 5xx, timeout, dropped connection). Never
+  // applied to CreatePendingOrder — a retried create is a duplicate order.
+  RANDOX_RETRY_MAX_ATTEMPTS: z.coerce.number().min(1).max(10).default(3),
+  RANDOX_RETRY_BASE_DELAY_MS: z.coerce.number().default(500),
+
   // Which sample collection routes we may offer. Empty by default because
   // we have not confirmed what we're contractually entitled to; an order
   // requesting a method that isn't listed here is refused before it's sent.

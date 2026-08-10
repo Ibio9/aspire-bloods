@@ -42,6 +42,15 @@ export interface ReportDetail {
   originalFilename?: string | null;
   categories?: SummaryCategory[];
   markers: MarkerCard[];
+  /**
+   * Height, weight, the two circumferences, pulse and both blood pressures,
+   * as recorded at the clinic visit. Values with units and nothing else — no
+   * status, no reference range, no optimal band, because none of them has
+   * one and inventing one would be a diagnosis. Absent on every report that
+   * carries none (manual entry and PDF upload never do).
+   */
+  personalMeasurements?: { key: string; name: string; value: number; unit: string }[];
+  personalMeasurementsNote?: string | null;
 }
 
 export interface ReportDetailData {

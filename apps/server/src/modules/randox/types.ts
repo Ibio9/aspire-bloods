@@ -250,6 +250,27 @@ export interface GetOrderResultDetailResponse {
    * guessed sex.
    */
   patientBiologicalSex?: string | number | null;
+
+  /**
+   * IDENTITY, WHEN RANDOX SUPPLY IT — and the spec's own response example
+   * does not.
+   *
+   * These three are read defensively under every plausible spelling
+   * (patientFirstName / firstName / FirstName, and so on) precisely because
+   * the schema is silent about them. They exist for one job: corroborating
+   * an automatic link. A result is attached to an account on the order
+   * reference we created it under, and if Randox echo a name and a date of
+   * birth back they must agree with the account on that order or the result
+   * goes to the exception queue instead.
+   *
+   * Absence is a first-class outcome, never an error and never treated as
+   * agreement — see modules/randox/identityCheck.ts. The moment Randox start
+   * returning them, they are checked, with no code change.
+   */
+  patientFirstName?: string | null;
+  patientLastName?: string | null;
+  /** Date only in the CreatePendingOrder request; assumed the same here. */
+  patientDateOfBirth?: string | null;
 }
 
 /**

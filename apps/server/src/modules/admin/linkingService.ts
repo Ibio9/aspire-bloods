@@ -1,13 +1,22 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../db/client.js';
 import { decryptField } from '../../lib/crypto.js';
 import { recordAuditLog } from '../../lib/auditLog.js';
 import { AdminError } from './service.js';
 import { materialiseParsedReport, MaterialiseError } from '../reports/materialiseReport.js';
+import {
+  assessMatch,
+  candidateRank,
+  normaliseDob,
+  type MatchAgreement,
+  type ClaimedIdentity,
+  type AccountIdentity,
+} from '../../lib/identityMatch.js';
 import type { ParsedReport } from '../result-sources/ResultSourceAdapter.js';
 
 /**
  * ---------------------------------------------------------------------------
- * Attaching results to people.
+ * Attaching results to people — the exception path.
  * ---------------------------------------------------------------------------
  *
  * Registration is open and deliberately unguarded — an account with nothing
@@ -18,16 +27,29 @@ import type { ParsedReport } from '../result-sources/ResultSourceAdapter.js';
  * Wrong-patient results is the worst failure this system has. Not "a
  * confusing failure" — the worst one. Someone reads a stranger's abnormal
  * ferritin as their own, or misses their own because it was filed under
- * somebody else. So the rules here are stricter than they would be almost
- * anywhere else in the codebase, and they're enforced server-side rather
- * than by the shape of the admin UI:
+ * somebody else.
  *
- *   1. Nothing is ever matched automatically. There is no code path in this
+ * WHAT THIS FILE IS NOT. It is no longer the ordinary route. A result that
+ * arrives against an order we placed ourselves is attached to that order's
+ * patient automatically, on the order reference, corroborated by identity —
+ * see modules/randox/ingestionService.ts and identityCheck.ts. That is not a
+ * relaxation of the rule below; it is a stronger fact than anything an admin
+ * reading two records could establish, because the reference was written by
+ * us at the moment we created the order.
+ *
+ * What is left here is everything that did NOT corroborate: an order number
+ * we have no record of, an identity that disagreed, an account that does not
+ * exist yet, a link somebody reversed. That queue should be near-empty. When
+ * something is in it, a person decides, under these rules, enforced
+ * server-side rather than by the shape of the admin UI:
+ *
+ *   1. Nothing here is matched automatically. There is no code path in this
  *      file that links anything without an admin having said so.
  *   2. A name is never sufficient. Names collide, families share them, and
  *      transcription mangles them. Date of birth must agree as well, and if
  *      the lab supplied no date of birth the link is refused outright rather
- *      than falling back to the weaker signal.
+ *      than falling back to the weaker signal. (lib/identityMatch.ts, shared
+ *      with the automatic path so the two can never drift apart.)
  *   3. The admin restates the date of birth they matched on, and the server
  *      checks that against its own copy. Ticking "confirm" next to a
  *      pre-filled value is not the same act as reading two records and
@@ -36,104 +58,19 @@ import type { ParsedReport } from '../result-sources/ResultSourceAdapter.js';
  *      the entry — so a later review can see not just that a link was made
  *      but on what basis.
  *
- * Unlink exists because "we got it wrong" has to be recoverable. It voids the
- * report (which removes it from every patient-facing query without deleting
- * anything) and returns the result to the queue, where it can be linked to
- * the right person.
+ * Unlink exists because "we got it wrong" has to be recoverable, and it
+ * covers automatic links as well as manual ones — they write the same row.
+ * It voids the report (which removes it from every patient-facing query
+ * without deleting anything), returns the result to the queue, and blocks it
+ * from ever re-linking itself on the next poll.
  */
 
-/**
- * Comparable form of a name: case, accents, punctuation and spacing removed.
- * NFD splits accented letters into base + combining mark, and the final
- * [^a-z] filter then drops the marks along with hyphens, apostrophes and
- * spaces — so "O'Brien", "o brien" and "Ó Brién" all compare equal, while
- * two genuinely different names still don't.
- */
-function normaliseName(value: string | null | undefined): string {
-  if (!value) return '';
-  return value.normalize('NFD').toLowerCase().replace(/[^a-z]/g, '');
-}
-
-/**
- * Comparable form of a phone number. The same UK mobile is written
- * "07700 900123" by a patient and "+44 7700 900123" by a lab, so comparing
- * digit strings would call those two different numbers. Reducing to the last
- * nine digits makes trunk-zero and country-code differences disappear.
- *
- * Nine is enough to distinguish real numbers and short enough to survive any
- * prefix; anything shorter is compared whole. This is only ever a supporting
- * signal — a matching phone number never makes a link permissible on its own
- * (see assessMatch), so a false positive here can't reach a patient's record.
- */
-const PHONE_SIGNIFICANT_DIGITS = 9;
-
-function normalisePhone(value: string | null | undefined): string {
-  if (!value) return '';
-  const digits = value.replace(/\D/g, '');
-  return digits.length > PHONE_SIGNIFICANT_DIGITS ? digits.slice(-PHONE_SIGNIFICANT_DIGITS) : digits;
-}
-
-/** ISO date, day precision. Anything unparseable compares equal to nothing. */
-function normaliseDob(value: string | null | undefined): string {
-  if (!value) return '';
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return '';
-  return parsed.toISOString().slice(0, 10);
-}
-
-export interface MatchAgreement {
-  dob: boolean;
-  firstName: boolean;
-  lastName: boolean;
-  contactNumber: boolean;
-  /** True only when the rules above are satisfied. Never true on names alone. */
-  linkable: boolean;
-  /** Why not, in words an admin can act on. Null when linkable. */
-  blockedReason: string | null;
-}
-
-interface ClaimedIdentity {
-  firstName: string | null;
-  lastName: string | null;
-  dob: string | null;
-  contactNumber: string | null;
-}
-
-interface AccountIdentity {
-  firstName: string | null;
-  lastName: string | null;
-  dob: string | null;
-  contactNumber: string | null;
-}
-
-/**
- * The whole safety rule, in one place, used both to rank candidates for the
- * admin and to accept or refuse the link itself. Ranking and enforcing must
- * never drift apart — a suggestion the UI shows first that the server would
- * then refuse is worse than no suggestion at all.
- */
-export function assessMatch(claimed: ClaimedIdentity, account: AccountIdentity): MatchAgreement {
-  const claimedDob = normaliseDob(claimed.dob);
-  const accountDob = normaliseDob(account.dob);
-
-  const dob = claimedDob !== '' && claimedDob === accountDob;
-  const firstName = normaliseName(claimed.firstName) !== '' && normaliseName(claimed.firstName) === normaliseName(account.firstName);
-  const lastName = normaliseName(claimed.lastName) !== '' && normaliseName(claimed.lastName) === normaliseName(account.lastName);
-  const contactNumber =
-    normalisePhone(claimed.contactNumber) !== '' && normalisePhone(claimed.contactNumber) === normalisePhone(account.contactNumber);
-
-  let blockedReason: string | null = null;
-  if (claimedDob === '') {
-    blockedReason =
-      'The laboratory supplied no date of birth with this result, so there is nothing to check the account against. Ask them to confirm it before linking.';
-  } else if (!dob) {
-    blockedReason = 'The date of birth on this result does not match the date of birth on this account.';
-  } else if (!firstName && !lastName) {
-    blockedReason = 'The name on this result does not match the name on this account.';
-  }
-
-  return { dob, firstName, lastName, contactNumber, linkable: blockedReason === null, blockedReason };
-}
+// Re-exported rather than redefined. The rule itself lives in
+// lib/identityMatch.ts because the automatic path applies the identical one;
+// callers here (the admin router, the queue's own candidate ranking, its
+// tests) keep importing it from the module whose subject it is.
+export { assessMatch } from '../../lib/identityMatch.js';
+export type { MatchAgreement } from '../../lib/identityMatch.js';
 
 function claimedFrom(row: {
   claimedFirstName: string | null;
@@ -205,6 +142,14 @@ export interface UnmatchedResultView {
   sampleDate: Date | null;
   markerCount: number;
   createdAt: Date;
+  /**
+   * What stopped this from linking itself. The queue is the exception path
+   * now, so a row without a reason is a row an admin has to reverse-engineer
+   * — which is how a five-minute decision becomes a twenty-minute one and
+   * then gets deferred.
+   */
+  reason: string | null;
+  reasonDetail: string | null;
   claimed: ClaimedIdentity;
   /**
    * Accounts worth looking at, best first — and every one of them carries the
@@ -221,10 +166,6 @@ export interface UnmatchedResultView {
     contactNumber: string | null;
     agreement: MatchAgreement;
   }[];
-}
-
-function candidateRank(a: MatchAgreement): number {
-  return (a.dob ? 8 : 0) + (a.lastName ? 4 : 0) + (a.firstName ? 2 : 0) + (a.contactNumber ? 1 : 0);
 }
 
 export async function listUnmatchedResults(): Promise<UnmatchedResultView[]> {
@@ -256,6 +197,8 @@ export async function listUnmatchedResults(): Promise<UnmatchedResultView[]> {
       sampleDate: row.sampleDate,
       markerCount: row.markerCount,
       createdAt: row.createdAt,
+      reason: row.reason,
+      reasonDetail: row.reasonDetail,
       claimed,
       candidates,
     };
@@ -267,6 +210,10 @@ export async function listUnmatchedResults(): Promise<UnmatchedResultView[]> {
  * report. A link that turns out to be wrong is usually noticed within
  * minutes of making it, and the way back has to be at least as easy as the
  * way in — otherwise the pressure is to leave a wrong link in place.
+ *
+ * Automatic links appear here too, and that is the point: they are the ones
+ * nobody watched being made, so they are the ones most worth being able to
+ * see and undo. Each carries the evidence it was made on.
  */
 export async function listRecentLinks(limit = 20) {
   const rows = await prisma.unmatchedResult.findMany({
@@ -293,6 +240,8 @@ export async function listRecentLinks(limit = 20) {
       linkedAt: r.linkedAt,
       reportId: r.linkedReportId,
       patientId: r.linkedPatientId,
+      linkMode: r.linkMode,
+      linkEvidence: r.linkEvidence,
       patientName: patient?.patientProfile
         ? `${patient.patientProfile.firstName} ${patient.patientProfile.lastName}`
         : (patient?.email ?? null),
@@ -391,10 +340,25 @@ export async function linkResultToPatient(
     where: { id: row.id },
     data: {
       status: 'LINKED',
+      reason: null,
+      reasonDetail: null,
       linkedReportId: outcome.reportId,
       linkedPatientId: patient.id,
       linkedById: actorId,
       linkedAt: new Date(),
+      linkMode: 'MANUAL',
+      // The same evidence shape the automatic path writes, so one reader
+      // answers "on what basis?" for either kind of link.
+      linkEvidence: {
+        matchedOn: 'admin_decision',
+        agreedOn: {
+          dob: agreement.dob,
+          firstName: agreement.firstName,
+          lastName: agreement.lastName,
+          contactNumber: agreement.contactNumber,
+        },
+        confirmedByActorId: actorId,
+      },
     },
   });
 
@@ -432,6 +396,16 @@ export async function linkResultToPatient(
  * deletes anywhere, and the void carries the reason and the person — and puts
  * the result back in the queue so it can go to the right account.
  *
+ * Works on automatic links exactly as on manual ones, because both wrote the
+ * same row. An automatic link is the one nobody watched being made, so being
+ * able to undo it is not a nicety.
+ *
+ * It also sets autoLinkBlocked, and that flag is the difference between an
+ * undo and a fight: without it the next hourly poll re-ingests the same order,
+ * finds the same reference and the same corroborating identity, and links it
+ * straight back to the account a person just took it off. A decision a human
+ * reversed is not one the system makes again.
+ *
  * A released report can be unlinked. It has to be: discovering after release
  * that results went to the wrong person is exactly when this matters most,
  * and voiding is already how this system withdraws a released report.
@@ -445,6 +419,7 @@ export async function unlinkResult(unmatchedResultId: string, reason: string, ac
 
   const reportId = row.linkedReportId;
   const patientId = row.linkedPatientId;
+  const wasAutomatic = row.linkMode === 'AUTOMATIC';
 
   await prisma.$transaction(async (tx) => {
     const report = await tx.report.findUnique({ where: { id: reportId } });
@@ -459,14 +434,29 @@ export async function unlinkResult(unmatchedResultId: string, reason: string, ac
       });
     }
 
+    // The Randox order loses its report too, so nothing downstream still
+    // believes this order produced the report a person just took away.
+    await tx.randoxOrder.updateMany({ where: { reportId }, data: { reportId: null } });
+
     await tx.unmatchedResult.update({
       where: { id: row.id },
       data: {
         status: 'PENDING',
+        reason: 'PREVIOUSLY_UNLINKED',
+        reasonDetail: `Unlinked by an admin: ${reason}. It will not be linked automatically again — decide where it belongs.`,
         linkedReportId: null,
         linkedPatientId: null,
         linkedById: null,
         linkedAt: null,
+        linkMode: null,
+        // DbNull, not null: this clears the stored JSON. `null` on a Json
+        // column is Prisma's "leave it alone", so the evidence for a link
+        // that no longer exists would have stayed on the row.
+        linkEvidence: Prisma.DbNull,
+        unlinkedAt: new Date(),
+        unlinkedById: actorId,
+        unlinkReason: reason,
+        autoLinkBlocked: true,
       },
     });
   });
@@ -477,7 +467,7 @@ export async function unlinkResult(unmatchedResultId: string, reason: string, ac
     targetType: 'User',
     targetId: patientId,
     ipAddress: ip,
-    metadata: { unmatchedResultId: row.id, reportId, reason },
+    metadata: { unmatchedResultId: row.id, reportId, reason, wasAutomatic },
   });
 
   return { reportId };

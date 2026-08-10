@@ -1,5 +1,6 @@
 import { RandoxHttpClient } from '../http/RandoxHttpClient.js';
 import { nexusConnection } from '../config.js';
+import { env } from '../../../config/env.js';
 import type { NexusLabClient } from './types.js';
 import { asObject, pickArray, pickBoolean, pickNumber, pickString, requireNumber, requireString, toUtcIso, fromEuropeLondon } from './parse.js';
 import type {
@@ -32,14 +33,33 @@ import type {
  *  2. The order-creating endpoints return the string order reference as
  *     `externalNumber`, not `orderNumber`. Reading `orderNumber` off a
  *     CreatePendingOrder response gets undefined.
+ *
+ * The reference-data endpoints are the one place the documentation and the
+ * verbal guidance disagree (spec says GET, Randox say "everything is POST"),
+ * so the verb is configuration with an auto-detecting default — see
+ * referenceRequest() below and RANDOX_REFERENCE_DATA_METHOD.
  */
 export class LiveNexusLabClient implements NexusLabClient {
   private readonly http = new RandoxHttpClient(nexusConnection());
 
+  /**
+   * Which verb each reference path answered to, once we know. Per process,
+   * not persisted: it costs one extra call after a restart and cannot go
+   * stale across a Randox-side change.
+   */
+  private readonly referenceVerb = new Map<string, 'GET' | 'POST'>();
+
   // --- Orders (POST) -------------------------------------------------------
 
   async createPendingOrder(request: CreatePendingOrderRequest): Promise<CreateOrderResponse> {
-    const body = await this.http.request<unknown>('Order/CreatePendingOrder', { method: 'POST', body: request });
+    const body = await this.http.request<unknown>('Order/CreatePendingOrder', {
+      method: 'POST',
+      body: request,
+      // The one call in the integration that must never be repeated
+      // automatically: a 502 says nothing about whether the order reached
+      // the laboratory, and a retry would bleed and bill a patient twice.
+      retryable: false,
+    });
     return this.readCreateResponse(body, 'CreatePendingOrder');
   }
 
@@ -119,6 +139,31 @@ export class LiveNexusLabClient implements NexusLabClient {
         'PatientOnMedicationforHypertension',
       ),
       patientEthnicity: pickString(root, 'patientEthnicity', 'PatientEthnicity'),
+      // Read as a string OR a number, because Randox type biological sex both
+      // ways across their own endpoints. Normalised (and refused if
+      // unrecognised) in ingestionService.ts — never guessed, because it
+      // selects which cohort's optimal band a patient is shown.
+      patientBiologicalSex:
+        pickString(root, 'patientBiologicalSex', 'PatientBiologicalSex', 'biologicalSex', 'BiologicalSex') ??
+        pickNumber(root, 'patientBiologicalSexId', 'PatientBiologicalSexId', 'biologicalSexId', 'BiologicalSexId'),
+
+      // Identity, when Randox echo it back on the result. Absent from the
+      // spec's own response example, which is why every plausible spelling
+      // is tried and absence is a first-class outcome rather than an error:
+      // this is the corroborating check on an automatic link, and a field we
+      // guessed the name of must degrade to "not supplied", never to "agrees".
+      // See modules/randox/identityCheck.ts.
+      patientFirstName: pickString(root, 'patientFirstName', 'PatientFirstName', 'firstName', 'FirstName'),
+      patientLastName: pickString(root, 'patientLastName', 'PatientLastName', 'lastName', 'LastName'),
+      patientDateOfBirth: pickString(
+        root,
+        'patientDateOfBirth',
+        'PatientDateOfBirth',
+        'dateOfBirth',
+        'DateOfBirth',
+        'patientDob',
+        'PatientDob',
+      ),
     };
   }
 
@@ -136,10 +181,48 @@ export class LiveNexusLabClient implements NexusLabClient {
     return value && value.trim() !== '' ? value : null;
   }
 
-  // --- Reference data (GET) ------------------------------------------------
+  // --- Reference data ------------------------------------------------------
+
+  /**
+   * A reference-data call, on whichever verb this API actually answers.
+   *
+   * The spec declares these seven GET. Randox's verbal guidance is that
+   * every endpoint is POST. Both cannot be true of the same gateway, and
+   * being wrong is not a subtle failure — it is seven endpoints returning
+   * 404 or 405, which presents as "the catalogue refresh does nothing".
+   *
+   * So under the default 'auto' the declared verb is tried first and a
+   * 404/405/501 — the three ways an HTTP API says "not with that verb" —
+   * causes exactly one repeat as POST with an empty JSON body. Whichever
+   * answers is remembered for the process. Any other status is a real error
+   * and is thrown as one; this fallback must not turn a 500 into a second
+   * request. Pinning RANDOX_REFERENCE_DATA_METHOD to get or post skips the
+   * probe entirely once we know which it is.
+   */
+  private async referenceRequest<T>(path: string): Promise<T> {
+    const configured = env.RANDOX_REFERENCE_DATA_METHOD;
+    if (configured === 'get') return this.http.request<T>(path, { method: 'GET' });
+    if (configured === 'post') return this.http.request<T>(path, { method: 'POST', body: {} });
+
+    const known = this.referenceVerb.get(path);
+    if (known === 'POST') return this.http.request<T>(path, { method: 'POST', body: {} });
+    if (known === 'GET') return this.http.request<T>(path, { method: 'GET' });
+
+    const { res, text } = await this.http.requestRaw(path, { method: 'GET' });
+    if (res.status === 404 || res.status === 405 || res.status === 501) {
+      const viaPost = await this.http.request<T>(path, { method: 'POST', body: {} });
+      this.referenceVerb.set(path, 'POST');
+      console.log(`[randox] ${path} does not accept GET (HTTP ${res.status}); using POST for the rest of this process.`);
+      return viaPost;
+    }
+    this.referenceVerb.set(path, 'GET');
+    // Reuses the client's own body handling so a non-JSON or error body
+    // fails identically whichever branch produced it.
+    return this.http.readReferenceBody<T>(path, res, text);
+  }
 
   async getPanels(): Promise<RandoxPanel[]> {
-    const body = await this.http.request<unknown>('TestPanel/GetPanels');
+    const body = await this.referenceRequest<unknown>('TestPanel/GetPanels');
     return pickArray(body, 'panels', 'Panels').map((raw) => ({
       ...mapTestItem(raw),
       panelType: pickString(raw, 'panelType', 'PanelType'),
@@ -154,28 +237,28 @@ export class LiveNexusLabClient implements NexusLabClient {
   }
 
   async getTests(): Promise<RandoxTestItem[]> {
-    const body = await this.http.request<unknown>('TestItem/GetTests');
+    const body = await this.referenceRequest<unknown>('TestItem/GetTests');
     return pickArray(body, 'tests', 'Tests', 'testItems').map(mapTestItem);
   }
 
   async getBiologicalSexes(): Promise<RandoxLookupItem[]> {
-    return mapLookups(await this.http.request<unknown>('BiologicalSex/GetBiologicalSex'));
+    return mapLookups(await this.referenceRequest<unknown>('BiologicalSex/GetBiologicalSex'));
   }
 
   async getEthnicities(): Promise<RandoxLookupItem[]> {
-    return mapLookups(await this.http.request<unknown>('Ethnicity/GetEthnicity'));
+    return mapLookups(await this.referenceRequest<unknown>('Ethnicity/GetEthnicity'));
   }
 
   async getTestingReasons(): Promise<RandoxLookupItem[]> {
-    return mapLookups(await this.http.request<unknown>('TestReason/GetTestingReasons'));
+    return mapLookups(await this.referenceRequest<unknown>('TestReason/GetTestingReasons'));
   }
 
   async getCancellationReasons(): Promise<RandoxLookupItem[]> {
-    return mapLookups(await this.http.request<unknown>('CancellationReason/GetCancellationReasons'));
+    return mapLookups(await this.referenceRequest<unknown>('CancellationReason/GetCancellationReasons'));
   }
 
   async getMyClinicDetails(): Promise<RandoxClinicDetails> {
-    const body = await this.http.request<unknown>('Clinic/GetMyClinicDetails');
+    const body = await this.referenceRequest<unknown>('Clinic/GetMyClinicDetails');
     return {
       ...mapClinicLocation(body),
       clinicTestLocations: pickArray(body, 'clinicTestLocations', 'ClinicTestLocations').map(mapClinicLocation),

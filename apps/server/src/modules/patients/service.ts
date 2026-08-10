@@ -5,6 +5,7 @@ import { recordAuditLog } from '../../lib/auditLog.js';
 import { sourceLabel } from '../../lib/sourceLabel.js';
 import { convertToDisplayUnit, hasKnownConversion } from '../../lib/unitConversion.js';
 import { optimalContextForPatient, optimalFor } from '../../lib/optimalRange.js';
+import { personalMeasurementsOf, PERSONAL_MEASUREMENTS_CATEGORY_KEY } from '../../lib/personalMeasurements.js';
 import type { ConsentType } from '@aspire-bloods/shared';
 import { formatReportTitle, hasResultValue } from '@aspire-bloods/shared';
 
@@ -88,6 +89,11 @@ export async function getReleasedReportForPatient(patientId: string, reportId: s
       panel: true,
       source: true,
       originalPdfFile: { select: { originalFilename: true } },
+      // Height, weight, the two circumferences, pulse and both blood
+      // pressures, as recorded at the clinic visit. Carried as values with
+      // units under their own health area — never as results with a range or
+      // a status. See lib/personalMeasurements.ts for why.
+      measurements: true,
       results: {
         // Narrowed to what is actually read. The explanation table holds four
         // long prose fields and only `whatItIs` reaches this payload (as the
@@ -137,6 +143,17 @@ export async function getReleasedReportForPatient(patientId: string, reportId: s
   // and remains the sole authority for every marker's status.
   const optimalCtx = await optimalContextForPatient(patientId);
 
+  // The health area's own framing ("Recorded at your clinic visit, not
+  // measured from your blood sample"), read from the catalogue rather than
+  // written into the portal — one place says what this section is.
+  const measurementsCategory =
+    personalMeasurementsOf(report.measurements).length > 0
+      ? await prisma.markerCategory.findUnique({
+          where: { key: PERSONAL_MEASUREMENTS_CATEGORY_KEY },
+          select: { note: true },
+        })
+      : null;
+
   // Every health area this report actually touches, in the catalogue's own
   // order. Derived from the results rather than from the panel: a report can
   // be a handful of individual markers with no panel behind it at all, and a
@@ -173,6 +190,11 @@ export async function getReleasedReportForPatient(patientId: string, reportId: s
     // is only carried for the repeat-programme note on the page.
     repeatIntervalMonths: report.panel?.repeatIntervalMonths ?? null,
     categories: [...categoryById.values()].sort((a, b) => a.sortOrder - b.sortOrder),
+    // Personal Health Measurements, as its own section rather than as rows in
+    // the grid. Empty for every report that carries none — manual entry and
+    // PDF upload never do — and an empty array renders nothing at all.
+    personalMeasurements: personalMeasurementsOf(report.measurements),
+    personalMeasurementsNote: measurementsCategory?.note ?? null,
     // A result with nothing in it renders nowhere, so it is not sent. This is
     // the existing product rule ("a marker with no result renders nowhere —
     // never a placeholder, never an empty row") applied at the only layer that

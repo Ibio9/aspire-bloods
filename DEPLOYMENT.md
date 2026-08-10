@@ -159,6 +159,72 @@ These have working defaults and only need setting in Railway if the practice wan
 
 **Before it goes live on the main site**, read the note in `apps/web/src/lib/booking/README.md` about `findAppointmentForReport`: the report → appointment link needs Randox to carry the booking reference on the result payload, and the current implementation is a browser-local mock.
 
+## Randox Nexus — going live
+
+The integration is finished and runs end to end on the mock transport. Nothing is hardcoded: every value below is an environment variable read at boot, and the sandbox → production move is a set of Railway variables and a restart, with no code change and no release.
+
+**The state it is in now.** `RANDOX_ENABLED=false` in production. With it false, nothing Randox-related runs at all — no polling job, no ordering endpoints, no config validation. Locally and on staging it runs with `RANDOX_ENABLED=true` and `RANDOX_TRANSPORT=mock`, which exercises the whole chain (create → poll → results → ingest → link → a report waiting for a clinician) against in-process fixtures.
+
+**Two guards you will meet, and neither is to be worked around.** Booting production with `RANDOX_TRANSPORT=mock` and `RANDOX_ENABLED=true` is refused — the mock returns fixture results and they would be ingested as though they were a real patient's. Booting with `RANDOX_TRANSPORT=live` while `RANDOX_CODE_MAP_FILE` or `RANDOX_ID_MAP_FILE` still points at a checked-in `.example.json` is also refused: those files contain invented codes, and running live against them would classify every genuine Randox code as unrecognised and therefore as a void — which presents as "no results ever arrive" rather than as a configuration error. Both refusals name the variable.
+
+### What to do at go-live, in order
+
+Everything in steps 1–9 is a Railway variable on the **API service** unless stated. Set them all, then restart once.
+
+1. **Get the two subscription keys** from the Randox developer portal — one per API, they are not the same key. Set `RANDOX_NEXUS_SUBSCRIPTION_KEY` and `RANDOX_BOOKING_SUBSCRIPTION_KEY`. Example shape: `0f3c9a7e5b1d4e8fa2c6b0d9e4f71a35`.
+2. **Get the ROPC service account** Randox issue for the password grant and set `RANDOX_USERNAME` and `RANDOX_PASSWORD` (e.g. `aspire-api@randoxclinicbooking.onmicrosoft.com`). Both APIs share one pair by default; `RANDOX_NEXUS_USERNAME` / `RANDOX_NEXUS_PASSWORD` and the `RANDOX_BOOKING_*` equivalents exist only if production issues you separate accounts.
+3. **Point at production rather than the sandbox.** The defaults are the `stes-` sandbox hosts. Set `RANDOX_NEXUS_BASE_URL` and `RANDOX_BOOKING_BASE_URL` to the production roots Randox give you. If production uses different B2C applications, also set `RANDOX_NEXUS_CLIENT_ID`, `RANDOX_BOOKING_CLIENT_ID`, `RANDOX_NEXUS_SCOPE`, `RANDOX_BOOKING_SCOPE` and `RANDOX_B2C_TOKEN_URL`; if not, leave all six on their documented defaults.
+4. **Read your own clinic id** from `GET /Clinic/GetMyClinicDetails` (it returns an integer, e.g. `146`) and set `RANDOX_CLINIC_ID=146`. If the clinic has more than one test location, that call also returns `clinicTestLocations` — set `RANDOX_TEST_CLINIC_LOCATION_ID` to the one you order against. A single-site clinic leaves it blank and it falls back to the clinic id.
+5. **Read the testing and cancellation reason ids** from `GET /TestReason/GetTestingReasons` and `GET /CancellationReason/GetCancellationReasons`, and set `RANDOX_DEFAULT_TEST_REASON_ID` (e.g. `1`) and `RANDOX_DEFAULT_CANCELLATION_REASON_ID` (e.g. `1`). Both are required — `CreatePendingOrder` rejects an empty `TestReasons`, and `CancelOrder` takes a reason id rather than free text.
+6. **Fill in the void/caveat code map.** Ask Randox for their result-code list, copy `config/randox/result-codes.example.json` to `config/randox/result-codes.json`, fill it in, and set `RANDOX_CODE_MAP_FILE=./config/randox/result-codes.json`. Each entry is `{"kind": "VOID" | "CAVEAT", "description": "...", "patientSafeNote": "..."}`; leave `patientSafeNote` empty until you know what a caveat means to a patient. **A code that is not in this file voids the result**, deliberately — reporting a value whose caveat nobody can read is the worse failure. Codes Randox send that are not in the map are collected and shown on the **Ingestion log** page, so this list can be completed from real traffic.
+7. **Fill in the panel/test id map.** Copy `config/randox/id-map.example.json` to `config/randox/id-map.json`, set `RANDOX_ID_MAP_FILE=./config/randox/id-map.json`, and put the agreed panel and test ids in it. Alternatively — and preferably — leave the file minimal and do this from the console instead: **Panels → Randox panel mapping → Refresh from Randox**, then pick our panel against each of theirs. That mapping is stored in the database, survives every refresh, records who set it, and takes precedence over the file. A panel with nothing mapped against it cannot be ordered; ordering refuses rather than sending a partial order.
+8. **Say which collection routes you are contractually entitled to offer**: `RANDOX_COLLECTION_METHODS=IN_CLINIC,HOME_KIT,MOBILE_PHLEBOTOMY` — or whichever subset Randox have agreed. It is empty by default and an order requesting an unlisted method is refused before it is sent. Live boot with it empty is refused, because no order could be placed by any route.
+9. **Switch the transport**: `RANDOX_TRANSPORT=live`, then `RANDOX_ENABLED=true`. Set them in that order, in one save if the dashboard allows it — `RANDOX_ENABLED=true` with `RANDOX_TRANSPORT=mock` is refused in production, so a partial save will fail the boot rather than ingest fixtures.
+10. **Restart the service and read the boot log.** A missing or malformed setting fails the boot and names every one of them at once, with a sentence on what each is for. This is intentional: finding six missing credentials one redeploy at a time is its own kind of outage.
+11. **Verify, in the console.** Open **Panels → Randox panel mapping** and press *Refresh from Randox* — that exercises all seven reference endpoints against the live gateway and will fail loudly if the key or the scope is wrong. Then place one real order and watch the **Ingestion log**. Polling is hourly per order, staggered by creation time, so the first status check is up to an hour after the order.
+
+### The variables, in full
+
+| Variable | Example | Notes |
+|---|---|---|
+| `RANDOX_ENABLED` | `true` | Master switch. False means none of this runs. |
+| `RANDOX_TRANSPORT` | `live` | `mock` runs against fixtures; refused in production with `RANDOX_ENABLED=true`. |
+| `RANDOX_NEXUS_BASE_URL` | `https://gpto-appapi-001-apim.azure-api.net/api/` | Defaults to the `stes-` sandbox. |
+| `RANDOX_BOOKING_BASE_URL` | `https://cb-platform-apim.azure-api.net/booking-platform-api/` | Defaults to the `stes-` sandbox. |
+| `RANDOX_NEXUS_SUBSCRIPTION_KEY` | `0f3c9a7e…` | **Not issued yet.** Required for live. |
+| `RANDOX_BOOKING_SUBSCRIPTION_KEY` | `7b2e4d1c…` | **Not issued yet.** Different key from the above. |
+| `RANDOX_USERNAME` / `RANDOX_PASSWORD` | `aspire-api@…onmicrosoft.com` | ROPC service account. Per-API overrides exist and are usually unnecessary. |
+| `RANDOX_NEXUS_CLIENT_ID` | `791f0001-20d7-4771-b4ab-359b4b9efd21` | Documented, not secret. Defaulted. |
+| `RANDOX_BOOKING_CLIENT_ID` | `0b0399a4-d61f-43fc-a0d0-3311f60cdcb1` | Documented, not secret. Defaulted. |
+| `RANDOX_NEXUS_SCOPE` / `RANDOX_BOOKING_SCOPE` | `https://randoxclinicbooking.onmicrosoft.com/…` | From the STES auth documents. Defaulted. |
+| `RANDOX_B2C_TOKEN_URL` | `https://randoxclinicbooking.b2clogin.com/…/oauth2/v2.0/token` | One shared endpoint; per-API overrides exist. |
+| `RANDOX_CLINIC_ID` | `146` | Integer. From `GetMyClinicDetails`. |
+| `RANDOX_TEST_CLINIC_LOCATION_ID` | `147` | Blank falls back to the clinic id. |
+| `RANDOX_DEFAULT_TEST_REASON_ID` | `1` | From `GetTestingReasons`. Required. |
+| `RANDOX_DEFAULT_TEST_REASON_DETAILS` | `Private health screening requested by the patient.` | Free text sent with it. |
+| `RANDOX_DEFAULT_CANCELLATION_REASON_ID` | `1` | From `GetCancellationReasons`. Required. |
+| `RANDOX_COLLECTION_METHODS` | `IN_CLINIC` | Comma-separated. Empty is refused on a live boot. |
+| `RANDOX_CODE_MAP_FILE` | `./config/randox/result-codes.json` | An `.example.json` path is refused on a live boot. |
+| `RANDOX_ID_MAP_FILE` | `./config/randox/id-map.json` | Same. Database mappings take precedence. |
+| `RANDOX_HEALTH_CHECK_PANEL_REPORT` | `true` | Asks for the patient-facing scalebar PDF rather than the tabular lab one. |
+| `RANDOX_CV_SCORE_REQUIRED` | `false` | Needs measurements `CreatePendingOrder` cannot carry. Leave off. |
+| `RANDOX_REFERENCE_DATA_METHOD` | `auto` | `auto` sends the verb the spec declares and repeats as POST on a 404/405/501. Pin to `get` or `post` once you know which Randox actually accept. |
+| `RANDOX_MAX_REQUESTS_PER_MINUTE` | `60` | Outbound pacing, per API. `0` disables it. A gateway `Retry-After` is obeyed regardless. |
+| `RANDOX_RETRY_MAX_ATTEMPTS` | `3` | Transient failures only (429, 5xx, timeout). Never applied to `CreatePendingOrder`. |
+| `RANDOX_RETRY_BASE_DELAY_MS` | `500` | Exponential with jitter from here, capped at 60s. |
+| `RANDOX_POLL_CRON` | `*/5 * * * *` | How often the sweeper wakes, **not** how often an order is polled. |
+| `RANDOX_POLL_INTERVAL_MINUTES` | `60` | Per order, staggered by its creation minute. Randox ask for hourly. |
+| `RANDOX_POLL_BATCH_SIZE` | `25` | Orders per sweep, so a backlog spreads rather than bursting. |
+| `RANDOX_POLL_MAX_FAILURES` | `12` | After this many consecutive failures an order stops being polled and waits for an admin. It is never lost. |
+
+### What happens to a result once it arrives
+
+Worth knowing before you turn it on, because most of it needs nobody:
+
+- The order number Randox return is the reference we created the order under, so the result attaches itself to that patient. Before it does, the name and date of birth are checked against the account — against what Randox echo back where they supply it, and against what the order was placed under. Anything that disagrees is **not** linked; it goes to **Result linking** with the disagreement named.
+- A clean parse advances the report to admin-verified on its own. Anything ambiguous — a marker we could not file, a missing or one-sided reference range, a disagreement with Randox's own high/low flag, a lab that has not finished — stops at parsed and says why in the ingestion log.
+- **Nothing auto-releases.** A patient sees a report only after a clinician reviews and releases it, and the state machine enforces that server-side: the only route to released is through clinician-reviewed, and the only route into that is from admin-verified.
+
 ## Deploy process
 
 Both Railway and Vercel auto-deploy on push to `main` once connected to the GitHub repo. Branch protection means that only happens via a merged, CI-passed PR. The CI workflow (`typecheck` → `lint` → `test` → `build`, all four required) runs on every PR and push to `main`; GitHub branch protection is what actually makes it block merges — see the branch protection step above.

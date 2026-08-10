@@ -176,6 +176,32 @@ adminRouter.post(
 // Shows every unlinked patient's name, date of birth and contact number side
 // by side — about as concentrated a view of patient data as exists in this
 // app, so it's audited like any other, not treated as "just a worklist".
+// How many results are waiting, and why — and NOTHING about any of them.
+//
+// Separate from GET /linking on purpose. That endpoint returns claimed names
+// and dates of birth, so it is audited as a view of patient data, correctly.
+// The admin console's home screen wants only the number, and pointing it at
+// the full queue would have written a PATIENT_DATA_VIEWED entry every time
+// anybody opened the console — which does not just make the audit log noisy,
+// it makes it wrong: the log would claim someone read a queue of patients
+// when a card on a dashboard counted it. No patient data leaves here, so
+// there is nothing to audit.
+adminRouter.get(
+  '/linking/count',
+  roleGuard('ADMIN'),
+  asyncHandler(async (_req, res) => {
+    const rows = await prisma.unmatchedResult.groupBy({
+      by: ['reason'],
+      where: { status: 'PENDING' },
+      _count: { _all: true },
+    });
+    res.json({
+      pending: rows.reduce((sum, r) => sum + r._count._all, 0),
+      byReason: Object.fromEntries(rows.map((r) => [r.reason ?? 'UNRECORDED', r._count._all])),
+    });
+  }),
+);
+
 adminRouter.get(
   '/linking',
   asyncHandler(async (req, res) => {
@@ -348,12 +374,25 @@ adminRouter.post(
   }),
 );
 
+// Erasure is a data-lifecycle matter, ADMIN and not CLINICIAN — matching the
+// schedule action below, which was already guarded that way while the list
+// that feeds it was not. And it is a view of patient data (names, email
+// addresses), so it is audited like every other one rather than exempted for
+// being a list of requests rather than of people.
 adminRouter.get(
   '/erasure-requests',
-  asyncHandler(async (_req, res) => {
+  roleGuard('ADMIN'),
+  asyncHandler(async (req, res) => {
     const requests = await prisma.erasureRequest.findMany({
       include: { user: { include: { patientProfile: true } } },
       orderBy: { requestedAt: 'desc' },
+    });
+    await recordAuditLog({
+      actorUserId: req.user!.id,
+      action: 'ADMIN_VIEW_ERASURE_REQUESTS',
+      targetType: 'ErasureRequest',
+      ipAddress: req.ip ?? null,
+      metadata: { count: requests.length },
     });
     res.json(
       requests.map((r) => ({

@@ -37,9 +37,27 @@ interface UnmatchedResult {
   sampleDate: string | null;
   markerCount: number;
   createdAt: string;
+  /**
+   * Why this did not link itself. The queue is the exception path now — a
+   * result that arrives against an order we placed is attached automatically
+   * — so a row here always has a specific cause, and reading it is the first
+   * thing an admin does.
+   */
+  reason: string | null;
+  reasonDetail: string | null;
   claimed: { firstName: string | null; lastName: string | null; dob: string | null; contactNumber: string | null };
   candidates: Candidate[];
 }
+
+/** Short label for the queue reason. reasonDetail carries the specifics. */
+const REASON_LABEL: Record<string, string> = {
+  NO_MATCHING_ORDER: 'No matching order',
+  IDENTITY_MISMATCH: 'Identity did not agree',
+  NO_PATIENT_ACCOUNT: 'Account not ready',
+  UNCORROBORATED_IDENTITY: 'Nothing to corroborate',
+  PREVIOUSLY_UNLINKED: 'Unlinked by an admin',
+  DUPLICATE_CANDIDATES: 'More than one candidate',
+};
 
 interface UnlinkedAccount {
   id: string;
@@ -61,6 +79,8 @@ interface RecentLink {
   reportId: string | null;
   patientId: string | null;
   patientName: string | null;
+  /** AUTOMATIC when the order reference matched; MANUAL when a person decided. */
+  linkMode: 'AUTOMATIC' | 'MANUAL' | null;
 }
 
 interface Queue {
@@ -298,6 +318,16 @@ function UnmatchedResultCard({ result, onChanged }: { result: UnmatchedResult; o
         </p>
       </div>
 
+      {/* Why it is here, before anything else on the card. Without it an
+          admin has to infer the cause from the candidate list, which is the
+          slowest possible way to learn "the date of birth disagreed". */}
+      {result.reasonDetail && (
+        <div className="mt-4 rounded-input border border-taupe bg-cream-50 px-3.5 py-3">
+          {result.reason && <p className="eyebrow mb-1">{REASON_LABEL[result.reason] ?? 'Held for review'}</p>}
+          <p className="text-sm leading-relaxed text-espresso">{result.reasonDetail}</p>
+        </div>
+      )}
+
       <dl className="mt-5 grid grid-cols-2 gap-4 border-t border-taupe pt-4">
         <IdentityRow label="Date of birth" value={result.claimed.dob ? formatDate(result.claimed.dob) : null} />
         <IdentityRow label="Contact number" value={result.claimed.contactNumber} />
@@ -420,11 +450,22 @@ function RecentLinkRow({ link, onChanged }: { link: RecentLink; onChanged: () =>
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 border-t border-taupe py-3 first:border-t-0">
       <div>
-        <p className="text-sm font-medium text-espresso">{link.patientName ?? 'Unknown patient'}</p>
+        <p className="text-sm font-medium text-espresso">
+          {link.patientName ?? 'Unknown patient'}
+          {/* Which links nobody watched being made. Those are the ones most
+              worth being able to see, so the distinction is stated in words
+              rather than left to be inferred from a blank "linked by". */}
+          {link.linkMode === 'AUTOMATIC' && (
+            <span className="ml-2 rounded-full border border-taupe px-2 py-0.5 text-xs font-normal text-espresso/85">
+              Matched on the order reference
+            </span>
+          )}
+        </p>
         <p className="tabular text-xs text-espresso/80">
           {link.markerCount} marker{link.markerCount === 1 ? '' : 's'}
           {link.sampleDate ? ` · sampled ${formatDate(link.sampleDate)}` : ''}
           {link.linkedAt ? ` · linked ${formatDate(link.linkedAt)}` : ''}
+          {link.externalId ? ` · ${link.externalId}` : ''}
         </p>
       </div>
       <div className="flex items-center gap-3">
@@ -509,8 +550,14 @@ export function LinkingPage() {
     <>
       <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Result linking" />
       <p className="mt-5 max-w-3xl text-lg leading-relaxed text-espresso">
-        Results that arrived without an account, beside accounts with nothing attached. Nothing is matched
-        automatically: a name alone is never enough, and the date of birth must agree.
+        The exceptions. A result that arrives against an order we placed is attached to that patient on the order
+        reference, once the name and date of birth agree — nobody types anything. What reaches this page is
+        everything that did not: an order we have no record of, an identity that disagreed, an account that does not
+        exist yet. In normal running it is empty.
+      </p>
+      <p className="mt-3 max-w-3xl text-sm leading-relaxed text-espresso/85">
+        Nothing here is matched for you. A name alone is never enough, the date of birth must agree, and you restate
+        it before the link is made.
       </p>
 
       {queue === null ? (
@@ -538,7 +585,7 @@ export function LinkingPage() {
                 <div className="mt-6">
                   <EmptyState
                     title="Nothing waiting"
-                    description="Every result that's come in has been attached to someone. New arrivals that can't be placed automatically will show up here."
+                    description="Every result that has come in was attached to the patient its order was placed for. Anything that cannot be placed that way appears here, with the reason it stopped."
                   />
                 </div>
               ) : (

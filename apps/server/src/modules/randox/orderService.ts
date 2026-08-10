@@ -1,7 +1,7 @@
 import type { RandoxCollectionMethod } from '@prisma/client';
 import { prisma } from '../../db/client.js';
 import { env } from '../../config/env.js';
-import { decryptField } from '../../lib/crypto.js';
+import { decryptField, encryptField } from '../../lib/crypto.js';
 import { recordAuditLog } from '../../lib/auditLog.js';
 import { nexusLabClient } from './clients/index.js';
 import {
@@ -236,6 +236,14 @@ export async function placeOrder(input: PlaceOrderInput) {
       placedById: input.placedById,
       randoxPanelIds: panelIds.map(String),
       randoxTestIds: testIds.map(String),
+      // The identity actually sent to the laboratory, snapshotted here rather
+      // than re-read from the profile when the result comes back. This is
+      // what makes an automatic link corroborable: if the account is edited
+      // between the sample being taken and the result arriving, comparing the
+      // account to itself would agree and this does not. See identityCheck.ts.
+      orderedFirstName: request.FirstName,
+      orderedLastName: request.LastName,
+      orderedDobEncrypted: encryptField(request.DateOfBirth),
       collectionMethod: input.collectionMethod,
       status: 'INCOMPLETE',
       nextPollAt: scheduleFirstPoll(new Date()),
@@ -349,7 +357,17 @@ export async function amendOrder(
 
   await prisma.randoxOrder.update({
     where: { id: order.id },
-    data: { randoxPanelIds: panelIds.map(String), randoxTestIds: testIds.map(String) },
+    data: {
+      randoxPanelIds: panelIds.map(String),
+      randoxTestIds: testIds.map(String),
+      // An amendment resends the whole order, identity included, so the
+      // snapshot has to move with it — otherwise the corroboration check
+      // would later compare the result against a name the laboratory no
+      // longer holds and refuse a link that is perfectly sound.
+      orderedFirstName: identity.firstName,
+      orderedLastName: identity.lastName,
+      orderedDobEncrypted: encryptField(identity.dateOfBirth),
+    },
   });
 
   await recordAuditLog({

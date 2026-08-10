@@ -32,6 +32,77 @@ const OUTCOME_LABEL: Record<IngestionLogRow['outcome'], string> = {
 
 const PAGE_SIZE = 50;
 
+interface UnknownCode {
+  code: string;
+  sightings: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  sampleOrderNumber: string | null;
+  sampleMarkerName: string | null;
+}
+
+/**
+ * Codes Randox have sent that our map does not recognise.
+ *
+ * Every one of these withheld a result. That is the deliberate direction of
+ * failure — an unrecognised code is treated as a void code, because reporting
+ * a result whose caveat we cannot read is worse than not reporting it — but it
+ * means an unknown code is silently costing patients results until somebody
+ * asks Randox what it means. The rows were being written and nothing in the
+ * console read them. This is where they belong: the ingestion log is where an
+ * admin comes to find out what did not arrive.
+ */
+function UnknownCodesPanel() {
+  const [codes, setCodes] = useState<UnknownCode[] | null>(null);
+  // Randox switched off in this environment is not an error to report.
+  const [unavailable, setUnavailable] = useState(false);
+
+  useEffect(() => {
+    apiFetch<UnknownCode[]>('/randox/unknown-codes')
+      .then(setCodes)
+      .catch(() => setUnavailable(true));
+  }, []);
+
+  if (unavailable || codes === null || codes.length === 0) return null;
+
+  return (
+    <section className="mt-14" aria-labelledby="unknown-codes-heading">
+      <h2 id="unknown-codes-heading" className="font-display text-2xl text-espresso">
+        Result codes we don't recognise
+      </h2>
+      <p className="mt-2 max-w-2xl text-sm leading-relaxed text-espresso/85">
+        Randox sent these alongside results and our code map has no entry for them, so each one withheld a result
+        rather than reporting it with a caveat nobody could read. Ask Randox what they mean and add them to the code
+        map file.
+      </p>
+      <div className="mt-5">
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableHeaderCell>Code</TableHeaderCell>
+              <TableHeaderCell>Seen</TableHeaderCell>
+              <TableHeaderCell>Last seen</TableHeaderCell>
+              <TableHeaderCell>An example</TableHeaderCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {codes.map((c) => (
+              <TableRow key={c.code}>
+                <TableCell className="font-medium">{c.code}</TableCell>
+                <TableCell className="tabular">{c.sightings}</TableCell>
+                <TableCell className="tabular whitespace-nowrap">{formatDateTime(c.lastSeenAt)}</TableCell>
+                <TableCell className="text-sm text-espresso/85">
+                  {[c.sampleMarkerName, c.sampleOrderNumber].filter(Boolean).join(' · ') || 'Not recorded'}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </section>
+  );
+}
+
 /**
  * Phase 3 §3: every automated-source ingestion attempt, success or not —
  * a silently failed import must never go unnoticed. Text label carries the
@@ -69,8 +140,9 @@ export function IngestionLogPage() {
     <>
       <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Ingestion log" />
       <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
-        Every attempt to pull a result in from Randox's API, successful or not. Ingestion only ever reaches
-        admin-verified; a clinician still reviews and releases before a patient sees anything.
+        Every attempt to pull a result in from Randox's API, successful or not. A clean result attaches itself to the
+        patient its order was placed for and stops at admin-verified; anything ambiguous stops earlier and says so
+        here. A clinician still reviews and releases before a patient sees anything.
       </p>
 
       {error != null ? (
@@ -152,6 +224,8 @@ export function IngestionLogPage() {
           </div>
         </>
       )}
+
+      <UnknownCodesPanel />
     </>
   );
 }
