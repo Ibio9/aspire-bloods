@@ -1,4 +1,4 @@
-import type { MarkerStatus } from '@aspire-bloods/shared';
+import { countable, type MarkerStatus } from '@aspire-bloods/shared';
 import { statusBarClass, statusLabel, statusTintClass } from '../../lib/markerCopy';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 
@@ -19,7 +19,16 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 
 export interface SummaryMarker {
   markerId: string;
-  status: MarkerStatus;
+  /**
+   * Null where this result has no position on its reference range. Both
+   * elements below drop those entirely rather than counting them: a tile
+   * saying "3 in range" that includes a marker nobody compared to a range is
+   * the same false statement the status column itself used to make, moved into
+   * the summary. See countable() in packages/shared.
+   */
+  status: MarkerStatus | null;
+  value: number | null;
+  valueText?: string | null;
   categoryKeys?: string[];
 }
 
@@ -33,8 +42,13 @@ function countByStatus(markers: SummaryMarker[]): Record<MarkerStatus, number> {
   const counts: Record<MarkerStatus, number> = {
     IN_RANGE: 0, HIGH: 0, LOW: 0, SIGNIFICANT_HIGH: 0, SIGNIFICANT_LOW: 0,
   };
-  for (const m of markers) counts[m.status] += 1;
+  for (const m of countable(markers)) counts[m.status] += 1;
   return counts;
+}
+
+/** How many of this set are actually in the counts — the denominator every proportion uses. */
+function countedTotal(markers: SummaryMarker[]): number {
+  return countable(markers).length;
 }
 
 // ---------------------------------------------------------------------------
@@ -51,7 +65,7 @@ export function CountsStrip({
   activeStatus?: string;
   onSelectStatus?: (status: MarkerStatus | 'ALL') => void;
 }) {
-  if (markers.length === 0) return null;
+  if (countedTotal(markers) === 0) return null;
   const counts = countByStatus(markers);
   // A state nobody is in is not shown. Five tiles where three of them say "0"
   // is a worse summary than three tiles that all say something.
@@ -126,10 +140,12 @@ export function CategorySummaryBars({
   activeCategory?: string;
 }) {
   // MEASURED areas only — a bar of "proportion in range" over a set of genetic
-  // indicators would be a statement about nothing.
+  // indicators would be a statement about nothing. And within those, only the
+  // results that were actually compared against a range: a bar is a proportion,
+  // and a segment can only be a share of something that was measured.
   const areas = categories
     .filter((c) => c.resultType === 'MEASURED')
-    .map((c) => ({ category: c, members: markers.filter((m) => m.categoryKeys?.includes(c.key)) }))
+    .map((c) => ({ category: c, members: countable(markers.filter((m) => m.categoryKeys?.includes(c.key))) }))
     .filter((a) => a.members.length > 0)
     .sort((a, b) => b.members.length - a.members.length || a.category.name.localeCompare(b.category.name));
 
@@ -137,12 +153,7 @@ export function CategorySummaryBars({
 
   return (
     <div className="mt-12">
-      <p className="eyebrow mb-1">By health area</p>
-      {/* The overlap is the one thing the bars can't show for themselves —
-          without it the counts look like they should add up to the total. */}
-      <p className="mb-5 max-w-2xl text-sm text-espresso/80">
-        Areas overlap — a marker can appear in more than one.
-      </p>
+      <p className="eyebrow mb-5">By health area</p>
       <ul className="flex flex-col gap-4">
         {areas.map(({ category, members }) => {
           const counts = countByStatus(members);

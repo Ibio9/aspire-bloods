@@ -19,6 +19,15 @@ export type ReportStatus =
   | 'CLINICIAN_REVIEWED'
   | 'RELEASED';
 
+/**
+ * Five states, three hues, and no sixth member.
+ *
+ * "No data" is deliberately NOT in this union. A result that could not be
+ * placed against a reference range carries `null` where a status would be —
+ * see MarkerStatusOrNone in resultPresence.ts. Adding NO_DATA here would make
+ * absence look like a traffic light, and would give every status-defaulting
+ * expression in the codebase somewhere to default TO.
+ */
 export type MarkerStatus = 'IN_RANGE' | 'HIGH' | 'LOW' | 'SIGNIFICANT_HIGH' | 'SIGNIFICANT_LOW';
 
 export type EscalationSeverity = 'MILD' | 'SIGNIFICANT';
@@ -98,7 +107,14 @@ export interface MarkerCardDTO {
    * not itself a status and is never shown as a number to the patient.
    */
   severityThreshold?: number;
-  status: MarkerStatus;
+  /**
+   * Null when this result has no position on its reference range — a
+   * qualitative outcome ("Not detected"), or a detection limit that straddles
+   * the range. Null is not a state a colour, a tint, a shape mark or a count
+   * may be derived from; it means the comparison was never made, and the card
+   * says so in words instead. It is never IN_RANGE. See resultPresence.ts.
+   */
+  status: MarkerStatus | null;
   /**
    * MEASURED / GENETIC / SENSITIVITY / COMPOSITION. Decides which section this
    * result renders in, whether it counts toward the counts strip and the

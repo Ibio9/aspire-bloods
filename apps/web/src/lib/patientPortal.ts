@@ -111,7 +111,11 @@ export interface MarkerRow {
   // valueText then carries the lab's wording verbatim.
   value: number | null;
   valueText?: string | null;
-  status: MarkerStatus;
+  /**
+   * Null where the latest result has no position on its reference range. Not a
+   * sixth state: no tint, no mark, no place in a count, and never IN_RANGE.
+   */
+  status: MarkerStatus | null;
   referenceLow: number;
   referenceHigh: number;
   /** Where significantly-out begins for this marker — the sparkline's band edges sit here. */

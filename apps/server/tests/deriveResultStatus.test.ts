@@ -3,8 +3,11 @@ import {
   classifyValue,
   resolveResultRange,
   deriveStatus,
+  statusForStorage,
   disagreesWithLabIndicator,
 } from '../src/lib/deriveResultStatus.js';
+import { decodeResultValue } from '../src/lib/resultValue.js';
+import { hasResultValue } from '@aspire-bloods/shared';
 
 const SEVERITY = { severityMultiplier: 1.5, severityAbsoluteDelta: null };
 
@@ -115,6 +118,93 @@ describe('deriveStatus', () => {
   it('marks a qualitative result unevaluable rather than in range', () => {
     const result = deriveStatus({ kind: 'qualitative', text: 'Not detected' }, 0, 5, SEVERITY);
     expect(result.status).toBe('unevaluable');
+  });
+});
+
+/**
+ * The regression this file exists to make permanent.
+ *
+ * A marker with no result was being shown to patients as "In range", complete
+ * with the green wash — because the verify path finished with
+ * `derived.status === 'derived' ? derived.value : 'IN_RANGE'`, which spells
+ * "we could not work out where this sits, so say it is fine". Telling somebody
+ * a test they never had came back normal is the one output a results portal
+ * must not be able to produce, so it is pinned from three directions: the
+ * classifier, the storage conversion, and the exhaustive sweep at the end.
+ */
+describe('absence of data can never become IN_RANGE', () => {
+  const ABSENT_INPUTS: [string, string | null][] = [
+    ['a null value', null],
+    ['an empty string', ''],
+    ['whitespace only', '   '],
+  ];
+
+  it.each(ABSENT_INPUTS)('classifies %s as absent, not as a number', (_label, text) => {
+    expect(classifyValue(null, text)).toEqual({ kind: 'absent' });
+  });
+
+  it.each(ABSENT_INPUTS)('derives no status at all from %s', (_label, text) => {
+    const classified = classifyValue(null, text);
+    const derived = deriveStatus(classified, 2, 8, SEVERITY);
+    expect(derived.status).toBe('unevaluable');
+    expect(statusForStorage(derived)).toBeNull();
+  });
+
+  it('stores null, never IN_RANGE, for every unevaluable derivation', () => {
+    const unevaluable = [
+      classifyValue(null, null),
+      classifyValue(null, ''),
+      classifyValue(null, 'Not detected'),
+      classifyValue(null, 'Insufficient sample'),
+      // A limit that straddles the range: could be in range or below it.
+      classifyValue(null, '< 5.0'),
+    ];
+    for (const value of unevaluable) {
+      const stored = statusForStorage(deriveStatus(value, 2, 8, SEVERITY));
+      expect(stored).not.toBe('IN_RANGE');
+      expect(stored).toBeNull();
+    }
+  });
+
+  it('reads a stored placeholder back as no value rather than as lab text', () => {
+    // What the old write path actually persisted for a valueless row:
+    // `encryptField(String(undefined))`. Read back as text it became a result
+    // called "undefined" carrying a status of IN_RANGE.
+    for (const stored of ['null', 'undefined', '', '  ', 'N/A', '—', 'Not performed']) {
+      const decoded = decodeResultValue(stored);
+      expect(decoded).toEqual({ value: null, valueText: null });
+      expect(hasResultValue(decoded), `"${stored}" must not count as a result`).toBe(false);
+    }
+  });
+
+  it('still keeps a genuinely qualitative result, which is data', () => {
+    const decoded = decodeResultValue('Not detected');
+    expect(decoded).toEqual({ value: null, valueText: 'Not detected' });
+    expect(hasResultValue(decoded)).toBe(true);
+    // It has a value and still has no status. Those are two different things.
+    expect(statusForStorage(deriveStatus(classifyValue(null, 'Not detected'), 0, 5, SEVERITY))).toBeNull();
+  });
+
+  it('only ever produces IN_RANGE from a value actually inside the range', () => {
+    // The whole surface, swept: every input shape the classifier can produce,
+    // and the only ones that come back IN_RANGE are the two that genuinely sit
+    // inside 2–8.
+    const cases: [string | null, boolean][] = [
+      ['5', true],
+      ['2', true],
+      ['9', false],
+      ['1', false],
+      ['Not detected', false],
+      ['< 5.0', false],
+      ['> 40', false],
+      ['', false],
+      ['   ', false],
+      [null, false],
+    ];
+    for (const [text, expectedInRange] of cases) {
+      const stored = statusForStorage(deriveStatus(classifyValue(null, text), 2, 8, SEVERITY));
+      expect(stored === 'IN_RANGE', `"${text}" produced ${stored}`).toBe(expectedInRange);
+    }
   });
 });
 

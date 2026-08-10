@@ -6,7 +6,7 @@ import { sourceLabel } from '../../lib/sourceLabel.js';
 import { convertToDisplayUnit, hasKnownConversion } from '../../lib/unitConversion.js';
 import { optimalContextForPatient, optimalFor } from '../../lib/optimalRange.js';
 import type { ConsentType } from '@aspire-bloods/shared';
-import { formatReportTitle } from '@aspire-bloods/shared';
+import { formatReportTitle, hasResultValue } from '@aspire-bloods/shared';
 
 /**
  * How far past the reference bound a result has to sit before it counts as
@@ -51,7 +51,14 @@ export async function listReportsForPatient(patientId: string) {
 
   return reports.map((r) => {
     const released = r.status === 'RELEASED';
-    const attentionCount = r.results.filter((res) => res.status !== 'IN_RANGE').length;
+    // Counted from what each state actually IS, never one subtracted from the
+    // other. `length - attentionCount` silently folded every result with no
+    // status — nothing measured, nothing comparable — into "in range", which
+    // is the same false statement this whole change exists to remove, just
+    // arrived at by arithmetic instead of by a default.
+    const evaluated = r.results.filter((res) => res.status !== null);
+    const attentionCount = evaluated.filter((res) => res.status !== 'IN_RANGE').length;
+    const inRangeCount = evaluated.filter((res) => res.status === 'IN_RANGE').length;
     return {
       reportId: r.id,
       // Nullable by design (schema: Report.panelId is optional). The title is
@@ -67,7 +74,7 @@ export async function listReportsForPatient(patientId: string) {
       // Sent regardless of release state: it's the fallback title's raw
       // material, and a count of markers is not itself a clinical value.
       markerCount: r.results.length,
-      inRangeCount: released ? r.results.length - attentionCount : undefined,
+      inRangeCount: released ? inRangeCount : undefined,
       attentionCount: released ? attentionCount : undefined,
       sourceLabel: released ? sourceLabel(r.source.key, r.source.name) : undefined,
     };
@@ -166,8 +173,18 @@ export async function getReleasedReportForPatient(patientId: string, reportId: s
     // is only carried for the repeat-programme note on the page.
     repeatIntervalMonths: report.panel?.repeatIntervalMonths ?? null,
     categories: [...categoryById.values()].sort((a, b) => a.sortOrder - b.sortOrder),
-    markers: report.results.map((r) => {
-      const decoded = decodeResultValue(decryptField(r.valueEncrypted));
+    // A result with nothing in it renders nowhere, so it is not sent. This is
+    // the existing product rule ("a marker with no result renders nowhere —
+    // never a placeholder, never an empty row") applied at the only layer that
+    // can actually guarantee it: a row that never leaves the server cannot be
+    // rendered by a screen that forgot to guard. It also repairs the rows
+    // already in the database that were written with a placeholder value and
+    // stamped IN_RANGE — decodeResultValue reads those back as nothing, so
+    // they drop out here rather than reaching the patient.
+    markers: report.results
+      .map((r) => ({ r, decoded: decodeResultValue(decryptField(r.valueEncrypted)) }))
+      .filter(({ decoded }) => hasResultValue(decoded))
+      .map(({ r, decoded }) => {
       const measured = r.marker.resultType === 'MEASURED';
       return {
         markerId: r.markerId,
@@ -182,6 +199,9 @@ export async function getReleasedReportForPatient(patientId: string, reportId: s
         // marker, so the portal's bands and gradients turn at the same point
         // the status does. See severityThreshold above.
         severityThreshold: severityThreshold(r.marker, r.referenceRange.low, r.referenceRange.high),
+        // Nullable, and passed through as-is. Null means this result has no
+        // position on its reference range, and the card then shows the value
+        // with the reason in words instead of a status, a tint or a mark.
         status: r.status,
         // What KIND of result this is. Only MEASURED reaches the main grid, the
         // counts strip, the category bars and Trends; the other three types get
@@ -203,7 +223,7 @@ export async function getReleasedReportForPatient(patientId: string, reportId: s
         // the patient always sees the current value, but knows it changed.
         amendedAt: r.amendedAt,
       };
-    }),
+      }),
   };
 }
 
@@ -230,7 +250,15 @@ export async function getMarkerTrendForPatient(patientId: string, markerId: stri
   const displayUnit = marker.defaultUnit;
   let allConvertible = true;
 
-  const allPoints = results.map((r) => {
+  // Rows with nothing in them are dropped before anything is derived from
+  // them. `latest` below is the last entry in this list and drives the whole
+  // page — the headline value, the range bar, the out-of-range notice — so a
+  // valueless row landing there would put "In range" and a green wash on a
+  // marker that was never measured. That is the bug this file's share of.
+  const measuredResults = results.filter((r) => hasResultValue(decodeResultValue(decryptField(r.valueEncrypted))));
+  if (measuredResults.length === 0) throw new PatientAccessError();
+
+  const allPoints = measuredResults.map((r) => {
     const decoded = decodeResultValue(decryptField(r.valueEncrypted));
     // A textual result has nothing to convert and nothing to plot — it is
     // carried through verbatim and excluded from the chart series below.
@@ -272,8 +300,14 @@ export async function getMarkerTrendForPatient(patientId: string, markerId: stri
   });
 
   // The chart plots numbers; textual results stay visible on the report page
-  // and in `latest` below but can't be a point on a line.
-  const trend = allPoints.filter((p) => p.value !== null);
+  // and in `latest` below but can't be a point on a line. A point also needs a
+  // status to be drawn — the mark's shape and colour both come from it — and
+  // in practice the two conditions coincide, since every numeric value against
+  // a resolved range derives one.
+  const trend = allPoints.filter(
+    (p): p is typeof p & { value: number; status: NonNullable<typeof p.status> } =>
+      p.value !== null && p.status !== null,
+  );
 
   // Final flag: the admin/marker-config setting AND actual convertibility
   // both have to hold. A marker can be flagged comparable in principle but
@@ -290,7 +324,9 @@ export async function getMarkerTrendForPatient(patientId: string, markerId: stri
   const optimal = optimalFor(marker.key, displayUnit, latest.value, optimalCtx);
 
   let outOfRangeNotice: string | null = null;
-  if (latest.status !== 'IN_RANGE') {
+  // `!== 'IN_RANGE'` alone would fire on a result with NO status, telling
+  // someone to speak to their GP about a comparison that was never made.
+  if (latest.status !== null && latest.status !== 'IN_RANGE') {
     const copy = await prisma.copyBlock.findUnique({ where: { slug: 'out_of_range_prompt' } });
     outOfRangeNotice = copy?.body ?? null;
   }

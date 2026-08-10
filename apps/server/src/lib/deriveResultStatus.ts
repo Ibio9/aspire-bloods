@@ -174,6 +174,32 @@ export function deriveStatus(
 }
 
 /**
+ * The status to STORE for a derivation result — and the only sanctioned way to
+ * get from a DerivedStatus to a column value.
+ *
+ * It exists because of the specific bug it makes unwriteable. The verify path
+ * used to finish with:
+ *
+ *     const status = derived.status === 'derived' ? derived.value : 'IN_RANGE';
+ *
+ * which is the sentence "if we could not work out where this result sits, say
+ * it is fine". Every unevaluable row — a qualitative outcome, a straddling
+ * detection limit, and above all a row with no value in it at all — was
+ * persisted as IN_RANGE and then presented to the patient as "In range",
+ * complete with the green wash. A marker nobody had measured told somebody
+ * their health was fine.
+ *
+ * Unevaluable is not a failure and it is not a pass. It is the absence of a
+ * comparison, and the column is nullable so it can be stored as exactly that.
+ * There is no default here and there must never be one: any future caller
+ * reaching for a fallback has to write `?? 'IN_RANGE'` in plain sight, where a
+ * reviewer can see it.
+ */
+export function statusForStorage(derived: DerivedStatus): MarkerStatus | null {
+  return derived.status === 'derived' ? derived.value : null;
+}
+
+/**
  * Whether our derived status contradicts the lab's own high/low indicator.
  *
  * Neither is silently preferred. A disagreement almost always means the range

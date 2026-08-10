@@ -565,7 +565,12 @@ export async function runDemoSeed(opts: { trigger: DemoSeedTrigger; allowProduct
         select: { markerId: true, status: true },
       });
       if (flagged.length > 0) {
-        const anySignificant = flagged.some((f) => (SIGNIFICANT_STATUSES as readonly string[]).includes(f.status));
+        // status is nullable now — a result with no position on its range has
+        // none. The `in` filter above already excludes those, so this is a
+        // type guard rather than a behaviour change.
+        const anySignificant = flagged.some(
+          (f) => f.status !== null && (SIGNIFICANT_STATUSES as readonly string[]).includes(f.status),
+        );
         await prisma.escalationEvent.create({
           data: {
             reportId: report.id,

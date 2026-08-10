@@ -1,7 +1,8 @@
 import PDFDocument from 'pdfkit';
 import { prisma } from '../../db/client.js';
 import { decryptField } from '../../lib/crypto.js';
-import { formatDate, formatReportTitle } from '@aspire-bloods/shared';
+import { decodeResultValue } from '../../lib/resultValue.js';
+import { formatDate, formatReportTitle, hasResultValue, NO_STATUS_LABEL } from '@aspire-bloods/shared';
 
 const BRONZE = '#8a5e45';
 const ESPRESSO = '#423c36';
@@ -36,7 +37,17 @@ export async function generateAspireSummaryPdf(reportId: string): Promise<Buffer
 
   const footerDisclaimer = await prisma.copyBlock.findUnique({ where: { slug: 'footer_disclaimer' } });
   const outOfRangePrompt = await prisma.copyBlock.findUnique({ where: { slug: 'out_of_range_prompt' } });
-  const hasFlagged = report.results.some((r) => r.status !== 'IN_RANGE');
+
+  // The same two rules the portal follows, because this letter is the portal
+  // on paper and the two must not say different things about one report.
+  // A result with nothing in it is not printed at all; a result with no
+  // position on its range is printed with its value and no status.
+  const rows = report.results
+    .map((r) => ({ r, decoded: decodeResultValue(decryptField(r.valueEncrypted)) }))
+    .filter(({ decoded }) => hasResultValue(decoded));
+  // `!== 'IN_RANGE'` alone would count a statusless result as flagged and put
+  // the "speak to your GP" block on a letter that has nothing flagged in it.
+  const hasFlagged = rows.some(({ r }) => r.status !== null && r.status !== 'IN_RANGE');
 
   const profile = report.patient.patientProfile;
   const patientName = profile ? `${profile.title ? profile.title + ' ' : ''}${profile.firstName} ${profile.lastName}` : report.patient.email;
@@ -110,15 +121,15 @@ export async function generateAspireSummaryPdf(reportId: string): Promise<Buffer
   drawTableHeader();
   doc.font('Helvetica').fontSize(9);
 
-  for (const r of report.results) {
+  for (const { r, decoded } of rows) {
     const cells = [
       r.marker.name,
-      // Numeric or textual ("< 0.6") — the decrypted string is already the
-      // display form for both.
-      decryptField(r.valueEncrypted).trim(),
+      // Numeric or textual ("< 0.6") — decodeResultValue has already separated
+      // the two and rejected the placeholders that are neither.
+      decoded.valueText ?? String(decoded.value),
       r.unit,
       `${r.referenceRange.low}–${r.referenceRange.high}`,
-      STATUS_LABEL[r.status] ?? r.status,
+      r.status === null ? NO_STATUS_LABEL : (STATUS_LABEL[r.status] ?? r.status),
     ];
     // Tallest cell decides the row height — a long marker name wraps to two
     // lines and the row has to grow with it, or the next row lands on top.
@@ -142,7 +153,10 @@ export async function generateAspireSummaryPdf(reportId: string): Promise<Buffer
     doc.text(cells[1], colX[1], y, { width: colWidth[1] });
     doc.text(cells[2], colX[2], y, { width: colWidth[2] });
     doc.text(cells[3], colX[3], y, { width: colWidth[3] });
-    doc.fillColor(r.status === 'IN_RANGE' ? ESPRESSO : BRONZE).text(cells[4], colX[4], y, { width: colWidth[4] });
+    // Bronze marks a result worth reading twice. A result with no status is
+    // not one of those — it is ordinary espresso, like an in-range row.
+    const flagged = r.status !== null && r.status !== 'IN_RANGE';
+    doc.fillColor(flagged ? BRONZE : ESPRESSO).text(cells[4], colX[4], y, { width: colWidth[4] });
     doc.y = y + rowHeight + ROW_GAP;
   }
 

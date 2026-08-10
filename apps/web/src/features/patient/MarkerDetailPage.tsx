@@ -47,7 +47,8 @@ interface MarkerDetail {
     referenceLow: number;
     referenceHigh: number;
     severityThreshold?: number;
-    status: MarkerStatus;
+    /** Null where this result has no position on its reference range. Never IN_RANGE by default. */
+    status: MarkerStatus | null;
     optimal?: OptimalRangeDTO | null;
     sourceLabel: string;
     amendedAt?: string | null;
@@ -222,7 +223,7 @@ export function MarkerDetailPage() {
               a half-populated row stating something false. The report card and
               the All-markers row already guarded this; the marker's own page,
               which is where someone goes to read the range properly, did not. */}
-          {detail.latest.referenceHigh > detail.latest.referenceLow && (
+          {detail.latest.status !== null && detail.latest.referenceHigh > detail.latest.referenceLow && (
             <p className="tabular mt-2 text-xs text-espresso/80">
               Lab reference range {detail.latest.referenceLow}–{detail.latest.referenceHigh} {detail.latest.unit}
             </p>
@@ -236,9 +237,10 @@ export function MarkerDetailPage() {
             </p>
           )}
           <p className="mt-1 text-xs text-espresso/80">{detail.latest.sourceLabel}</p>
-          {/* A textual result has no position on a numeric scale — the bar
-              would be a guess, so it is simply not drawn. */}
-          {detail.latest.value !== null && (
+          {/* A textual result has no position on a numeric scale, and a result
+              with no status was never placed on one — the bar would be a guess
+              in both cases, so it is simply not drawn. */}
+          {detail.latest.value !== null && detail.latest.status !== null && (
             <div className="mt-8">
               <RangeBar
                 value={detail.latest.value}

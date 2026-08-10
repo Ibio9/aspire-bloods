@@ -638,7 +638,14 @@ model ReportResult {
   unit             String
   referenceRangeId String
   referenceRange   ReferenceRange @relation(fields: [referenceRangeId], references: [id])
-  status           MarkerStatus
+  // NULLABLE, and that is the point. A result that cannot be placed against
+  // its reference range — a qualitative outcome ("Not detected"), a detection
+  // limit that straddles the range — has no status, and used to be written as
+  // IN_RANGE because the column demanded one of the five. That told patients a
+  // marker nobody had measured was fine. There is now no value to default to:
+  // absence is stored as absence and rendered as words. See
+  // lib/deriveResultStatus.ts statusForStorage().
+  status           MarkerStatus?
   rawParsedValue   String?
   createdAt        DateTime       @default(now())
 
@@ -681,10 +688,14 @@ model ReportResultEdit {
   reportResult        ReportResult @relation(fields: [reportResultId], references: [id])
   previousValueEncrypted String
   previousUnit        String
-  previousStatus      MarkerStatus
+  // Nullable for the same reason ReportResult.status is: an edit can move a
+  // result into or out of having a status at all, and the history has to be
+  // able to record that honestly rather than backfilling a fifth of a
+  // traffic light.
+  previousStatus      MarkerStatus?
   newValueEncrypted   String
   newUnit             String
-  newStatus           MarkerStatus
+  newStatus           MarkerStatus?
   reason              String
   changedById         String
   changedBy           User         @relation("ResultEditedByStaff", fields: [changedById], references: [id])

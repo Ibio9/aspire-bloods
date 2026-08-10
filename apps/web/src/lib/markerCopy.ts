@@ -145,8 +145,17 @@ export const STATUS_FILTERS = [
 
 export type StatusFilter = (typeof STATUS_FILTERS)[number]['value'];
 
-export function matchesStatusFilter(status: MarkerStatus, filter: StatusFilter): boolean {
+/**
+ * A result with no status matches "All markers" and nothing else.
+ *
+ * It is not in range, and it is not outside the range either — no comparison
+ * was made. `status !== 'IN_RANGE'` used to be how "outside the range" was
+ * spelled, which quietly swept every statusless result into the list of things
+ * a patient is being told to look at.
+ */
+export function matchesStatusFilter(status: MarkerStatus | null, filter: StatusFilter): boolean {
   if (filter === 'ALL') return true;
+  if (status === null) return false;
   if (filter === 'IN_RANGE') return status === 'IN_RANGE';
   if (filter === 'ATTENTION') return status !== 'IN_RANGE';
   return status === filter;
@@ -161,7 +170,7 @@ export function matchesStatusFilter(status: MarkerStatus, filter: StatusFilter):
  * options, on every render, so a 350-marker report re-ran ~2,450 predicate
  * calls on each keystroke in the search box. One pass, memoised by the caller.
  */
-export function statusFilterCounts(markers: { status: MarkerStatus }[]): Record<StatusFilter, number> {
+export function statusFilterCounts(markers: { status: MarkerStatus | null }[]): Record<StatusFilter, number> {
   const counts: Record<StatusFilter, number> = {
     ALL: markers.length,
     IN_RANGE: 0,
@@ -172,7 +181,12 @@ export function statusFilterCounts(markers: { status: MarkerStatus }[]): Record<
     SIGNIFICANT_LOW: 0,
   };
   for (const { status } of markers) {
-    if (status === 'IN_RANGE') {
+    // Counted toward ALL (it is a marker on the page) and toward nothing else.
+    // A statusless result belongs in neither the in-range tally nor the
+    // needs-attention one, and putting it in either is a claim about it.
+    if (status === null) {
+      continue;
+    } else if (status === 'IN_RANGE') {
       counts.IN_RANGE += 1;
     } else {
       // Everything not in range counts toward the broad ATTENTION group, and
@@ -250,7 +264,15 @@ export const RESULT_SORTS = [
 
 export type ResultSort = (typeof RESULT_SORTS)[number]['value'];
 
-/** Out of range sorts above in range; significantly out sorts above mildly out. */
+/**
+ * Out of range sorts above in range; significantly out sorts above mildly out;
+ * a result with no status sorts last of all.
+ *
+ * Last rather than first because "needs attention first" is a question about
+ * findings, and a result nobody could compare has no finding in it. It is
+ * still on the page, still readable, just not competing with the results that
+ * do say something.
+ */
 export const ATTENTION_RANK: Record<MarkerStatus, number> = {
   SIGNIFICANT_HIGH: 0,
   SIGNIFICANT_LOW: 0,
@@ -259,8 +281,14 @@ export const ATTENTION_RANK: Record<MarkerStatus, number> = {
   IN_RANGE: 2,
 };
 
-export function byAttentionThenName<T extends { status: MarkerStatus; name: string }>(a: T, b: T): number {
-  return ATTENTION_RANK[a.status] - ATTENTION_RANK[b.status] || a.name.localeCompare(b.name);
+const NO_STATUS_RANK = 3;
+
+export function attentionRank(status: MarkerStatus | null): number {
+  return status === null ? NO_STATUS_RANK : ATTENTION_RANK[status];
+}
+
+export function byAttentionThenName<T extends { status: MarkerStatus | null; name: string }>(a: T, b: T): number {
+  return attentionRank(a.status) - attentionRank(b.status) || a.name.localeCompare(b.name);
 }
 
 /**

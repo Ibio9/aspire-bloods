@@ -17,7 +17,6 @@ import { ArrowRightIcon } from '../../components/nav/patientIcons';
 import { apiFetch } from '../../lib/api';
 import { type MarkerRow } from '../../lib/patientPortal';
 import {
-  ATTENTION_RANK,
   STATUS_FILTERS,
   byAttentionThenName,
   filterCountLabel,
@@ -87,11 +86,13 @@ function MarkerListRow({ marker }: { marker: MarkerRow }) {
           </p>
 
           <div className="shrink-0 lg:w-52">
+            {/* Null is a real value here: the badge renders the words with no
+                mark and no colour, and the tint above is not applied. */}
             <StatusBadge status={marker.status} />
             {/* A qualitative result has no numeric range behind it, and this
                 line used to render "Usual range 0–0" for one. Absent, not
-                zeroed — see the same rule on the report card. */}
-            {marker.referenceHigh > marker.referenceLow && (
+                zeroed — and absent too where the range was never applied. */}
+            {marker.status !== null && marker.referenceHigh > marker.referenceLow && (
               <p className="tabular mt-1 text-xs text-espresso/80">
                 Usual range {marker.referenceLow}–{marker.referenceHigh}
               </p>
@@ -183,7 +184,7 @@ export function AllMarkersPage() {
     if (sort === 'NAME' || sort === 'HEALTH_AREA') sorted.sort((a, b) => a.name.localeCompare(b.name));
     else if (sort === 'RECENT') sorted.sort((a, b) => (a.sampleDate < b.sampleDate ? 1 : a.sampleDate > b.sampleDate ? -1 : a.name.localeCompare(b.name)));
     else if (sort === 'MOVEMENT') sorted.sort((a, b) => relativeMovement(b) - relativeMovement(a) || a.name.localeCompare(b.name));
-    else sorted.sort((a, b) => ATTENTION_RANK[a.status] - ATTENTION_RANK[b.status] || a.name.localeCompare(b.name));
+    else sorted.sort(byAttentionThenName);
     return sorted;
   }, [measured, query, statusFilter, categoryFilter, sort]);
 

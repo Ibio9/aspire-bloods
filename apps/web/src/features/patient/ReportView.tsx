@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { formatDate, type MarkerStatus, type OptimalRangeDTO } from '@aspire-bloods/shared';
+import { formatDate, hasResultValue, NO_STATUS_LABEL, type MarkerStatus, type OptimalRangeDTO } from '@aspire-bloods/shared';
 import { Breadcrumbs } from '../../components/nav/Breadcrumbs';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import type { MarkerNavState } from './markerNavState';
@@ -45,7 +45,12 @@ interface MarkerCard {
   unit: string;
   referenceLow: number;
   referenceHigh: number;
-  status: MarkerStatus;
+  /**
+   * Null when this result has no position on its reference range. The card
+   * then shows the value and says so in words, with no tint, no shape mark and
+   * no place in any count. It is never rendered as "In range".
+   */
+  status: MarkerStatus | null;
   /**
    * MEASURED / GENETIC / SENSITIVITY / COMPOSITION. Absent on a payload from
    * before result types existed, which is treated as MEASURED — that is what
@@ -115,10 +120,17 @@ function ResultCard({ marker: m, navState }: { marker: MarkerCard; navState: Mar
             it, and the row for one used to read "Lab reference range 0–0" —
             which is a half-populated row saying something false. Where there
             is no range, the line is simply absent. */}
-        {m.referenceHigh > m.referenceLow && (
+        {/* The range is only shown where it was actually applied. A result
+            with no status was not compared against it, so printing the range
+            beside the value would invite the reader to do the comparison
+            themselves — which is the thing nobody could do. */}
+        {m.status !== null && m.referenceHigh > m.referenceLow && (
           <p className="tabular mt-3 text-xs text-espresso/80">
             Lab reference range {m.referenceLow}–{m.referenceHigh} {m.unit}
           </p>
+        )}
+        {m.status === null && (
+          <p className="mt-3 text-xs text-espresso/80">{NO_STATUS_LABEL}</p>
         )}
         {m.optimal && (
           <p className="tabular mt-1 text-xs text-espresso/80">
@@ -127,7 +139,10 @@ function ResultCard({ marker: m, navState }: { marker: MarkerCard; navState: Mar
           </p>
         )}
         <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          <StatusBadge status={m.status} />
+          {/* Absent, not blank, where there is no status: StatusBadge renders
+              the words with no mark and no colour, and the tint above is not
+              applied at all. */}
+          {m.status !== null && <StatusBadge status={m.status} />}
           {m.amendedAt && <span className="text-xs text-espresso/80">Amended {formatDate(m.amendedAt)}</span>}
         </div>
         {m.gloss && <p className="mt-5 text-sm leading-relaxed text-espresso/90">{m.gloss}</p>}
@@ -174,7 +189,11 @@ export function ReportView() {
   // Split by result type once. Only MEASURED reaches the grid, the counts strip
   // and the category bars; the other three get their own sections below.
   const byType = useMemo(() => {
-    const all = report?.markers ?? [];
+    // A marker with no result renders nowhere — never a placeholder, never an
+    // empty row. The server no longer sends one; this is the second lock on
+    // the same door, because the cost of one slipping through is a patient
+    // being told something about a test that was never performed.
+    const all = (report?.markers ?? []).filter(hasResultValue);
     return {
       measured: all.filter((m) => resultTypeOf(m) === 'MEASURED'),
       genetic: all.filter((m) => resultTypeOf(m) === 'GENETIC'),

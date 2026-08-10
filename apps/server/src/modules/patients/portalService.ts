@@ -5,7 +5,7 @@ import { sourceLabel } from '../../lib/sourceLabel.js';
 import { convertToDisplayUnit, hasKnownConversion } from '../../lib/unitConversion.js';
 import { optimalContextForPatient, optimalFor } from '../../lib/optimalRange.js';
 import { classifyMovement, isMeaningfulChange, movementMagnitude } from './markerMovement.js';
-import { formatReportTitle, type MarkerStatus } from '@aspire-bloods/shared';
+import { formatReportTitle, hasResultValue, type MarkerStatus } from '@aspire-bloods/shared';
 
 export type { MarkerMovement } from './markerMovement.js';
 
@@ -49,7 +49,12 @@ interface NormalisedPoint {
   converted: boolean;
   originalValue: number | null;
   originalUnit: string;
-  status: MarkerStatus;
+  /**
+   * Null when this result has no position on its reference range. Null is not
+   * a state — it is the absence of a comparison, and it must never be counted
+   * as in range, listed as needing attention, tinted, or plotted.
+   */
+  status: MarkerStatus | null;
   referenceLow: number;
   referenceHigh: number;
   /**
@@ -117,7 +122,13 @@ async function loadReleasedPoints(patientId: string): Promise<NormalisedPoint[]>
     orderBy: [{ report: { sampleDate: 'asc' } }, { createdAt: 'asc' }],
   });
 
-  return results.map((r) => {
+  return results
+    // Nothing measured, nothing to normalise, nothing to show. Dropped once,
+    // here, so every screen this array feeds — Overview, the marker list, the
+    // comparison chart, the sparklines — inherits the rule rather than each
+    // one having to remember it. See the same filter in ./service.ts.
+    .filter((r) => hasResultValue(decodeResultValue(decryptField(r.valueEncrypted))))
+    .map((r) => {
     const displayUnit = r.marker.defaultUnit;
     const decoded = decodeResultValue(decryptField(r.valueEncrypted));
     // Textual results ("< 0.6", "Not detected") have nothing to convert;
@@ -161,7 +172,7 @@ async function loadReleasedPoints(patientId: string): Promise<NormalisedPoint[]>
       amendedAt: r.amendedAt,
       convertible: valueOk && rangeOk,
     };
-  });
+    });
 }
 
 /** Converted values carry float noise (18.0182 factors); nobody wants to read 4.400000000000001. */
@@ -192,7 +203,11 @@ export async function getPatientOverview(patientId: string) {
   const latestReport = releasedReports[0] ?? null;
 
   const latestPoints = latestReport ? points.filter((p) => p.reportId === latestReport.id) : [];
-  const attentionPoints = latestPoints.filter((p) => p.status !== 'IN_RANGE');
+  // Both counted from what they are. A result with no status is neither in
+  // range nor needing attention, and the summary line below must not reach it
+  // by subtracting one from the total.
+  const attentionPoints = latestPoints.filter((p) => p.status !== null && p.status !== 'IN_RANGE');
+  const inRangePoints = latestPoints.filter((p) => p.status === 'IN_RANGE');
 
   // Anything out of range at all — including on an older report whose marker
   // wasn't repeated in the latest one. A flagged result doesn't stop mattering
@@ -201,7 +216,7 @@ export async function getPatientOverview(patientId: string) {
   for (const p of points) latestByMarker.set(p.markerId, p); // points are oldest-first, so this lands on the newest
 
   const attention = [...latestByMarker.values()]
-    .filter((p) => p.status !== 'IN_RANGE')
+    .filter((p) => p.status !== null && p.status !== 'IN_RANGE')
     .sort((a, b) => (a.sampleDate < b.sampleDate ? 1 : -1))
     .map((p) => ({
       markerId: p.markerId,
@@ -253,6 +268,10 @@ export async function getPatientOverview(patientId: string) {
       if (!current.convertible || !previous.convertible) return null; // never compare across units we can't relate
       // A textual result ("< 0.6") has no magnitude — nothing to compare.
       if (current.value === null || previous.value === null) return null;
+      // And a result with no status has no side of the range to have moved
+      // toward or away from. "Moved into the usual range" about a comparison
+      // that was never made is a sentence with no fact under it.
+      if (current.status === null || previous.status === null) return null;
       const cur = { value: current.value, status: current.status, referenceLow: current.referenceLow, referenceHigh: current.referenceHigh };
       const prev = { value: previous.value, status: previous.status, referenceLow: previous.referenceLow, referenceHigh: previous.referenceHigh };
       if (!isMeaningfulChange(cur, prev)) return null;
@@ -334,7 +353,7 @@ export async function getPatientOverview(patientId: string) {
           sampleDate: latestReport.sampleDate.toISOString().slice(0, 10),
           sourceLabel: sourceLabel(latestReport.source.key, latestReport.source.name),
           markerCount: latestPoints.length,
-          inRangeCount: latestPoints.length - attentionPoints.length,
+          inRangeCount: inRangePoints.length,
           attentionCount: attentionPoints.length,
         }
       : null,
@@ -412,9 +431,15 @@ export async function listAllMarkersForPatient(patientId: string) {
         direction: delta === null || delta === 0 ? null : delta > 0 ? ('UP' as const) : ('DOWN' as const),
         // Textual results can't be a point on a line — the spark simply
         // skips them, same as the full trend chart does.
+        // A point needs both a number to plot and a status to take its shape
+        // and colour from. In practice the two go together, since a numeric
+        // value against a resolved range always derives one.
         spark: comparable
           ? series
-              .filter((p) => p.value !== null)
+              .filter(
+                (p): p is typeof p & { value: number; status: MarkerStatus } =>
+                  p.value !== null && p.status !== null,
+              )
               .map((p) => ({ sampleDate: p.sampleDate, value: p.value, status: p.status }))
           : [],
       };
@@ -443,7 +468,9 @@ export async function getMultiMarkerTrends(patientId: string, markerIds: string[
       // rather than in the UI so a hand-built URL can't produce one either.
       if (series[0].resultType !== 'MEASURED') return null;
       const comparable = series.every((p) => p.convertible);
-      const plottable = series.filter((p) => p.value !== null);
+      const plottable = series.filter(
+        (p): p is typeof p & { value: number; status: MarkerStatus } => p.value !== null && p.status !== null,
+      );
       // A marker whose every released result is textual ("< 0.6", "Not
       // detected") has nothing to put on an axis. It used to come back as a
       // series with an empty points array, and the comparison chart reads

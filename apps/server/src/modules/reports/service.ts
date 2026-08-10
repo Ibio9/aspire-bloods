@@ -18,6 +18,7 @@ import {
   classifyValue,
   resolveResultRange,
   deriveStatus,
+  statusForStorage,
   disagreesWithLabIndicator,
   type ClassifiedValue,
 } from '../../lib/deriveResultStatus.js';
@@ -407,7 +408,8 @@ export async function verifyReport(
     valueEncrypted: string;
     unit: string;
     referenceRangeId: string;
-    status: ReturnType<typeof computeMarkerStatus>;
+    /** Null where the value has no position on the range. Never IN_RANGE by default — see statusForStorage. */
+    status: MarkerStatus | null;
   }[] = [];
 
   for (const row of input.results) {
@@ -431,14 +433,32 @@ export async function verifyReport(
     // A textual result ("< 0.6", "Not detected") arrives through the same
     // field as a number. Where it CAN be placed against the range with
     // certainty — "< 5.0" against a 0–5.0 range is unambiguously in range —
-    // it now is, rather than every non-number defaulting to unflagged.
-    // Where it can't, IN_RANGE still means "not flagged", exactly as before:
-    // a value with no position on the range is not evidence of a problem, and
-    // inventing one from a limit is the failure this deliberately avoids.
+    // it is. Where it can't, the result is stored with NO status.
+    //
+    // It used to be stored as IN_RANGE, on the reasoning that "not flagged"
+    // and "in range" amount to the same thing. They do not. The portal draws
+    // IN_RANGE as the word "In range", a level mark and a green wash, so a
+    // qualitative row — and, worse, a row with nothing in it at all — arrived
+    // in front of the patient as a marker that had been measured and was fine.
+    // See statusForStorage: absence is stored as absence.
     const classified: ClassifiedValue =
       typeof row.value === 'number' ? { kind: 'numeric', value: row.value } : classifyValue(null, row.value);
+
+    // And a row with no value whatever never becomes a result at all. The
+    // schema already holds this position for markers the lab voided — see
+    // ReportResultExclusion, "a voided value must have no row anywhere a
+    // patient read path could reach it" — and a row an admin left empty, or
+    // that the lab printed as "—" or "Not performed", is the same fact. Named
+    // rather than silently dropped: the admin has to either enter the value or
+    // unmatch the row, and either way it is their decision and not ours.
+    if (classified.kind === 'absent') {
+      throw new ReportError(
+        `${marker.name} has no result value. Enter the value from the report, or unmatch the row — a marker with nothing measured is not recorded as in range.`,
+        400,
+      );
+    }
+
     const derived = deriveStatus(classified, row.referenceLow, row.referenceHigh, marker);
-    const status: MarkerStatus = derived.status === 'derived' ? derived.value : 'IN_RANGE';
 
     resultRows.push({
       reportId,
@@ -446,7 +466,7 @@ export async function verifyReport(
       valueEncrypted: encryptField(String(row.value)),
       unit: row.unit,
       referenceRangeId: rangeId,
-      status,
+      status: statusForStorage(derived),
     });
   }
 

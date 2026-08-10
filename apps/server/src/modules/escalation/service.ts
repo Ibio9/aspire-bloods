@@ -24,10 +24,15 @@ export async function checkAndEscalate(reportId: string): Promise<void> {
     },
   });
 
-  const flagged = report.results.filter((r) => OUT_OF_RANGE_STATUSES.has(r.status));
+  // A result with no status was never compared to a range, so it cannot be
+  // outside one. Escalating on it would call a clinician about a marker that
+  // has no finding attached to it.
+  const flagged = report.results.filter((r) => r.status !== null && OUT_OF_RANGE_STATUSES.has(r.status));
   if (flagged.length === 0) return;
 
-  const severity = flagged.some((r) => SIGNIFICANT_STATUSES.has(r.status)) ? 'SIGNIFICANT' : 'MILD';
+  const severity = flagged.some((r) => r.status !== null && SIGNIFICANT_STATUSES.has(r.status))
+    ? 'SIGNIFICANT'
+    : 'MILD';
   const patientName = report.patient.patientProfile
     ? `${report.patient.patientProfile.firstName} ${report.patient.patientProfile.lastName}`
     : report.patient.email;

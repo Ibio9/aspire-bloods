@@ -1,4 +1,4 @@
-import { status as statusTokens, type MarkerStatus } from '@aspire-bloods/shared';
+import { status as statusTokens, NO_STATUS_LABEL, type MarkerStatus } from '@aspire-bloods/shared';
 
 const STATUS_MAP: Record<MarkerStatus, keyof typeof statusTokens> = {
   IN_RANGE: 'inRange',
@@ -49,7 +49,19 @@ function StatusIcon({ icon, color }: { icon: string; color: string }) {
   }
 }
 
-export function StatusBadge({ status, className = '' }: { status: MarkerStatus; className?: string }) {
+/**
+ * Null status is a real, expected input, not a missing prop.
+ *
+ * A result with no position on its reference range gets the words and nothing
+ * else: no chevron, no level mark, no doubled mark, and no status colour. Every
+ * one of those is a claim about where the value sits, and the whole point is
+ * that nobody knows. Ordinary body colour, ordinary weight — it reads as a note
+ * about the record rather than as a sixth state in the traffic light.
+ */
+export function StatusBadge({ status, className = '' }: { status: MarkerStatus | null; className?: string }) {
+  if (status === null) {
+    return <span className={`inline-flex items-center text-sm text-espresso/80 ${className}`}>{NO_STATUS_LABEL}</span>;
+  }
   const key = STATUS_MAP[status];
   const token = statusTokens[key];
   // The theme-aware custom property rather than the light-mode hex: the same
