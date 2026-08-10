@@ -28,7 +28,14 @@ export interface AttentionItem {
   /** Where significantly-out begins for this marker — the range bar's gradient turns here. */
   severityThreshold?: number;
   reportId: string;
-  panelName: string;
+  /**
+   * Null on a report with no catalogue panel behind it — panels are optional,
+   * so this is genuinely absent rather than rare. Print reportTitle, or guard
+   * this; rendering it raw produced an orphaned "· 5 August 2026".
+   */
+  panelName: string | null;
+  /** The composed house title, always present. See formatReportTitle in packages/shared. */
+  reportTitle: string;
   sampleDate: string;
   fromEarlierReport: boolean;
 }
@@ -63,7 +70,10 @@ export interface PatientOverview {
   trackedMarkerCount: number;
   latest: {
     reportId: string;
-    panelName: string;
+    /** Null when the report has no panel behind it. Use `title` for anything a patient reads. */
+    panelName: string | null;
+    /** Never empty — falls back to "12 markers · 4 August 2026". */
+    title: string;
     sampleDate: string;
     sourceLabel: string;
     markerCount: number;
@@ -110,7 +120,10 @@ export interface MarkerRow {
   optimal?: OptimalRangeDTO | null;
   sampleDate: string;
   reportId: string;
-  panelName: string;
+  /** Null when the report has no panel behind it — guard before printing. */
+  panelName: string | null;
+  /** The composed house title, always present. */
+  reportTitle: string;
   sourceLabel: string;
   amendedAt: string | null;
   resultCount: number;
@@ -155,7 +168,10 @@ export interface LibraryEntry {
 
 export interface PatientDocument {
   reportId: string;
-  panelName: string;
+  /** Null when the report has no panel behind it. Use `title` for the heading. */
+  panelName: string | null;
+  /** Never empty — falls back to "12 markers · 4 August 2026". */
+  title: string;
   sampleDate: string;
   releasedAt: string | null;
   sourceLabel: string;

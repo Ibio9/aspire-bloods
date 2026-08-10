@@ -103,7 +103,9 @@ export function DocumentsPage() {
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
                     <p className="eyebrow mb-2">{formatDate(doc.sampleDate)}</p>
-                    <p className="font-display text-2xl leading-tight text-espresso">{doc.panelName}</p>
+                    {/* The composed title — a manual-entry or ad-hoc report has
+                        no panel, and the raw name rendered this heading blank. */}
+                    <p className="font-display text-2xl leading-tight text-espresso">{doc.title}</p>
                     <p className="tabular mt-2 text-xs text-espresso/80">
                       {doc.markerCount} marker{doc.markerCount === 1 ? '' : 's'} · {doc.sourceLabel}
                     </p>

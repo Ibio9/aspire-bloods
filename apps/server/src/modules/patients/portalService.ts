@@ -177,7 +177,12 @@ export async function getPatientOverview(patientId: string) {
       referenceHigh: p.referenceHigh,
       severityThreshold: p.severityThreshold,
       reportId: p.reportId,
+      // Both, because they answer different questions. panelName is null on an
+      // ad-hoc report with no catalogue panel behind it (panels are optional),
+      // so a caller that prints it raw prints nothing; reportTitle is the
+      // composed, always-present house title — see formatReportTitle.
       panelName: p.panelName,
+      reportTitle: p.reportTitle,
       sampleDate: p.sampleDate,
       /** True when this came from an earlier report than the most recent one. */
       fromEarlierReport: latestReport ? p.reportId !== latestReport.id : false,
@@ -341,7 +346,10 @@ export async function listAllMarkersForPatient(patientId: string) {
         optimal: optimalFor(latest.markerKey, latest.unit, latest.value, optimalCtx),
         sampleDate: latest.sampleDate,
         reportId: latest.reportId,
+        // See the same pair on the overview's attention list: panelName is
+        // nullable by design, reportTitle is the composed fallback.
         panelName: latest.panelName,
+        reportTitle: latest.reportTitle,
         sourceLabel: latest.sourceLabel,
         amendedAt: latest.amendedAt,
         resultCount: series.length,

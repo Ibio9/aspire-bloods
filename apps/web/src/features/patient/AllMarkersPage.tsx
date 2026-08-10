@@ -73,8 +73,11 @@ function MarkerListRow({ marker }: { marker: MarkerRow }) {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-6">
           <div className="min-w-0 flex-1">
             <p className="font-display text-xl leading-tight text-espresso sm:text-2xl">{marker.name}</p>
+            {/* The panel name is an optional segment — a report needn't have a
+                panel behind it, and printing it raw left a leading "· ". */}
             <p className="mt-1 text-xs text-espresso/80">
-              {marker.panelName} · {formatDate(marker.sampleDate)}
+              {marker.panelName ? `${marker.panelName} · ` : ''}
+              {formatDate(marker.sampleDate)}
               {marker.resultCount > 1 && ` · ${marker.resultCount} results`}
             </p>
           </div>

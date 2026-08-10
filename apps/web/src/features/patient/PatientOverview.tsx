@@ -245,8 +245,12 @@ export function PatientOverview() {
                           severityThreshold={item.severityThreshold}
                         />
                       </div>
+                      {/* Panels are optional, so the panel name is a segment
+                          that may not exist. Printed raw it left an orphaned
+                          "· 5 August 2026" leading the line. */}
                       <p className="mt-4 text-xs text-espresso/80">
-                        {item.panelName} · {formatDate(item.sampleDate)}
+                        {item.panelName ? `${item.panelName} · ` : ''}
+                        {formatDate(item.sampleDate)}
                         {item.fromEarlierReport && ' · not repeated in your most recent panel'}
                       </p>
                       <p className="mt-4 flex items-center gap-1.5 text-sm font-medium text-bronze-700">
@@ -306,7 +310,10 @@ export function PatientOverview() {
             <div className="flex flex-wrap items-start justify-between gap-6">
               <div>
                 <p className="eyebrow mb-2">{formatDate(data.latest.sampleDate)}</p>
-                <p className="font-display text-3xl leading-tight text-espresso">{data.latest.panelName}</p>
+                {/* The composed title, not the raw panel name — a report with
+                    no panel behind it rendered this heading empty, which is
+                    the most prominent card on the landing page. */}
+                <p className="font-display text-3xl leading-tight text-espresso">{data.latest.title}</p>
                 <p className="mt-2 text-xs text-espresso/80">{data.latest.sourceLabel}</p>
               </div>
               <LinkButton to={`/reports/${data.latest.reportId}`} variant="primary">
