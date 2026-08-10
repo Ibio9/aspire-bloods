@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
 import { DateField } from '../../components/ui/DateField';
 import { Skeleton } from '../../components/ui/Skeleton';
+import { ErrorState } from '../../components/ui/ErrorState';
 import { Table, TableHead, TableBody, TableRow, TableHeaderCell, TableCell } from '../../components/ui/Table';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { ReportProgress } from '../../components/ui/ReportProgress';
@@ -19,7 +20,7 @@ import { apiFetch, ApiError } from '../../lib/api';
 import { downloadSignedFile } from '../../lib/download';
 import { useAuth } from '../../lib/AuthContext';
 import type { ReportStatus } from '../../lib/reportStatus';
-import { formatDate, formatDateTime, type MarkerStatus } from '@aspire-bloods/shared';
+import { formatDate, formatDateTime, formatReportHeading, type MarkerStatus } from '@aspire-bloods/shared';
 
 interface MarkerOption {
   id: string;
@@ -165,6 +166,8 @@ export function ReportDetailPage() {
   const [parsedPanelName, setParsedPanelName] = useState<string | null>(null);
   const [sampleDate, setSampleDate] = useState('');
   const [error, setError] = useState<string | null>(null);
+  /** A failure of the initial load, as opposed to `error`, which is an action that failed. */
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const [parsing, setParsing] = useState(false);
   const [note, setNote] = useState('');
@@ -208,7 +211,17 @@ export function ReportDetailPage() {
 
   useEffect(() => {
     void (async () => {
-      const loaded = await load();
+      let loaded: ReportDetail | null;
+      try {
+        loaded = await load();
+      } catch (e) {
+        // A voided report, an id typed wrong, a patient this clinician can't
+        // see: all of these used to reject unhandled and leave the loading
+        // skeleton up indefinitely on the screen an admin spends most of
+        // their day in.
+        setLoadError(e);
+        return;
+      }
       if (!loaded || autoParsed.current) return;
       autoParsed.current = true;
 
@@ -410,6 +423,17 @@ export function ReportDetailPage() {
     }
   }
 
+  if (loadError != null) {
+    return (
+      <>
+        <Breadcrumbs items={[{ label: 'Reports', to: '/admin' }, { label: 'Not available' }]} />
+        <div className="mt-8">
+          <ErrorState error={loadError} subject="this report" backTo={{ to: '/admin', label: 'Back to reports' }} />
+        </div>
+      </>
+    );
+  }
+
   if (!report) {
     return (
       <div aria-busy="true" aria-label="Loading report">
@@ -430,6 +454,13 @@ export function ReportDetailPage() {
     : null;
 
   const sampleDateLabel = formatDate(report.sampleDate);
+  // The heading form, not the server's self-contained title. Every place this
+  // is printed already has the sample date immediately beside it, and
+  // formatReportTitle's no-panel fallback carries the date too — so a
+  // panel-less report identified itself as "Results · 1 March 2026, 1 March
+  // 2026" in the breadcrumb, again in the sticky bar, again in the eyebrow and
+  // again in the H1: the same date five times on one screen.
+  const reportHeading = formatReportHeading(report.panel?.name, report.results.length);
   const attentionRows = rows.map((r, i) => ({ row: r, i })).filter(({ row }) => row.attention.length > 0);
   const cleanRows = rows.map((r, i) => ({ row: r, i })).filter(({ row }) => row.attention.length === 0);
   const publishable = rows.length > 0 && buildResults().length > 0 && attentionRows.length === 0 && incompleteMatchedRows().length === 0;
@@ -440,7 +471,7 @@ export function ReportDetailPage() {
         items={[
           { label: 'Patients', to: '/admin/patients' },
           { label: patientName, to: `/admin/patients/${report.patient.id}` },
-          { label: `${report.title}, ${sampleDateLabel}` },
+          { label: `${reportHeading}, ${sampleDateLabel}` },
         ]}
       />
 
@@ -451,12 +482,12 @@ export function ReportDetailPage() {
           20px of mobile padding, which scrolled the page 4px sideways. */}
       <div className="sticky top-topbar z-20 -mx-5 mb-4 border-b border-taupe bg-cream/95 px-5 py-2.5 backdrop-blur sm:-mx-8 sm:px-8 md:-mx-14 md:px-14">
         <p className="truncate text-sm font-medium text-espresso">
-          {patientName} <span className="text-espresso/50">·</span> {report.title}{' '}
+          {patientName} <span className="text-espresso/50">·</span> {reportHeading}{' '}
           <span className="text-espresso/50">·</span> <span className="tabular">{sampleDateLabel}</span>
         </p>
       </div>
 
-      <TwoTierHeading eyebrow={`${patientName} · ${sampleDateLabel}`} title={report.title} />
+      <TwoTierHeading eyebrow={`${patientName} · ${sampleDateLabel}`} title={reportHeading} />
       <p className="mt-2 flex items-center gap-1 text-sm text-espresso/80">
         {report.patient.email}
         <CopyButton value={report.patient.email} label="Copy patient email" />
