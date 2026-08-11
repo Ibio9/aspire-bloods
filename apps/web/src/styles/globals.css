@@ -283,6 +283,40 @@
     }
   }
 
+  /* ── The trend chart's mount ───────────────────────────────────────────
+     (see components/ui/TrendChart.tsx)
+
+     The line draws itself in — Recharts animates the stroke's dash offset,
+     which is a draw rather than a fade, and it needs no help from here. The
+     BANDS are the part CSS has to do: they are ReferenceArea rects deep inside
+     the chart's SVG, so there is no call site to hang a transition on, and
+     fading each one individually would stagger a single field of colour into
+     five.
+
+     One rule on the wrapper does it. Slightly slower than the line and with no
+     delay, so the context settles under the subject rather than after it.
+
+     `.trend-mount` is only applied while the component's own `animate` flag is
+     true, which is already false under reduced motion — the media query below
+     is the second guard, not the only one, and the global duration-zeroing rule
+     at the foot of this layer is the third. */
+  .trend-mount .recharts-reference-area {
+    animation: trend-band-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes trend-band-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .trend-mount .recharts-reference-area {
+      animation: none;
+    }
+  }
+
   /* ── The results control bar's filters panel ───────────────────────────
      (see features/patient/ResultsControlBar.tsx)
 

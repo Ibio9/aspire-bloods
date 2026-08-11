@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from 'react';
 import {
-  CartesianGrid,
+  Area,
   ComposedChart,
   Line,
   ReferenceArea,
@@ -9,6 +9,8 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  usePlotArea,
+  useYAxisScale,
 } from 'recharts';
 import {
   asMarkerStatus,
@@ -16,7 +18,9 @@ import {
   chart as chartTokens,
   statusBands,
   statusPaint,
-  bandGradientStops,
+  bandPlotStops,
+  bandWeight,
+  BAND_WEIGHT,
   severityThresholdFor,
   formatOptimalRange,
   formatDate,
@@ -43,7 +47,7 @@ import { statusColor, statusLabel } from '../../lib/markerCopy';
  *    sits and nothing more. None of them is labelled good, healthy, bad,
  *    concerning or danger, and none ever will be.
  *
- * WHAT THE BANDS ARE. The reference range renders as a soft green band.
+ * WHAT THE BANDS ARE. The reference range renders as a soft green region.
  * Immediately above and below it, yellow. Beyond the point where the status
  * itself changes to significantly out, red — with orange as the transition
  * between the two, which is the whole of orange's job here and is never a
@@ -52,17 +56,40 @@ import { statusColor, statusLabel } from '../../lib/markerCopy';
  * 20–42 gets bands sized for 20–42, and the band a value falls in is always
  * the band its own status says it is in. Nothing here is a fixed scale.
  *
- * WHY THAT IS SAFE. Colour is the last thing carrying status, never the first.
- * The point's SHAPE still says it (level dot, triangle, doubled triangle), the
- * tooltip still says it in words, every band carries a visible boundary line,
- * and the key below the chart names every band and every mark in text. Turn
- * the whole thing greyscale and nothing is lost — which matters most for
- * exactly this pair, since red and green are the commonest confusion there is.
+ * ------------------------------------------------------------------------
+ * THE BANDS ARE CONTEXT AND THE LINE IS CONTENT (redesigned Aug 2026)
+ * ------------------------------------------------------------------------
  *
- * The explanatory line above the chart matches whichever of the three data
- * states actually applies, rather than showing the incomparable-sources note
- * unconditionally — which, on a patient's very first result, was a sentence
- * about a comparison that hadn't happened.
+ * They used to be four opaque, saturated slabs spanning the plot edge to edge,
+ * each meeting the next at a hard step, with a near-solid rule drawn over every
+ * boundary and a thin line somewhere behind it all. Everything anybody disliked
+ * about this chart followed from that one thing: at equal weight and full
+ * strength, five regions of colour ARE the picture, and the reader's own result
+ * is a detail on top of them. It read as a fill tool rather than as shading.
+ *
+ * Four changes, and they are one change:
+ *
+ *  1. WEIGHT. A band is composited at `BAND_WEIGHT` (statusBands.ts) rather
+ *     than painted at full strength, and the five weights are unequal: in range
+ *     carries almost nothing, out-of-range a little, significantly-out a little
+ *     more. The reader meets the line first.
+ *  2. FALLOFF. Each band fades out over `bandEdgeFade` of its own height at
+ *     both ends, so it reads as a region rather than as a block. What used to
+ *     be a hard step between two saturated fields is now two soft edges with a
+ *     hairline between them.
+ *  3. HAIRLINES. The boundaries are 1px strokes at low opacity — and the
+ *     reference bounds are LABELLED INLINE at the right edge of the plot, so
+ *     "where does my range actually start" is answered on the chart instead of
+ *     in the key.
+ *  4. AXES. Round tick values only, four of them, no gridlines, no box.
+ *
+ * WHY THAT IS STILL SAFE. Colour is the last thing carrying status, never the
+ * first — and softening it takes nothing away from the layers that do. The
+ * point's SHAPE still says it (level dot, triangle, doubled triangle), the
+ * tooltip still says it in words, every band still carries a visible boundary
+ * line, and the key below still names every band and every mark in text. Turn
+ * the whole thing greyscale and nothing is lost, which matters most for exactly
+ * this pair, since red and green are the commonest confusion there is.
  */
 
 /**
@@ -77,6 +104,9 @@ function epochOf(sampleDate: string): number {
 }
 
 const DAY_MS = 86_400_000;
+
+/** Low to high, which is the order the bands stack in and the key lists them. */
+const BAND_ORDER: MarkerStatus[] = ['SIGNIFICANT_LOW', 'LOW', 'IN_RANGE', 'HIGH', 'SIGNIFICANT_HIGH'];
 
 interface TrendPoint {
   sampleDate: string;
@@ -101,6 +131,63 @@ interface TrendPoint {
   originalUnit?: string;
 }
 
+/** A point with its date resolved to a number, which is what everything below reads. */
+type PlottedPoint = TrendPoint & { t: number };
+
+// ---------------------------------------------------------------------------
+// A NUMBER SOMEBODY WOULD HAVE CHOSEN.
+//
+// The y-axis used to read 0, 8, 16, 24, 31.9 — because Recharts, handed a
+// domain, divides it into equal parts and prints whatever falls out, and the
+// top of the domain is the data plus a computed pad. 31.9 is not a quantity
+// anybody picked, it is an artefact of the padding arithmetic showing through,
+// and a reader who sees one immediately (and correctly) stops trusting the
+// numbers beside it.
+//
+// So the ticks are chosen from the 1 / 2 / 2.5 / 5 ladder at the marker's own
+// order of magnitude and placed INSIDE the domain rather than at its ends. The
+// domain is untouched by this: the bands are geometry derived from the
+// reference range and must not move because an axis label wanted to be round.
+// ---------------------------------------------------------------------------
+
+/** The smallest step from the 1/2/2.5/5 ladder that is at least `rough`. */
+function niceStep(rough: number): number {
+  if (!Number.isFinite(rough) || rough <= 0) return 1;
+  const magnitude = 10 ** Math.floor(Math.log10(rough));
+  const normalised = rough / magnitude;
+  const step = normalised <= 1 ? 1 : normalised <= 2 ? 2 : normalised <= 2.5 ? 2.5 : normalised <= 5 ? 5 : 10;
+  return step * magnitude;
+}
+
+/** How many decimals a value needs to print exactly, capped where a lab result stops caring. */
+function decimalsOf(value: number): number {
+  const text = String(value);
+  const dot = text.indexOf('.');
+  return dot < 0 ? 0 : Math.min(3, text.length - dot - 1);
+}
+
+/**
+ * Round tick values within [min, max] — four of them where the span allows,
+ * which is fewer than the six or seven Recharts reaches for by default. A trend
+ * chart is read for its shape; the axis is there to give that shape a scale,
+ * and every extra label is furniture competing with the data.
+ */
+function niceTicks(min: number, max: number, target = 4): number[] {
+  if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return [];
+  const step = niceStep((max - min) / target);
+  const decimals = Math.max(0, Math.ceil(-Math.log10(step)) + 1);
+  const ticks: number[] = [];
+  const first = Math.ceil(min / step - 1e-9) * step;
+  for (let i = 0; i < 40; i += 1) {
+    const value = first + i * step;
+    if (value > max + step * 1e-9) break;
+    // Rebuilt from the step each time rather than accumulated, so 0.1 + 0.1 +
+    // 0.1 does not print as 0.30000000000000004 on somebody's blood result.
+    ticks.push(Number(value.toFixed(decimals)));
+  }
+  return ticks.length >= 2 ? ticks : [];
+}
+
 /**
  * Status as a shape, not a hue.
  *
@@ -119,14 +206,35 @@ const STATUS_SHAPE: Record<MarkerStatus, 'circle' | 'up' | 'down' | 'double-up' 
 
 /**
  * A point takes its own state's colour — the same green/yellow/red the band
- * under it uses, a step stronger so it reads as a mark on the band rather than
- * disappearing into it. It reinforces the shape; it never replaces it.
+ * under it uses, several steps stronger so it reads as a mark ON the band
+ * rather than a patch of it. It reinforces the shape; it never replaces it.
  */
 function markFill(status: MarkerStatus): string {
   return statusPaint(status).mark;
 }
 
-function StatusMark({ cx, cy, status, size = 1 }: { cx: number; cy: number; status: MarkerStatusInput; size?: number }) {
+/**
+ * A mark, ringed in the card's own surface colour.
+ *
+ * The ring is what makes the line appear to pass BEHIND the point rather than
+ * to stop at it — it is the colour the plot would be if nothing were drawn
+ * there, so the two or three pixels around the mark read as a gap in the line
+ * rather than as a halo drawn on top of one.
+ */
+function StatusMark({
+  cx,
+  cy,
+  status,
+  size = 1,
+  ring = 1,
+}: {
+  cx: number;
+  cy: number;
+  status: MarkerStatusInput;
+  size?: number;
+  /** The VISIBLE width of the ring, in pixels — see paintOrder below. */
+  ring?: number;
+}) {
   const known = asMarkerStatus(status);
   // No status, no mark. Every shape here — level dot, triangle, doubled
   // triangle — is a claim about where the value sits, and that is precisely
@@ -135,7 +243,29 @@ function StatusMark({ cx, cy, status, size = 1 }: { cx: number; cy: number; stat
   if (!known) return null;
   const fill = markFill(known);
   const r = 5 * size;
-  const common = { fill, stroke: chartTokens.pointRing, strokeWidth: 1.5 };
+  const common = {
+    fill,
+    stroke: chartTokens.pointRing,
+    // Doubled, because `paint-order: stroke` draws the ring FIRST and then
+    // fills over its inner half — so half of the declared width is what shows.
+    strokeWidth: ring * 2,
+    strokeLinejoin: 'round' as const,
+    /**
+     * THE RING GOES OUTSIDE THE MARK, NOT THROUGH IT.
+     *
+     * An SVG stroke straddles its path, so a 1.5px ring on a 5px triangle eats
+     * about half the triangle's own area from the inside — and that is not a
+     * theoretical amount. The below-range marks on this chart were rendering as
+     * white triangles with a thin gold edge: the shape was right, the colour
+     * was right, and what you actually saw was the ring. A circle survives it
+     * (its area grows with r²); a triangle at the same r has under half the
+     * area and does not.
+     *
+     * `paint-order: stroke` puts the stroke down first and the fill on top of
+     * it, so the mark keeps its full size and the ring is entirely outside.
+     */
+    paintOrder: 'stroke' as const,
+  };
   const shape = STATUS_SHAPE[known];
 
   if (shape === 'circle') return <circle cx={cx} cy={cy} r={r} {...common} />;
@@ -157,15 +287,79 @@ function StatusMark({ cx, cy, status, size = 1 }: { cx: number; cy: number; stat
   );
 }
 
-function CustomDot(props: { cx?: number; cy?: number; payload?: TrendPoint }) {
-  const { cx, cy, payload } = props;
+/**
+ * THE MOST RECENT POINT IS THE ONE THE READER CAME FOR.
+ *
+ * Every point on this chart used to be drawn at exactly the same size, which
+ * makes the series read as a set of equally interesting facts. It isn't: the
+ * history is context for the latest result, in the same way the bands are
+ * context for the line. So the last point is larger and carries a soft halo of
+ * its own colour, and the ones behind it are smaller and quieter.
+ *
+ * Nothing about the SHAPE layer changes with the size — a triangle at 0.82 is
+ * the same triangle, and the tooltip and the key say the same words about it.
+ */
+function CustomDot(props: { cx?: number; cy?: number; payload?: PlottedPoint; latestT?: number }) {
+  const { cx, cy, payload, latestT } = props;
   if (cx == null || cy == null || !payload) return null;
+  const known = asMarkerStatus(payload.status);
+  const latest = payload.t === latestT;
   return (
     <g>
+      {latest && known && (
+        <circle cx={cx} cy={cy} r={13} fill={markFill(known)} fillOpacity={chartTokens.haloOpacity} />
+      )}
       {/* Invisible circle widens the touch/click target well past the visible marker — the
           visible mark stays small and precise, the tappable area doesn't. */}
       <circle cx={cx} cy={cy} r={16} fill="transparent" />
-      <StatusMark cx={cx} cy={cy} status={payload.status} />
+      <StatusMark cx={cx} cy={cy} status={payload.status} size={latest ? 1.2 : 0.9} ring={latest ? 2.2 : 1.6} />
+    </g>
+  );
+}
+
+/**
+ * THE REFERENCE BOUNDS, LABELLED WHERE THEY ARE.
+ *
+ * A boundary line with no number on it sends the reader to the key to find out
+ * what it is, and the key cannot tell them — it can say "the reference range"
+ * but not "3.5 to 5.3". Printing the two values at the right edge of the plot,
+ * level with their own lines, answers it in place; it is also what lets the
+ * band entries in the key stop being the only place the range is stated.
+ *
+ * The bounds are the LAST period's, because the right edge of the plot is the
+ * last period's territory — where a marker's range changed partway through, the
+ * numbers beside the newest results are the ones that applied to them.
+ */
+function BoundaryLabels({ bounds }: { bounds: { value: number; text: string }[] }) {
+  const plot = usePlotArea();
+  const yScale = useYAxisScale();
+  if (!plot || !yScale) return null;
+  const placed: number[] = [];
+  return (
+    <g aria-hidden="true">
+      {bounds.map(({ value, text }) => {
+        const y = yScale(value);
+        if (y == null || !Number.isFinite(y)) return null;
+        // Outside the plot, or close enough to a label already placed that the
+        // two would overlap into an unreadable smudge.
+        if (y < plot.y || y > plot.y + plot.height) return null;
+        if (placed.some((other) => Math.abs(other - y) < 12)) return null;
+        placed.push(y);
+        return (
+          <text
+            key={text}
+            x={plot.x + plot.width + 7}
+            y={y}
+            dy="0.32em"
+            textAnchor="start"
+            fontSize={11}
+            fontFamily="var(--font-mono)"
+            fill={chartTokens.axisText}
+          >
+            {text}
+          </text>
+        );
+      })}
     </g>
   );
 }
@@ -186,27 +380,34 @@ function ChartTooltip({
     optimal == null
       ? null
       : (optimal.low == null || point.value >= optimal.low) && (optimal.high == null || point.value <= optimal.high);
+  const unit = point.unit ? ` ${point.unit}` : '';
 
   return (
-    <div className="rounded-card border border-taupe bg-white px-4 py-3 text-xs shadow-popover">
-      <p className="numeric tabular text-base font-semibold leading-none text-espresso">
+    // A CARD, not a browser tooltip: the product's own surface, hairline and
+    // warm espresso-derived shadow, at the popover level so it reads as lifted
+    // off the chart rather than drawn on it.
+    <div className="min-w-[11rem] rounded-card border border-taupe bg-cream-50 px-4 py-3 text-xs shadow-popover">
+      <p className="numeric text-[11px] uppercase tracking-eyebrow text-espresso/80">{formatDate(point.sampleDate)}</p>
+      <p className="numeric tabular mt-1.5 text-lg font-semibold leading-none text-espresso">
         {point.value}
         {point.unit && <span className="ml-1 text-xs font-normal text-espresso/80">{point.unit}</span>}
       </p>
-      <p className="mt-1.5 text-espresso/80">{formatDate(point.sampleDate)}</p>
       {/* The status word takes its own state's colour. It is a label FOR that
           colour rather than content sitting in it, and it still leads with the
           mark's shape — so it reads identically with the colour removed. */}
-      <p className="mt-1.5 flex items-center gap-1.5 font-medium" style={{ color: statusColor(point.status) }}>
+      <p className="mt-2 flex items-center gap-1.5 font-medium" style={{ color: statusColor(point.status) }}>
         <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
           <StatusMark cx={6} cy={6} status={point.status} size={0.9} />
         </svg>
         {statusLabel(point.status)}
       </p>
-      <p className="mt-1.5 text-espresso/80">
+      {/* THAT point's range, not the marker's current one — the whole reason a
+          changed reference range gets a step, a dashed rule and a sentence. */}
+      <p className="mt-2 border-t border-taupe/60 pt-2 text-espresso/80">
         Reference range{' '}
         <span className="numeric">
           {point.referenceLow}–{point.referenceHigh}
+          {unit}
         </span>
       </p>
       {/* Advisory, and clearly separate from the status above it. */}
@@ -216,9 +417,9 @@ function ChartTooltip({
           <span> · {withinOptimal ? 'within optimal' : 'outside optimal'}</span>
         </p>
       )}
-      {point.sourceLabel && <p className="mt-1.5 text-espresso/80">{point.sourceLabel}</p>}
+      {point.sourceLabel && <p className="mt-1 text-espresso/80">{point.sourceLabel}</p>}
       {point.converted && (
-        <p className="mt-1.5 text-espresso/80">
+        <p className="mt-1 text-espresso/80">
           Converted from {point.originalValue} {point.originalUnit}
         </p>
       )}
@@ -258,6 +459,7 @@ export function TrendChart({
   const uid = useId().replace(/:/g, '');
   const hatchId = `optimal-hatch-${uid}`;
   const gradId = `band-${uid}`;
+  const areaId = `trend-area-${uid}`;
 
   /**
    * Only points that were actually placed against a range are plotted.
@@ -277,6 +479,17 @@ export function TrendChart({
   // are comparable with each other.
   const connected = data.length >= 2 && crossSourceComparable;
 
+  /**
+   * THE MOUNT, and it is short.
+   *
+   * The line draws itself in (Recharts animates the stroke's dash offset, which
+   * is a draw rather than a fade) and the bands come up under it — in that
+   * order, because the line is the subject. `animate` falls back to false once
+   * it is done so that a re-render caused by a hover or a resize does not
+   * replay it, and the whole thing is skipped outright under reduced motion:
+   * `.trend-mount` is what carries the band fade, and it is only ever applied
+   * when this is true. The keyframe in globals.css is guarded a second time.
+   */
   const [animate, setAnimate] = useState(connected && !reducedMotion);
   useEffect(() => {
     if (reducedMotion || !connected) return;
@@ -314,7 +527,7 @@ export function TrendChart({
   // the band periods, the step boundaries between them, and the line itself.
   // The server sends it in order today; a chart that silently draws a zigzag
   // if it ever stops is not worth the two comparisons saved.
-  const rows = data.map((d) => ({ ...d, t: epochOf(d.sampleDate) })).sort((a, b) => a.t - b.t);
+  const rows: PlottedPoint[] = data.map((d) => ({ ...d, t: epochOf(d.sampleDate) })).sort((a, b) => a.t - b.t);
   const times = rows.map((r) => r.t);
   const tFirst = Math.min(...times);
   const tLast = Math.max(...times);
@@ -383,7 +596,7 @@ export function TrendChart({
    * result. Anchoring the step ON the new point is what produced the gutter.
    */
   const periods: {
-    rows: typeof rows;
+    rows: PlottedPoint[];
     low: number;
     high: number;
     threshold: number;
@@ -424,6 +637,35 @@ export function TrendChart({
     ],
   }));
 
+  // The range in force at the right-hand edge of the plot, which is the one
+  // the inline labels are about.
+  const lastPeriod = periods[periods.length - 1];
+  const boundaryLabels = [
+    { value: lastPeriod.high, text: String(lastPeriod.high) },
+    { value: lastPeriod.low, text: String(lastPeriod.low) },
+  ];
+
+  /**
+   * The scale, minus anything the inline boundary labels already say.
+   *
+   * A reference range is very often a round number — 135–145 for sodium is
+   * exactly the sort of pair the tick ladder lands on too — and the two label
+   * sets then print the same figure twice at the same height on opposite sides
+   * of the plot, which reads as a second axis rather than as a range bound. The
+   * boundary wins where they collide: it is the more specific fact, and it is
+   * the one attached to a line.
+   *
+   * Never below two, so a marker whose range happens to swallow every tick
+   * still has a scale on the left rather than an empty gutter.
+   */
+  const yTicks = (() => {
+    const all = niceTicks(domainMin, domainMax);
+    const span = domainMax - domainMin;
+    const kept = all.filter((tick) => !boundaryLabels.some((b) => Math.abs(b.value - tick) < span * 0.02));
+    return kept.length >= 2 ? kept : all;
+  })();
+  const tickDecimals = yTicks.reduce((most, tick) => Math.max(most, decimalsOf(tick)), 0);
+
   /**
    * A reference range that changes partway through a series has to be SAID,
    * not just drawn.
@@ -460,21 +702,15 @@ export function TrendChart({
     .map((d) => `${formatDate(d.sampleDate)}: ${d.value}, ${statusLabel(d.status).toLowerCase()}`)
     .join('; ');
 
-  // A boundary line is drawn as a very thin band rather than a ReferenceLine,
-  // because a ReferenceLine spans the whole plot and these have to step with
-  // their own segment. Sized off the domain so it stays ~1px at any scale.
-  const hairline = (domainMax - domainMin) * 0.003;
-
   // Which bands are actually on screen, for the key. A marker whose results
   // have never been near the significantly-out threshold still shows the band
   // (the domain reaches it), but the key only names what is drawn.
-  const bandsShown: MarkerStatus[] = ['SIGNIFICANT_LOW', 'LOW', 'IN_RANGE', 'HIGH', 'SIGNIFICANT_HIGH'].filter(
-    (s) =>
-      bandSegments.some((seg) => {
-        const b = seg.bands.find((x) => x.status === s)!;
-        return (b.to ?? domainMax) > domainMin && (b.from ?? domainMin) < domainMax;
-      }),
-  ) as MarkerStatus[];
+  const bandsShown: MarkerStatus[] = BAND_ORDER.filter((s) =>
+    bandSegments.some((seg) => {
+      const b = seg.bands.find((x) => x.status === s)!;
+      return (b.to ?? domainMax) > domainMin && (b.from ?? domainMin) < domainMax;
+    }),
+  );
 
   return (
     <div>
@@ -498,11 +734,15 @@ export function TrendChart({
         </p>
       )}
 
-      {/* Room at the right for the last tick label — most patients read this
-          on a phone, where a squat chart with clipped labels is the failure
-          mode. `tall` is the marker detail page's 60%-width card. */}
+      {/* REAL PADDING INSIDE THE CARD. The plot used to run to the card's own
+          edges on three sides, which is what made it read as a picture pasted
+          into a box rather than as a drawing on the card. The margins below do
+          the rest of it, and the right-hand one is also what the inline
+          boundary labels stand in. */}
       <div
-        className={`tabular w-full ${height === 'tall' ? 'h-64 sm:h-80 lg:h-[22rem]' : 'h-72 sm:h-80'}`}
+        className={`tabular w-full px-0.5 sm:px-2 ${animate ? 'trend-mount ' : ''}${
+          height === 'tall' ? 'h-64 sm:h-80 lg:h-[22rem]' : 'h-72 sm:h-80'
+        }`}
         role="img"
         aria-label={
           `Trend chart for ${data.length} result${data.length === 1 ? '' : 's'}. ` +
@@ -510,7 +750,7 @@ export function TrendChart({
         }
       >
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={rows} margin={{ top: 12, right: 20, left: 0, bottom: 4 }}>
+          <ComposedChart data={rows} margin={{ top: 14, right: 46, left: 0, bottom: 6 }}>
             <defs>
               {/* The optimal band is told apart from the status bands by its
                   hatch, not by its hue — it is a different KIND of statement
@@ -520,22 +760,50 @@ export function TrendChart({
                 <rect width="7" height="7" fill={chartTokens.optimalBand} fillOpacity={chartTokens.optimalBandOpacity} />
                 <line x1="0" y1="0" x2="0" y2="7" stroke={chartTokens.optimalEdge} strokeWidth="1.5" strokeOpacity={0.5} />
               </pattern>
-              {/* One gradient per status band. Stops run top-to-bottom on
-                  screen, which is high-value-to-low-value, so they are the
-                  reverse of the value-order pair bandGradientStops returns.
-                  In range resolves to the same colour twice, i.e. flat. */}
-              {(['SIGNIFICANT_LOW', 'LOW', 'IN_RANGE', 'HIGH', 'SIGNIFICANT_HIGH'] as MarkerStatus[]).map((s) => {
-                const [atLowEnd, atHighEnd] = bandGradientStops(s);
+              {/* ONE GRADIENT PER STATUS BAND, carrying BOTH the hue ramp and
+                  the band's weight.
+
+                  Stops run top-to-bottom on screen, which is high-value-to-
+                  low-value, so the colour pair is the reverse of the
+                  value-order pair bandPlotStops returns. In range resolves to
+                  the same colour twice, i.e. flat.
+
+                  The opacity is IN THE GRADIENT rather than on the element, and
+                  that is deliberate rather than incidental: it is what lets a
+                  band fade out at each end instead of stopping at a hard step,
+                  and it keeps the element's own fillOpacity at 1 so nothing
+                  downstream can halve a weight that has already been chosen
+                  (which is exactly what Recharts' 0.5 default once did to every
+                  band in this chart). */}
+              {BAND_ORDER.map((s) => {
+                const [atLowEnd, atHighEnd] = bandPlotStops(s);
+                const weight = BAND_WEIGHT[s];
+                const fade = chartTokens.bandEdgeFade * 100;
                 return (
                   <linearGradient key={s} id={`${gradId}-${s}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={atHighEnd} />
-                    <stop offset="100%" stopColor={atLowEnd} />
+                    <stop offset="0%" stopColor={atHighEnd} stopOpacity={0} />
+                    <stop offset={`${fade}%`} stopColor={atHighEnd} stopOpacity={weight} />
+                    <stop offset={`${100 - fade}%`} stopColor={atLowEnd} stopOpacity={weight} />
+                    <stop offset="100%" stopColor={atLowEnd} stopOpacity={0} />
                   </linearGradient>
                 );
               })}
+              {/* The body under the line: its own colour, fading to nothing
+                  well before the foot of the plot. It gives the series some
+                  weight without becoming another region of colour over the
+                  bands. */}
+              <linearGradient id={areaId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={chartTokens.line} stopOpacity={chartTokens.areaOpacity} />
+                {/* Gone by three quarters of the way down rather than at the
+                    foot of the plot: an area that is still faintly there where
+                    it meets the axis draws a hard bottom edge across the whole
+                    width, which is the boxed plot area coming back in through
+                    another door. */}
+                <stop offset="74%" stopColor={chartTokens.line} stopOpacity={0} />
+                <stop offset="100%" stopColor={chartTokens.line} stopOpacity={0} />
+              </linearGradient>
             </defs>
 
-            <CartesianGrid stroke={chartTokens.gridline} strokeOpacity={0} />
             <XAxis
               dataKey="t"
               // Real time, not a category per sample — see the note above the
@@ -557,8 +825,13 @@ export function TrendChart({
               // fontVariantNumeric, and an inline style on every tick would be
               // forty declarations to say one thing.
               tick={{ fontSize: 11, fill: chartTokens.axisText, fontFamily: 'var(--font-mono)' }}
-              axisLine={{ stroke: chartTokens.axisLine }}
+              // ONE GROUND LINE AND NOTHING ELSE — no box, no vertical rules,
+              // no gridlines. The bands already give the plot its structure;
+              // a frame around them is a second structure competing with the
+              // first, and a grid over them is a third.
+              axisLine={{ stroke: chartTokens.axisLine, strokeOpacity: 0.5 }}
               tickLine={false}
+              tickMargin={10}
               minTickGap={16}
               // At 375px a 5-point series would otherwise overlap its own
               // labels; Recharts drops ticks rather than letting them collide.
@@ -566,10 +839,15 @@ export function TrendChart({
             />
             <YAxis
               domain={[domainMin, domainMax]}
-              tick={{ fontSize: 12, fill: chartTokens.axisText, fontFamily: 'var(--font-mono)' }}
+              // Round values only, and four of them — see niceTicks. The domain
+              // is unchanged by this: an axis label does not get to move a band.
+              ticks={yTicks.length > 0 ? yTicks : undefined}
+              interval={0}
+              tickFormatter={(v: number) => v.toFixed(tickDecimals)}
+              tick={{ fontSize: 11, fill: chartTokens.axisText, fontFamily: 'var(--font-mono)' }}
               axisLine={false}
               tickLine={false}
-              width={44}
+              width={46}
             />
 
             {/* The five status bands, behind everything else. A single point
@@ -582,46 +860,32 @@ export function TrendChart({
                   key={`band-${i}-${b.status}`}
                   x1={seg.x1}
                   x2={seg.x2}
-                  // Null is "open" — the outermost bands run to the edge of
-                  // the plot rather than asserting a bound the lab never gave.
-                  y1={b.from ?? domainMin}
-                  y2={b.to ?? domainMax}
+                  // CLAMPED TO THE DOMAIN, and that is not tidiness.
+                  //
+                  // Null is "open" — the outermost bands run to the edge of the
+                  // plot rather than asserting a bound the lab never gave. But a
+                  // BOUNDED band can also reach past the domain (a marker whose
+                  // range is 135–145 puts the top of its above-range band at
+                  // 160, well past a 148 axis), and `ifOverflow="hidden"` clips
+                  // the rect with a clip-path rather than shortening it — so the
+                  // gradient inside still maps over the band's full notional
+                  // height and its fade lands in the part that was clipped away.
+                  // The visible result was a band at FULL weight against the top
+                  // edge of the plot, i.e. the fade was drawn everywhere except
+                  // where it was needed, and the plot read as a filled box.
+                  // Clamping first makes the gradient span what is actually on
+                  // screen, so a band dissolves into the card at the plot edge.
+                  y1={Math.max(b.from ?? domainMin, domainMin)}
+                  y2={Math.min(b.to ?? domainMax, domainMax)}
                   fill={`url(#${gradId}-${b.status})`}
-                  // NOT optional, and this is the whole of why the bands were
-                  // invisible. Recharts' ReferenceArea defaults fillOpacity to
-                  // 0.5, so every band was drawn at half the weight the token
-                  // system had already calibrated — and the band tokens are a
-                  // ~30% mix toward the hue precisely because that is what
-                  // reads as green or gold rather than as cream. Halved again
-                  // it lands on ~15%, which is the exact "a 12% wash of an
-                  // orange is indistinguishable from cream" failure the token
-                  // file documents. The opacity belongs in the token, not in
-                  // the chart library's default, so it is pinned to 1 here.
+                  // Pinned at 1 because the weight lives in the gradient's own
+                  // stops. Recharts' ReferenceArea defaults this to 0.5, which
+                  // silently halves whatever the token system decided — the
+                  // failure that once made every band on this chart invisible.
                   fillOpacity={1}
                   strokeOpacity={0}
                   ifOverflow="hidden"
-                />
-              )),
-            )}
-
-            {/* Every band boundary, drawn. This is what keeps the bands legible
-                with the colour taken away: the reference bounds get the heavier
-                line because they are the thing the chart is about, and the two
-                significantly-out thresholds get a lighter one. Drawn as very
-                thin bands rather than ReferenceLines so they step with their own
-                segment instead of spanning the whole plot. */}
-            {bandSegments.flatMap((seg, i) =>
-              seg.edges.map((e, j) => (
-                <ReferenceArea
-                  key={`edge-${i}-${j}`}
-                  x1={seg.x1}
-                  x2={seg.x2}
-                  y1={e.y - hairline * (e.weight === 'reference' ? 1.5 : 1)}
-                  y2={e.y + hairline * (e.weight === 'reference' ? 1.5 : 1)}
-                  fill={chartTokens.referenceEdge}
-                  fillOpacity={e.weight === 'reference' ? 0.85 : 0.45}
-                  strokeOpacity={0}
-                  ifOverflow="hidden"
+                  zIndex={100}
                 />
               )),
             )}
@@ -637,15 +901,72 @@ export function TrendChart({
                 fill={`url(#${hatchId})`}
                 fillOpacity={1}
                 strokeOpacity={0}
+                zIndex={110}
               />
             )}
+
+            {connected && (
+              <Area
+                type="monotone"
+                dataKey="value"
+                stroke="none"
+                fill={`url(#${areaId})`}
+                fillOpacity={1}
+                dot={false}
+                activeDot={false}
+                isAnimationActive={animate}
+                animationDuration={620}
+                animationEasing="ease-out"
+                zIndex={150}
+              />
+            )}
+
+            {/* Every band boundary, drawn — and drawn as a HAIRLINE now that
+                the bands themselves are a wash. These used to be near-solid
+                rules over saturated slabs, which made the edge of the reference
+                range the strongest mark in the plot; the reader's own result
+                should be. Still per segment rather than a ReferenceLine across
+                the whole plot, so a boundary steps with the period it belongs
+                to, and still the thing that keeps the bands legible with the
+                colour taken away. */}
+            {bandSegments.flatMap((seg, i) =>
+              seg.edges.map((e, j) => (
+                <ReferenceLine
+                  key={`edge-${i}-${j}`}
+                  segment={[
+                    { x: seg.x1, y: e.y },
+                    { x: seg.x2, y: e.y },
+                  ]}
+                  stroke={chartTokens.referenceEdge}
+                  strokeOpacity={
+                    e.weight === 'reference' ? chartTokens.referenceEdgeOpacity : chartTokens.severityEdgeOpacity
+                  }
+                  strokeWidth={1}
+                  ifOverflow="hidden"
+                  zIndex={200}
+                />
+              )),
+            )}
+
             {/* Dashed edges, so the optimal band has a boundary you can point
                 at even where it sits inside the reference band. */}
             {optimal?.low != null && (
-              <ReferenceLine y={optimal.low} stroke={chartTokens.optimalEdge} strokeDasharray="4 3" strokeWidth={1.2} />
+              <ReferenceLine
+                y={optimal.low}
+                stroke={chartTokens.optimalEdge}
+                strokeDasharray="4 3"
+                strokeWidth={1.2}
+                zIndex={210}
+              />
             )}
             {optimal?.high != null && (
-              <ReferenceLine y={optimal.high} stroke={chartTokens.optimalEdge} strokeDasharray="4 3" strokeWidth={1.2} />
+              <ReferenceLine
+                y={optimal.high}
+                stroke={chartTokens.optimalEdge}
+                strokeDasharray="4 3"
+                strokeWidth={1.2}
+                zIndex={210}
+              />
             )}
 
             {/* The step itself, drawn. The bands already change height here,
@@ -660,14 +981,27 @@ export function TrendChart({
                 x={x}
                 stroke={chartTokens.referenceEdge}
                 strokeDasharray="3 3"
-                strokeWidth={1.2}
-                strokeOpacity={0.9}
+                strokeWidth={1}
+                strokeOpacity={0.7}
+                zIndex={210}
               />
             ))}
 
+            <BoundaryLabels bounds={boundaryLabels} />
+
             <Tooltip
               content={<ChartTooltip optimal={optimal} />}
-              cursor={{ stroke: chartTokens.cursor, strokeWidth: 1 }}
+              // A guide, not the browser's default crosshair: one vertical
+              // hairline at the point being read, in the chart's own neutral,
+              // at a weight that does not compete with the line.
+              //
+              // SOLID, and the reason is the dashed rule below it. A chart
+              // whose reference range changed already carries a dashed vertical
+              // at the change point, and a dashed cursor differing from it only
+              // in its dash pattern is two marks that look the same and mean
+              // completely different things — one of them "the laboratory
+              // changed your reference range here".
+              cursor={{ stroke: chartTokens.cursor, strokeWidth: 1, strokeOpacity: 0.55 }}
             />
             <Line
               // `connected` gates the whole line, not just its type — a single
@@ -675,11 +1009,17 @@ export function TrendChart({
               type="monotone"
               dataKey="value"
               stroke={connected ? chartTokens.line : 'none'}
-              strokeWidth={2}
-              dot={<CustomDot />}
+              // Thicker, with round caps and joins. A 2px line with mitred
+              // corners on a chart this size reads as a plotted path; 2.75 with
+              // round ones reads as a drawn stroke, which is what the rest of
+              // the product's marks are.
+              strokeWidth={2.75}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              dot={<CustomDot latestT={tLast} />}
               activeDot={false}
               isAnimationActive={animate}
-              animationDuration={600}
+              animationDuration={620}
               animationEasing="ease-out"
             />
           </ComposedChart>
@@ -716,6 +1056,14 @@ export function TrendChart({
  * Every phrase here is positional — "above the reference range", not "high
  * risk", not "unhealthy". The chart says where the lab's range sits; it does
  * not offer an opinion on being outside it.
+ *
+ * EVERY SWATCH IS THE MARK IT STANDS FOR, AT THE WEIGHT IT IS DRAWN. The band
+ * entries used to be saturated blocks of colour that appeared nowhere on the
+ * chart — they were the most conspicuous thing in the card and they were
+ * describing the faintest thing in the plot. Each one is now the band itself:
+ * the same hue, composited at the same `BAND_WEIGHT`, under the same hairline.
+ * A key whose swatch does not match what it names is a key you have to
+ * translate.
  */
 function ChartKey({
   optimal,
@@ -755,22 +1103,39 @@ function ChartKey({
   const marks = statuses.map((s) => (
     <li key={`mark-${s}`} className="flex items-center gap-2">
       <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" className="shrink-0">
-        <StatusMark cx={7} cy={7} status={s} size={0.95} />
+        <StatusMark cx={7} cy={7} status={s} size={0.85} ring={2} />
       </svg>
       <span className="min-w-0">{statusLabel(s)}</span>
     </li>
   ));
 
   const regions = [
-    ...bands.map((s) => (
-      <li key={`band-${s}`} className="flex items-center gap-2">
-        <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true" className="shrink-0">
-          <rect x="0" y="2" width="18" height="8" fill={statusPaint(s).band} />
-          <line x1="0" y1="2" x2="18" y2="2" stroke={chartTokens.referenceEdge} strokeWidth="1" strokeOpacity="0.85" />
-        </svg>
-        <span className="min-w-0">{bandLabel(s)}</span>
-      </li>
-    )),
+    ...bands.map((s) => {
+      const [atLowEnd, atHighEnd] = bandPlotStops(s);
+      return (
+        <li key={`band-${s}`} className="flex items-center gap-2">
+          <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true" className="shrink-0">
+            {/* The band's own two-colour ramp, at the band's own weight, under
+                the band's own hairline. Painted as two halves rather than a
+                gradient: five more gradient definitions in the document for
+                18 pixels of swatch is not a trade worth making, and the pair
+                of stops is what the ramp IS. */}
+            <rect x="0" y="2" width="18" height="5" fill={atHighEnd} fillOpacity={bandWeight(s)} />
+            <rect x="0" y="7" width="18" height="5" fill={atLowEnd} fillOpacity={bandWeight(s)} />
+            <line
+              x1="0"
+              y1="2"
+              x2="18"
+              y2="2"
+              stroke={chartTokens.referenceEdge}
+              strokeWidth="1"
+              strokeOpacity={chartTokens.referenceEdgeOpacity}
+            />
+          </svg>
+          <span className="min-w-0">{bandLabel(s)}</span>
+        </li>
+      );
+    }),
     ...(optimal
       ? [
           <li key="optimal" className="flex items-center gap-2">
@@ -792,9 +1157,9 @@ function ChartKey({
                 x2="9"
                 y2="12"
                 stroke={chartTokens.referenceEdge}
-                strokeWidth="1.2"
+                strokeWidth="1"
                 strokeDasharray="3 3"
-                strokeOpacity="0.9"
+                strokeOpacity="0.7"
               />
             </svg>
             <span className="min-w-0">Where the reference range changed</span>
@@ -805,7 +1170,7 @@ function ChartKey({
 
   return (
     <div className="mt-4 border-t border-taupe pt-3 text-xs text-espresso/80">
-      <ul className="grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2">
+      <ul className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
         {marks}
         {regions}
       </ul>

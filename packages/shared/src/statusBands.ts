@@ -84,6 +84,7 @@ export const NO_STATUS_PAINT = {
   surface: 'rgb(var(--c-cream-50))',
   bar: 'rgb(var(--c-cream-300))',
   band: 'rgb(var(--c-cream-200))',
+  plot: 'rgb(var(--c-taupe-300))',
   edge: 'rgb(var(--c-taupe-600))',
   mark: 'rgb(var(--c-taupe-700))',
 } as const;
@@ -132,6 +133,89 @@ export function bandGradientStops(status: MarkerStatusInput): [string, string] {
       // is not a colour: the browser dropped the gradient stop and the band
       // rendered black or inherited — the silent half of the same failure.
       return [NO_STATUS_PAINT.band, NO_STATUS_PAINT.band];
+  }
+}
+
+/**
+ * HOW HEAVILY EACH BAND IS DRAWN — and they are deliberately not equal.
+ *
+ * The old chart painted all five at one weight, which is five regions all
+ * shouting at once and a line lost behind them. A band is CONTEXT: it says
+ * where the laboratory's range sits so the reader can place their own result
+ * against it. The result is the content. So the reader should meet the line
+ * first and the bands second, which is the order these weights impose:
+ *
+ *  · IN RANGE carries almost nothing. It is the ordinary case, it is the
+ *    largest region on most charts, and a green field heavy enough to notice is
+ *    a green field the eye keeps returning to for no information.
+ *  · ABOVE / BELOW carry a little more, because something is being said.
+ *  · SIGNIFICANTLY OUT carries the most, and still less than the old flat
+ *    weight — the reader is already being told this three other ways.
+ *
+ * Composited, never mixed: these are alphas applied to the `plot` role, which
+ * is why one ladder is right in both themes. See PLOT_LIFT in tokens.ts.
+ */
+export const BAND_WEIGHT: Record<MarkerStatus, number> = {
+  IN_RANGE: 0.1,
+  LOW: 0.17,
+  HIGH: 0.17,
+  SIGNIFICANT_LOW: 0.24,
+  SIGNIFICANT_HIGH: 0.24,
+};
+
+/** The weight of a band, total for anything that isn't one of the five. */
+export function bandWeight(status: MarkerStatusInput): number {
+  const known = asMarkerStatus(status);
+  return known ? BAND_WEIGHT[known] : 0.08;
+}
+
+/**
+ * The band's colour pair in the `plot` role — the form a band is drawn in now
+ * that its weight is an alpha rather than a mix.
+ *
+ * Kept as a second function rather than a change to `bandGradientStops` because
+ * the two roles are painted differently and cannot share one value: `band` is a
+ * pre-mixed colour drawn at full opacity (the comparison chart still does
+ * that), and `plot` is the hue itself, which at full opacity would be a
+ * highlighter pen.
+ *
+ * ONE SUBSTANTIVE DIFFERENCE, AND IT IS A CORRECTION. Above-range and
+ * below-range are FLAT here, where `band` ramps them out to orange.
+ *
+ * The ramp was a small lie that only became visible once the bands were
+ * softened. A trend chart's y-axis is padded by about a third of the reference
+ * range's own width, and the out-of-range band is a range-width and a half tall
+ * — so roughly the top FIFTH of the below-range band is ever on screen. The
+ * gradient still has to fade at the edge of the plot rather than at the edge of
+ * the band (otherwise it is at full strength exactly where it should have
+ * dissolved, which is what made the plot read as a filled box), and once it is
+ * mapped to what is visible, the whole yellow-to-orange ramp is compressed into
+ * that fifth. The result was orange painted immediately below the reference
+ * bound — the transition into significantly-out, drawn at the point a result is
+ * barely out at all. On a dark surface it was also the muddiest colour in the
+ * set, and it was covering the largest region.
+ *
+ * So the shoulder now lives only where it is true: in the significantly-out
+ * bands, orange at the threshold and red beyond it. Orange is still the
+ * transition between yellow and red and still never a state a result can be in.
+ *
+ * `stops` run low-to-high in value space, which is TOP TO BOTTOM in a chart's
+ * y-axis — the caller orients them.
+ */
+export function bandPlotStops(status: MarkerStatusInput): [string, string] {
+  switch (asMarkerStatus(status)) {
+    case 'SIGNIFICANT_LOW':
+      return [hueTint.red.plot, hueTint.orange.plot];
+    case 'LOW':
+      return [hueTint.yellow.plot, hueTint.yellow.plot];
+    case 'IN_RANGE':
+      return [hueTint.green.plot, hueTint.green.plot];
+    case 'HIGH':
+      return [hueTint.yellow.plot, hueTint.yellow.plot];
+    case 'SIGNIFICANT_HIGH':
+      return [hueTint.orange.plot, hueTint.red.plot];
+    default:
+      return [NO_STATUS_PAINT.plot, NO_STATUS_PAINT.plot];
   }
 }
 

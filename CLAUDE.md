@@ -168,6 +168,29 @@ by colour, which is why high and low share a hue and both significants share one
    both ranges and their dates, because a silent change of reference range
    between two results is exactly what misleads someone reading their own trend.
    The key is a two-column grid, not two rows of wrapping flex items.
+   **THE BANDS ARE CONTEXT AND THE LINE IS CONTENT (redesigned Aug 2026).**
+   They were four opaque saturated slabs edge to edge with a near-solid rule
+   over every boundary, which is a fill tool rather than a chart: at equal
+   weight and full strength five regions of colour ARE the picture and the
+   reader's own result is a detail on top of them. Four things changed and they
+   are one thing. **Weight** — a band is COMPOSITED at `BAND_WEIGHT`
+   (statusBands.ts) rather than painted, and the five weights are unequal: in
+   range 0.10, out 0.17, significantly out 0.24. **Falloff** — each band fades
+   to nothing over `bandEdgeFade` of its own height at both ends, so it is a
+   region and not a block; the geometry is CLAMPED TO THE DOMAIN first, because
+   `ifOverflow="hidden"` clips with a clip-path rather than shortening the rect,
+   so an unclamped band puts its fade in the part that was clipped away and sits
+   at full weight against the plot edge. **Hairlines** — boundaries are 1px at
+   low opacity, and the reference bounds are LABELLED INLINE at the right edge
+   of the plot. **Axes** — round tick values only (the y-axis read 0, 8, 16, 24,
+   31.9, and 31.9 is not a number anybody chose), four of them, no gridlines and
+   no box. The `plot` role in tokens.ts is the composited hue, per theme and
+   solved so a band lands at the same weight in both — brighter and far more
+   saturated in dark, but LOWER in lightness, since a near-black card amplifies
+   a luminance step a cream one damps. Orange survives only in the
+   significantly-out bands: below-range is a fifth visible at a typical axis
+   scale, so ramping it out to orange painted the transition-into-significant
+   immediately below the reference bound. The range bar keeps the full ramp.
 4. Sparklines, the counts strip, the per-category summary bars.
 5. Tooltips and legends — the status word carries the colour.
 

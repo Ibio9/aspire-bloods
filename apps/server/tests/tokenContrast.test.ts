@@ -8,6 +8,7 @@ import {
   statusTint,
   hueTint,
   chart,
+  BAND_WEIGHT,
   NO_STATUS_PAINT,
   PANEL_WASH_ALPHA,
   type StatusKey,
@@ -151,6 +152,83 @@ describe.each(MODES)('%s theme', (mode) => {
     }
   });
 
+  it('draws a chart band at the same weight in both themes', () => {
+    // THE BAND THAT LANDS ON SCREEN, not the token behind it.
+    //
+    // A band is the one thing in this system that is COMPOSITED rather than
+    // painted: the `plot` hue at `BAND_WEIGHT`, so it can fade out at its own
+    // edges. That makes the token on its own unmeasurable — `--c-hue-red-plot`
+    // is a bright red in dark and a brick one in light, and neither figure says
+    // anything about what a reader sees.
+    //
+    // What has to hold is that the composite is the same WEIGHT in both themes.
+    // It very nearly wasn't: at the light-mode weights, dark's gold measured
+    // 1.44:1 off the card against light's 1.16:1, because a near-black surface
+    // amplifies a luminance difference that a cream one damps. That is the
+    // difference between a band and a slab, and it is invisible in a token file.
+    //
+    // The bound is generous (20%) because the two themes are not obliged to
+    // match to three decimal places — it is there to catch a theme drifting a
+    // third of the way clear of the other, which is what it did.
+    for (const [hue, weight] of [
+      ['green', BAND_WEIGHT.IN_RANGE],
+      ['yellow', BAND_WEIGHT.HIGH],
+      ['red', BAND_WEIGHT.SIGNIFICANT_HIGH],
+      ['orange', BAND_WEIGHT.SIGNIFICANT_HIGH],
+    ] as const) {
+      const weights = MODES.map((m) => {
+        const card = tone(m, '--c-cream-50');
+        return contrastRatio(blend(tone(m, `--c-hue-${hue}-plot`), card, weight), card);
+      });
+      const [light, dark] = weights;
+      // Visible at all — a band nobody can see is a band that is not there.
+      for (const [i, w] of weights.entries()) {
+        expect(w, `the ${hue} band in ${MODES[i]} is ${w.toFixed(3)}:1 off the card`).toBeGreaterThan(1.05);
+      }
+      expect(
+        Math.max(light, dark) / Math.min(light, dark),
+        `the ${hue} band is ${light.toFixed(3)}:1 in light and ${dark.toFixed(3)}:1 in dark`,
+      ).toBeLessThan(1.2);
+    }
+  });
+
+  it('keeps in range the faintest band and significantly-out the strongest', () => {
+    // The ladder the redesign is built on: the bands are CONTEXT and the line is
+    // content, so the ordinary case carries almost no tint and the two that are
+    // saying something carry more. Painted at one flat weight — which is what
+    // this chart did — five regions of colour are the picture and the reader's
+    // own result is a detail on top of them.
+    const card = tone(mode, '--c-cream-50');
+    const at = (hue: string, weight: number) => contrastRatio(blend(tone(mode, `--c-hue-${hue}-plot`), card, weight), card);
+    const inRange = at('green', BAND_WEIGHT.IN_RANGE);
+    const out = at('yellow', BAND_WEIGHT.HIGH);
+    const significant = at('red', BAND_WEIGHT.SIGNIFICANT_HIGH);
+    expect(BAND_WEIGHT.IN_RANGE).toBeLessThan(BAND_WEIGHT.HIGH);
+    expect(BAND_WEIGHT.HIGH).toBeLessThan(BAND_WEIGHT.SIGNIFICANT_HIGH);
+    expect(inRange, `in range ${inRange.toFixed(3)} vs above range ${out.toFixed(3)}`).toBeLessThan(out);
+    expect(out, `above range ${out.toFixed(3)} vs significantly out ${significant.toFixed(3)}`).toBeLessThan(significant);
+  });
+
+  it('keeps a plotted point readable against the composited band it lands on', () => {
+    // The same claim as the `band` role below, made against the thing that is
+    // actually drawn. A point takes its own state's colour and sits on a wash
+    // of that same colour; if the two met, the chart would lose the shape layer
+    // that carries the status.
+    const card = tone(mode, '--c-cream-50');
+    for (const [hue, weight] of [
+      ['green', BAND_WEIGHT.IN_RANGE],
+      ['yellow', BAND_WEIGHT.HIGH],
+      ['orange', BAND_WEIGHT.SIGNIFICANT_HIGH],
+      ['red', BAND_WEIGHT.SIGNIFICANT_HIGH],
+    ] as const) {
+      const band = blend(tone(mode, `--c-hue-${hue}-plot`), card, weight);
+      const ratio = contrastRatio(tone(mode, `--c-hue-${hue}-mark`), band);
+      expect(ratio, `${hue} mark on its own composited band is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+        WCAG_AA_LARGE_TEXT,
+      );
+    }
+  });
+
   it('emits every role of every hue, orange included', () => {
     // Orange is never a status, so it has no `--c-tint-*` alias and would be
     // silently missing if the emitter only walked the five states. It is the
@@ -158,15 +236,15 @@ describe.each(MODES)('%s theme', (mode) => {
     // chart band; without it those gradients fall back to a hard yellow-to-red
     // step with nothing between them.
     for (const hue of ['green', 'yellow', 'orange', 'red']) {
-      for (const role of ['wash', 'band', 'track', 'edge', 'mark']) {
+      for (const role of ['wash', 'band', 'plot', 'track', 'edge', 'mark']) {
         expect(themeTokens[mode][`--c-hue-${hue}-${role}`], `--c-hue-${hue}-${role}`).toBeTruthy();
       }
     }
   });
 
-  it('gives every status a wash, bar, band, edge and mark', () => {
+  it('gives every status a wash, bar, band, plot, edge and mark', () => {
     for (const key of Object.keys(status) as StatusKey[]) {
-      for (const suffix of ['', '-bar', '-band', '-edge', '-mark']) {
+      for (const suffix of ['', '-bar', '-band', '-plot', '-edge', '-mark']) {
         expect(themeTokens[mode][`--c-tint-${kebab(key)}${suffix}`], `${key}${suffix}`).toBeTruthy();
       }
     }

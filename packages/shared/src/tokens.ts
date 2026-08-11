@@ -41,6 +41,55 @@ function mix(hexA: string, hexB: string, t: number): string {
   return rgbToHex(r);
 }
 
+/**
+ * THE SAME HUE AT A DIFFERENT LIGHTNESS AND SATURATION — the one operation
+ * `mix` cannot do.
+ *
+ * Every other colour in this file is a mix between two hexes, and a mix can
+ * only ever move a colour along the straight line joining them. That is the
+ * right tool for a wash (the surface plus a little of the hue) and the wrong
+ * one for "the same gold, brighter" — mixing gold toward white raises its
+ * lightness and DROPS its saturation, and a gold with the saturation taken out
+ * of it is beige. Mixing it toward black keeps the saturation and drops the
+ * lightness, and a dark yellow is olive. Those two dead ends are the whole of
+ * why the dark chart bands read as mud: there was no way to say "brighter AND
+ * still gold" with the tools this file had.
+ *
+ * So: convert to HSL, keep the hue angle, set the other two outright.
+ */
+function rgbToHsl([r, g, b]: RGB): [number, number, number] {
+  const [rn, gn, bn] = [r / 255, g / 255, b / 255];
+  const max = Math.max(rn, gn, bn);
+  const min = Math.min(rn, gn, bn);
+  const l = (max + min) / 2;
+  const d = max - min;
+  if (d === 0) return [0, 0, l];
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  const h =
+    max === rn ? ((gn - bn) / d + (gn < bn ? 6 : 0)) / 6 : max === gn ? ((bn - rn) / d + 2) / 6 : ((rn - gn) / d + 4) / 6;
+  return [h, s, l];
+}
+
+function hslToRgb([h, s, l]: [number, number, number]): RGB {
+  if (s === 0) return [l * 255, l * 255, l * 255];
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  const channel = (t: number) => {
+    const u = t < 0 ? t + 1 : t > 1 ? t - 1 : t;
+    if (u < 1 / 6) return p + (q - p) * 6 * u;
+    if (u < 1 / 2) return q;
+    if (u < 2 / 3) return p + (q - p) * (2 / 3 - u) * 6;
+    return p;
+  };
+  return [channel(h + 1 / 3) * 255, channel(h) * 255, channel(h - 1 / 3) * 255];
+}
+
+/** `hex`'s own hue angle, at the saturation and lightness given. */
+function reHsl(hex: string, saturation: number, lightness: number): string {
+  const [h] = rgbToHsl(hexToRgb(hex));
+  return rgbToHex(hslToRgb([h, saturation, lightness]));
+}
+
 /** Tailwind-style 50-900 scale: light tints (toward white) through the base
  * hue (500) to dark shades (toward espresso, never toward pure black). */
 function buildScale(baseHex: string): Record<number, string> {
@@ -323,6 +372,57 @@ const DARK_HUE_LIFT: Record<StatusHue, number> = { green: 0.2, yellow: 0.1, oran
 const DARK_FILL = { band: 0.46, track: 0.78, edge: 0.94 } as const;
 const DARK_FILL_HUE: Record<StatusHue, number> = { green: 1, yellow: 0.82, orange: 0.9, red: 1.08 };
 
+/**
+ * THE `plot` ROLE — a hue meant to be COMPOSITED, not painted.
+ *
+ * Every other role in this file is a colour that lands on screen at full
+ * opacity, mixed here so the call site never has to think about alpha. A chart
+ * band is the one thing that cannot work that way, and the trend chart's
+ * redesign is what made it obvious:
+ *
+ *  · A band needs a FALLOFF at its edges, so it reads as a region rather than
+ *    as a slab with a hard step at each boundary. A falloff is a ramp of alpha,
+ *    so the alpha has to be at the call site whatever else is true.
+ *  · The band's own weight varies by state — in range carries almost none,
+ *    significantly-out carries a little more — which is three weights of one
+ *    colour, not three colours.
+ *  · And a pre-mixed dark band is a DOUBLE darkening: `band` is already 46% of
+ *    the hue against black, and drawing that at 20% alpha lands at 9%, which is
+ *    the mud this redesign started from.
+ *
+ * So `plot` is the hue AS THE BROWSER SHOULD COMPOSITE IT, at the weights in
+ * `BAND_WEIGHT` (statusBands.ts). In light that is the hue itself. In dark it
+ * is the same hue at its own saturation and lightness, SOLVED so that a band
+ * composited at the same weight lands at the same distance off the card as its
+ * light-mode counterpart — measured, not chosen, and pinned by
+ * tokenContrast.test.ts.
+ *
+ * TWO THINGS ARE BEING CORRECTED AT ONCE, and only one of them is obvious.
+ *
+ *  · Saturation goes UP. It has to: a fifth of a colour over a near-black card
+ *    is a dark colour, and a dark yellow is olive unless it is carrying real
+ *    chroma. This is the mud the redesign started from.
+ *  · Lightness goes DOWN — and against every instinct, since dark mode is where
+ *    you expect to have to brighten things. The four hues do not start at the
+ *    same luminance, and on a near-black card that difference is amplified
+ *    rather than damped: gold at the weight that suits it on cream measured
+ *    1.44:1 off the dark card against 1.16:1 off the light one, which is a
+ *    band a third again as loud in the theme that can least afford it. Green
+ *    was barely out; red, the darkest of the four, needed lightening instead.
+ *    So the lift is per hue, for exactly the reason DARK_FILL_HUE above is.
+ *
+ * The result is ONE weight ladder that is right in both themes, which is the
+ * property worth having — a component picking its opacity from the theme is a
+ * component that will drift, and the two themes' bands would part company the
+ * first time anybody touched one of them.
+ */
+const PLOT_LIFT: Record<StatusHue, { s: number; l: number }> = {
+  green: { s: 0.58, l: 0.36 },
+  yellow: { s: 0.9, l: 0.28 },
+  orange: { s: 0.86, l: 0.38 },
+  red: { s: 0.78, l: 0.6 },
+};
+
 // ---------------------------------------------------------------------------
 // Dark mode.
 //
@@ -599,6 +699,10 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
     // neutral black instead — see darkFill.
     out[`--c-hue-${hue}-wash`] = mix(tintTowards, h, dark ? TINT_MIX.washDark : TINT_MIX.wash);
     out[`--c-hue-${hue}-band`] = dark ? darkFill(hue, 'band') : mix(tintTowards, h, TINT_MIX.band);
+    // The one role that is composited rather than painted — see PLOT_LIFT.
+    out[`--c-hue-${hue}-plot`] = dark
+      ? reHsl(statusHue[hue], PLOT_LIFT[hue].s, PLOT_LIFT[hue].l)
+      : statusHue[hue];
     out[`--c-hue-${hue}-track`] = dark ? darkFill(hue, 'track') : mix(tintTowards, h, TINT_MIX.track);
     out[`--c-hue-${hue}-edge`] = dark ? darkFill(hue, 'edge') : mix(tintTowards, h, TINT_MIX.edge);
     // Away from the surface rather than toward it — see TINT_MIX.mark.
@@ -617,6 +721,7 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
       ['wash', ''],
       ['bar', '-bar'],
       ['band', '-band'],
+      ['plot', '-plot'],
       ['edge', '-edge'],
       ['mark', '-mark'],
     ] as const) {
@@ -631,7 +736,19 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
   // colour in a chart that means anything is the colour that means status.
   out['--c-chart-line'] = dark ? darkScales.bronze[600] : brand.bronze;
   out['--c-chart-point'] = dark ? darkScales.bronze[600] : brand.bronze;
-  out['--c-chart-point-ring'] = dark ? darkScales.cream[50] : brand.white;
+  /**
+   * The ring around a plotted point, and it is THE CARD'S OWN SURFACE in both
+   * themes rather than white in light and the card in dark.
+   *
+   * A point is drawn on top of the line, so the ring is what makes the line
+   * appear to pass BEHIND it rather than to stop at it — and that illusion only
+   * works if the ring is the colour the plot would be if nothing were drawn
+   * there. In dark that was already the card. In light it was pure white, which
+   * on a `cream-50` card is a faint cold halo around every point; small, and
+   * the sort of small that reads as a rendering artefact rather than as a
+   * choice.
+   */
+  out['--c-chart-point-ring'] = s.cream[50];
   out['--c-chart-reference-edge'] = dark ? darkScales.taupe[800] : scales.taupe[600];
   out['--c-chart-optimal-band'] = dark ? darkScales.bronze[400] : scales.bronze[300];
   out['--c-chart-optimal-edge'] = dark ? darkScales.bronze[700] : scales.bronze[600];
@@ -811,6 +928,8 @@ function tintSet(key: StatusKey) {
     surface: `rgb(var(--c-tint-${k}))`,
     bar: `rgb(var(--c-tint-${k}-bar))`,
     band: `rgb(var(--c-tint-${k}-band))`,
+    /** Composited at `BAND_WEIGHT`, never painted flat — see PLOT_LIFT. */
+    plot: `rgb(var(--c-tint-${k}-plot))`,
     edge: `rgb(var(--c-tint-${k}-edge))`,
     mark: `rgb(var(--c-tint-${k}-mark))`,
   } as const;
@@ -833,6 +952,7 @@ function hueSet(hue: StatusHue) {
   return {
     wash: `rgb(var(--c-hue-${hue}-wash))`,
     band: `rgb(var(--c-hue-${hue}-band))`,
+    plot: `rgb(var(--c-hue-${hue}-plot))`,
     track: `rgb(var(--c-hue-${hue}-track))`,
     edge: `rgb(var(--c-hue-${hue}-edge))`,
     mark: `rgb(var(--c-hue-${hue}-mark))`,
@@ -888,6 +1008,42 @@ export const chart = {
    * is taken away, so it cannot be made of colour.
    */
   referenceEdge: 'rgb(var(--c-chart-reference-edge))',
+  /**
+   * How heavily each boundary is drawn. Both are hairlines now rather than the
+   * near-solid rules they were: with the bands softened to a wash, a 0.85-opacity
+   * line over them was the strongest thing in the plot, which put the chart's
+   * emphasis on the edge of the reference range rather than on the reader's own
+   * result. The reference bounds still take twice the weight of the severity
+   * thresholds, because that is the band the chart is actually about.
+   */
+  referenceEdgeOpacity: 0.55,
+  severityEdgeOpacity: 0.28,
+  /**
+   * The fade at each end of a band, as a share of its own height.
+   *
+   * This is what turns four stacked blocks into four regions. Zero here is the
+   * old chart: every band a flat slab meeting its neighbour at a hard step, so
+   * the plot reads as a fill-tool bucket rather than as shading. It is a share
+   * rather than a pixel count so a thin band fades over its whole height and a
+   * tall one keeps a solid middle.
+   *
+   * A QUARTER, not a tenth, and the number came from the dark theme. Five bands
+   * that each hold their weight to their own edge tile the plot completely —
+   * there is no unpainted ground left anywhere in it — and on a near-black card
+   * that reads as one tinted rectangle sitting on the surface rather than as
+   * shading drawn on it. At a quarter, the plot dissolves into the card at the
+   * top and bottom and each boundary is approached rather than hit, which is
+   * what a region looks like.
+   */
+  bandEdgeFade: 0.26,
+  /**
+   * The area under the trend line, at the line's own colour, fading to nothing
+   * at the foot of the plot. Enough to give the line some body; far too little
+   * to become a sixth region of colour over the bands.
+   */
+  areaOpacity: 0.12,
+  /** The soft halo behind the most recent point — the one the reader came for. */
+  haloOpacity: 0.16,
   /** The optimal band, drawn inside/overlapping the reference band. Distinguished by a hatch, not by hue alone. */
   optimalBand: 'rgb(var(--c-chart-optimal-band))',
   optimalBandOpacity: 0.34,
