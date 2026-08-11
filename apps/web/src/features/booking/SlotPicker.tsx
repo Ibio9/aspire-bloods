@@ -155,7 +155,7 @@ export function SlotPicker({
       )}
 
       {failed && (
-        <div role="alert" className="mt-5 rounded-card border border-status-significantHigh bg-cream-50 p-6">
+        <div role="alert" className="mt-5 rounded-card border border-taupe bg-tint-significantHigh p-6">
           <p className="flex items-center gap-2 font-medium text-espresso">
             <AlertIcon className="shrink-0 text-status-significantHigh" />
             We couldn't load the diary
@@ -279,20 +279,20 @@ function DateChip({ day, checked, onSelect }: { day: DayAvailability; checked: b
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 rounded-input border border-taupe bg-white transition duration-150 ease-out peer-hover:border-bronze/60 peer-checked:border-2 peer-checked:border-bronze peer-checked:bg-bronze-50 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-bronze peer-disabled:border-taupe peer-disabled:bg-cream-200"
       />
-      <span className={`relative text-[11px] font-medium uppercase tracking-eyebrow ${unavailable ? 'text-espresso/80' : 'text-espresso/80'}`}>
+      <span className={`relative text-xs font-medium uppercase tracking-eyebrow ${unavailable ? 'text-espresso/80' : 'text-espresso/80'}`}>
         {weekday}
       </span>
       <span
-        className={`tabular relative text-xl leading-none ${
+        className={`tabular relative text-lg leading-none ${
           unavailable ? 'text-espresso/80' : checked ? 'font-semibold text-bronze-700' : 'text-espresso'
         }`}
       >
         {dayNum}
       </span>
-      <span className={`relative text-[11px] ${unavailable ? 'text-espresso/80' : 'text-espresso/80'}`}>{month}</span>
+      <span className={`relative text-xs ${unavailable ? 'text-espresso/80' : 'text-espresso/80'}`}>{month}</span>
       {/* The count is the point of the strip — it lets someone skip three
           fully-booked days without opening each one. */}
-      <span className={`tabular relative mt-1 text-[11px] font-medium ${unavailable ? 'text-espresso/80' : 'text-espresso/80'}`}>
+      <span className={`tabular relative mt-1 text-xs font-medium ${unavailable ? 'text-espresso/80' : 'text-espresso/80'}`}>
         {unavailable ? 'None' : `${count} free`}
       </span>
     </label>
@@ -342,8 +342,8 @@ function SlotChip({
       >
         {formatClockTime(slot.time)}
       </span>
-      {earlyHint && <span className="relative mt-0.5 text-[11px] leading-none text-espresso/80">easier fast</span>}
-      {blocked && <span className="relative mt-0.5 text-[11px] leading-none text-espresso/80">too late</span>}
+      {earlyHint && <span className="relative mt-0.5 text-xs leading-none text-espresso/80">easier fast</span>}
+      {blocked && <span className="relative mt-0.5 text-xs leading-none text-espresso/80">too late</span>}
     </label>
   );
 }
@@ -368,7 +368,7 @@ function NoAvailability({
 }) {
   return (
     <div className="rounded-card border border-taupe bg-cream-100 p-6 text-center sm:p-10">
-      <p className="font-display text-2xl leading-tight text-espresso sm:text-3xl">
+      <p className="font-display text-xl leading-tight text-espresso sm:text-2xl">
         {dateLabel ? `Nothing on ${dateLabel}` : 'Nothing available this week'}
       </p>
       <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-espresso/85">{reason}</p>

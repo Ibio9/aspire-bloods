@@ -93,7 +93,7 @@ function LibraryCard({ entry }: { entry: LibraryEntry }) {
           className="flex w-full items-start justify-between gap-4 rounded-card p-5 text-left transition-colors duration-150 ease-out hover:bg-cream-100 sm:p-6"
         >
           <span className="min-w-0">
-            <span className="block font-display text-xl leading-tight text-espresso sm:text-2xl">{entry.name}</span>
+            <span className="block font-display opsz-small text-lg leading-tight text-espresso sm:text-xl">{entry.name}</span>
             <span className="mt-1.5 block text-xs text-espresso/80">
               {kindLabel(entry)}
               {entry.hasResults && ' · you have results for this'}
@@ -136,7 +136,7 @@ function LibraryCard({ entry }: { entry: LibraryEntry }) {
           {entry.hasResults && (
             <Link
               to={`/markers/${entry.markerId}`}
-              className="mt-6 inline-flex items-center gap-1.5 rounded-sm text-sm font-medium text-bronze-700 underline-offset-4 hover:underline"
+              className="mt-6 inline-flex items-center gap-1.5 rounded-input text-sm font-medium text-bronze-700 underline-offset-4 hover:underline"
             >
               See your own {entry.name} results <ArrowRightIcon />
             </Link>

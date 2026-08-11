@@ -195,10 +195,16 @@ test.describe('traffic-light status', () => {
         ).toBeGreaterThanOrEqual(8);
       }
 
-      // Copy and rendering agree. The chart states in words which of its three
-      // data shapes applies, and a sentence promising a trend line while the
-      // plot shows unconnected points is the chart lying about its own data.
-      const saysJoined = (await page.locator('body').innerText()).includes('joined into one trend line');
+      // Copy and rendering agree. The chart says in words when its points are
+      // NOT joined — in the key, beside the marks it is about — and a page
+      // carrying that entry while a trend line is drawn is the chart lying
+      // about its own data. (The old positive form of this sentence, a
+      // paragraph above every healthy chart explaining the absence of a
+      // problem, is gone; only the two cases worth stating are stated.)
+      const text = await page.locator('body').innerText();
+      const saysUnjoined = text.includes("aren't comparable for this marker");
+      const saysFirst = text.includes('first result for this marker');
+      const saysJoined = !saysUnjoined && !saysFirst;
       const line = await page.evaluate(() => {
         const curve = document.querySelector('path.recharts-line-curve') as SVGPathElement | null;
         if (!curve) return { drawn: false, length: 0 };

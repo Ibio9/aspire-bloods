@@ -82,7 +82,7 @@ export function Segmented<T extends string>({
             aria-controls={panelId}
             tabIndex={isActive ? 0 : -1}
             onClick={() => onChange(o.value)}
-            className={`min-h-tap shrink-0 whitespace-nowrap rounded-[0.4rem] px-4 py-2 text-sm font-medium transition duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze ${
+            className={`min-h-tap shrink-0 whitespace-nowrap rounded-input px-4 py-2 text-sm font-medium transition duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze ${
               // Selected is carried by the fill AND the weight, never by colour
               // alone — same rule as the sidebar's active row.
               isActive

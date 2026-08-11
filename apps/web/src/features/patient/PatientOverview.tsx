@@ -6,7 +6,7 @@ import { LinkButton } from '../../components/ui/LinkButton';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { RangeBar } from '../../components/ui/RangeBar';
-import { ClinicContactCard } from '../../components/patient/ClinicContact';
+import { ClinicContactCard, ClinicContactLines } from '../../components/patient/ClinicContact';
 import { AnimatedNumber } from '../../components/motion/AnimatedNumber';
 import { Reveal } from '../../components/motion/Reveal';
 import { staggerDelay } from '../../components/motion/stagger';
@@ -27,6 +27,48 @@ import { UpcomingAppointments } from '../booking/UpcomingAppointments';
  * hands over to a clinician; the contact details sit right next to the thing
  * that prompts the question rather than on a page of their own.
  */
+
+/**
+ * A LABEL AND A VALUE, which is what most of this page's sentences actually
+ * were.
+ *
+ * "Your last test was on 6 August" is one fact wearing a sentence: the reader
+ * has to parse seven words to reach the only thing in it they came for. As a
+ * pair it is RECENT TEST over "5 days ago", legible in a glance from across the
+ * room, and it stacks with the pairs beside it into something that reads as a
+ * dashboard of facts rather than a paragraph of prose.
+ *
+ * The three tiers, and they never vary: the label is small spaced-uppercase
+ * Plex Sans; the value is Fraunces at a larger size; and a value that is a PURE
+ * NUMBER is mono with tabular figures instead, because a column of numbers has
+ * to line up and Fraunces' figures are proportional. `numeric` says which.
+ *
+ * `detail` is the exact date under a relative one — "5 days ago" is the useful
+ * form and "6 August 2026" is the one somebody needs when they are filling in a
+ * form, so both are there and the relative one leads.
+ */
+function Stat({
+  label,
+  value,
+  detail,
+  numeric = false,
+}: {
+  label: string;
+  value: string | number;
+  detail?: string | null;
+  /** The value is a pure number: mono and tabular rather than Fraunces. */
+  numeric?: boolean;
+}) {
+  return (
+    <div>
+      <p className="eyebrow mb-2">{label}</p>
+      <p className={numeric ? 'numeric tabular text-xl font-semibold leading-none text-espresso' : 'stat-value'}>
+        {value}
+      </p>
+      {detail && <p className="numeric mt-2 text-xs text-espresso/80">{detail}</p>}
+    </div>
+  );
+}
 
 function greeting(): string {
   const hour = new Date().getHours();
@@ -52,13 +94,13 @@ function ChangeCard({ change }: { change: ChangeItem }) {
   return (
     <Link to={`/markers/${change.markerId}`} className="rounded-card">
       <Card interactive className="flex h-full flex-col">
-        <p className="font-display text-2xl leading-tight text-espresso">{change.name}</p>
-        <p className="tabular mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-espresso">
+        <p className="font-display opsz-small text-lg leading-tight text-espresso">{change.name}</p>
+        <p className="numeric tabular mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-espresso">
           <span className="text-espresso/80">{change.previousValue}</span>
           <span aria-hidden="true" className="text-taupe">
             →
           </span>
-          <span className="text-2xl font-semibold">{change.currentValue}</span>
+          <span className="text-xl font-semibold">{change.currentValue}</span>
           <span className="text-sm text-espresso/80">{change.unit}</span>
         </p>
         {/* Direction is stated in words and drawn as an arrow; the tone never rests on colour. */}
@@ -67,7 +109,7 @@ function ChangeCard({ change }: { change: ChangeItem }) {
           {copy.label}
         </p>
         <p className="mt-2 text-xs text-espresso/80">
-          Compared with {formatDate(change.previousDate)}
+          Compared with <span className="numeric">{formatDate(change.previousDate)}</span>
         </p>
         <div className="mt-4">
           <StatusBadge status={change.currentStatus} />
@@ -99,7 +141,7 @@ export function PatientOverview() {
         <p className="eyebrow mb-3">Aspire Clinic · Patient portal</p>
         <h1 className="display-heading break-words">Overview</h1>
         <Card className="mt-10 max-w-xl">
-          <p className="font-display text-2xl text-espresso">We couldn't load your overview</p>
+          <p className="font-display opsz-section text-xl text-espresso">We couldn't load your overview</p>
           <p className="mt-2 text-sm text-espresso/80">
             Please refresh the page. If it keeps happening, get in touch and we'll sort it out.
           </p>
@@ -143,20 +185,29 @@ export function PatientOverview() {
           {greeting()}
           {data.firstName ? `, ${data.firstName}` : ''}
         </h1>
+        {/* Label and value, not a sentence. "Your most recent sample was taken
+            on 6 August 2026, 5 days ago. We're tracking 437 markers for you."
+            was two facts and twenty words, and the two facts were the only
+            part anybody read. */}
         {data.lastTestedDate ? (
-          <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
-            Your most recent sample was taken on{' '}
-            <span className="font-medium">{formatDate(data.lastTestedDate)}</span>, {formatRelativeDate(data.lastTestedDate)}.
+          <dl className="mt-9 flex flex-wrap gap-x-16 gap-y-8">
+            <Stat
+              label="Recent test"
+              value={formatRelativeDate(data.lastTestedDate)}
+              detail={formatDate(data.lastTestedDate)}
+            />
             {data.trackedMarkerCount > 0 && (
-              <>
-                {' '}
-                We're tracking <span className="tabular font-medium">{data.trackedMarkerCount}</span> marker
-                {data.trackedMarkerCount === 1 ? '' : 's'} for you.
-              </>
+              <Stat label="Markers tracked" value={data.trackedMarkerCount} numeric />
             )}
-          </p>
+            {data.releasedReportCount > 0 && (
+              <Stat label="Reports released" value={data.releasedReportCount} numeric />
+            )}
+          </dl>
         ) : (
-          <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
+          /* The one place a paragraph earns its keep on this page: somebody
+             with no results needs to know what is happening and what happens
+             next, and neither is a value with a label on it. */
+          <p className="mt-7 max-w-measure text-lg leading-relaxed text-espresso">
             {data.pendingReportCount > 0
               ? 'Your first sample is with the clinical team. Nothing is published here until a clinician has reviewed it.'
               : 'Once you have had a sample taken, everything about it will appear here.'}
@@ -164,7 +215,7 @@ export function PatientOverview() {
         )}
       </header>
 
-      <div className="mt-10 flex flex-col gap-14 md:gap-20">
+      <div className="mt-14 flex flex-col gap-16 md:gap-24">
       {/* ---------------------------------------------------------------
           Anything booked comes first. It is the only thing on this screen
           with a deadline attached — a fast has to be started the night
@@ -186,20 +237,20 @@ export function PatientOverview() {
           --------------------------------------------------------------- */}
       {!hasAnything && (
         <section aria-labelledby="whats-coming">
-          <h2 id="whats-coming" className="font-display text-3xl text-espresso">
+          <h2 id="whats-coming" className="section-heading">
             What happens next
           </h2>
           <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
             <Card>
               <p className="eyebrow mb-3">Your account is ready</p>
-              <p className="text-reading leading-relaxed text-espresso">
+              <p className="max-w-measure text-reading leading-relaxed text-espresso">
                 A new account starts empty. Results appear once you've had a sample taken and the clinic has
                 matched it to you.
               </p>
             </Card>
             <Card>
               <p className="eyebrow mb-3">After your test</p>
-              <p className="text-reading leading-relaxed text-espresso">
+              <p className="max-w-measure text-reading leading-relaxed text-espresso">
                 Your sample goes to the laboratory and the results come back to the Aspire clinical team. A
                 clinician reviews every one before it's published, and we'll email you when yours is ready.
               </p>
@@ -215,10 +266,10 @@ export function PatientOverview() {
           --------------------------------------------------------------- */}
       {data.attention.length > 0 && (
         <section aria-labelledby="attention-heading">
-          <h2 id="attention-heading" className="font-display text-3xl text-espresso">
+          <h2 id="attention-heading" className="section-heading">
             Worth a conversation
           </h2>
-          <p className="mt-3 max-w-2xl text-reading leading-relaxed text-espresso/90">
+          <p className="mt-4 max-w-measure text-reading leading-relaxed text-espresso/90">
             {data.attention.length === 1 ? 'One of your results sits' : `${data.attention.length} of your results sit`} outside
             the usual reference range.
           </p>
@@ -232,8 +283,8 @@ export function PatientOverview() {
                     <Card interactive>
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                          <p className="font-display text-2xl leading-tight text-espresso">{item.name}</p>
-                          <p className="tabular mt-2 flex items-baseline gap-1.5 text-3xl font-semibold text-espresso">
+                          <p className="font-display opsz-small text-lg leading-tight text-espresso">{item.name}</p>
+                          <p className="numeric tabular mt-2 flex items-baseline gap-1.5 text-xl font-semibold text-espresso">
                             {item.value} <span className="text-sm font-normal text-espresso/80">{item.unit}</span>
                           </p>
                         </div>
@@ -251,11 +302,16 @@ export function PatientOverview() {
                       {/* Panels are optional, so the panel name is a segment
                           that may not exist. Printed raw it left an orphaned
                           "· 5 August 2026" leading the line. */}
-                      <p className="mt-4 text-xs text-espresso/80">
-                        {item.panelName ? `${item.panelName} · ` : ''}
-                        {formatDate(item.sampleDate)}
-                        {item.fromEarlierReport && ' · not repeated in your most recent panel'}
-                      </p>
+                      {/* Panel, date and provenance — one per line, the date
+                          on its own and in mono, the same arrangement the
+                          marker cards use. Panels are optional, so a raw join
+                          left an orphaned "· 5 August 2026" leading the
+                          line. */}
+                      <div className="mt-5 flex flex-col gap-0.5 text-xs text-espresso/80">
+                        {item.panelName && <span>{item.panelName}</span>}
+                        <span className="numeric">{formatDate(item.sampleDate)}</span>
+                        {item.fromEarlierReport && <span>Not repeated in your most recent panel</span>}
+                      </div>
                       <p className="mt-4 flex items-center gap-1.5 text-sm font-medium text-bronze-700">
                         What this marker means <ArrowRightIcon />
                       </p>
@@ -271,9 +327,18 @@ export function PatientOverview() {
             </div>
           </div>
 
+          {/* No coloured outline. The card carried a red border, on the
+              reasoning that an out-of-range result should be marked as such —
+              but every card above it is already tinted, chevroned and worded,
+              and a red box around the calmest paragraph on the page reads as
+              an escalation of it. Hairline taupe, like every other card, with
+              the clinic's details one item per line beneath. */}
           {data.outOfRangeNotice && (
-            <Card className="mt-6 border-status-significantHigh">
-              <p className="whitespace-pre-line text-sm leading-relaxed text-espresso">{data.outOfRangeNotice}</p>
+            <Card className="mt-8 max-w-3xl">
+              <p className="max-w-measure whitespace-pre-line text-sm leading-relaxed text-espresso">
+                {data.outOfRangeNotice}
+              </p>
+              <ClinicContactLines className="mt-7" />
             </Card>
           )}
         </section>
@@ -286,7 +351,7 @@ export function PatientOverview() {
           --------------------------------------------------------------- */}
       {data.changes.length > 0 && (
         <section aria-labelledby="changes-heading">
-          <h2 id="changes-heading" className="font-display text-3xl text-espresso">
+          <h2 id="changes-heading" className="section-heading">
             What's changed
           </h2>
           {/* No standfirst: every card below carries its own movement label and
@@ -305,22 +370,26 @@ export function PatientOverview() {
       {/* --------------------------------------------------------------- */}
       {data.latest && (
         <section aria-labelledby="latest-heading">
-          <h2 id="latest-heading" className="font-display text-3xl text-espresso">
+          <h2 id="latest-heading" className="section-heading">
             Your most recent panel
           </h2>
           <Reveal>
           <Card className="mt-8">
             <div className="flex flex-wrap items-start justify-between gap-6">
               <div>
-                <p className="eyebrow mb-2">{formatDate(data.latest.sampleDate)}</p>
+                <p className="eyebrow mb-2"><span className="numeric">{formatDate(data.latest.sampleDate)}</span></p>
                 {/* Never blank — a report with no panel behind it rendered
                     this heading empty, on the most prominent card of the
                     landing page. The heading form rather than the full title,
                     because the eyebrow above is already the date. */}
-                <p className="font-display text-3xl leading-tight text-espresso">
+                <p className="font-display opsz-section text-xl leading-tight text-espresso">
                   {formatReportHeading(data.latest.panelName, data.latest.markerCount)}
                 </p>
-                <p className="mt-2 text-xs text-espresso/80">{data.latest.sourceLabel}</p>
+                {/* Empty for anything the clinic analysed itself — see
+                    lib/sourceLabel.ts. */}
+                {data.latest.sourceLabel && (
+                  <p className="mt-2 text-xs text-espresso/80">{data.latest.sourceLabel}</p>
+                )}
               </div>
               <LinkButton to={`/reports/${data.latest.reportId}`} variant="primary">
                 View the full panel <ArrowRightIcon />
@@ -328,23 +397,25 @@ export function PatientOverview() {
             </div>
 
             {/* Counts, not clinical values — the one place a number is allowed
-                to count up as it enters (see AnimatedNumber). */}
-            <dl className="mt-8 grid grid-cols-2 gap-6 border-t border-taupe pt-6 sm:grid-cols-3">
+                to count up as it enters (see AnimatedNumber). Mono and
+                tabular, like every other pure number in the product, so the
+                three line up as a row rather than drifting with their digits. */}
+            <dl className="mt-9 grid grid-cols-2 gap-8 border-t border-taupe pt-8 sm:grid-cols-3">
               <div>
-                <dt className="eyebrow mb-1.5">Markers</dt>
-                <dd className="tabular text-3xl text-espresso">
+                <dt className="eyebrow mb-2">Markers</dt>
+                <dd className="numeric tabular text-xl font-semibold leading-none text-espresso">
                   <AnimatedNumber value={data.latest.markerCount} />
                 </dd>
               </div>
               <div>
-                <dt className="eyebrow mb-1.5">In the usual range</dt>
-                <dd className="tabular text-3xl text-espresso">
+                <dt className="eyebrow mb-2">In the usual range</dt>
+                <dd className="numeric tabular text-xl font-semibold leading-none text-espresso">
                   <AnimatedNumber value={data.latest.inRangeCount} />
                 </dd>
               </div>
               <div>
-                <dt className="eyebrow mb-1.5">Needs attention</dt>
-                <dd className="tabular text-3xl text-espresso">
+                <dt className="eyebrow mb-2">Needs attention</dt>
+                <dd className="numeric tabular text-xl font-semibold leading-none text-espresso">
                   <AnimatedNumber value={data.latest.attentionCount} />
                 </dd>
               </div>
@@ -356,15 +427,15 @@ export function PatientOverview() {
 
       {data.nextSteps.length > 0 && (
         <section aria-labelledby="next-heading">
-          <h2 id="next-heading" className="font-display text-3xl text-espresso">
+          <h2 id="next-heading" className="section-heading">
             Next steps
           </h2>
           <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
             {data.nextSteps.map((step, i) => (
               <Reveal key={step.kind} delay={staggerDelay(i)} className="h-full">
                 <Card className="h-full">
-                  <p className="font-display text-2xl leading-tight text-espresso">{step.title}</p>
-                  <p className="mt-3 text-reading leading-relaxed text-espresso/90">{step.body}</p>
+                  <p className="font-display opsz-small text-lg leading-tight text-espresso">{step.title}</p>
+                  <p className="mt-3 max-w-measure text-reading leading-relaxed text-espresso/90">{step.body}</p>
                 </Card>
               </Reveal>
             ))}
@@ -374,7 +445,7 @@ export function PatientOverview() {
 
       {hasAnything && (
         <section aria-labelledby="explore-heading">
-          <h2 id="explore-heading" className="font-display text-3xl text-espresso">
+          <h2 id="explore-heading" className="section-heading">
             Go deeper
           </h2>
           <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-3">
@@ -383,7 +454,7 @@ export function PatientOverview() {
                 <Link to={to} className="block h-full rounded-card">
                   <Card interactive className="flex h-full flex-col">
                     <Icon className="text-bronze-700" />
-                    <p className="mt-4 font-display text-2xl leading-tight text-espresso">{label}</p>
+                    <p className="mt-4 font-display opsz-small text-lg leading-tight text-espresso">{label}</p>
                     <p className="mt-2 flex-1 text-sm leading-relaxed text-espresso/90">{body}</p>
                     <p className="mt-4 flex items-center gap-1.5 text-sm font-medium text-bronze-700">
                       Open <ArrowRightIcon />

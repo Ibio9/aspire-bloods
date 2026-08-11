@@ -65,7 +65,7 @@ export function ThemeToggle({ className = '', compact = false }: { className?: s
               role="radio"
               aria-checked={selected}
               onClick={() => setPreference(o.value)}
-              className={`inline-flex items-center justify-center gap-1.5 rounded-[0.4rem] font-medium transition duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze ${
+              className={`inline-flex items-center justify-center gap-1.5 rounded-input font-medium transition duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze ${
                 compact ? 'flex-1 px-2 py-1.5 text-xs' : 'min-h-tap px-3 py-1.5 text-sm'
               } ${
                 selected

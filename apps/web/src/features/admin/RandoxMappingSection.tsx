@@ -144,7 +144,7 @@ export function RandoxMappingSection({ ourPanels }: { ourPanels: { key: string; 
 
   return (
     <section className="mt-16" aria-labelledby="randox-mapping-heading">
-      <h2 id="randox-mapping-heading" className="font-display text-3xl text-espresso">
+      <h2 id="randox-mapping-heading" className="font-display text-2xl text-espresso">
         Randox panel mapping
       </h2>
       <p className="mt-3 max-w-3xl text-sm leading-relaxed text-espresso/85">

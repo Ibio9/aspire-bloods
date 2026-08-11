@@ -401,14 +401,14 @@ function PanelCard({
           ) : (
             <>
               <div className="flex flex-wrap items-baseline gap-3">
-                <p className="font-display text-2xl leading-tight text-espresso">{panel.name}</p>
+                <p className="font-display text-xl leading-tight text-espresso">{panel.name}</p>
                 <button
                   type="button"
                   onClick={() => {
                     onRenamingChange(panel.name);
                     setEditingName(true);
                   }}
-                  className="rounded-sm text-sm font-medium text-bronze-600 underline underline-offset-2 hover:no-underline"
+                  className="rounded-input text-sm font-medium text-bronze-600 underline underline-offset-2 hover:no-underline"
                 >
                   Rename
                 </button>

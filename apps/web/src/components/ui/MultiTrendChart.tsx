@@ -261,10 +261,11 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
               domain={[tMin, tMax]}
               ticks={times}
               tickFormatter={(t: number) => formatAxisDate(new Date(t).toISOString().slice(0, 10))}
-              // Inter; the tabular figures are inherited from the `tabular`
-              // class on the wrapper, since Recharts' tick prop type has no
-              // fontVariantNumeric.
-              tick={{ fontSize: 12, fill: chartTokens.axisText, fontFamily: 'Inter, sans-serif' }}
+              // Axis labels are numeric data, so they take the mono face like
+              // every other number. The tabular figures are inherited from the
+              // `tabular` class on the wrapper, since Recharts' tick prop type
+              // has no fontVariantNumeric.
+              tick={{ fontSize: 12, fill: chartTokens.axisText, fontFamily: 'var(--font-mono)' }}
               axisLine={{ stroke: chartTokens.axisLine }}
               tickLine={false}
               minTickGap={16}
@@ -285,7 +286,7 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
               domain={[domainMin, domainMax]}
               ticks={[0, 1]}
               tickFormatter={(v: number) => (v === 0 ? 'Range low' : 'Range high')}
-              tick={{ fontSize: 11, fill: chartTokens.axisText, fontFamily: 'Inter, sans-serif' }}
+              tick={{ fontSize: 11, fill: chartTokens.axisText, fontFamily: 'var(--font-mono)' }}
               axisLine={false}
               tickLine={false}
               width={74}

@@ -8,9 +8,9 @@ interface WordmarkProps {
 }
 
 const SIZES = {
-  sm: { mark: 'text-xl', dot: 'h-[3px] w-[3px] -translate-y-[130%]', descriptor: 'text-[8px]' },
-  md: { mark: 'text-2xl', dot: 'h-1 w-1 -translate-y-[135%]', descriptor: 'text-[9px]' },
-  lg: { mark: 'text-3xl md:text-4xl', dot: 'h-1.5 w-1.5 -translate-y-[140%]', descriptor: 'text-[10px]' },
+  sm: { mark: 'text-lg', dot: 'h-[3px] w-[3px] -translate-y-[130%]', descriptor: 'text-[8px]' },
+  md: { mark: 'text-xl', dot: 'h-1 w-1 -translate-y-[135%]', descriptor: 'text-[9px]' },
+  lg: { mark: 'text-2xl md:text-2xl', dot: 'h-1.5 w-1.5 -translate-y-[140%]', descriptor: 'text-[10px]' },
 };
 
 /**

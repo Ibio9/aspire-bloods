@@ -85,6 +85,13 @@ function Spinner() {
  * that variant and falls back to the base `duration-150`, easing back out. That asymmetry is what makes
  * it read as a physical press rather than a laggy toggle.
  *
+ * The label is IBM Plex Sans, not the display face. Buttons are UI chrome —
+ * see the typography note in tokens.ts: Fraunces is for page titles, section
+ * headings, card titles and the big numbers, and a serif on a pill-shaped
+ * control at 14px reads as a link that has been made to look like a button.
+ * Medium weight rather than regular, because a pill needs its label to hold
+ * the middle of it.
+ *
  * Loading state keeps the button's footprint fixed: the label stays mounted (just `invisible`, so it
  * still occupies layout) and the spinner overlays it absolutely — nothing measures or swaps text, so
  * there's nothing to cause a width jump.
@@ -113,7 +120,7 @@ export function Button({
   const button = (
     <button
       type={type}
-      className={`relative inline-flex min-h-tap items-center justify-center gap-2 rounded-full px-6 py-2.5 font-display text-sm tracking-wide transition duration-150 ease-out active:scale-[0.98] active:duration-0 disabled:cursor-not-allowed disabled:opacity-50 ${
+      className={`relative inline-flex min-h-tap items-center justify-center gap-2 rounded-full px-6 py-2.5 text-sm font-medium tracking-wide transition duration-150 ease-out active:scale-[0.98] active:duration-0 disabled:cursor-not-allowed disabled:opacity-50 ${
         explainDisabled ? 'cursor-not-allowed opacity-50' : ''
       } ${VARIANTS[variant]} ${className}`}
       disabled={explainDisabled ? undefined : disabled || loading}

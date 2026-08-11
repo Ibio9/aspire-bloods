@@ -90,7 +90,7 @@ export function ErrorState({ error, subject = 'this page', backTo, onRetry, chil
         <path d="M12 7.25v5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         <circle cx="12" cy="16.25" r="1" fill="currentColor" />
       </svg>
-      <p className="mt-5 font-display text-3xl leading-tight text-espresso">{title}</p>
+      <p className="mt-5 font-display opsz-section text-xl leading-tight text-espresso">{title}</p>
       <p className="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-espresso/80">{description}</p>
       {detail && detail !== 'Something went wrong' && (
         <p className="mx-auto mt-3 max-w-sm text-xs text-espresso/80">{detail}</p>

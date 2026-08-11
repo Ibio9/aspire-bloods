@@ -39,7 +39,7 @@ export function ChooseTest({ panels, addOns, panelId, onPanelChange, addOnIds, o
       <section aria-labelledby="add-ons-heading">
         {/* h2, not h3 — the page's h1 is the step title and there is no
             intervening level, so an h3 here would skip one. */}
-        <h2 id="add-ons-heading" className="font-display text-2xl leading-tight text-espresso sm:text-3xl">
+        <h2 id="add-ons-heading" className="font-display text-xl leading-tight text-espresso sm:text-2xl">
           Add anything alongside it
         </h2>
         {/* Which of them share the draw and which arrives by post is on each
@@ -90,7 +90,7 @@ function PanelOption({ panel, checked, onSelect }: { panel: Panel; checked: bool
       </span>
 
       <span className="relative flex flex-col">
-        <span className="font-display text-2xl leading-tight text-espresso sm:text-3xl">{panel.name}</span>
+        <span className="font-display text-xl leading-tight text-espresso sm:text-2xl">{panel.name}</span>
         <span className="mt-3 text-reading leading-relaxed text-espresso/90">{panel.strapline}</span>
 
         <span className="mt-6 block">
@@ -107,7 +107,7 @@ function PanelOption({ panel, checked, onSelect }: { panel: Panel; checked: bool
         <span className="mt-6 grid grid-cols-2 gap-4 border-t border-taupe pt-5">
           <span className="block">
             <span className="eyebrow">Markers</span>
-            <span className="tabular mt-1 block text-2xl text-espresso">{panel.markerCount}</span>
+            <span className="tabular mt-1 block text-xl text-espresso">{panel.markerCount}</span>
           </span>
           <span className="block">
             <span className="eyebrow">Results in</span>
@@ -169,7 +169,7 @@ function AddOnOption({ addOn, checked, onToggle }: { addOn: AddOn; checked: bool
             direct siblings of the input and would silently not apply here. */}
         <span
           aria-hidden="true"
-          className={`mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[4px] border-[1.5px] transition duration-150 ease-out ${
+          className={`mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-input border-[1.5px] transition duration-150 ease-out ${
             checked ? 'border-bronze bg-bronze' : 'border-taupe bg-white'
           }`}
         >
@@ -178,7 +178,7 @@ function AddOnOption({ addOn, checked, onToggle }: { addOn: AddOn; checked: bool
           />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block font-display text-xl leading-tight text-espresso">{addOn.name}</span>
+          <span className="block font-display text-lg leading-tight text-espresso">{addOn.name}</span>
           <span className="mt-1.5 block text-sm font-medium text-espresso/90">{addOn.strapline}</span>
           <span className="mt-3 block text-sm leading-relaxed text-espresso/85">{addOn.detail}</span>
           <span className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-espresso/80">

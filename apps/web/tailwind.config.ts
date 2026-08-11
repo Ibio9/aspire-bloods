@@ -1,6 +1,14 @@
 import type { Config } from 'tailwindcss';
 import plugin from 'tailwindcss/plugin';
-import { typography, themeCssVars, staticTokens } from '@aspire-bloods/shared';
+import {
+  typeScale,
+  typographyCssVars,
+  themeCssVars,
+  staticTokens,
+  EYEBROW_TRACKING,
+  MEASURE,
+  type TypeStep,
+} from '@aspire-bloods/shared';
 
 /**
  * Colour reaches Tailwind as a CSS custom property rather than a literal hex,
@@ -42,6 +50,41 @@ export default {
   // structurally cannot be overridden by a user choice.
   darkMode: 'class',
   theme: {
+    /**
+     * THE TYPE SCALE, replacing Tailwind's rather than extending it — nine
+     * steps, roughly 12 / 14 / 16 / 18 / 21 / 28 / 38 / 52 / 72, each carrying
+     * its own line height and tracking. Defined in packages/shared
+     * (`typeScale`) so the PDF pipeline and anything else that has to agree
+     * with the screen reads the same numbers.
+     *
+     * Replacing is the point. `text-5xl`, `text-6xl`, `text-7xl` and every
+     * arbitrary `text-[13px]` simply stop existing, so there is no way to set
+     * a size off the scale without noticing. The four steps whose value was
+     * already on the scale (xs, sm, base, and the long-form `reading` step)
+     * keep their names; the larger ones were retuned and their call sites
+     * swept down a step to match.
+     */
+    fontSize: Object.fromEntries(
+      (Object.keys(typeScale) as TypeStep[]).map((step) => [
+        step,
+        [typeScale[step].size, { lineHeight: typeScale[step].leading, letterSpacing: typeScale[step].tracking }],
+      ]),
+    ) as Record<TypeStep, [string, { lineHeight: string; letterSpacing: string }]>,
+    /**
+     * TWO RADII, and `full` for the things that are a shape rather than a
+     * corner (avatars, pills, the range-bar dot). Also a replacement rather
+     * than an extension: `rounded-sm`, `rounded-md`, bare `rounded` and every
+     * arbitrary radius are gone, because a third value is how a page ends up
+     * with three subtly different corners nobody chose.
+     */
+    borderRadius: {
+      none: '0',
+      // Dropdown panels, cards, tiles, modals — the softer of the two.
+      card: '1rem',
+      // Controls: inputs, buttons, chips, focus rings.
+      input: '0.625rem',
+      full: '9999px',
+    },
     extend: {
       colors: {
         bronze: scaleVars('bronze'),
@@ -134,22 +177,34 @@ export default {
           'red-edge': v('--c-hue-red-edge'),
         },
       },
+      // Families reach Tailwind as custom properties for exactly the same
+      // reason colours do: one place decides what "display" is, and no
+      // component ever writes a font name. The properties are emitted by
+      // typographyCssVars() in the plugin below.
       fontFamily: {
-        display: [typography.display.fontFamily],
-        eyebrow: [typography.eyebrow.fontFamily],
-        body: [typography.body.fontFamily],
+        // `font-display` carries Fraunces' axis settings with it, so the SOFT
+        // and WONK values cannot be forgotten at a call site — WONK 0 in
+        // particular, which is the difference between a serif with warmth and
+        // a serif doing a bit. The optical size defaults to the section step
+        // (opsz 72); `opsz-hero` and `opsz-small` below move it.
+        display: ['var(--font-display)', { fontVariationSettings: 'var(--fvs-display-section)' }],
+        body: ['var(--font-body)'],
+        // Numerics only. See the note on `typography.numeric` in tokens.ts:
+        // reference ranges, values, axis labels, dates as data, units. It must
+        // not reach prose, buttons or headings.
+        mono: ['var(--font-mono)'],
+        // The eyebrow is the body face at a small size with wide tracking, not
+        // a fourth family. Kept as a name so `.eyebrow` reads as one decision.
+        eyebrow: ['var(--font-body)'],
       },
       letterSpacing: {
-        eyebrow: typography.eyebrow.letterSpacing,
+        eyebrow: EYEBROW_TRACKING,
       },
-      fontSize: {
-        // The portal's long-form body size — between text-sm and text-base.
-        // Tokenised so it can't drift: every paragraph a patient actually
-        // reads at length uses this, text-sm is for secondary/metadata.
-        reading: ['0.9375rem', { lineHeight: '1.625' }],
-        // The hero number on a result card — between text-4xl and text-5xl,
-        // sized so a 5-digit value with unit still fits a third-width card.
-        stat: ['2.75rem', { lineHeight: '1' }],
+      maxWidth: {
+        // 65–75 characters a line. Every long-form paragraph gets this rather
+        // than a max-w-2xl chosen by eye, which is how three different
+        // measures ended up on three pages that read the same way.
+        measure: MEASURE,
       },
       minHeight: {
         // WCAG 2.5.8 minimum touch target. One token, not forty copies of
@@ -168,13 +223,6 @@ export default {
         // to agree — hence a token rather than the same measurement written
         // down in two files.
         'topbar-patient': '4.0625rem',
-      },
-      borderRadius: {
-        // Soft, generous radii (brief §3: "soft radius" on dropdowns/cards) — card and input are
-        // deliberately different values so a dropdown panel or date popover sitting on top of an
-        // input reads as a distinct, slightly softer surface rather than a uniform stack.
-        card: '1rem',
-        input: '0.625rem',
       },
       boxShadow: {
         // Every shadow is derived from a single themed colour variable, never
@@ -245,6 +293,10 @@ export default {
       addBase({
         ':root': {
           ...asBaseVars('light'),
+          // The three families and Fraunces' fixed axis settings. Same
+          // reasoning as the colours: one place decides, and no component
+          // writes a font name.
+          ...typographyCssVars(),
           // Shadow opacity is part of the theme too: the same alpha that reads
           // as a soft warm shadow on cream disappears entirely on near-black.
           '--shadow-tight': '0.06',
@@ -257,6 +309,15 @@ export default {
           '--shadow-diffuse': '0.36',
           'color-scheme': 'dark',
         },
+      });
+    }),
+    // Fraunces' optical-size axis, as three utilities rather than an inline
+    // style. `font-display` already carries the section step; these move it.
+    plugin(({ addUtilities }) => {
+      addUtilities({
+        '.opsz-hero': { fontVariationSettings: 'var(--fvs-display-hero)' },
+        '.opsz-section': { fontVariationSettings: 'var(--fvs-display-section)' },
+        '.opsz-small': { fontVariationSettings: 'var(--fvs-display-small)' },
       });
     }),
   ],

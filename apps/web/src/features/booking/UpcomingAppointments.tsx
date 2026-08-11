@@ -59,7 +59,7 @@ export function UpcomingAppointments() {
   if (appointments.length === 0) {
     return (
       <section aria-labelledby="book-heading">
-        <h2 id="book-heading" className="font-display text-3xl text-espresso">
+        <h2 id="book-heading" className="font-display text-2xl text-espresso">
           Nothing booked
         </h2>
         <Card className="mt-7 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
@@ -81,7 +81,7 @@ export function UpcomingAppointments() {
   return (
     <section aria-labelledby="upcoming-heading">
       <div className="flex flex-wrap items-baseline justify-between gap-4">
-        <h2 id="upcoming-heading" className="font-display text-3xl text-espresso">
+        <h2 id="upcoming-heading" className="font-display text-2xl text-espresso">
           {appointments.length === 1 ? 'Your next appointment' : 'Your next appointments'}
         </h2>
         <Link

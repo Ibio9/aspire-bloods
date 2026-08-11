@@ -167,16 +167,16 @@ export function ComponentsShowcase() {
       <Section title="Theme">
         <p className="max-w-3xl text-sm text-espresso/80">
           Every colour below resolves through a CSS custom property, so one class name is correct in both themes —
-          <code className="mx-1 rounded bg-cream-200 px-1 py-0.5 text-xs">text-espresso</code> is espresso in light
+          <code className="mx-1 rounded-input bg-cream-200 px-1 py-0.5 text-xs">text-espresso</code> is espresso in light
           and a warm cream in dark. Flip this and audit the whole page: the derived dark values are the thing most
           likely to be wrong, and this is the fastest way to see it.
         </p>
         <p className="max-w-3xl text-sm text-espresso/80">
-          Two families deliberately do not flip. <code className="mx-1 rounded bg-cream-200 px-1 py-0.5 text-xs">night</code>{' '}
+          Two families deliberately do not flip. <code className="mx-1 rounded-input bg-cream-200 px-1 py-0.5 text-xs">night</code>{' '}
           is the atmospheric dark panel (the auth split, tooltips, the fasting notice) — dark on purpose in both
-          themes — and <code className="mx-1 rounded bg-cream-200 px-1 py-0.5 text-xs">oncolor</code> is the light
+          themes — and <code className="mx-1 rounded-input bg-cream-200 px-1 py-0.5 text-xs">oncolor</code> is the light
           text that sits on it. The text on a filled accent is a third token,{' '}
-          <code className="mx-1 rounded bg-cream-200 px-1 py-0.5 text-xs">onaccent</code>, which does flip: bronze is
+          <code className="mx-1 rounded-input bg-cream-200 px-1 py-0.5 text-xs">onaccent</code>, which does flip: bronze is
           lightened in dark mode to clear AA against the page, and a light label on it measures under 2:1.
         </p>
         <ThemeToggle />
@@ -249,7 +249,7 @@ export function ComponentsShowcase() {
           {STATUS_LIST.map((s) => (
             <Card key={s.key} tint={s.key} padding="tight">
               <p className="eyebrow">Ferritin</p>
-              <p className="tabular mt-3 flex items-baseline gap-2 text-3xl font-semibold leading-none text-espresso">
+              <p className="tabular mt-3 flex items-baseline gap-2 text-2xl font-semibold leading-none text-espresso">
                 18 <span className="text-sm font-normal text-espresso/80">µg/L</span>
               </p>
               <p className="tabular mt-2 text-xs text-espresso/80">Lab reference range 20–200 µg/L</p>

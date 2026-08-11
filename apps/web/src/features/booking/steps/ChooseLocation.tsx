@@ -40,7 +40,7 @@ export function ChooseLocation({ locations, selectedAddOns, locationId, onChange
 
       {/* ── the comparison ──────────────────────────────────────────────── */}
       <section aria-labelledby="difference-heading">
-        <h2 id="difference-heading" className="font-display text-2xl leading-tight text-espresso sm:text-3xl">
+        <h2 id="difference-heading" className="font-display text-xl leading-tight text-espresso sm:text-2xl">
           What actually differs
         </h2>
         <div className="mt-7 grid grid-cols-1 gap-5 md:grid-cols-2">
@@ -51,7 +51,7 @@ export function ChooseLocation({ locations, selectedAddOns, locationId, onChange
 
       {/* ── the choice ──────────────────────────────────────────────────── */}
       <fieldset>
-        <legend className="font-display text-2xl leading-tight text-espresso sm:text-3xl">Pick a clinic</legend>
+        <legend className="font-display text-xl leading-tight text-espresso sm:text-2xl">Pick a clinic</legend>
 
         <p className="eyebrow mt-8 mb-3">Aspire Clinic</p>
         <div className="grid grid-cols-1 gap-4">
@@ -92,7 +92,7 @@ export function ChooseLocation({ locations, selectedAddOns, locationId, onChange
 function FactColumn({ location, heading, icon }: { location: BookingLocation; heading: string; icon: React.ReactNode }) {
   return (
     <div className="card p-6 sm:p-7">
-      <p className="flex items-center gap-2.5 font-display text-xl leading-tight text-espresso">
+      <p className="flex items-center gap-2.5 font-display text-lg leading-tight text-espresso">
         {icon}
         {heading}
       </p>
@@ -134,7 +134,7 @@ function LocationOption({ location, checked, onSelect }: { location: BookingLoca
       </span>
 
       <span className="relative flex flex-col pr-8">
-        <span className="font-display text-xl leading-tight text-espresso">{location.name}</span>
+        <span className="font-display text-lg leading-tight text-espresso">{location.name}</span>
         <span className="mt-2 flex items-start gap-2 text-sm text-espresso/85">
           <PinIcon className="mt-0.5 shrink-0 text-bronze-700" />
           <span className="not-italic">{location.addressLines.join(', ')}</span>

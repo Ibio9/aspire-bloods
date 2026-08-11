@@ -23,8 +23,11 @@
 (function () {
   try {
     var p = localStorage.getItem('aspire-theme');
-    var dark = p === 'dark' || (p !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    var dark = p === 'system' ? window.matchMedia('(prefers-color-scheme: dark)').matches : p !== 'light';
     if (dark) document.documentElement.classList.add('dark');
     document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
-  } catch (e) {}
+  } catch (e) {
+    document.documentElement.classList.add('dark');
+    document.documentElement.style.colorScheme = 'dark';
+  }
 })();

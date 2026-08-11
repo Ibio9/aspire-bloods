@@ -310,7 +310,7 @@ function UnmatchedResultCard({ result, onChanged }: { result: UnmatchedResult; o
           <p className="eyebrow mb-1.5">
             {result.sourceKey} {result.externalId ? `· ${result.externalId}` : ''}
           </p>
-          <p className="font-display text-2xl leading-tight text-espresso">{claimedName || 'No name supplied'}</p>
+          <p className="font-display text-xl leading-tight text-espresso">{claimedName || 'No name supplied'}</p>
         </div>
         <p className="tabular text-xs text-espresso/80">
           {result.markerCount} marker{result.markerCount === 1 ? '' : 's'}
@@ -539,7 +539,7 @@ export function LinkingPage() {
       <>
         <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Result linking" />
         <Card className="mt-10 max-w-xl">
-          <p className="font-display text-2xl text-espresso">We couldn't load the linking queue</p>
+          <p className="font-display text-xl text-espresso">We couldn't load the linking queue</p>
           <p className="mt-2 text-sm text-espresso/80">Please refresh the page.</p>
         </Card>
       </>
@@ -575,7 +575,7 @@ export function LinkingPage() {
           <div className="mt-12 grid grid-cols-1 items-start gap-10 lg:grid-cols-2">
             {/* ------------------------- Results ------------------------- */}
             <section aria-labelledby="unmatched-heading">
-              <h2 id="unmatched-heading" className="font-display text-3xl text-espresso">
+              <h2 id="unmatched-heading" className="font-display text-2xl text-espresso">
                 Results waiting
                 {queue.unmatchedResults.length > 0 && (
                   <span className="tabular ml-3 align-middle text-lg text-espresso/80">{queue.unmatchedResults.length}</span>
@@ -599,7 +599,7 @@ export function LinkingPage() {
 
             {/* ------------------------- Accounts ------------------------- */}
             <section aria-labelledby="unlinked-heading">
-              <h2 id="unlinked-heading" className="font-display text-3xl text-espresso">
+              <h2 id="unlinked-heading" className="font-display text-2xl text-espresso">
                 Accounts with no results
                 {queue.unlinkedAccounts.length > 0 && (
                   <span className="tabular ml-3 align-middle text-lg text-espresso/80">{queue.unlinkedAccounts.length}</span>
@@ -656,7 +656,7 @@ export function LinkingPage() {
 
           {queue.recentLinks.length > 0 && (
             <section aria-labelledby="recent-heading" className="mt-16">
-              <h2 id="recent-heading" className="font-display text-3xl text-espresso">
+              <h2 id="recent-heading" className="font-display text-2xl text-espresso">
                 Recently linked
               </h2>
               {/* The section exists because a wrong link is usually spotted

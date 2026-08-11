@@ -69,7 +69,7 @@ export function VerifyEmailPage() {
           footer={
             <p className="mt-[calc(var(--auth-step)*1.4)] text-sm text-espresso/80">
               Already confirmed?{' '}
-              <Link to="/login" className="rounded-sm font-medium text-bronze underline underline-offset-2">
+              <Link to="/login" className="rounded-input font-medium text-bronze underline underline-offset-2">
                 Sign in
               </Link>
               .
@@ -110,7 +110,7 @@ export function VerifyEmailPage() {
 
       <p className="mt-[calc(var(--auth-step)*1.4)] text-sm text-espresso/80">
         Haven't registered yet?{' '}
-        <Link to="/signup" className="rounded-sm font-medium text-bronze underline underline-offset-2">
+        <Link to="/signup" className="rounded-input font-medium text-bronze underline underline-offset-2">
           Create an account
         </Link>
         .

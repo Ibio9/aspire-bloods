@@ -219,8 +219,21 @@ const sourceDefinitions = [
 const copyBlocks: { slug: string; body: string; supersedes?: string[] }[] = [
   {
     slug: 'out_of_range_prompt',
-    body: 'One or more of your results falls outside the usual reference range. This is not a diagnosis. Many things affect a single result, and only a clinician who knows your full history can interpret it properly. Please contact your GP or the Aspire clinical team to discuss it.\n\nAspire Clinic, Aspire Group of Companies, 27 Mortimer Street, London\nClinical team: clinical-team@aspireshield.com',
+    /**
+     * PROSE ONLY. The clinic's address and email used to be pasted onto the
+     * end of this string, comma-joined, which made the copy block a second
+     * (and by then a stale) source of truth for contact details — and put
+     * "Aspire Clinic, Aspire Group of Companies, 27 Mortimer Street, London"
+     * on the one card somebody reads when they are worried.
+     *
+     * The details now come from getClinicContact() and are rendered one item
+     * per line by the shared ClinicContact component on screen and by the
+     * same four lines in the PDF. This block says the thing only a clinician
+     * can say; nothing in it has to be edited when the clinic moves.
+     */
+    body: 'One or more of your results falls outside the usual reference range. This is not a diagnosis. Many things affect a single result, and only a clinician who knows your full history can interpret it properly. Please contact your GP or the Aspire clinical team to discuss it.',
     supersedes: [
+      'One or more of your results falls outside the usual reference range. This is not a diagnosis. Many things affect a single result, and only a clinician who knows your full history can interpret it properly. Please contact your GP or the Aspire clinical team to discuss it.\n\nAspire Clinic, Aspire Group of Companies, 27 Mortimer Street, London\nClinical team: clinical-team@aspireshield.com',
       'One or more of your results falls outside the expected reference range. This is not a diagnosis. Many things can affect a single result, and only a clinician who knows your full history can interpret it properly. Please contact your GP or the Aspire clinical team to discuss these results and next steps.\n\nAspire Clinic, Aspire Group of Companies, 27 Mortimer Street, London\nClinical team: clinical-team@aspireshield.com',
     ],
   },

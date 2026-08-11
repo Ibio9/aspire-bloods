@@ -34,7 +34,7 @@ export function Checkbox({ label, error, id, labelHidden, className = '', ...pro
           />
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute inset-0 rounded-[4px] border-[1.5px] border-taupe bg-white transition duration-150 ease-out peer-hover:border-bronze/70 peer-checked:border-bronze peer-checked:bg-bronze peer-active:scale-90 peer-active:duration-0 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-bronze peer-disabled:cursor-not-allowed peer-disabled:opacity-50 peer-disabled:peer-checked:bg-taupe peer-disabled:peer-checked:border-taupe"
+            className="pointer-events-none absolute inset-0 rounded-input border-[1.5px] border-taupe bg-white transition duration-150 ease-out peer-hover:border-bronze/70 peer-checked:border-bronze peer-checked:bg-bronze peer-active:scale-90 peer-active:duration-0 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-bronze peer-disabled:cursor-not-allowed peer-disabled:opacity-50 peer-disabled:peer-checked:bg-taupe peer-disabled:peer-checked:border-taupe"
           />
           <svg
             aria-hidden="true"

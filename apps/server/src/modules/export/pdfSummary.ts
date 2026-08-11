@@ -3,10 +3,119 @@ import { prisma } from '../../db/client.js';
 import { decryptField } from '../../lib/crypto.js';
 import { decodeResultValue } from '../../lib/resultValue.js';
 import { formatDate, formatReportTitle, hasResultValue, NO_STATUS_LABEL } from '@aspire-bloods/shared';
+import { getClinicContact } from '../content/clinicContact.js';
+import { listAllMarkersForPatient } from '../patients/portalService.js';
 
 const BRONZE = '#8a5e45';
 const ESPRESSO = '#423c36';
 const TAUPE = '#c9bca9';
+
+/**
+ * THE THREE ROLES THE SCREEN USES, in the three faces a PDF can guarantee.
+ *
+ * Display / body / numeric, exactly as in tokens.ts: a high-contrast serif for
+ * the letterhead and the headings, a neutral sans for prose and UI, and a
+ * genuine monospace for every number — results, units, reference ranges and
+ * dates rendered as data. A results letter reads with the same structure as
+ * the portal it was downloaded from, and the numeric columns line up because
+ * the numeric face is fixed-width by construction.
+ *
+ * ────────────────────────────────────────────────────────────────────────
+ * WHY THESE ARE THE BASE-14 FACES AND NOT FRAUNCES / IBM PLEX. Do not spend
+ * an afternoon re-attempting this; it was attempted and reverted, and the
+ * failure mode is worse than the cosmetic loss.
+ *
+ * PDFKit embeds a font by SUBSETTING it with fontkit. fontkit's TTF subsetter
+ * throws on all four vendored faces once a document contains enough distinct
+ * glyphs — `ERR_BUFFER_OUT_OF_BOUNDS` in `TTFSubset._addGlyph`, and
+ * `ERR_OUT_OF_RANGE` writing a `loca` offset past 65535 for IBM Plex Mono in
+ * particular. It reproduces with woff and woff2 alike, with the static cuts
+ * and with the variable ones, and with fontsource's latin subsets and their
+ * full files. A short document embeds cleanly, which is exactly what makes it
+ * dangerous: it passes every smoke test and fails on a real 180-marker panel.
+ *
+ * And it does not fail as a rejected promise. The subset runs inside the
+ * stream flush that `doc.end()` schedules, so the throw is an UNCAUGHT
+ * EXCEPTION: a try/catch around the generator does not see it and the Node
+ * process dies. A patient pressing Download would not get a 500, they would
+ * take the API down for everybody. That is not a trade a results portal makes
+ * for nicer letterforms.
+ *
+ * The base-14 faces are in every PDF reader by definition, embed nothing, and
+ * cannot fail. If this is ever revisited: the fix is a font whose subset
+ * fontkit can encode (verify against a full report, not a sample line), or a
+ * renderer that does not subset. Not a different weight of the same files.
+ * ────────────────────────────────────────────────────────────────────────
+ */
+const FONTS = {
+  /** Letterhead and headings. The base-14 serif — Fraunces' nearest relative here. */
+  display: 'Times-Roman',
+  displayBold: 'Times-Bold',
+  /** Prose, labels, UI. */
+  body: 'Helvetica',
+  bodyBold: 'Helvetica-Bold',
+  /** Numbers only: results, units, ranges, dates as data. Monospaced, so a column is a column. */
+  mono: 'Courier',
+  monoBold: 'Courier-Bold',
+} as const;
+
+type FontRole = keyof typeof FONTS;
+
+/** Named rather than stringly-typed, so a typo is a compile error not a fallback. */
+function use(doc: PDFKit.PDFDocument, role: FontRole, size?: number) {
+  doc.font(FONTS[role]);
+  if (size !== undefined) doc.fontSize(size);
+  return doc;
+}
+
+/**
+ * The mark, in the same two-tone lockup the portal's wordmark uses. Text-based,
+ * since no logo asset was supplied — swap for a real mark when one exists.
+ *
+ * "Aspire Group of Companies" is gone from the line beneath it: the practice is
+ * Aspire Clinic to the people it treats, and the registered entity name belongs
+ * in the privacy and security documents rather than on a results letter. The
+ * address that replaced it comes from getClinicContact(), so this letterhead
+ * and the portal's sidebar cannot say different things.
+ */
+function drawLetterhead(doc: PDFKit.PDFDocument) {
+  const contact = getClinicContact();
+  use(doc, 'displayBold', 22).fillColor(BRONZE).text('Aspire', { continued: true });
+  use(doc, 'display').fillColor(ESPRESSO).text(' Clinic');
+  use(doc, 'body', 9)
+    .fillColor(ESPRESSO)
+    .text(contact.addressLines.join(', '), { characterSpacing: 0.2 });
+  doc.moveDown(1.5);
+}
+
+/**
+ * Space to reserve before starting the contact block, so it is never orphaned
+ * from the "Next steps" paragraph it belongs to. A generous fixed figure rather
+ * than a measurement: the block is five short lines and measuring each of them
+ * to save fifteen points of slack is not worth the arithmetic.
+ */
+const CONTACT_BLOCK_HEIGHT = 92;
+
+/**
+ * The clinic's details, ONE ITEM PER LINE — address, opening hours, emergency
+ * line, email, with the phone number above them when one is configured. The
+ * same order and the same four facts the shared ClinicContact component renders
+ * on screen.
+ */
+function drawClinicContact(doc: PDFKit.PDFDocument, x: number, width: number) {
+  const contact = getClinicContact();
+  const line = (label: string, value: string, numeric = false) => {
+    use(doc, 'bodyBold', 7.5).fillColor(ESPRESSO).text(label.toUpperCase(), x, doc.y, { width, characterSpacing: 0.9 });
+    use(doc, numeric ? 'mono' : 'body', 9).fillColor(ESPRESSO).text(value, x, doc.y, { width });
+    doc.moveDown(0.45);
+  };
+
+  if (contact.phone) line('Phone', contact.phone, true);
+  line('Address', [contact.name, ...contact.addressLines].join(', '));
+  line('Opening hours', contact.hours);
+  line('Emergency line', contact.emergencyNote);
+  line('Email', contact.email);
+}
 
 const STATUS_LABEL: Record<string, string> = {
   IN_RANGE: 'In range',
@@ -60,27 +169,27 @@ export async function generateAspireSummaryPdf(reportId: string): Promise<Buffer
   doc.on('data', (chunk) => chunks.push(chunk));
   const done = new Promise<Buffer>((resolve) => doc.on('end', () => resolve(Buffer.concat(chunks))));
 
-  // Letterhead
-  doc.font('Helvetica-Bold').fontSize(20).fillColor(BRONZE).text('ASPIRE', { continued: true });
-  doc.font('Helvetica').fillColor(ESPRESSO).text(' CLINIC');
-  doc.font('Helvetica').fontSize(9).fillColor(ESPRESSO).text('Aspire Group of Companies, 27 Mortimer Street, London');
-  doc.moveDown(1.5);
+  const leftMargin = 56;
+  const fullWidth = 483;
 
-  // Right-aligned date + recipient block
-  const today = formatDate(new Date());
-  doc.font('Helvetica').fontSize(10).fillColor(ESPRESSO).text(today, { align: 'right' });
+  drawLetterhead(doc);
+
+  // Right-aligned date + recipient block. The date is data, so it is set in
+  // the mono face like every other date rendered as data; the name and the
+  // address are not.
+  use(doc, 'mono', 9).fillColor(ESPRESSO).text(formatDate(new Date()), { align: 'right' });
   doc.moveDown(0.5);
-  doc.text(patientName, { align: 'right' });
+  use(doc, 'body', 10).text(patientName, { align: 'right' });
   if (address) doc.text(address, { align: 'right' });
   if (profile?.postcode) doc.text(profile.postcode, { align: 'right' });
   doc.moveDown(1.5);
 
   // Body. The panel is optional (schema: Report.panelId) — formatReportTitle
-  // falls back to "12 markers · 4 August 2026" rather than leaving a
-  // dangling "— results summary" with nothing in front of it.
+  // falls back to "12 markers · 4 August 2026" rather than leaving a dangling
+  // "results summary" with nothing in front of it.
   const reportTitle = formatReportTitle(report.panel?.name, report.results.length, report.sampleDate);
-  doc.fontSize(13).font('Helvetica-Bold').fillColor(ESPRESSO).text(`${reportTitle}: results summary`);
-  doc.fontSize(10).font('Helvetica').moveDown(0.5);
+  use(doc, 'display', 16).fillColor(ESPRESSO).text(`${reportTitle}: results summary`);
+  use(doc, 'body', 10).moveDown(0.6);
   doc.text(`Dear ${profile?.firstName ?? 'Patient'},`);
   doc.moveDown(0.5);
   doc.text(
@@ -89,9 +198,6 @@ export async function generateAspireSummaryPdf(reportId: string): Promise<Buffer
       : `Please find below a summary of your results, from a sample taken on ${formatDate(report.sampleDate)}.`,
   );
   doc.moveDown(1);
-
-  const leftMargin = 56;
-  const fullWidth = 483;
 
   // Results table. A 40-marker panel does not fit on one A4 page, and
   // PDFKit's automatic page break does not know about our manually
@@ -107,19 +213,24 @@ export async function generateAspireSummaryPdf(reportId: string): Promise<Buffer
 
   function drawTableHeader() {
     const y = doc.y;
-    doc.font('Helvetica-Bold').fontSize(9).fillColor(ESPRESSO);
-    doc.text('Marker', colX[0], y, { width: colWidth[0] });
-    doc.text('Result', colX[1], y, { width: colWidth[1] });
-    doc.text('Unit', colX[2], y, { width: colWidth[2] });
-    doc.text('Range', colX[3], y, { width: colWidth[3] });
-    doc.text('Status', colX[4], y, { width: colWidth[4] });
+    use(doc, 'bodyBold', 8).fillColor(ESPRESSO);
+    for (const [i, label] of ['MARKER', 'RESULT', 'UNIT', 'RANGE', 'STATUS'].entries()) {
+      doc.text(label, colX[i], y, { width: colWidth[i], characterSpacing: 0.8 });
+    }
     const lineY = y + 13;
     doc.moveTo(leftMargin, lineY).lineTo(leftMargin + fullWidth, lineY).strokeColor(TAUPE).stroke();
     doc.y = lineY + 6;
   }
 
   drawTableHeader();
-  doc.font('Helvetica').fontSize(9);
+
+  /**
+   * Which face each column is set in. The three middle ones — value, unit and
+   * range — are the numeric data on this page and take the mono face, for
+   * exactly the reason they do on screen: read as a column, they have to line
+   * up.
+   */
+  const cellFont: FontRole[] = ['body', 'mono', 'mono', 'mono', 'body'];
 
   for (const { r, decoded } of rows) {
     const cells = [
@@ -133,30 +244,34 @@ export async function generateAspireSummaryPdf(reportId: string): Promise<Buffer
     ];
     // Tallest cell decides the row height — a long marker name wraps to two
     // lines and the row has to grow with it, or the next row lands on top.
+    // Measured in each cell's OWN face: mono runs wider than the sans at the
+    // same size, so measuring everything in one face under-counts the wraps.
+    // Measured in each cell's OWN face: Courier runs wider than Helvetica at
+    // the same size, so measuring everything in one face under-counts the wraps.
     const rowHeight = Math.max(
-      ...cells.map((text, i) => doc.heightOfString(text, { width: colWidth[i] })),
+      ...cells.map((text, i) => {
+        use(doc, cellFont[i], 9);
+        return doc.heightOfString(text, { width: colWidth[i] });
+      }),
     );
 
     if (doc.y + rowHeight > bottomLimit) {
       doc.addPage();
       // Landing on page 3 of a 40-marker report should not look like the
       // start of a fresh table.
-      doc.font('Helvetica-Bold').fontSize(9).fillColor(ESPRESSO).text('(continued)', leftMargin, doc.y);
+      use(doc, 'bodyBold', 9).fillColor(ESPRESSO).text('(continued)', leftMargin, doc.y);
       doc.moveDown(0.5);
       drawTableHeader();
-      doc.font('Helvetica').fontSize(9);
     }
 
     const y = doc.y;
-    doc.fillColor(ESPRESSO);
-    doc.text(cells[0], colX[0], y, { width: colWidth[0] });
-    doc.text(cells[1], colX[1], y, { width: colWidth[1] });
-    doc.text(cells[2], colX[2], y, { width: colWidth[2] });
-    doc.text(cells[3], colX[3], y, { width: colWidth[3] });
     // Bronze marks a result worth reading twice. A result with no status is
     // not one of those — it is ordinary espresso, like an in-range row.
     const flagged = r.status !== null && r.status !== 'IN_RANGE';
-    doc.fillColor(flagged ? BRONZE : ESPRESSO).text(cells[4], colX[4], y, { width: colWidth[4] });
+    cells.forEach((text, i) => {
+      use(doc, cellFont[i], 9).fillColor(i === 4 && flagged ? BRONZE : ESPRESSO);
+      doc.text(text, colX[i], y, { width: colWidth[i] });
+    });
     doc.y = y + rowHeight + ROW_GAP;
   }
 
@@ -174,15 +289,22 @@ export async function generateAspireSummaryPdf(reportId: string): Promise<Buffer
   }
 
   if (hasFlagged && outOfRangePrompt) {
-    ensureSpace(doc.heightOfString(outOfRangePrompt.body, { width: fullWidth }) + 30);
-    doc.font('Helvetica-Bold').fontSize(9).fillColor(ESPRESSO).text('Next steps', leftMargin, doc.y, { width: fullWidth });
-    doc.font('Helvetica').fontSize(9).moveDown(0.3);
+    use(doc, 'body', 9);
+    ensureSpace(doc.heightOfString(outOfRangePrompt.body, { width: fullWidth }) + CONTACT_BLOCK_HEIGHT + 30);
+    use(doc, 'display', 12).fillColor(ESPRESSO).text('Next steps', leftMargin, doc.y, { width: fullWidth });
+    use(doc, 'body', 9).moveDown(0.4);
     doc.text(outOfRangePrompt.body, leftMargin, doc.y, { width: fullWidth });
+    doc.moveDown(0.9);
+    // The clinic's details, one item per line, from the same getClinicContact()
+    // the portal renders. They used to be pasted onto the end of the copy block
+    // above as one comma-joined line, which is both unreadable and a second
+    // place for them to go stale.
+    drawClinicContact(doc, leftMargin, fullWidth);
     doc.moveDown(1);
   }
 
   if (footerDisclaimer) {
-    doc.font('Helvetica').fontSize(8);
+    use(doc, 'body', 8);
     ensureSpace(doc.heightOfString(footerDisclaimer.body, { width: fullWidth }) + 16);
     doc.fillColor(ESPRESSO).text(footerDisclaimer.body, leftMargin, doc.y, { width: fullWidth });
     doc.moveDown(1.5);
@@ -192,14 +314,176 @@ export async function generateAspireSummaryPdf(reportId: string): Promise<Buffer
   // reads as an unsigned letter.
   ensureSpace(64);
   const staff = report.reviewedBy?.staffProfile;
-  doc
-    .font('Helvetica-Bold')
-    .fontSize(9)
+  use(doc, 'bodyBold', 9)
     .fillColor(ESPRESSO)
     .text(staff ? `${staff.firstName} ${staff.lastName}` : 'Aspire Clinical Team', leftMargin, doc.y, { width: fullWidth });
-  if (staff?.postNominals) doc.font('Helvetica').fontSize(9).text(staff.postNominals, leftMargin, doc.y, { width: fullWidth });
-  if (staff?.roleTitle) doc.font('Helvetica').fontSize(9).text(staff.roleTitle, leftMargin, doc.y, { width: fullWidth });
-  doc.font('Helvetica').fontSize(9).text('Aspire Clinic', leftMargin, doc.y, { width: fullWidth });
+  if (staff?.postNominals) use(doc, 'body', 9).text(staff.postNominals, leftMargin, doc.y, { width: fullWidth });
+  if (staff?.roleTitle) use(doc, 'body', 9).text(staff.roleTitle, leftMargin, doc.y, { width: fullWidth });
+  use(doc, 'body', 9).text('Aspire Clinic', leftMargin, doc.y, { width: fullWidth });
+
+  doc.end();
+  return done;
+}
+
+/**
+ * EVERY MARKER THE PATIENT HAS, on paper — the "Download markers (PDF)"
+ * button beside the By marker view's at-a-glance strip.
+ *
+ * A deliberately different document from the report summary above, because it
+ * answers a different question. The summary is one panel, addressed as a
+ * letter and signed by the clinician who released it. This is a reference
+ * sheet: the latest value for every marker ever tested, across every report,
+ * with the date each one was taken. There is no signature on it, because no
+ * single clinician released "all of it".
+ *
+ * It shares everything else — the same three faces, the same letterhead, the
+ * same status vocabulary, the same non-diagnostic footer, and the same rule
+ * about results with no position on their range (printed, with the value, and
+ * no status invented for them).
+ *
+ * MEASURED only, exactly as on screen. A genetic indicator, a food sensitivity
+ * level and a microbiome proportion have no reference range and so no status,
+ * and a table with Range and Status columns has nothing true to put in either.
+ */
+export async function generateAllMarkersPdf(patientId: string): Promise<Buffer> {
+  const [markers, profile, footerDisclaimer, outOfRangePrompt] = await Promise.all([
+    listAllMarkersForPatient(patientId),
+    prisma.patientProfile.findUnique({ where: { userId: patientId } }),
+    prisma.copyBlock.findUnique({ where: { slug: 'footer_disclaimer' } }),
+    prisma.copyBlock.findUnique({ where: { slug: 'out_of_range_prompt' } }),
+  ]);
+
+  const measured = markers.filter((m) => (m.resultType ?? 'MEASURED') === 'MEASURED');
+  const hasFlagged = measured.some((m) => m.status !== null && m.status !== 'IN_RANGE');
+
+  const chunks: Buffer[] = [];
+  const doc = new PDFDocument({ size: 'A4', margin: 56 });
+  doc.on('data', (chunk) => chunks.push(chunk));
+  const done = new Promise<Buffer>((resolve) => doc.on('end', () => resolve(Buffer.concat(chunks))));
+
+  const leftMargin = 56;
+  const fullWidth = 483;
+  const bottomLimit = doc.page.height - doc.page.margins.bottom - 24;
+
+  drawLetterhead(doc);
+
+  use(doc, 'mono', 9).fillColor(ESPRESSO).text(formatDate(new Date()), { align: 'right' });
+  doc.moveDown(0.5);
+  use(doc, 'body', 10).text(
+    profile ? `${profile.title ? profile.title + ' ' : ''}${profile.firstName} ${profile.lastName}` : 'Patient',
+    { align: 'right' },
+  );
+  doc.moveDown(1.5);
+
+  use(doc, 'display', 16).fillColor(ESPRESSO).text('Every marker you have had tested', leftMargin, doc.y, { width: fullWidth });
+  use(doc, 'body', 10).moveDown(0.6);
+  doc.text(
+    measured.length === 1
+      ? 'The latest result for the one marker on your record, with the date the sample was taken.'
+      : `The latest result for each of the ${measured.length} markers on your record, with the date each sample was taken. Where a marker has been tested more than once, only the most recent value is shown here.`,
+    leftMargin,
+    doc.y,
+    { width: fullWidth },
+  );
+  doc.moveDown(1);
+
+  // The at-a-glance counts, in words rather than as tiles — a PDF has no
+  // filter to press, so the tiles would be three numbers pretending to be
+  // buttons. Statusless results are in none of the three, same as on screen.
+  const counts = {
+    inRange: measured.filter((m) => m.status === 'IN_RANGE').length,
+    outOfRange: measured.filter((m) => m.status === 'HIGH' || m.status === 'LOW').length,
+    significant: measured.filter((m) => m.status === 'SIGNIFICANT_HIGH' || m.status === 'SIGNIFICANT_LOW').length,
+  };
+  use(doc, 'bodyBold', 8).fillColor(ESPRESSO).text('AT A GLANCE', leftMargin, doc.y, { width: fullWidth, characterSpacing: 0.9 });
+  use(doc, 'body', 9).text(
+    `${counts.inRange} in range. ${counts.outOfRange} outside the usual range. ${counts.significant} significantly outside it.`,
+    leftMargin,
+    doc.y,
+    { width: fullWidth },
+  );
+  doc.moveDown(1);
+
+  const colX = [56, 236, 300, 366, 432];
+  const colWidth = [176, 60, 62, 62, 107];
+  // Marker, then three numeric columns, then the status word.
+  const cellFont: FontRole[] = ['body', 'mono', 'mono', 'mono', 'body'];
+  const ROW_GAP = 6;
+
+  function drawTableHeader() {
+    const y = doc.y;
+    use(doc, 'bodyBold', 8).fillColor(ESPRESSO);
+    for (const [i, label] of ['MARKER', 'RESULT', 'RANGE', 'SAMPLED', 'STATUS'].entries()) {
+      doc.text(label, colX[i], y, { width: colWidth[i], characterSpacing: 0.8 });
+    }
+    const lineY = y + 13;
+    doc.moveTo(leftMargin, lineY).lineTo(leftMargin + fullWidth, lineY).strokeColor(TAUPE).stroke();
+    doc.y = lineY + 6;
+  }
+
+  drawTableHeader();
+
+  for (const m of measured) {
+    // A qualitative result has no numeric range behind it, and printing "0–0"
+    // for one would be a half-populated row stating something false — the same
+    // rule the card and the row follow on screen.
+    const hasRange = m.status !== null && m.referenceHigh > m.referenceLow;
+    const cells = [
+      m.name,
+      `${m.valueText ?? m.value ?? ''}${m.unit ? ` ${m.unit}` : ''}`.trim(),
+      hasRange ? `${m.referenceLow}–${m.referenceHigh}` : '',
+      formatDate(m.sampleDate),
+      m.status === null ? NO_STATUS_LABEL : (STATUS_LABEL[m.status] ?? m.status),
+    ];
+    const rowHeight = Math.max(
+      ...cells.map((text, i) => {
+        use(doc, cellFont[i], 9);
+        return doc.heightOfString(text || ' ', { width: colWidth[i] });
+      }),
+    );
+
+    if (doc.y + rowHeight > bottomLimit) {
+      doc.addPage();
+      use(doc, 'bodyBold', 9).fillColor(ESPRESSO).text('(continued)', leftMargin, doc.y);
+      doc.moveDown(0.5);
+      drawTableHeader();
+    }
+
+    const y = doc.y;
+    const flagged = m.status !== null && m.status !== 'IN_RANGE';
+    cells.forEach((text, i) => {
+      use(doc, cellFont[i], 9).fillColor(i === 4 && flagged ? BRONZE : ESPRESSO);
+      doc.text(text, colX[i], y, { width: colWidth[i] });
+    });
+    doc.y = y + rowHeight + ROW_GAP;
+  }
+
+  doc.x = leftMargin;
+  doc.moveDown(1);
+
+  function ensureSpace(needed: number) {
+    if (doc.y + needed > bottomLimit) {
+      doc.addPage();
+      doc.x = leftMargin;
+    }
+  }
+
+  if (hasFlagged && outOfRangePrompt) {
+    use(doc, 'body', 9);
+    ensureSpace(doc.heightOfString(outOfRangePrompt.body, { width: fullWidth }) + CONTACT_BLOCK_HEIGHT + 30);
+    use(doc, 'display', 12).fillColor(ESPRESSO).text('Next steps', leftMargin, doc.y, { width: fullWidth });
+    use(doc, 'body', 9).moveDown(0.4);
+    doc.text(outOfRangePrompt.body, leftMargin, doc.y, { width: fullWidth });
+    doc.moveDown(0.9);
+    drawClinicContact(doc, leftMargin, fullWidth);
+    doc.moveDown(1);
+  }
+
+  if (footerDisclaimer) {
+    use(doc, 'body', 8);
+    ensureSpace(doc.heightOfString(footerDisclaimer.body, { width: fullWidth }) + 16);
+    doc.fillColor(ESPRESSO).text(footerDisclaimer.body, leftMargin, doc.y, { width: fullWidth });
+  }
 
   doc.end();
   return done;

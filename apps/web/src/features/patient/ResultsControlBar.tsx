@@ -26,13 +26,6 @@ import {
 /** The half of the bar that folds away, named so the disclosure can point at it. */
 const FOLD_ID = 'results-control-fold';
 
-/**
- * How far below the window the pinned-or-not observer's root reaches — see the
- * effect below. Comfortably past the tallest page this product can produce: the
- * biggest seeded report is 187 markers and around 51,000px on a phone.
- */
-const BELOW_THE_FOLD = 1_000_000;
-
 function ChevronIcon({ up }: { up: boolean }) {
   return (
     <svg
@@ -103,16 +96,24 @@ function FilterChip({ value, onClear }: { value: string; onClear: () => void }) 
  * view all live on the page, so scrolling, folding and switching view cannot
  * throw any of them away.
  *
- * WHY THE FOLD IS HIDDEN AND NOT REMOVED. The bar is sticky, so its box is
- * what the content below it starts after. Collapsing that box while the bar is
- * pinned drags the whole page up by the difference — the reader loses their
- * place mid-scroll, and the same thing happens in reverse on the way back.
- * `visibility: hidden` (see .bar-fold in globals.css) leaves the box exactly
- * where it is: the markers scroll up through the space the fold used to
- * occupy, nothing moves that the reader did not move, and opening the fold
- * again paints it back in place with no scrolling at all. The bar's wrapper is
- * `pointer-events-none` for the same reason — the space the fold reserves is
- * over the markers, and it must not intercept anything aimed at them.
+ * THE PANEL IS THE READER'S, AND NOTHING ELSE TOUCHES IT.
+ *
+ * It used to open and close on SCROLL: an IntersectionObserver decided whether
+ * the bar was pinned, and the same callback wrote the panel's open state on
+ * every crossing. So the disclosure did not reliably toggle — a scroll of one
+ * pixel could reopen what had just been shut — and at the top of the page the
+ * button was not rendered at all, on the grounds that the panel was open
+ * anyway, which left no way to close it.
+ *
+ * One boolean now, set only by the reader. Closed on load. The button toggles
+ * it; Escape, a click outside the bar and a change of view close it. It is
+ * unmounted when shut rather than held invisible, so it cannot overlap or
+ * displace the search field or the view switch at any width, and the four
+ * pickers are genuinely out of the tab order rather than merely unpainted.
+ *
+ * What stays visible whatever the panel is doing: the count badge on the
+ * disclosure, and the "Filtered by" chip row in the bar's first row. A filter
+ * somebody cannot see is how they conclude their results have gone missing.
  *
  * Group by and Sort by are absent where nothing they could say would be true:
  * the report LIST has no markers to group, and the comparison arranges itself
@@ -157,83 +158,66 @@ export function ResultsControlBar({
   const sorts = scope === 'MARKER' ? MARKER_SORTS : RESULT_SORTS;
   const sortValue = scope === 'MARKER' ? arrangement.markerSort : arrangement.reportSort;
 
-  const sentinelRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const foldRef = useRef<HTMLDivElement>(null);
-  /** Whether the bar has left its place in the page and pinned itself. */
-  const [pinned, setPinned] = useState(false);
-  /** Whether the reader has asked for the fold back while it is pinned. */
-  const [foldOpen, setFoldOpen] = useState(false);
 
   /**
-   * Watched on a sentinel ABOVE the bar rather than on the bar itself.
+   * WHETHER THE PANEL IS OPEN, AND NOTHING ELSE DECIDES IT.
    *
-   * The bar's own top is where it is pinned the whole time it is pinned, so
-   * asking it would be asking a constant. The sentinel sits one pixel above
-   * the bar in the page and nothing between it and the top of the document
-   * ever changes size, so the answer cannot be disturbed by the bar reacting
-   * to it — which is the loop that makes a condensing header flicker.
+   * This used to be two pieces of state — "is the bar pinned" and "has the
+   * reader asked for the fold back" — with the panel's visibility derived from
+   * both (`folded = pinned && !foldOpen`). That is why the disclosure did not
+   * reliably toggle: the same scroll observer that set `pinned` also WROTE
+   * `foldOpen` on every crossing, so pressing the button and then scrolling a
+   * pixel reopened or reclosed the panel underneath the press, and at the top
+   * of the page the button was hidden entirely on the grounds that the panel
+   * was open anyway. A control whose state a scroll handler can overwrite is a
+   * control that does not work.
    *
-   * The top margin is the bar's own sticky offset, read off the element so the
-   * mobile top bar's height is written down once (in tailwind.config.ts) and
-   * nowhere else. Re-read on resize because it is 0 from md up.
+   * One boolean now, and only the reader sets it: the button toggles it, and
+   * Escape, an outside click and a change of view close it. It starts CLOSED
+   * on every load and it stays closed until somebody asks. The bar's pinned
+   * state no longer touches it at all — pinning changes what the bar looks
+   * like, not what it is showing.
+   */
+  const [open, setOpen] = useState(false);
+
+  // Closed whenever the reader moves to a different arrangement. The four
+  // pickers inside mean different things per view (see ArrangementScope), and
+  // a panel that survives the switch is a panel showing the last view's
+  // controls over this view's results.
+  useEffect(() => {
+    setOpen(false);
+  }, [view]);
+
+  /**
+   * Escape, and a click anywhere outside the bar.
    *
-   * The bottom margin is what makes the answer a straight "is it above the
-   * line", and it has to be there. An observer only reports a CHANGE of
-   * intersection, and a bar below the fold — where it starts on a phone — is
-   * already not intersecting; jump the scroll past it in one go and the state
-   * never changes, so nothing is ever reported and the bar pins itself wide.
-   * Extending the root all the way down the document makes "still below" an
-   * intersection, so the only crossing left is the one this is asking about.
+   * Both are bound only while the panel is open, so a page with a shut panel
+   * carries no listeners at all. Escape is captured on keydown rather than
+   * keyup so it beats anything inside that might also be listening, and the
+   * outside click is measured against the WHOLE bar rather than the panel:
+   * pressing the disclosure itself is not an outside click, and treating it as
+   * one would close the panel and then let the button reopen it in the same
+   * gesture — the classic toggle that never toggles.
    */
   useEffect(() => {
-    /** Focus inside the fold, or one of its pickers standing open. */
-    const stillInUse = () => {
-      const fold = foldRef.current;
-      return !!fold && (fold.contains(document.activeElement) || !!fold.querySelector('[aria-expanded="true"]'));
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
     };
-
-    const sentinel = sentinelRef.current;
-    const bar = barRef.current;
-    // A browser without IntersectionObserver keeps the bar permanently open:
-    // every control is reachable, it simply never folds.
-    if (!sentinel || !bar || typeof IntersectionObserver === 'undefined') return;
-
-    let observer: IntersectionObserver | undefined;
-    const watch = () => {
-      observer?.disconnect();
-      const offset = Number.parseFloat(window.getComputedStyle(bar).top) || 0;
-      observer = new IntersectionObserver(
-        ([entry]) => {
-          const isPinned = !entry.isIntersecting;
-          setPinned(isPinned);
-          // Never fold away a control somebody is holding.
-          //
-          // Not every scroll is a reader scrolling. Choosing "Group by: health
-          // area" on a big report re-lays the grid out under the page's own
-          // scroll anchoring and moves it by the better part of a thousand
-          // pixels — which is quite enough to pin the bar, a tenth of a second
-          // after a hand pressed something inside it. Folding on that takes
-          // the next picker away from someone who has not moved. So the fold
-          // survives pinning whenever it holds the focus or has a menu
-          // standing open, and folds on every other scroll. Coming back to the
-          // top resets it, so the next scroll down folds again.
-          setFoldOpen(isPinned && stillInUse());
-        },
-        { rootMargin: `${-(offset + 1)}px 0px ${BELOW_THE_FOLD}px 0px`, threshold: 0 },
-      );
-      observer.observe(sentinel);
+    const onPointerDown = (e: PointerEvent) => {
+      if (!barRef.current?.contains(e.target as Node)) setOpen(false);
     };
-
-    watch();
-    window.addEventListener('resize', watch);
+    document.addEventListener('keydown', onKeyDown);
+    // Capture, so a control inside the page that stops propagation cannot
+    // leave the panel open with the reader's attention somewhere else.
+    document.addEventListener('pointerdown', onPointerDown, true);
     return () => {
-      observer?.disconnect();
-      window.removeEventListener('resize', watch);
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('pointerdown', onPointerDown, true);
     };
-  }, []);
-
-  const folded = pinned && !foldOpen;
+  }, [open]);
 
   const statusLabel = STATUS_FILTERS.find((f) => f.value === filters.statusFilter)?.label;
   const categoryLabel = categories.find((c) => c.key === filters.categoryFilter)?.name;
@@ -244,10 +228,10 @@ export function ResultsControlBar({
 
   return (
     <>
-      {/* The bar's place in the page, one pixel tall, carrying the margin that
-          used to be the bar's own — so the observer above flips at exactly the
-          moment the bar leaves, not forty pixels early. */}
-      <div ref={sentinelRef} aria-hidden="true" className="mt-10 h-px" />
+      {/* The bar's own top margin. It used to be carried by a one-pixel
+          sentinel div that an IntersectionObserver watched; nothing observes
+          the bar's position any more, so the margin is simply the bar's. */}
+      <div aria-hidden="true" className="mt-12 h-px" />
 
       {/* Full-bleed: the negative margins are exactly the shell's own gutters,
           so the band reaches the sidebar on one side and the window on the
@@ -292,29 +276,37 @@ export function ResultsControlBar({
             />
           </div>
 
-          {/* Only while pinned. Unpinned, the fold is already open and a
-              control offering to open it would be a control that does
-              nothing. */}
-          {pinned && (
-            <Button
-              variant="secondary"
-              onClick={() => setFoldOpen((open) => !open)}
-              aria-expanded={foldOpen}
-              aria-controls={FOLD_ID}
-              className="shrink-0 px-4"
-            >
-              <span>
-                Filters<span className="hidden sm:inline"> and sort</span>
+          {/* ALWAYS THERE, and it always toggles. It used to render only
+              while the bar was pinned, on the reasoning that an unpinned bar
+              already had the panel open — so at the top of the page there was
+              no way to shut the panel, and a scroll of one pixel could open or
+              close it under the reader's hand. The panel is closed on load
+              now, and this is the only thing that opens it.
+
+              The count badge sits on the button rather than inside the panel,
+              so it survives the panel being shut — which is the whole point of
+              it: a filter you cannot see is how somebody concludes their
+              results have gone missing. */}
+          <Button
+            variant="secondary"
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            aria-controls={FOLD_ID}
+            className="shrink-0 px-4"
+          >
+            <span>
+              Filters<span className="hidden sm:inline"> and sort</span>
+            </span>
+            {narrowing > 0 && (
+              <span className="numeric rounded-full bg-bronze px-1.5 py-0.5 text-xs font-semibold text-onaccent">
+                {narrowing}
+                <span className="sr-only"> applied</span>
               </span>
-              {narrowing > 0 && (
-                <span className="tabular rounded-full bg-bronze px-1.5 py-0.5 text-xs font-semibold text-onaccent">
-                  {narrowing}
-                  <span className="sr-only"> applied</span>
-                </span>
-              )}
-              <ChevronIcon up={foldOpen} />
-            </Button>
-          )}
+            )}
+            {/* The chevron follows the state and cannot disagree with it —
+                there is one boolean to follow. */}
+            <ChevronIcon up={open} />
+          </Button>
 
           {/* Its own line on a phone, where three labels and a search field
               cannot share one; pushed to the far edge from sm up, where it
@@ -324,13 +316,12 @@ export function ResultsControlBar({
           </div>
 
           {/* WHAT IS CURRENTLY HIDING THINGS, on the last line of the row and
-              therefore on screen whether the fold is open or shut. A filter
+              therefore on screen whether the panel is open or shut. A filter
               you cannot see is how somebody concludes their results have gone
               missing — and the page's own Clear filters button is below the
-              bar, which is to say gone by the time it is wanted. Shown in both
-              states on purpose: appearing only once pinned would change this
-              row's height mid-scroll, which is the one thing this bar is
-              built not to do. */}
+              bar, which is to say gone by the time it is wanted. It is
+              deliberately outside the panel, so shutting the panel never takes
+              away either the chips or the way to clear them. */}
           {applied && (
             <div role="group" aria-label="Applied filters" className="flex basis-full flex-wrap items-center gap-2">
               {/* Only where there is a chip to introduce — a search term on
@@ -354,22 +345,30 @@ export function ResultsControlBar({
           )}
         </div>
 
-        {/* THE FOLD — how the markers are narrowed and how they are laid out,
-            in the order the questions get asked. Painted below row one when
-            open, and holding its space without painting anything when shut. */}
+        {/* THE PANEL — how the markers are narrowed and how they are laid
+            out, in the order the questions get asked.
+
+            UNMOUNTED WHEN SHUT, not merely hidden.
+
+            It used to be held in the layout with `visibility: hidden` so that
+            collapsing it could not drag a pinned page upward. That reasoning
+            was sound while the panel opened and closed on SCROLL — the reader
+            had not asked for it and must not lose their place. It is not sound
+            now that the panel only ever changes because somebody pressed the
+            button: they are looking at the bar, the movement is the answer to
+            their press, and reserving the space permanently meant an invisible
+            box sitting over the markers on every screen, taking up room the
+            page below started after.
+
+            Absent when shut therefore means absent: nothing to overlap the
+            search field or the tab switcher above it, nothing to displace, and
+            the pickers genuinely out of the tab order rather than merely
+            unpainted. */}
+        {open && (
         <div
           id={FOLD_ID}
           ref={foldRef}
-          // Held open above while it has the focus; this is where it lets go.
-          // Focus moving anywhere else in the bar — to the disclosure, to a
-          // chip, to the view switch — is not leaving, so the disclosure can
-          // still shut it rather than having it reopened underneath the press.
-          onBlur={(e) => {
-            if (!barRef.current?.contains(e.relatedTarget)) setFoldOpen(false);
-          }}
-          className={`bar-fold pointer-events-auto border-b border-taupe bg-cream/95 px-5 pb-5 pt-4 backdrop-blur sm:px-8 md:px-14 lg:px-20 ${
-            folded ? 'bar-fold-folded' : ''
-          }`}
+          className="pointer-events-auto border-b border-taupe bg-cream/95 px-5 pb-5 pt-4 backdrop-blur motion-safe:animate-fadeIn sm:px-8 md:px-14 lg:px-20"
         >
           {/* Four pickers, sized to sit on ONE line inside the narrowest
               content column that shows them all — 1280 with the sidebar out,
@@ -446,6 +445,7 @@ export function ResultsControlBar({
             )}
           </div>
         </div>
+        )}
       </div>
     </>
   );

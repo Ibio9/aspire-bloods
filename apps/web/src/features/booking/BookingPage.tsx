@@ -232,7 +232,7 @@ export function BookingPage() {
       )}
 
       {submitError && (
-        <div role="alert" className="mt-8 rounded-card border border-status-significantHigh bg-cream-50 p-5 sm:p-6">
+        <div role="alert" className="mt-8 rounded-card border border-taupe bg-tint-significantHigh p-5 sm:p-6">
           <p className="flex items-start gap-2.5 text-reading leading-relaxed text-espresso">
             <AlertIcon className="mt-0.5 shrink-0 text-status-significantHigh" />
             <span>

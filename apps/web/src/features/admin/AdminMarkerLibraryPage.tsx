@@ -223,7 +223,7 @@ function MarkersTab() {
             type="button"
             onClick={() => setShowRetired((s) => !s)}
             aria-expanded={showRetired}
-            className="rounded-sm text-sm font-medium text-bronze-600 underline underline-offset-2 hover:no-underline"
+            className="rounded-input text-sm font-medium text-bronze-600 underline underline-offset-2 hover:no-underline"
           >
             {showRetired ? 'Hide' : 'Show'} {retired.length} retired marker{retired.length === 1 ? '' : 's'}
           </button>

@@ -114,19 +114,27 @@ export function DocumentsPage() {
                         panel, and the raw name rendered this heading empty.
                         The heading form rather than the full title, because
                         the eyebrow above already carries the date. */}
-                    <p className="font-display text-2xl leading-tight text-espresso">
+                    <p className="font-display text-xl leading-tight text-espresso">
                       {formatReportHeading(doc.panelName, doc.markerCount)}
                     </p>
                     <p className="tabular mt-2 text-xs text-espresso/80">
                       {/* The count is already in the heading when there is no
-                          panel to name — don't say it twice. */}
-                      {doc.panelName ? `${doc.markerCount} marker${doc.markerCount === 1 ? '' : 's'} · ` : ''}
-                      {doc.sourceLabel}
+                          panel to name — don't say it twice.
+                          The source label is empty for anything the clinic
+                          analysed itself (see lib/sourceLabel.ts), so the
+                          separator has to be conditional on it too or the line
+                          ends on a dangling middot. */}
+                      {[
+                        doc.panelName ? `${doc.markerCount} marker${doc.markerCount === 1 ? '' : 's'}` : null,
+                        doc.sourceLabel || null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
                     </p>
                   </div>
                   <Link
                     to={`/reports/${doc.reportId}`}
-                    className="rounded-sm text-sm font-medium text-bronze-700 underline-offset-4 hover:underline"
+                    className="rounded-input text-sm font-medium text-bronze-700 underline-offset-4 hover:underline"
                   >
                     View this panel
                   </Link>

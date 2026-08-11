@@ -63,7 +63,12 @@ test('the sign-in screen says whose portal this is and routes to registration', 
   // no longer explains what signing in is — whose portal this is is carried by
   // the left panel: the wordmark, the positioning line and the address block.
   await expect(page.getByRole('heading', { name: 'Your results, explained.' })).toBeVisible();
-  await expect(page.getByText('Aspire Clinic, part of the Aspire Group of Companies')).toBeVisible();
+  // The practice's name and its address, as one identity block. "Aspire
+  // Clinic, part of the Aspire Group of Companies" is gone: the registered
+  // entity name is not what a patient calls this place.
+  // \s* not \s+: the two lines are separated by a <br>, which contributes
+  // nothing at all to textContent.
+  await expect(page.getByText(/Aspire Clinic\s*27 Mortimer Street, London/)).toBeVisible();
 
   // The route to /signup that used to not exist anywhere in the product.
   const createAccount = page.getByRole('link', { name: 'Create an account' });

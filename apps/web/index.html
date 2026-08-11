@@ -9,7 +9,31 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#e3dfd3" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#423c36" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#25221e" media="(prefers-color-scheme: dark)" />
+    <!-- The two faces the first paint needs: Fraunces for the page title,
+         IBM Plex Sans for everything else on screen. Preloaded against fixed
+         paths (see public/assets/fonts/README.md) because the alternative is
+         the browser not discovering them until it has parsed the stylesheet,
+         which is a visible flash of the fallback stack on every cold load.
+         IBM Plex Mono is deliberately NOT preloaded — no number is above the
+         fold before the data arrives, so it would compete with the two that
+         are. crossorigin is required even same-origin: a preload without it
+         is fetched in a different mode from the CSS request and downloads the
+         file twice. -->
+    <link
+      rel="preload"
+      href="/assets/fonts/ibm-plex-sans-variable-latin-v5.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="/assets/fonts/fraunces-variable-latin-v5.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <!-- Theme, resolved before the first paint rather than after React mounts.
          A file rather than an inline block: the portal's CSP is script-src
          'self', which blocks inline execution outright, and weakening it with

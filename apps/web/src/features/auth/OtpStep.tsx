@@ -270,7 +270,7 @@ export function OtpStep({
               type="button"
               onClick={() => void handleCancel()}
               disabled={cancelling}
-              className="rounded-sm font-medium text-bronze underline underline-offset-2 transition-colors duration-150 hover:text-bronze-700 disabled:opacity-60"
+              className="rounded-input font-medium text-bronze underline underline-offset-2 transition-colors duration-150 hover:text-bronze-700 disabled:opacity-60"
             >
               {cancelLabel}
             </button>

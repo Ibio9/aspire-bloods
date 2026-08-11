@@ -81,11 +81,19 @@ export function ReportHeader({
   }
 
   return (
-    <div className="mt-10">
+    <div className="mt-12">
       <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
         <div>
-          <p className="eyebrow mb-2">Sample date {formatDate(report.sampleDate)}</p>
-          <h2 className="font-display text-3xl leading-tight text-espresso sm:text-4xl">{report.title}</h2>
+          <p className="eyebrow mb-2">
+            Sample date <span className="numeric">{formatDate(report.sampleDate)}</span>
+          </p>
+          <h2 className="font-display opsz-section text-2xl font-medium leading-tight text-espresso">{report.title}</h2>
+          {/* Empty for anything the clinic analysed itself — see
+              lib/sourceLabel.ts. "Analysed in-house at Aspire Clinic" used to
+              sit here, one line under the title, saying something about the
+              practice's laboratory arrangements and nothing about the results
+              underneath it. Randox provenance still prints, because that is
+              the reason two values might not be comparable. */}
           {report.sourceLabel && <p className="mt-2 text-sm text-espresso/80">{report.sourceLabel}</p>}
         </div>
         <Link
@@ -102,7 +110,19 @@ export function ReportHeader({
           to link back to. */}
       {BOOKING_ENABLED && <ReportBookingLink reportId={report.reportId} />}
 
-      <div className="mt-8 flex flex-wrap gap-3">
+      {/* HOW IT WENT, THEN WHAT YOU CAN DO WITH IT. The summary used to sit
+          BELOW the two download buttons, which put a pair of secondary actions
+          between the report's title and the one thing anybody wants to know
+          about it. The order is now: what this is, how it went, then the tools
+          — downloads included. */}
+      <CountsStrip
+        markers={byType.measured}
+        activeStatus={activeStatus}
+        onSelectStatus={onSelectStatus}
+        className="mt-10"
+      />
+
+      <div className="mt-10 flex flex-wrap justify-center gap-3">
         <Button
           variant="secondary"
           loading={downloading === 'summary-pdf-link'}
@@ -124,11 +144,6 @@ export function ReportHeader({
           Download original report (PDF)
         </Button>
       </div>
-
-      {/* MEASURED-only, and a summary of the whole report rather than of any
-          grouping of it — which is why it survives while the per-area bars did
-          not. It doubles as the status filter. */}
-      <CountsStrip markers={byType.measured} activeStatus={activeStatus} onSelectStatus={onSelectStatus} />
     </div>
   );
 }

@@ -13,8 +13,9 @@
   },
   "dependencies": {
     "@aspire-bloods/shared": "*",
-    "@fontsource/inter": "^5.1.0",
-    "@fontsource/jost": "^5.1.0",
+    "@fontsource-variable/fraunces": "^5.3.0",
+    "@fontsource-variable/ibm-plex-sans": "^5.3.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.1",

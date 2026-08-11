@@ -58,6 +58,22 @@ export function ReportDetailView({
   const { query, statusFilter, categoryFilter } = filters;
   const { grouping, reportSort } = arrangement;
 
+  /**
+   * The provenance stack under a value: the panel, the sample date, and — only
+   * where there is one — the fact that this result was amended.
+   *
+   * A report has ONE sample date and one panel, so both are the report's
+   * rather than the marker's, and repeating them on forty cards is not
+   * redundancy: this card is also the thing somebody lands on from a search
+   * result, and a value with no date on it is a value nobody can place.
+   * One item per line, the date always on its own — see MarkerCardMeta.
+   */
+  const cardMeta = (m: MarkerCard) => ({
+    panelName: report?.panelName ?? null,
+    sampleDate: report ? formatDate(report.sampleDate) : '',
+    amendedDate: m.amendedAt ? formatDate(m.amendedAt) : null,
+  });
+
   // One comparator, used flat and inside every group — so grouping changes the
   // arrangement and never the order within it.
   const compare = reportSort === 'NAME' ? byName<MarkerCard> : byAttentionThenName<MarkerCard>;
@@ -108,7 +124,7 @@ export function ReportDetailView({
   if (failed) {
     return (
       <Card className="max-w-xl">
-        <p className="font-display text-2xl text-espresso">We couldn't open that panel</p>
+        <p className="font-display text-xl text-espresso">We couldn't open that panel</p>
         <p className="mt-2 text-sm leading-relaxed text-espresso/90">
           This report may no longer be available, or the link may be out of date.
         </p>
@@ -190,12 +206,7 @@ export function ReportDetailView({
               <div className={MARKER_GRID_CLASS}>
                 {g.markers.map((m, i) => (
                   <Reveal key={m.markerId} delay={staggerDelay(i, 30)} className="h-full">
-                    <MarkerResultCard
-                      marker={m}
-                      navState={navState}
-                      note={m.gloss}
-                      meta={m.amendedAt ? `Amended ${formatDate(m.amendedAt)}` : undefined}
-                    />
+                    <MarkerResultCard marker={m} navState={navState} note={m.gloss} meta={cardMeta(m)} />
                   </Reveal>
                 ))}
               </div>
@@ -206,12 +217,7 @@ export function ReportDetailView({
         <div className={`mt-6 ${MARKER_GRID_CLASS}`}>
           {visible.map((m, i) => (
             <Reveal key={m.markerId} delay={staggerDelay(i, 30)} className="h-full">
-              <MarkerResultCard
-                marker={m}
-                navState={navState}
-                note={m.gloss}
-                meta={m.amendedAt ? `Amended ${formatDate(m.amendedAt)}` : undefined}
-              />
+              <MarkerResultCard marker={m} navState={navState} note={m.gloss} meta={cardMeta(m)} />
             </Reveal>
           ))}
         </div>
@@ -262,7 +268,7 @@ function PersonalMeasurementsSection({
 
   return (
     <section className="mt-14" aria-labelledby="personal-measurements-heading">
-      <h2 id="personal-measurements-heading" className="font-display text-2xl text-espresso">
+      <h2 id="personal-measurements-heading" className="font-display text-xl text-espresso">
         Personal health measurements
       </h2>
       <p className="mt-2 max-w-2xl text-sm leading-relaxed text-espresso/85">
@@ -274,7 +280,7 @@ function PersonalMeasurementsSection({
           <Reveal key={m.key} delay={staggerDelay(i, 24)}>
             <Card className="h-full py-4">
               <dt className="text-sm leading-snug text-espresso/85">{m.name}</dt>
-              <dd className="tabular mt-1.5 text-2xl font-medium text-espresso">
+              <dd className="tabular mt-1.5 text-xl font-medium text-espresso">
                 {m.value}
                 {m.unit && <span className="ml-1 text-base font-normal text-espresso/80">{m.unit}</span>}
               </dd>

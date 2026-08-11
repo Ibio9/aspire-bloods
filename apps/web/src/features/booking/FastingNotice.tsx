@@ -102,7 +102,7 @@ function FastingRequired({
           <>
             {/* The headline is the instruction itself — a time and a day, in
                 display type, at the size the page's own title would be. */}
-            <h2 id={headingId} className="mt-4 font-display text-4xl leading-[1.08] sm:text-5xl">
+            <h2 id={headingId} className="mt-4 font-display text-2xl leading-[1.08] sm:text-3xl">
               Nothing to eat after <span className="tabular">{deadlinePhrase(window.closeBy)}</span>
             </h2>
             <p className="mt-5 max-w-2xl text-reading leading-relaxed text-oncolor/90">
@@ -114,7 +114,7 @@ function FastingRequired({
           </>
         ) : (
           <>
-            <h2 id={headingId} className="mt-4 font-display text-4xl leading-[1.08] sm:text-5xl">
+            <h2 id={headingId} className="mt-4 font-display text-2xl leading-[1.08] sm:text-3xl">
               You'll need to fast for{' '}
               <span className="tabular whitespace-nowrap">
                 {rule.minHours}–{rule.maxHours} hours
@@ -148,7 +148,7 @@ function FastingRequired({
                   <span className="sr-only">{item.allowed ? 'Allowed: ' : 'Not allowed: '}</span>
                   {item.label}
                 </span>
-                <span className="mt-0.5 block text-[13px] leading-relaxed text-oncolor/80">{item.detail}</span>
+                <span className="mt-0.5 block text-sm leading-relaxed text-oncolor/80">{item.detail}</span>
               </span>
             </li>
           ))}
@@ -182,7 +182,7 @@ function NoFastingNeeded({ headingId, panelName, className }: { headingId: strin
         <FoodOkIcon className="shrink-0 text-bronze-700" />
         Before this appointment
       </p>
-      <h2 id={headingId} className="mt-4 font-display text-3xl leading-tight text-espresso sm:text-4xl">
+      <h2 id={headingId} className="mt-4 font-display text-2xl leading-tight text-espresso sm:text-2xl">
         No fasting needed
       </h2>
       <p className="mt-4 max-w-2xl text-reading leading-relaxed text-espresso/90">

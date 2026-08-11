@@ -155,7 +155,7 @@ export function ReschedulePage() {
       </p>
 
       {error && (
-        <div role="alert" className="mt-8 rounded-card border border-status-significantHigh bg-cream-50 p-5 sm:p-6">
+        <div role="alert" className="mt-8 rounded-card border border-taupe bg-tint-significantHigh p-5 sm:p-6">
           <p className="flex items-start gap-2.5 text-reading leading-relaxed text-espresso">
             <AlertIcon className="mt-0.5 shrink-0 text-status-significantHigh" />
             <span>
@@ -185,7 +185,7 @@ export function ReschedulePage() {
           side by side do not say that on their own. */}
       {slot && (
         <div className="mt-12">
-          <h2 className="font-display text-3xl text-espresso">What changes</h2>
+          <h2 className="font-display text-2xl text-espresso">What changes</h2>
           <Card className="mt-6">
             <dl className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               <div>

@@ -10,6 +10,7 @@ import { RangeBar } from '../../components/ui/RangeBar';
 import { TrendChart } from '../../components/ui/TrendChart';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { CopyButton } from '../../components/ui/CopyButton';
+import { ClinicContactLines } from '../../components/patient/ClinicContact';
 import { apiFetch } from '../../lib/api';
 import { optimalRangeLabel, optimalStatusLabel } from '../../lib/markerCopy';
 import type { MarkerNavState } from './markerNavState';
@@ -68,6 +69,73 @@ interface MarkerDetail {
   } | null;
 }
 
+/** How many prior results the card shows before it offers the rest. */
+const PREVIOUS_SHOWN = 5;
+
+/**
+ * The history under the range bar — every result for this marker before the
+ * latest one, newest first.
+ *
+ * It exists because the left card had a large empty area below the bar and the
+ * data to fill it was already on the page. It is not a second chart: the
+ * question it answers is "what was it last time", which is a lookup, and a
+ * lookup wants a column of dates against a column of values rather than a
+ * shape. Both columns are mono and the values are right-aligned for exactly
+ * that reason — read down, the numbers line up.
+ *
+ * The trend arrives oldest-first (see getMarkerTrendForPatient's orderBy), so
+ * the last entry is the value already printed at the top of this card, and it
+ * is dropped here rather than repeated.
+ *
+ * No history is stated in words rather than left as an empty box. A patient
+ * with one result has not lost anything; they simply have one result.
+ */
+function PreviousResults({ trend, className = '' }: { trend: TrendPoint[]; className?: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const previous = [...trend].slice(0, -1).reverse();
+  const shown = expanded ? previous : previous.slice(0, PREVIOUS_SHOWN);
+
+  return (
+    <div className={`mt-auto border-t border-taupe pt-6 ${className}`}>
+      <p className="eyebrow mb-3">Previous results</p>
+      {previous.length === 0 ? (
+        <p className="text-sm text-espresso/80">No previous results yet</p>
+      ) : (
+        <>
+          <ul className="flex flex-col">
+            {shown.map((point) => (
+              <li
+                key={`${point.reportId}-${point.sampleDate}`}
+                className="flex items-baseline justify-between gap-4 border-b border-taupe/60 py-2.5 last:border-b-0"
+              >
+                <span className="numeric shrink-0 text-xs text-espresso/80">{formatDate(point.sampleDate)}</span>
+                <span className="flex min-w-0 items-baseline justify-end gap-2 text-right">
+                  <span className="numeric tabular text-sm font-medium text-espresso">
+                    {point.value}
+                    <span className="ml-1 font-normal text-espresso/80">{point.unit}</span>
+                  </span>
+                  {/* The same chevron and the same word as everywhere else, so
+                      the column still reads in greyscale. */}
+                  <StatusBadge status={point.status} className="shrink-0 !text-xs" />
+                </span>
+              </li>
+            ))}
+          </ul>
+          {previous.length > PREVIOUS_SHOWN && (
+            <button
+              type="button"
+              onClick={() => setExpanded((open) => !open)}
+              className="mt-3 rounded-input text-xs font-medium text-bronze-700 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
+            >
+              {expanded ? 'Show fewer' : `View all ${previous.length}`}
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export function MarkerDetailPage() {
   const { markerId } = useParams<{ markerId: string }>();
   const location = useLocation();
@@ -105,7 +173,7 @@ export function MarkerDetailPage() {
         <Breadcrumbs items={[{ label: 'Overview', to: '/overview' }, { label: 'Results', to: '/results?view=by-marker' }, { label: 'Not available' }]} />
         <TwoTierHeading eyebrow="Marker detail" title="We couldn't open that marker" />
         <Card className="mt-10 max-w-xl">
-          <p className="text-sm leading-relaxed text-espresso/90">
+          <p className="max-w-measure text-sm leading-relaxed text-espresso/90">
             You may not have a released result for this marker yet, or the link may be out of date.
           </p>
           <LinkButton to="/results?view=by-marker" className="mt-6">
@@ -121,14 +189,16 @@ export function MarkerDetailPage() {
       <div aria-busy="true" aria-label="Loading marker detail">
         <Skeleton className="h-4 w-28" />
         <Skeleton className="mt-3 h-12 w-64" />
-        <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <Card>
+        {/* Same 40/60 split as the real thing, so nothing jumps sideways
+            when the fetch lands. */}
+        <div className="mt-12 grid grid-cols-1 gap-7 lg:grid-cols-5">
+          <Card className="lg:col-span-2">
             <Skeleton className="h-4 w-24" />
             <Skeleton className="mt-3 h-10 w-32" />
           </Card>
-          <Card>
+          <Card className="lg:col-span-3">
             <Skeleton className="h-4 w-24" />
-            <Skeleton className="mt-3 h-48 w-full" />
+            <Skeleton className="mt-3 h-72 w-full" />
           </Card>
         </div>
       </div>
@@ -202,16 +272,25 @@ export function MarkerDetailPage() {
         )}
       </div>
 
-      <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card>
+      {/* 40/60, not the old even split. The two cards were never equal weight:
+          the left one holds a number, a bar and a short history, and the right
+          one holds the chart that is the actual reason to be on this page —
+          which at half width had a plot area narrower than it was tall. Five
+          columns split two and three, because that is the closest simple ratio
+          to 40/60. Below lg they stack full width, as before. */}
+      <div className="mt-12 grid grid-cols-1 gap-7 lg:grid-cols-5">
+        <Card className="flex flex-col lg:col-span-2">
           <p className="eyebrow mb-5">Latest result</p>
-          {/* The value is the loudest thing on the card by a clear step —
-              large, tabular, unit smaller beside it. */}
-          {/* flex-wrap: a textual result ("Not detected") at display size must
-              wrap rather than push the unit and copy button out of the card. */}
-          <p className="tabular flex flex-wrap items-baseline gap-2 text-6xl font-semibold leading-none text-espresso">
-            {detail.latest.valueText ?? detail.latest.value}
-            <span className="text-xl font-normal text-espresso/80">{detail.latest.unit}</span>
+          {/* THE ONE EXCEPTION to "every number is mono". This value is the
+              emotional anchor of the page and is set in Fraunces at the hero
+              optical size, like a headline, with the unit in mono beside it at
+              a much smaller size — which is what makes the pair read as a
+              measurement rather than as a title with a word after it.
+              flex-wrap: a textual result ("Not detected") at display size has
+              to wrap rather than push the unit and the copy button out. */}
+          <p className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 font-display opsz-hero text-3xl font-semibold leading-none text-espresso">
+            <span className="tabular">{detail.latest.valueText ?? detail.latest.value}</span>
+            <span className="numeric text-base font-normal text-espresso/80">{detail.latest.unit}</span>
             <CopyButton
               value={`${detail.latest.valueText ?? detail.latest.value} ${detail.latest.unit}`}
               label="Copy result value"
@@ -221,7 +300,9 @@ export function MarkerDetailPage() {
           <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <StatusBadge status={latestStatus} />
             {detail.latest.amendedAt && (
-              <span className="text-xs text-espresso/80">Amended {formatDate(detail.latest.amendedAt)}</span>
+              <span className="text-xs text-espresso/80">
+                Amended <span className="numeric">{formatDate(detail.latest.amendedAt)}</span>
+              </span>
             )}
           </div>
           {/* Two ranges, always labelled by whose they are. The lab's is the
@@ -230,13 +311,16 @@ export function MarkerDetailPage() {
               established optimal, this second line simply isn't there - no
               empty band, no placeholder. */}
           {/* A qualitative result ("Not detected") has no numeric range behind
-              it, and this line rendered "Lab reference range 0–0 " for one —
+              it, and this line rendered "Lab reference range 0-0 " for one —
               a half-populated row stating something false. The report card and
               the All-markers row already guarded this; the marker's own page,
               which is where someone goes to read the range properly, did not. */}
           {latestStatus !== null && detail.latest.referenceHigh > detail.latest.referenceLow && (
-            <p className="tabular mt-2 text-xs text-espresso/80">
-              Lab reference range {detail.latest.referenceLow}–{detail.latest.referenceHigh} {detail.latest.unit}
+            <p className="mt-2.5 text-xs text-espresso/80">
+              Lab reference range{' '}
+              <span className="numeric">
+                {detail.latest.referenceLow}–{detail.latest.referenceHigh} {detail.latest.unit}
+              </span>
             </p>
           )}
           {detail.optimal && (
@@ -247,7 +331,12 @@ export function MarkerDetailPage() {
               )}
             </p>
           )}
-          <p className="mt-1 text-xs text-espresso/80">{detail.latest.sourceLabel}</p>
+          {/* Empty for anything the clinic analysed itself — see
+              lib/sourceLabel.ts. Rendered unguarded, that put an empty
+              paragraph and its margin under every in-house result. */}
+          {detail.latest.sourceLabel && (
+            <p className="mt-1 text-xs text-espresso/80">{detail.latest.sourceLabel}</p>
+          )}
           {/* A textual result has no position on a numeric scale, and a result
               with no status was never placed on one — the bar would be a guess
               in both cases, so it is simply not drawn. */}
@@ -263,11 +352,22 @@ export function MarkerDetailPage() {
               />
             </div>
           )}
+          {/* The history, filling what used to be a large empty area below the
+              bar. It is the same data the chart on the right plots, read as a
+              list rather than as a shape — which is the form somebody wants
+              when the question is "what was it last time" rather than "which
+              way is it going". */}
+          <PreviousResults trend={detail.trend} className="mt-9" />
         </Card>
 
-        <Card>
+        <Card className="lg:col-span-3">
           <p className="eyebrow mb-4">Trend over time</p>
-          <TrendChart data={detail.trend} crossSourceComparable={detail.crossSourceComparable} optimal={detail.optimal} />
+          <TrendChart
+            data={detail.trend}
+            crossSourceComparable={detail.crossSourceComparable}
+            optimal={detail.optimal}
+            height="tall"
+          />
         </Card>
       </div>
 
@@ -275,10 +375,10 @@ export function MarkerDetailPage() {
           say so plainly and once. It is not an out-of-range result and must not
           borrow that treatment - no alert card, no status colour, no advice. */}
       {detail.optimal && detail.optimal.within === false && latestStatus === 'IN_RANGE' && (
-        <Card className="mt-7 max-w-3xl">
-          <p className="text-sm leading-relaxed text-espresso/90">
+        <Card className="mt-8 max-w-3xl">
+          <p className="max-w-measure text-sm leading-relaxed text-espresso/90">
             This result is in range against the lab's reference range and outside the optimal range of{' '}
-            <span className="tabular">
+            <span className="numeric">
               {detail.optimal.low != null && detail.optimal.high != null
                 ? `${detail.optimal.low}–${detail.optimal.high} ${detail.optimal.unit}`
                 : detail.optimal.high != null
@@ -291,32 +391,45 @@ export function MarkerDetailPage() {
         </Card>
       )}
 
+      {/* NO COLOURED OUTLINE. This card used to carry a red border, on the
+          reasoning that an out-of-range result should be marked as such — but
+          the result itself is already tinted and chevroned and worded three
+          times over by the time anybody reaches this, and a red box drawn
+          around the clinic's phone number reads as an emergency rather than as
+          a way to ask a question. Hairline taupe, like every other card.
+
+          The contact details come from the shared component rather than from
+          the tail of the copy block, which is where they used to live as one
+          comma-joined line. */}
       {detail.outOfRangeNotice && (
-        <Card className="mt-7 border-status-significantHigh bg-white">
-          <p className="whitespace-pre-line text-sm text-espresso">{detail.outOfRangeNotice}</p>
+        <Card className="mt-8 max-w-3xl">
+          <p className="max-w-measure whitespace-pre-line text-sm leading-relaxed text-espresso">
+            {detail.outOfRangeNotice}
+          </p>
+          <ClinicContactLines className="mt-7" />
         </Card>
       )}
 
       {detail.explanation && (
-        <Card className="mt-7 max-w-3xl" padding="roomy">
+        <Card className="mt-8 max-w-3xl" padding="roomy">
           <p className="eyebrow mb-4">What this marker means</p>
-          <p className="text-lg leading-relaxed text-espresso">{detail.explanation.whatItIs}</p>
+          <p className="max-w-measure text-lg leading-relaxed text-espresso">{detail.explanation.whatItIs}</p>
           {detail.explanation.highMeans && (
             <>
-              <p className="mt-7 font-medium text-espresso">If it's high</p>
-              <p className="mt-1.5 leading-relaxed text-espresso/90">{detail.explanation.highMeans}</p>
+              <p className="mt-8 font-medium text-espresso">If it's high</p>
+              <p className="mt-2 max-w-measure text-reading leading-relaxed text-espresso/90">{detail.explanation.highMeans}</p>
             </>
           )}
           {detail.explanation.lowMeans && (
             <>
-              <p className="mt-7 font-medium text-espresso">If it's low</p>
-              <p className="mt-1.5 leading-relaxed text-espresso/90">{detail.explanation.lowMeans}</p>
+              <p className="mt-8 font-medium text-espresso">If it's low</p>
+              <p className="mt-2 max-w-measure text-reading leading-relaxed text-espresso/90">{detail.explanation.lowMeans}</p>
             </>
           )}
           {detail.explanation.lifestyleContext && (
             <>
-              <p className="mt-7 font-medium text-espresso">Lifestyle context</p>
-              <p className="mt-1.5 leading-relaxed text-espresso/90">{detail.explanation.lifestyleContext}</p>
+              <p className="mt-8 font-medium text-espresso">Lifestyle context</p>
+              <p className="mt-2 max-w-measure text-reading leading-relaxed text-espresso/90">{detail.explanation.lifestyleContext}</p>
             </>
           )}
         </Card>

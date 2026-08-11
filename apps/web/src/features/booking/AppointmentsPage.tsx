@@ -52,7 +52,7 @@ export function AppointmentsPage() {
 
       {failed && (
         <Card className="mt-10 max-w-xl">
-          <p className="font-display text-2xl text-espresso">We couldn't load your appointments</p>
+          <p className="font-display text-xl text-espresso">We couldn't load your appointments</p>
           <p className="mt-2 text-sm leading-relaxed text-espresso/80">
             Please refresh the page. If it keeps happening, call the clinic. We can always tell you what's in the
             diary.
@@ -117,7 +117,7 @@ function Group({
   const id = `group-${heading.toLowerCase().replace(/\s+/g, '-')}`;
   return (
     <section aria-labelledby={id}>
-      <h2 id={id} className="font-display text-3xl text-espresso">
+      <h2 id={id} className="font-display text-2xl text-espresso">
         {heading}
       </h2>
       {items.length === 0 ? (

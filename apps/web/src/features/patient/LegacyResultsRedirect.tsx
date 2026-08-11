@@ -1,5 +1,5 @@
 import { Navigate, useLocation } from 'react-router-dom';
-import type { ResultsView } from './resultsView';
+import { DEFAULT_RESULTS_VIEW, type ResultsView } from './resultsView';
 
 /**
  * The three old destinations, kept as redirects rather than removed.
@@ -17,7 +17,9 @@ import type { ResultsView } from './resultsView';
 export function LegacyResultsRedirect({ view }: { view: ResultsView }) {
   const { search } = useLocation();
   const params = new URLSearchParams(search);
-  if (view === 'by-report') params.delete('view');
+  // The default view is the one with no parameter, so /markers lands on
+  // /results rather than on /results?view=by-marker — one URL for one page.
+  if (view === DEFAULT_RESULTS_VIEW) params.delete('view');
   else params.set('view', view);
   const qs = params.toString();
   return <Navigate to={`/results${qs ? `?${qs}` : ''}`} replace />;

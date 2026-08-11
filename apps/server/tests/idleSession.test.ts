@@ -12,10 +12,10 @@ const OTHER_USER = '22222222-2222-4222-8222-222222222222';
 const MINUTE = 60 * 1000;
 
 describe('idle timeout policy', () => {
-  it('gives patients 30 minutes and staff 15', () => {
-    expect(PATIENT_IDLE_TIMEOUT_MINUTES).toBe(30);
+  it('gives patients 90 minutes and staff 15', () => {
+    expect(PATIENT_IDLE_TIMEOUT_MINUTES).toBe(90);
     expect(STAFF_IDLE_TIMEOUT_MINUTES).toBe(15);
-    expect(idleTimeoutMinutesForRole('PATIENT')).toBe(30);
+    expect(idleTimeoutMinutesForRole('PATIENT')).toBe(90);
     expect(idleTimeoutMinutesForRole('ADMIN')).toBe(15);
     expect(idleTimeoutMinutesForRole('CLINICIAN')).toBe(15);
   });
@@ -43,8 +43,8 @@ describe('issueIdleDeadline', () => {
     const patient = issueIdleDeadline(USER, 'PATIENT');
     const admin = issueIdleDeadline(USER, 'ADMIN');
 
-    expect(patient.deadlineMs - before).toBeGreaterThanOrEqual(29 * MINUTE);
-    expect(patient.deadlineMs - before).toBeLessThanOrEqual(31 * MINUTE);
+    expect(patient.deadlineMs - before).toBeGreaterThanOrEqual(89 * MINUTE);
+    expect(patient.deadlineMs - before).toBeLessThanOrEqual(91 * MINUTE);
     expect(admin.deadlineMs - before).toBeGreaterThanOrEqual(14 * MINUTE);
     expect(admin.deadlineMs - before).toBeLessThanOrEqual(16 * MINUTE);
   });
@@ -78,14 +78,17 @@ describe('isIdleDeadlineLive', () => {
     const now = Date.now();
     const { value } = issueIdleDeadline(USER, 'PATIENT');
 
-    expect(isIdleDeadlineLive(value, USER, now + 29 * MINUTE)).toBe(true);
-    expect(isIdleDeadlineLive(value, USER, now + 31 * MINUTE)).toBe(false);
+    expect(isIdleDeadlineLive(value, USER, now + 89 * MINUTE)).toBe(true);
+    expect(isIdleDeadlineLive(value, USER, now + 91 * MINUTE)).toBe(false);
   });
 
   it('holds staff to the shorter window at the same moment a patient is still live', () => {
     const now = Date.now();
     const patient = issueIdleDeadline(USER, 'PATIENT');
     const admin = issueIdleDeadline(USER, 'ADMIN');
+    // Deliberately a moment that is inside the patient's 90-minute window and
+    // well past the staff 15 — the point of the pair is that raising one did
+    // not raise the other.
     const twentyMinutesLater = now + 20 * MINUTE;
 
     expect(isIdleDeadlineLive(patient.value, USER, twentyMinutesLater)).toBe(true);
@@ -104,7 +107,7 @@ describe('isIdleDeadlineLive', () => {
   });
 
   /**
-   * "Idle" has to mean genuinely idle, not "30 minutes since sign-in". Signing
+   * "Idle" has to mean genuinely idle, not "90 minutes since sign-in". Signing
    * in and then interacting at the 20-minute mark has to buy another full
    * window, not run out at minute 30.
    */
@@ -114,14 +117,14 @@ describe('isIdleDeadlineLive', () => {
       const signedInAt = new Date('2026-08-08T09:00:00Z').getTime();
       vi.setSystemTime(signedInAt);
       const atSignIn = issueIdleDeadline(USER, 'PATIENT');
-      expect(isIdleDeadlineLive(atSignIn.value, USER, signedInAt + 31 * MINUTE)).toBe(false);
+      expect(isIdleDeadlineLive(atSignIn.value, USER, signedInAt + 91 * MINUTE)).toBe(false);
 
-      // A request at minute 20 slides the deadline to minute 50.
-      vi.setSystemTime(signedInAt + 20 * MINUTE);
+      // A request at minute 60 slides the deadline to minute 150.
+      vi.setSystemTime(signedInAt + 60 * MINUTE);
       const afterActivity = issueIdleDeadline(USER, 'PATIENT');
-      expect(afterActivity.deadlineMs).toBe(signedInAt + 50 * MINUTE);
-      expect(isIdleDeadlineLive(afterActivity.value, USER, signedInAt + 31 * MINUTE)).toBe(true);
-      expect(isIdleDeadlineLive(afterActivity.value, USER, signedInAt + 51 * MINUTE)).toBe(false);
+      expect(afterActivity.deadlineMs).toBe(signedInAt + 150 * MINUTE);
+      expect(isIdleDeadlineLive(afterActivity.value, USER, signedInAt + 91 * MINUTE)).toBe(true);
+      expect(isIdleDeadlineLive(afterActivity.value, USER, signedInAt + 151 * MINUTE)).toBe(false);
     } finally {
       vi.useRealTimers();
     }

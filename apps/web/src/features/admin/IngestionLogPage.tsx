@@ -67,7 +67,7 @@ function UnknownCodesPanel() {
 
   return (
     <section className="mt-14" aria-labelledby="unknown-codes-heading">
-      <h2 id="unknown-codes-heading" className="font-display text-2xl text-espresso">
+      <h2 id="unknown-codes-heading" className="font-display text-xl text-espresso">
         Result codes we don't recognise
       </h2>
       <p className="mt-2 max-w-2xl text-sm leading-relaxed text-espresso/85">

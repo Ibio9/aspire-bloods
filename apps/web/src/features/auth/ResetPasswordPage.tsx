@@ -63,7 +63,7 @@ export function ResetPasswordPage() {
           The reset link is missing its token. Open the link in your email again, or{' '}
           <Link
             to="/forgot-password"
-            className="rounded-sm font-medium text-bronze underline underline-offset-2 hover:text-bronze-700"
+            className="rounded-input font-medium text-bronze underline underline-offset-2 hover:text-bronze-700"
           >
             ask for a new one
           </Link>
@@ -139,7 +139,7 @@ export function ResetPasswordPage() {
         Link expired or already used?{' '}
         <Link
           to="/forgot-password"
-          className="rounded-sm font-medium text-bronze underline underline-offset-2 hover:text-bronze-700"
+          className="rounded-input font-medium text-bronze underline underline-offset-2 hover:text-bronze-700"
         >
           Send yourself a new one
         </Link>

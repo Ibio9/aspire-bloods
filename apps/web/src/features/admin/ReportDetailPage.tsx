@@ -499,7 +499,7 @@ export function ReportDetailPage() {
       </div>
 
       {report.voidedAt && (
-        <Card className="mt-4 max-w-xl border-status-significantHigh bg-white">
+        <Card className="mt-4 max-w-xl bg-tint-significantHigh">
           <p className="font-medium text-status-significantHigh">Voided</p>
           <p className="mt-1 text-sm text-espresso">
             {formatDateTime(report.voidedAt)} by {voidedByName}
@@ -863,15 +863,15 @@ function ParseSummaryCard({
       <p className="eyebrow">Parse summary</p>
       <div className="mt-4 grid grid-cols-3 gap-4">
         <div>
-          <p className="tabular font-display text-3xl leading-none text-espresso">{summary.clean}</p>
+          <p className="tabular font-display text-2xl leading-none text-espresso">{summary.clean}</p>
           <p className="mt-1 text-xs text-espresso/80">parsed cleanly</p>
         </div>
         <div>
-          <p className="tabular font-display text-3xl leading-none text-espresso">{summary.needingAttention}</p>
+          <p className="tabular font-display text-2xl leading-none text-espresso">{summary.needingAttention}</p>
           <p className="mt-1 text-xs text-espresso/80">need attention</p>
         </div>
         <div>
-          <p className="tabular font-display text-3xl leading-none text-espresso">{summary.unmatched}</p>
+          <p className="tabular font-display text-2xl leading-none text-espresso">{summary.unmatched}</p>
           <p className="mt-1 text-xs text-espresso/80">unmatched markers</p>
         </div>
       </div>
@@ -889,7 +889,7 @@ function ParseSummaryCard({
       )}
       {panelName && <p className="mt-3 text-xs text-espresso/80">Panel printed on the report: {panelName}</p>}
       {extractionMethod === 'regex' && (
-        <div className="mt-4 rounded-input border border-status-high bg-white p-3">
+        <div className="mt-4 rounded-input border border-taupe bg-tint-high p-3">
           <p className="text-sm font-medium text-espresso">Pattern-based extraction (AI extraction unavailable)</p>
           <p className="mt-1 text-sm text-espresso/80">{fallbackReason}</p>
         </div>

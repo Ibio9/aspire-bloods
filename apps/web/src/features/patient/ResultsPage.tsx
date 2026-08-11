@@ -7,6 +7,7 @@ import type { StatusFilter } from '../../lib/markerCopy';
 import { ResultsControlBar } from './ResultsControlBar';
 import {
   DEFAULT_ARRANGEMENT,
+  DEFAULT_RESULTS_VIEW,
   EMPTY_FILTERS,
   RESULTS_VIEWS,
   filtersApplied,
@@ -48,9 +49,11 @@ import { useReportDetail } from './useReportDetail';
  * screen it replaced, behaving exactly as it did: same filters, same sorts,
  * same counts, same empty states.
  *
- * BY REPORT is the default because it is the common case: nearly every visit
- * is somebody coming back to the panel they were just emailed about. An opened
- * report keeps its own URL, so every link already sent out still works.
+ * BY MARKER is the first tab and the default. The question that keeps bringing
+ * people back is "how is my vitamin D doing", and nobody remembers which panel
+ * vitamin D was on — see DEFAULT_RESULTS_VIEW. An opened report keeps its own
+ * URL and pins the report view, so every link already sent out still works and
+ * every release email still lands on the panel it is about.
  *
  * WHAT IS NOT HERE. Clicking any marker, in any of the three, still opens that
  * marker's own page: the explanation, both ranges, and the full trend chart.
@@ -84,7 +87,7 @@ export function ResultsPage() {
 
   const paramView = searchParams.get('view');
   // An open report is a report view by definition, whatever the URL says.
-  const view: ResultsView = reportId ? 'by-report' : isResultsView(paramView) ? paramView : 'by-report';
+  const view: ResultsView = reportId ? 'by-report' : isResultsView(paramView) ? paramView : DEFAULT_RESULTS_VIEW;
 
   const setView = useCallback(
     (next: ResultsView) => {
@@ -92,7 +95,9 @@ export function ResultsPage() {
       // pressing the selected tab, and a selected tab does nothing.
       if (next === view) return;
       const params = new URLSearchParams(searchParams);
-      if (next === 'by-report') params.delete('view');
+      // The default view is the one with no parameter, so that /results and
+      // /results?view=by-marker are one URL rather than two.
+      if (next === DEFAULT_RESULTS_VIEW) params.delete('view');
       else params.set('view', next);
       // The comparison's own selection is meaningless anywhere else and would
       // otherwise sit in the URL of a page that ignores it.
@@ -223,6 +228,7 @@ export function ResultsPage() {
             onClearFilters={clearFilters}
             onCategoriesAvailable={onCategoriesAvailable}
             onStatusCounts={onStatusCounts}
+            onSelectStatus={onStatusFilter}
           />
         )}
         {view === 'compare' && (

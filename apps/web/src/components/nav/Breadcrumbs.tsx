@@ -25,7 +25,7 @@ export function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
               {item.to && !isLast ? (
                 <Link
                   to={item.to}
-                  className="rounded-sm underline-offset-2 transition duration-150 ease-out hover:text-bronze-700 hover:underline"
+                  className="rounded-input underline-offset-2 transition duration-150 ease-out hover:text-bronze-700 hover:underline"
                 >
                   {item.label}
                 </Link>

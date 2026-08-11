@@ -230,7 +230,7 @@ export function ExplanationReviewQueue() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                          <p className="font-display text-2xl leading-tight text-espresso">{row.markerName}</p>
+                          <p className="font-display text-xl leading-tight text-espresso">{row.markerName}</p>
                           {/* Text label carries the state; no colour-only status. */}
                           <span className="eyebrow">
                             {STATUS_COPY[row.reviewStatus].label}: {STATUS_COPY[row.reviewStatus].hint}

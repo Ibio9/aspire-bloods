@@ -227,11 +227,20 @@ export function TrendChart({
   data: input,
   crossSourceComparable = true,
   optimal = null,
+  height = 'default',
 }: {
   data: TrendPoint[];
   crossSourceComparable?: boolean;
   /** The advisory optimal band, or null when this marker has no established one — in which case nothing about optimal is drawn or said. */
   optimal?: OptimalRangeDTO | null;
+  /**
+   * `tall` is the marker detail page, where this card now takes 60% of the row
+   * rather than 50% and the chart is the reason somebody opened the page. The
+   * extra height is not decoration: a trend line in a squat plot area
+   * exaggerates every movement in it, which on a page about someone's blood is
+   * the wrong kind of wrong.
+   */
+  height?: 'default' | 'tall';
 }) {
   const reducedMotion = useReducedMotion();
   // Pattern ids are document-global; two marker charts on one page sharing an
@@ -393,31 +402,31 @@ export function TrendChart({
 
   return (
     <div>
-      {/* Exactly one of these three. The state of the data decides which. */}
-      {/* One sentence: which of the three data states applies, and nothing
-          else. What the bands are is named in the key below, in words, for
-          every band actually drawn — saying it again up here was the same
-          fact twice on a chart that already carries a lot of explanation. */}
-      {singlePoint ? (
+      {/* NOTHING ABOVE THE CHART in the ordinary case, and that is the change.
+          A paragraph saying "these 4 results are directly comparable, so they
+          are joined into one trend line" sat over every healthy series,
+          explaining the absence of a problem — which is a sentence about the
+          chart's implementation rather than about the patient's results, and
+          it pushed the plot area down by two lines on a phone.
+
+          The comparability logic is untouched and still gates whether a line
+          is drawn at all (see `connected`). What changed is where the two
+          cases that are actually worth saying get said: the first-result case
+          is stated once, quietly, because a lone point with no line genuinely
+          needs explaining; and the not-comparable case has moved into the key
+          below, beside the marks it is about, where the rest of this chart's
+          vocabulary already lives. */}
+      {singlePoint && (
         <p className="mb-3 text-xs leading-relaxed text-espresso/80">
           This is your first result for this marker, so it is shown as a single point with no trend line.
         </p>
-      ) : connected ? (
-        <p className="mb-3 text-xs leading-relaxed text-espresso/80">
-          These {data.length} results are directly comparable, so they are joined into one trend line.
-        </p>
-      ) : (
-        <p className="mb-3 text-xs leading-relaxed text-espresso/80">
-          These results come from sources that aren't directly comparable for this marker, so they are shown as
-          separate points rather than joined into one trend line.
-        </p>
       )}
 
-      {/* Taller than the old 256px and with room at the right for the last
-          tick label — most patients read this on a phone, where a squat
-          chart with clipped labels is the failure mode. */}
+      {/* Room at the right for the last tick label — most patients read this
+          on a phone, where a squat chart with clipped labels is the failure
+          mode. `tall` is the marker detail page's 60%-width card. */}
       <div
-        className="tabular h-72 w-full sm:h-80"
+        className={`tabular w-full ${height === 'tall' ? 'h-80 sm:h-[26rem] lg:h-[30rem]' : 'h-72 sm:h-80'}`}
         role="img"
         aria-label={
           `Trend chart for ${data.length} result${data.length === 1 ? '' : 's'}. ` +
@@ -464,12 +473,14 @@ export function TrendChart({
               // ISO never reaches an axis. The compact "Aug 26" form is purely
               // for width — the tooltip gives the full "5 August 2026".
               tickFormatter={(t: number) => formatAxisDate(new Date(t).toISOString().slice(0, 10))}
-              // Inter, sized here; the tabular figures come from the
-              // `tabular` class on the wrapper below, which SVG text inherits.
-              // Recharts' tick prop type doesn't carry fontVariantNumeric, and
-              // an inline style on every tick would be forty declarations to
-              // say one thing.
-              tick={{ fontSize: 11, fill: chartTokens.axisText, fontFamily: 'Inter, sans-serif' }}
+              // Axis labels are numeric data, so they are set in the mono
+              // face like every other number in the product — the family comes
+              // from the token, never a font name. The tabular figures come
+              // from the `tabular` class on the wrapper below, which SVG text
+              // inherits; Recharts' tick prop type doesn't carry
+              // fontVariantNumeric, and an inline style on every tick would be
+              // forty declarations to say one thing.
+              tick={{ fontSize: 11, fill: chartTokens.axisText, fontFamily: 'var(--font-mono)' }}
               axisLine={{ stroke: chartTokens.axisLine }}
               tickLine={false}
               minTickGap={16}
@@ -479,7 +490,7 @@ export function TrendChart({
             />
             <YAxis
               domain={[domainMin, domainMax]}
-              tick={{ fontSize: 12, fill: chartTokens.axisText, fontFamily: 'Inter, sans-serif' }}
+              tick={{ fontSize: 12, fill: chartTokens.axisText, fontFamily: 'var(--font-mono)' }}
               axisLine={false}
               tickLine={false}
               width={44}
@@ -582,7 +593,12 @@ export function TrendChart({
         </ResponsiveContainer>
       </div>
 
-      <ChartKey optimal={optimal} statuses={[...new Set(data.map((d) => d.status))]} bands={bandsShown} />
+      <ChartKey
+        optimal={optimal}
+        statuses={[...new Set(data.map((d) => d.status))]}
+        bands={bandsShown}
+        unjoined={!connected && !singlePoint}
+      />
     </div>
   );
 }
@@ -604,10 +620,20 @@ function ChartKey({
   optimal,
   statuses,
   bands,
+  unjoined,
 }: {
   optimal: OptimalRangeDTO | null;
   statuses: MarkerStatusInput[];
   bands: MarkerStatus[];
+  /**
+   * The points are NOT joined because their sources aren't comparable for this
+   * marker. That used to be a paragraph above the chart; it belongs here,
+   * beside the marks it describes, because it is a statement about what the
+   * marks mean — the same kind of statement as every other entry in this key.
+   * False for a first result, which has its own line above the chart: one
+   * point has nothing to be unjoined from.
+   */
+  unjoined: boolean;
 }) {
   return (
     <div className="mt-4 border-t border-taupe pt-3 text-xs text-espresso/80">
@@ -638,6 +664,16 @@ function ChartKey({
               <path d="M2 10 L6 2 M7 10 L11 2 M12 10 L16 2" stroke={chartTokens.optimalEdge} strokeWidth="1.2" strokeOpacity="0.6" />
             </svg>
             Optimal range (hatched)
+          </li>
+        )}
+        {unjoined && (
+          <li className="flex items-center gap-2">
+            <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true" className="shrink-0">
+              <circle cx="3" cy="6" r="2" fill={chartTokens.point} />
+              <circle cx="9" cy="6" r="2" fill={chartTokens.point} />
+              <circle cx="15" cy="6" r="2" fill={chartTokens.point} />
+            </svg>
+            Separate points, not joined: these came from sources that aren't comparable for this marker
           </li>
         )}
       </ul>

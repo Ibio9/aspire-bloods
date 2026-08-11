@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { IDLE_WARNING_LEAD_MS, idleTimeoutMsForRole } from '@aspire-bloods/shared';
+import { idleTimeoutMsForRole, idleWarningLeadMsForRole } from '@aspire-bloods/shared';
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
 import { apiFetch, ApiError, isIdleTimeoutError } from '../lib/api';
@@ -22,7 +22,7 @@ const TICK_MS = 5 * 1000;
  * How often real interaction is reported to the server. The server slides its
  * deadline on any authenticated request, so this only has to cover the case
  * where someone is reading rather than clicking; once every two minutes is
- * enough to keep a 15- or 30-minute deadline ahead of them without turning
+ * enough to keep a 15- or 90-minute deadline ahead of them without turning
  * scrolling into a request per frame.
  */
 const ACTIVITY_PING_INTERVAL_MS = 2 * 60 * 1000;
@@ -54,10 +54,12 @@ export function SessionGuard() {
   const secondsRemainingRef = useRef<number | null>(null);
   secondsRemainingRef.current = secondsRemaining;
 
-  // Patients get 30 minutes, staff 15 — one constant, in the shared package, so
+  // Patients get 90 minutes, staff 15 — one constant, in the shared package, so
   // the browser's countdown and the server's deadline cannot drift apart.
   const idleTimeoutMs = user ? idleTimeoutMsForRole(user.role) : 0;
-  const idleWarningMs = Math.max(0, idleTimeoutMs - IDLE_WARNING_LEAD_MS);
+  // The lead is a share of the window rather than a fixed two minutes — see
+  // idleWarningLeadMsForRole. Five minutes for a patient, three for staff.
+  const idleWarningMs = user ? Math.max(0, idleTimeoutMs - idleWarningLeadMsForRole(user.role)) : 0;
 
   const signOutAndRedirect = useCallback(
     async (reason: 'idle' | 'expired') => {

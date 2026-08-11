@@ -65,7 +65,7 @@ export function AppointmentCard({ appointment, catalogue, compact = false }: App
             <p className="eyebrow mb-2">
               {upcoming ? relativeDayLabel(appointment.date) : formatWeekdayDate(appointment.date)}
             </p>
-            <p className="font-display text-2xl leading-tight text-espresso sm:text-3xl">
+            <p className="font-display text-xl leading-tight text-espresso sm:text-2xl">
               {panel?.name ?? 'Blood test'}
             </p>
           </div>

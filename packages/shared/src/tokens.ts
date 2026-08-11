@@ -268,7 +268,14 @@ const STATUS_TINT_HUE: Record<StatusKey, StatusHue> = {
  */
 const TINT_MIX = {
   wash: 0.21,
-  washDark: 0.28,
+  // Eased from 0.28 when the dark page and card were lifted (see nightBase).
+  // A wash is a mix from the surface toward the hue, so a lighter surface with
+  // the same mix lands lighter — and the status LABEL then has to be dragged
+  // most of the way to the text tone to keep AA against its own wash, which
+  // costs it the chroma that makes it recognisably green or gold. Giving up
+  // two points of wash buys back the label. It still measures ~1.5:1 against
+  // the card it replaces, which is a wash you can see across a room.
+  washDark: 0.26,
   band: 0.3,
   bandDark: 0.32,
   track: 0.58,
@@ -310,15 +317,27 @@ const MARK_SHIFT: Record<StatusHue, number> = { green: 0.18, yellow: 0.4, orange
 // a 12% wash tuned for cream is invisible on a near-black brown.
 // ---------------------------------------------------------------------------
 
-/** The darkest warm tone in the system: espresso taken most of the way to black, never past it. */
-const nightBase = mix(brand.espresso, '#000000', 0.6);
+/**
+ * The darkest warm tone in the system: espresso taken most of the way to
+ * black, never past it.
+ *
+ * Lifted from 0.60 to 0.44 (Aug 2026) because dark mode is now the DEFAULT
+ * theme rather than an opt-in, and at 0.60 the page was a near-black that made
+ * every card fight for separation. The room is bought here, in the surface
+ * itself, rather than being asked of the ambient glow — a glow doing all the
+ * separating leaves the corner furthest from it as dark as it ever was.
+ */
+const nightBase = mix(brand.espresso, '#000000', 0.44);
 /** The lift direction for dark surfaces — toward a warm mid-brown, never toward grey. */
 const nightLift = mix(brand.espresso, brand.taupe, 0.55);
 
 /** Surface family in dark: lower step = more raised. */
 function buildDarkSurfaceScale(base: string): Record<number, string> {
+  // The raised steps are a shade further apart than they were, for the same
+  // reason the base moved: a card has to read as sitting ON the page from
+  // across the room, not only when you go looking for its border.
   const steps: Record<number, number> = {
-    50: 0.07, 100: 0.1, 200: 0.16, 300: 0.24, 400: 0.34,
+    50: 0.1, 100: 0.14, 200: 0.2, 300: 0.28, 400: 0.38,
     500: 0, 600: -0.18, 700: -0.34, 800: -0.5, 900: -0.66,
   };
   const out: Record<number, string> = {};
@@ -381,7 +400,13 @@ const darkWhite = mix(darkPage, '#000000', 0.35);
  * tighter of the two constraints.
  */
 function darkStatusHex(hue: StatusHue): string {
-  const toward: Record<StatusHue, number> = { green: 0.5, yellow: 0.4, orange: 0.46, red: 0.58 };
+  // Re-derived (Aug 2026) against the lifted dark surfaces — a page and a card
+  // that are two steps brighter make every one of these a tighter fit against
+  // its own wash, which is the binding constraint of the four it has to clear.
+  // Solved per hue for the smallest lift that clears 4.5:1 on the wash, the
+  // page, the card and the input, plus a little headroom: spending more than
+  // that is spending chroma for nothing.
+  const toward: Record<StatusHue, number> = { green: 0.58, yellow: 0.5, orange: 0.54, red: 0.63 };
   return mix(statusHue[hue], darkText, toward[hue]);
 }
 
@@ -494,10 +519,34 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
   out['--c-chart-cursor'] = dark ? darkScales.taupe[700] : scales.taupe[600];
   out['--c-chart-surface'] = dark ? darkScales.cream[50] : mix(brand.white, brand.cream, 0.35);
 
-  // Shadow colour. Light: espresso, so depth stays warm rather than grey.
-  // Dark: true black, because a warm shadow on a warm dark surface is not a
-  // shadow, it is a smudge — the depth has to come from darkness alone.
-  out['--c-shadow'] = dark ? '#000000' : brand.espresso;
+  // Shadow colour, derived from espresso in BOTH themes — nothing in this
+  // system is ever a neutral grey, shadows least of all.
+  //
+  // Light is espresso itself, so depth stays warm. Dark is espresso taken 88%
+  // of the way to black rather than to black outright: the depth on a warm
+  // near-black surface has to come from darkness, and a shadow with much warmth
+  // left in it is a smudge — but a shadow with NONE is the one cool thing on an
+  // entirely warm page, and at the corner of a card it shows.
+  out['--c-shadow'] = dark ? mix(brand.espresso, '#000000', 0.88) : brand.espresso;
+
+  /**
+   * The ambient light source (dark mode only — see `.dark body::before` in
+   * globals.css).
+   *
+   * A soft radial glow anchored in one corner of the viewport, behind all
+   * content, fixed so it does not travel on scroll. It is the reason dark mode
+   * stopped reading as a cave without every surface value being raised until
+   * the contrast went flat.
+   *
+   * Gold-bronze: the brand accent warmed toward gold, not the accent itself —
+   * bronze alone reads as a brown stain at 16%, and a neutral white glow turns
+   * the whole warm palette grey the moment it lands on anything.
+   *
+   * It is emitted in light mode too so nothing has to branch on the theme, but
+   * the rule that paints it is inside `.dark`. Static, at every motion
+   * preference: an ambient light that breathes is a notification, not a room.
+   */
+  out['--c-glow'] = mix(brand.bronze, '#e8b25c', 0.55);
 
   return out;
 }
@@ -719,29 +768,147 @@ export const WCAG_AA_LARGE_TEXT = 3;
  */
 
 // ---------------------------------------------------------------------------
-// Typography — a geometric humanist sans for display (matching the Aspire
-// Clinic site's heading register — Poppins/Jost-like, not a serif) paired
-// with Inter for body and numerics (see visual-polish brief).
+// Typography — three roles across two superfamilies.
+//
+// Jost and Inter are retired. What replaced them, and why each:
+//
+//  · DISPLAY — Fraunces. A warm, high-contrast serif with an optical-size
+//    axis, so one family is right at 72px and at 20px. It has weight in the
+//    stems, which is the reason it survives dark mode being the default:
+//    hairline serifs disappear on a warm near-black.
+//  · BODY AND UI — IBM Plex Sans. Chosen over Inter because Inter is the
+//    default everything reaches for and Plex has a voice: slightly
+//    institutional, unambiguous letterforms, drawn for interfaces where
+//    misreading costs something.
+//  · NUMERICS — IBM Plex Mono, and ONLY numerics. Same superfamily as the
+//    body face, so the two harmonise without being asked to. Lab reference
+//    ranges, values in cards and tables, chart axis labels, dates rendered as
+//    data, units beside values. It puts a quiet lab-instrument register on the
+//    data and lets Fraunces carry all the warmth. It must never leak into
+//    prose, buttons or headings.
+//
+// The one exception to "every number is mono": the single hero value on a
+// marker detail page stays Fraunces 600 at opsz 144. It is the emotional
+// anchor of that page and should read as a headline, with the mono unit beside
+// it at a much smaller size.
+//
+// Both superfamilies are OFL and self-hosted from this origin, latin subset
+// only — see apps/web/public/assets/fonts and the @font-face block in
+// apps/web/src/styles/globals.css. There is no Google Fonts request anywhere.
 // ---------------------------------------------------------------------------
+
+/**
+ * The three families, as complete stacks. The local fallbacks are chosen for
+ * metric proximity rather than availability: a serif page falling back to
+ * Arial reflows to a different length entirely.
+ */
+export const fontFamilies = {
+  display: `'Fraunces Variable', Fraunces, 'Iowan Old Style', Georgia, 'Times New Roman', serif`,
+  body: `'IBM Plex Sans Variable', 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`,
+  mono: `'IBM Plex Mono', ui-monospace, SFMono-Regular, 'Cascadia Mono', Consolas, 'Liberation Mono', monospace`,
+} as const;
+
+/**
+ * Fraunces' variable axes, fixed as tokens rather than improvised per
+ * component.
+ *
+ *  · `opsz` tracks the RENDERED size, which is the whole reason this face was
+ *    picked. 144 for hero and page titles, 72 for section headings and large
+ *    values, 24 for anything under 24px.
+ *  · `SOFT` at 30 softens the terminals just enough to read warm rather than
+ *    surgical.
+ *  · `WONK` at 0. Always. The wonky axis is where Fraunces gets whimsical, and
+ *    this is a medical results portal. Discipline is the point.
+ */
+const SOFT = 30;
+const WONK = 0;
+
+export const displayAxes = {
+  /** Hero and page titles. */
+  hero: `'opsz' 144, 'SOFT' ${SOFT}, 'WONK' ${WONK}`,
+  /** Section headings and large values. */
+  section: `'opsz' 72, 'SOFT' ${SOFT}, 'WONK' ${WONK}`,
+  /** Anything set under 24px. */
+  small: `'opsz' 24, 'SOFT' ${SOFT}, 'WONK' ${WONK}`,
+} as const;
+
+/**
+ * ONE type scale. Nine steps, roughly 12 / 14 / 16 / 18 / 21 / 28 / 38 / 52 /
+ * 72, with the line height and the tracking defined per STEP rather than per
+ * component — which is what stops a heading three screens away from quietly
+ * having its own leading.
+ *
+ * Tracking goes progressively negative as the size climbs (large type set at
+ * body tracking reads gappy) and stays at zero or a hair positive at the small
+ * end. The one wide-tracked thing in the product is the uppercase eyebrow, and
+ * it has a single value of its own below.
+ *
+ * The names are Tailwind's so the class names read normally; the values are
+ * ours. `reading` is the long-form body step — every paragraph a patient
+ * actually reads at length is set at it.
+ */
+export const typeScale = {
+  xs: { size: '0.75rem', leading: '1.5', tracking: '0.004em' },
+  sm: { size: '0.875rem', leading: '1.55', tracking: '0.002em' },
+  base: { size: '1rem', leading: '1.6', tracking: '0em' },
+  reading: { size: '1.125rem', leading: '1.65', tracking: '0em' },
+  lg: { size: '1.3125rem', leading: '1.45', tracking: '-0.004em' },
+  xl: { size: '1.75rem', leading: '1.25', tracking: '-0.01em' },
+  '2xl': { size: '2.375rem', leading: '1.14', tracking: '-0.016em' },
+  '3xl': { size: '3.25rem', leading: '1.06', tracking: '-0.022em' },
+  '4xl': { size: '4.5rem', leading: '1.0', tracking: '-0.028em' },
+} as const;
+
+export type TypeStep = keyof typeof typeScale;
+
+/** One value, everywhere. The eyebrows used to carry three different ones. */
+export const EYEBROW_TRACKING = '0.14em';
+
+/**
+ * The measure. Body copy is capped between 65 and 75 characters a line; 68ch
+ * is the middle of that at the reading step.
+ */
+export const MEASURE = '68ch';
 
 export const typography = {
   display: {
-    fontFamily: '"Jost", sans-serif',
-    role: 'H1-H2, wordmark, hero numerals, two-tier headline (paired with eyebrow)',
+    fontFamily: fontFamilies.display,
+    axes: displayAxes,
+    role: 'Page titles, section headings, card titles, the at-a-glance numbers, the one hero value',
   },
   eyebrow: {
-    fontFamily: '"Inter", sans-serif', // stands in for Coolvetica Book
+    fontFamily: fontFamilies.body,
     textTransform: 'uppercase',
-    letterSpacing: '0.12em',
-    role: 'Section labels, uppercase headings, second tier of headline pattern',
+    letterSpacing: EYEBROW_TRACKING,
+    role: 'Section labels, uppercase headings, the label half of every label/value pair',
   },
   body: {
-    fontFamily: '"Inter", sans-serif', // stands in for Gill Sans Nova Book
-    role: 'Body copy, UI chrome, all numerics',
+    fontFamily: fontFamilies.body,
+    role: 'Body copy, UI chrome, navigation, buttons, form fields',
   },
   numeric: {
-    fontFamily: '"Inter", sans-serif',
-    fontVariantNumeric: 'tabular-nums',
-    role: 'Marker values, reference ranges, axis labels; always tabular for column alignment',
+    fontFamily: fontFamilies.mono,
+    fontVariantNumeric: 'tabular-nums slashed-zero',
+    role: 'Reference ranges, values, chart axis labels, dates as data, units. Numbers only, never prose',
   },
+  scale: typeScale,
+  measure: MEASURE,
 } as const;
+
+/**
+ * The families and the axis settings as custom properties, so a component
+ * references a token and never a font name. Emitted once on `:root` by
+ * tailwind.config.ts, alongside the colour tokens.
+ */
+export function typographyCssVars(): Record<string, string> {
+  return {
+    '--font-display': fontFamilies.display,
+    '--font-body': fontFamilies.body,
+    '--font-mono': fontFamilies.mono,
+    '--fvs-display-hero': displayAxes.hero,
+    '--fvs-display-section': displayAxes.section,
+    '--fvs-display-small': displayAxes.small,
+    '--tracking-eyebrow': EYEBROW_TRACKING,
+    '--measure': MEASURE,
+  };
+}

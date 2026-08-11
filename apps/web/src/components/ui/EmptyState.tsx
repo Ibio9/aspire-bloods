@@ -26,7 +26,7 @@ interface EmptyStateProps {
 export function EmptyState({ title, description, action }: EmptyStateProps) {
   return (
     <div className="motion-safe:animate-riseIn rounded-card border border-taupe bg-cream-50 p-8 text-center shadow-card sm:p-10">
-      <p className="font-display text-3xl leading-tight text-espresso">{title}</p>
+      <p className="font-display opsz-section text-xl leading-tight text-espresso">{title}</p>
       {description && <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-espresso/80">{description}</p>}
       {action && <div className="mt-6 flex justify-center">{action}</div>}
     </div>

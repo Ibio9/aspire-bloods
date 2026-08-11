@@ -36,7 +36,7 @@ export interface NonMeasuredMarker {
 function SectionFraming({ title, framing }: { title: string; framing: string }) {
   return (
     <>
-      <h2 className="font-display text-2xl leading-tight text-espresso sm:text-3xl">{title}</h2>
+      <h2 className="font-display text-xl leading-tight text-espresso sm:text-2xl">{title}</h2>
       <p className="mt-3 max-w-3xl text-reading leading-relaxed text-espresso/90">{framing}</p>
     </>
   );
@@ -386,7 +386,7 @@ export function SensitivitySection({ markers }: { markers: NonMeasuredMarker[] }
                 aria-controls={panelId}
                 className="flex min-h-tap w-full items-center justify-between gap-4 px-5 py-3.5 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
               >
-                <span className="font-display text-lg leading-tight text-espresso">{g.name}</span>
+                <span className="font-display opsz-small text-lg leading-tight text-espresso">{g.name}</span>
                 <span className="flex shrink-0 items-center gap-3">
                   <span className="tabular text-xs text-espresso/80">{g.items.length}</span>
                   <svg

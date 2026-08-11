@@ -128,7 +128,7 @@ export interface MarkerRow {
   status: MarkerStatusInput;
   referenceLow: number;
   referenceHigh: number;
-  /** Where significantly-out begins for this marker — the sparkline's band edges sit here. */
+  /** Where significantly-out begins for this marker — the card's range bar turns here. */
   severityThreshold?: number;
   /** Advisory optimal band; null when this marker has no established one. Never folded into `status`. */
   optimal?: OptimalRangeDTO | null;

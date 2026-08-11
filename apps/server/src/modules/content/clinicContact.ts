@@ -21,10 +21,20 @@ export interface ClinicContact {
   emergencyNote: string;
 }
 
+/**
+ * "Aspire Group of Companies" is gone from every line a patient reads (Aug
+ * 2026). The practice is Aspire Clinic to the people it treats; the registered
+ * entity name survives where it is genuinely the legal company, which is
+ * PRIVACY.md and SECURITY.md and nowhere else.
+ *
+ * `name` is deliberately not repeated inside `addressLines` either — every
+ * surface that renders this prints the name above the address, and carrying it
+ * in both produced "Aspire Clinic, Aspire Clinic, 27 Mortimer Street".
+ */
 export function getClinicContact(): ClinicContact {
   return {
     name: 'Aspire Clinic',
-    addressLines: ['Aspire Group of Companies', '27 Mortimer Street', 'London'],
+    addressLines: ['27 Mortimer Street', 'London'],
     email: env.ESCALATION_EMAIL,
     phone: env.CLINIC_PHONE || null,
     hours: env.CLINIC_HOURS,

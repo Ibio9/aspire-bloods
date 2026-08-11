@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { countable, type MarkerStatus, type MarkerStatusInput } from '@aspire-bloods/shared';
 import { filterCountLabel, statusBarClass, statusLabel, statusTintClass } from '../../lib/markerCopy';
 import { StatusBadge } from '../../components/ui/StatusBadge';
@@ -65,31 +66,68 @@ function countedTotal(markers: SummaryMarker[]): number {
 // Counts strip
 // ---------------------------------------------------------------------------
 
+/**
+ * ONE JOINED UNIT, not a row of separate tiles.
+ *
+ * It used to be a grid of independently-bordered, independently-shadowed cards
+ * with gaps between them, left-aligned under an eyebrow — which read as five
+ * unrelated things that happened to be adjacent, rather than as one summary of
+ * one report broken into parts. Now: a single outer radius, a single shadow, a
+ * single hairline border, and the segments inside separated by hairline
+ * dividers. Each segment keeps its own tinted fill, so the traffic light is
+ * intact and each part is still distinct; what has gone is the impression that
+ * they are five objects.
+ *
+ * Centred in the content column, because a summary of the whole page is not a
+ * left-hand column of it. Equal widths, equal height, contents vertically
+ * centred, and generous space around the whole unit.
+ *
+ * Below sm the segments stack — still inside one border, with the dividers
+ * turning horizontal, so it is the same object in a different orientation
+ * rather than five cards again.
+ *
+ * The number is Fraunces at the section optical size (one of the few numbers
+ * in the product that is NOT mono — it is a headline, not lab data), and the
+ * shape mark and word beneath it are Plex Sans, exactly as they appear on the
+ * cards below. Colour is the third thing that says this, never the first.
+ */
 export function CountsStrip({
   markers,
+  title = 'This report at a glance',
   activeStatus,
   onSelectStatus,
+  action,
+  className = '',
 }: {
   markers: SummaryMarker[];
-  /** The status filter currently applied, so the matching tile reads as selected. */
+  /** What this is a summary OF — one report, or every marker on record. */
+  title?: string;
+  /** The status filter currently applied, so the matching segment reads as selected. */
   activeStatus?: string;
   onSelectStatus?: (status: MarkerStatus | 'ALL') => void;
+  /** An action belonging to the summary rather than to the page — the By marker view's download. */
+  action?: ReactNode;
+  className?: string;
 }) {
   if (countedTotal(markers) === 0) return null;
   const counts = countByStatus(markers);
-  // A state nobody is in is not shown. Five tiles where three of them say "0"
-  // is a worse summary than three tiles that all say something.
+  // A state nobody is in is not shown. Five segments where three of them say
+  // "0" is a worse summary than three that all say something.
   const shown = STRIP_ORDER.filter((s) => counts[s] > 0);
 
   return (
-    <div className="mt-10">
-      <p className="eyebrow mb-3">This report at a glance</p>
-      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+    <div className={`flex flex-col items-center ${className}`}>
+      <p className="eyebrow mb-4 text-center">{title}</p>
+      {/* The border, the radius and the shadow live HERE and nowhere inside —
+          that is the whole construction. overflow-hidden is what lets the
+          segments' tinted fills reach the rounded corners without each one
+          needing a radius of its own. */}
+      <ul className="grid w-full max-w-3xl grid-cols-1 divide-y divide-taupe overflow-hidden rounded-card border border-taupe shadow-card sm:auto-cols-fr sm:grid-flow-col sm:divide-x sm:divide-y-0">
         {shown.map((status) => {
           const selected = activeStatus === status;
           const Wrapper = onSelectStatus ? 'button' : 'div';
           return (
-            <li key={status}>
+            <li key={status} className="flex">
               <Wrapper
                 {...(onSelectStatus
                   ? {
@@ -98,20 +136,36 @@ export function CountsStrip({
                       'aria-pressed': selected,
                     }
                   : {})}
-                className={`w-full rounded-card border p-4 text-left transition duration-150 ease-out ${statusTintClass(status)} ${
-                  selected ? 'border-bronze shadow-card' : 'border-taupe'
-                } ${onSelectStatus ? 'cursor-pointer hover:border-bronze/60 hover:shadow-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze' : ''}`}
+                // Shorter stacked than side by side: five segments at the
+                // desktop height is most of a phone screen spent on a summary
+                // of the markers it is delaying.
+                className={`flex w-full flex-col items-center justify-center gap-2.5 px-5 py-5 text-center transition duration-150 ease-out sm:py-7 ${statusTintClass(status)} ${
+                  // Selection is a bronze inset ring, not a border: a border
+                  // would push the segment's contents by a pixel and shunt the
+                  // whole row. Bronze rather than the status hue, so the ring
+                  // says "you are filtering by this" and never doubles as a
+                  // second, louder statement of the status itself.
+                  selected ? 'ring-2 ring-inset ring-bronze' : ''
+                } ${
+                  // Hover is a ring rather than a background, because a
+                  // background here would REPLACE the status wash — the one
+                  // thing this segment exists to show — for as long as the
+                  // pointer was on it.
+                  onSelectStatus
+                    ? 'cursor-pointer hover:ring-1 hover:ring-inset hover:ring-bronze/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-bronze'
+                    : ''
+                }`}
               >
-                <p className="tabular text-3xl font-semibold leading-none text-espresso">{counts[status]}</p>
-                {/* The shape and the word, exactly as they appear on the cards
-                    below — the tint is the third thing that says this, never
-                    the first. */}
-                <StatusBadge status={status} className="mt-2.5" />
+                <p className="tabular font-display opsz-section text-2xl font-semibold leading-none text-espresso">
+                  {counts[status]}
+                </p>
+                <StatusBadge status={status} />
               </Wrapper>
             </li>
           );
         })}
       </ul>
+      {action && <div className="mt-6">{action}</div>}
     </div>
   );
 }
@@ -178,7 +232,7 @@ export function StatusBreakdown({
       <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-espresso/80" aria-hidden="true">
         {segments.map((s) => (
           <span key={s} className="tabular inline-flex items-center gap-1.5">
-            <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-sm border border-taupe ${statusBarClass(s)}`} />
+            <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-input border border-taupe ${statusBarClass(s)}`} />
             {counts[s]} {statusLabel(s).toLowerCase()}
           </span>
         ))}
@@ -218,7 +272,7 @@ export function AreaGroupHeading({
   return (
     <div className="mb-5 border-b border-taupe pb-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 id={id} className="font-display text-2xl leading-tight text-espresso">
+        <h2 id={id} className="font-display text-xl leading-tight text-espresso">
           {name}
         </h2>
         <p className="tabular text-xs text-espresso/80">{filterCountLabel(markers.length, total)}</p>

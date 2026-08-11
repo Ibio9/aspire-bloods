@@ -65,7 +65,7 @@ export function ForgotPasswordPage() {
             <button
               type="button"
               onClick={() => setSent(false)}
-              className="rounded-sm font-medium text-bronze underline underline-offset-2 hover:text-bronze-700"
+              className="rounded-input font-medium text-bronze underline underline-offset-2 hover:text-bronze-700"
             >
               Try another one
             </button>
@@ -75,7 +75,7 @@ export function ForgotPasswordPage() {
             Remembered it?{' '}
             <Link
               to="/login"
-              className="rounded-sm font-medium text-bronze underline underline-offset-2 hover:text-bronze-700"
+              className="rounded-input font-medium text-bronze underline underline-offset-2 hover:text-bronze-700"
             >
               Back to sign in
             </Link>
@@ -122,7 +122,7 @@ export function ForgotPasswordPage() {
       <p className="mt-[calc(var(--auth-step)*1.2)] text-sm text-espresso/80">
         <Link
           to="/login"
-          className="rounded-sm font-medium text-bronze underline underline-offset-2 hover:text-bronze-700"
+          className="rounded-input font-medium text-bronze underline underline-offset-2 hover:text-bronze-700"
         >
           Back to sign in
         </Link>

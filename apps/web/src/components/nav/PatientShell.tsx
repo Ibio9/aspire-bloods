@@ -138,7 +138,7 @@ function StaffReturnLink({ collapsed, onNavigate }: { collapsed: boolean; onNavi
       to="/admin"
       onClick={onNavigate}
       aria-label={collapsed ? label : undefined}
-      className={`group relative mb-1 flex items-center gap-2.5 rounded-input py-2 text-[13px] font-medium text-bronze-700 transition-colors duration-150 ease-out hover:bg-cream-200 ${
+      className={`group relative mb-1 flex items-center gap-2.5 rounded-input py-2 text-sm font-medium text-bronze-700 transition-colors duration-150 ease-out hover:bg-cream-200 ${
         collapsed ? 'mx-auto h-10 w-10 justify-center px-0' : 'px-2.5'
       }`}
     >
@@ -190,10 +190,10 @@ function SidebarContents({
           to="/overview"
           onClick={onNavigate}
           aria-label="Aspire Bloods, my results"
-          className={`flex items-center rounded-sm ${collapsed ? 'justify-center' : ''}`}
+          className={`flex items-center rounded-input ${collapsed ? 'justify-center' : ''}`}
         >
           {collapsed ? (
-            <span className="font-display text-xl lowercase text-bronze">a</span>
+            <span className="font-display text-lg lowercase text-bronze">a</span>
           ) : (
             <Wordmark variant="light" size="sm" />
           )}
@@ -402,7 +402,7 @@ export function PatientShell({ children }: { children?: ReactNode }) {
           >
             <MenuIcon />
           </button>
-          <Link to="/overview" aria-label="Aspire Bloods, my results" className="rounded-sm">
+          <Link to="/overview" aria-label="Aspire Bloods, my results" className="rounded-input">
             <Wordmark variant="light" size="sm" />
           </Link>
         </div>

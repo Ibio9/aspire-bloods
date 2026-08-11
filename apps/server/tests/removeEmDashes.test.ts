@@ -20,7 +20,7 @@ describe('removeEmDashes', () => {
     'Often called "good" cholesterol — helps remove excess cholesterol from your bloodstream.',
     'A protein that stores iron — reflects your body’s iron reserves.',
     'This is not a diagnosis — many things can affect a single result.',
-    'Aspire Clinic — Aspire Group of Companies, 27 Mortimer Street, London',
+    'Aspire Clinic — 27 Mortimer Street, London',
     'Levels vary through the day — highest in the morning — so timing matters.',
     'Nothing to change here.',
   ];

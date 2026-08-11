@@ -81,7 +81,7 @@ export function AuthSplitLayout({ children, eyebrow, headline, supporting, wide 
 
         {/* cream/70 not /50: at this small size, anything under ~/65 drops below 4.5:1 body-text AA against espresso, verified */}
         <p className="relative hidden shrink-0 pt-[var(--auth-step)] text-xs leading-relaxed text-oncolor/70 md:block">
-          Aspire Clinic, part of the Aspire Group of Companies
+          Aspire Clinic
           <br />
           27 Mortimer Street, London
         </p>

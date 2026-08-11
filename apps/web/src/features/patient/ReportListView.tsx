@@ -62,7 +62,7 @@ function ReleasedReportCard({ report }: { report: ReportSummary }) {
     >
       <Card interactive className="flex h-full flex-col">
         <p className="eyebrow mb-2">{formatDate(report.sampleDate)}</p>
-        <p className="font-display text-3xl leading-tight text-espresso">{title}</p>
+        <p className="font-display text-2xl leading-tight text-espresso">{title}</p>
         <p className="mt-6 text-sm text-espresso">
           {report.inRangeCount} in range
           {report.attentionCount
@@ -80,7 +80,7 @@ function PendingReportCard({ report }: { report: ReportSummary }) {
   return (
     <Card inert className="flex h-full flex-col">
       <p className="eyebrow mb-2">{formatDate(report.sampleDate)}</p>
-      <p className="font-display text-3xl leading-tight text-espresso">
+      <p className="font-display text-2xl leading-tight text-espresso">
         {formatReportHeading(report.panelName, report.markerCount)}
       </p>
       <p className="mt-6 text-sm text-espresso">
@@ -121,7 +121,7 @@ export function ReportListView() {
   if (failed) {
     return (
       <Card className="max-w-xl">
-        <p className="font-display text-2xl text-espresso">We couldn't load your results</p>
+        <p className="font-display text-xl text-espresso">We couldn't load your results</p>
         <p className="mt-2 text-sm text-espresso/80">
           Please refresh the page. If it keeps happening, get in touch and we'll sort it out.
         </p>

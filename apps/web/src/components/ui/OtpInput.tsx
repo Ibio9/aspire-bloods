@@ -125,7 +125,7 @@ export function OtpInput({ length = 6, value, onChange, onComplete, disabled, er
             onKeyDown={(e) => handleKeyDown(index, e)}
             onPaste={(e) => handlePaste(index, e)}
             onFocus={(e) => e.target.select()}
-            className={`h-14 w-11 rounded-card border bg-white text-center text-xl tabular text-espresso transition duration-150 ease-out focus-visible:border-bronze disabled:cursor-not-allowed disabled:bg-cream/60 disabled:text-espresso/40 ${
+            className={`h-14 w-11 rounded-card border bg-white text-center text-lg tabular text-espresso transition duration-150 ease-out focus-visible:border-bronze disabled:cursor-not-allowed disabled:bg-cream/60 disabled:text-espresso/40 ${
               error ? 'border-status-significantHigh' : 'border-taupe hover:border-bronze/60'
             }`}
           />

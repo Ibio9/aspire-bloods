@@ -3,26 +3,132 @@ import { useClinicContact } from '../../lib/patientPortal';
 import { MailIcon, PhoneIcon, PinIcon } from '../nav/patientIcons';
 
 /**
- * The clinic's phone, email and address. Rendered twice on every patient
- * screen by design: pinned to the bottom of the sidebar (compact) and again
- * beside anything out of range (card). Someone who has just read that a
- * result sits outside the usual range should not then have to go looking for
- * a way to ask about it.
+ * The clinic's address, opening hours, emergency line and email — in ONE
+ * component, rendered by every surface that shows them.
  *
- * The phone row is conditional — see the server's clinicContact.ts. Until
- * CLINIC_PHONE is set there is no phone number to show, and a dead "call us"
- * affordance is worse than an email address that works.
+ * That is the whole point of the file. The details used to be assembled
+ * separately on each surface, so the sidebar, the out-of-range card, the PDF
+ * footer and the seeded copy block had each drifted into their own comma-joined
+ * arrangement of the same four facts. Four items comma-joined onto one line is
+ * how "Aspire Clinic, Aspire Group of Companies, 27 Mortimer Street, London"
+ * happened, and it is unreadable at exactly the moment it matters most:
+ * somebody has just read that a result sits outside the usual range and is
+ * looking for a way to ask about it.
+ *
+ * ONE ITEM PER LINE, everywhere, in one order: address, opening hours,
+ * emergency line, email. The phone number joins the top of that list when
+ * there is one — see the server's clinicContact.ts. Until CLINIC_PHONE is set
+ * there is no number to show, and a dead "call us" affordance is worse than an
+ * email address that works.
  */
 
-function AddressBlock({ lines }: { lines: string[] }) {
+/** The four (or five) lines, and the only place their order is decided. */
+export function ClinicContactLines({
+  className = '',
+  size = 'default',
+}: {
+  className?: string;
+  /** `compact` is the sidebar's density; `default` is everywhere with room. */
+  size?: 'default' | 'compact';
+}) {
+  const contact = useClinicContact();
+  if (!contact) return null;
+
+  const text = size === 'compact' ? 'text-xs' : 'text-sm';
+  const gap = size === 'compact' ? 'gap-2.5' : 'gap-3.5';
+
   return (
-    <address className="not-italic">
-      {lines.map((line) => (
-        <span key={line} className="block">
-          {line}
+    <ul className={`flex flex-col ${gap} ${text} leading-relaxed text-espresso ${className}`}>
+      {contact.phone && (
+        <li className="flex items-start gap-2.5">
+          <PhoneIcon className="mt-0.5 shrink-0 text-bronze-700" />
+          <span className="min-w-0">
+            <span className="eyebrow mb-0.5 block">Phone</span>
+            <a
+              href={`tel:${contact.phone.replace(/\s/g, '')}`}
+              className="numeric rounded-input font-medium underline-offset-4 hover:underline"
+            >
+              {contact.phone}
+            </a>
+          </span>
+        </li>
+      )}
+
+      <li className="flex items-start gap-2.5">
+        <PinIcon className="mt-0.5 shrink-0 text-bronze-700" />
+        <span className="min-w-0">
+          <span className="eyebrow mb-0.5 block">Address</span>
+          {/* Each line of the address on its own line too — a postal address
+              is a stack, and joining it with commas to save two rows is how it
+              stops looking like one. */}
+          <address className="not-italic">
+            <span className="block">{contact.name}</span>
+            {contact.addressLines.map((line) => (
+              <span key={line} className="block">
+                {line}
+              </span>
+            ))}
+          </address>
         </span>
-      ))}
-    </address>
+      </li>
+
+      <li className="flex items-start gap-2.5">
+        <ClockIcon className="mt-0.5 shrink-0 text-bronze-700" />
+        <span className="min-w-0">
+          <span className="eyebrow mb-0.5 block">Opening hours</span>
+          <span className="block">{contact.hours}</span>
+        </span>
+      </li>
+
+      <li className="flex items-start gap-2.5">
+        <PhoneLineIcon className="mt-0.5 shrink-0 text-bronze-700" />
+        <span className="min-w-0">
+          <span className="eyebrow mb-0.5 block">Emergency line</span>
+          <span className="block">{contact.emergencyNote}</span>
+        </span>
+      </li>
+
+      <li className="flex items-start gap-2.5">
+        <MailIcon className="mt-0.5 shrink-0 text-bronze-700" />
+        <span className="min-w-0">
+          <span className="eyebrow mb-0.5 block">Email</span>
+          <a
+            href={`mailto:${contact.email}`}
+            className="block break-all rounded-input font-medium underline-offset-4 hover:underline"
+          >
+            {contact.email}
+          </a>
+        </span>
+      </li>
+    </ul>
+  );
+}
+
+/** Opening hours. Outline only, at the same weight as the other three. */
+function ClockIcon({ className = '' }: { className?: string }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" className={className}>
+      <circle cx="8" cy="8" r="6.25" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M8 4.5V8l2.5 1.6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/**
+ * The emergency line. A handset, deliberately not a warning triangle: nothing
+ * on a results screen escalates, and this is a phone number for a situation,
+ * not an alarm about the results above it.
+ */
+function PhoneLineIcon({ className = '' }: { className?: string }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" className={className}>
+      <path
+        d="M2.2 4.1c0 5.4 4.3 9.7 9.7 9.7l1.9-1.9-2.9-1.9-1.6 1.1a10.8 10.8 0 0 1-3.5-3.5l1.1-1.6L5 3.1 3.1 5"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
@@ -90,7 +196,7 @@ export function ClinicContactPanel() {
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-controls="clinic-contact-details"
-        className="flex w-full shrink-0 items-center gap-2.5 rounded-input px-2.5 py-2 text-left text-[13px] font-medium text-espresso/85 transition-colors duration-150 ease-out hover:bg-cream-200 hover:text-espresso"
+        className="flex w-full shrink-0 items-center gap-2.5 rounded-input px-2.5 py-2 text-left text-sm font-medium text-espresso/85 transition-colors duration-150 ease-out hover:bg-cream-200 hover:text-espresso"
       >
         <PhoneIcon className="shrink-0 text-bronze-700" />
         <span className="min-w-0 flex-1 truncate">Contact the clinic</span>
@@ -100,75 +206,36 @@ export function ClinicContactPanel() {
       {open && (
         <div
           id="clinic-contact-details"
-          className="scroll-thin mt-2 min-h-0 overflow-y-auto rounded-card border border-taupe bg-cream-100 p-3.5 motion-safe:animate-riseIn"
+          className="scroll-thin mt-2 min-h-0 overflow-y-auto rounded-card border border-taupe bg-cream-100 p-4 motion-safe:animate-riseIn"
         >
-          <ul className="flex flex-col gap-2 text-[13px] leading-relaxed text-espresso">
-            {contact.phone && (
-              <li className="flex items-start gap-2">
-                <PhoneIcon className="mt-0.5 shrink-0 text-bronze-700" />
-                <a href={`tel:${contact.phone.replace(/\s/g, '')}`} className="rounded-sm underline-offset-2 hover:underline">
-                  {contact.phone}
-                </a>
-              </li>
-            )}
-            <li className="flex items-start gap-2">
-              <MailIcon className="mt-0.5 shrink-0 text-bronze-700" />
-              <a href={`mailto:${contact.email}`} className="break-all rounded-sm underline-offset-2 hover:underline">
-                {contact.email}
-              </a>
-            </li>
-            <li className="flex items-start gap-2">
-              <PinIcon className="mt-0.5 shrink-0 text-bronze-700" />
-              <AddressBlock lines={contact.addressLines} />
-            </li>
-          </ul>
-          <p className="mt-3 border-t border-taupe pt-2.5 text-[12px] leading-relaxed text-espresso/80">
-            {contact.hours}. {contact.emergencyNote}
-          </p>
+          <ClinicContactLines size="compact" />
         </div>
       )}
     </div>
   );
 }
 
-/** In-page variant — larger targets, used on Overview next to anything needing attention. */
+/**
+ * In-page variant — larger targets, used beside anything out of range and on
+ * Overview's empty state.
+ *
+ * The card carries the ordinary hairline border in the warm neutral tone. It
+ * is deliberately not outlined in red: the tinted fill on the result itself
+ * already says the result is out of range, and a red box drawn around a phone
+ * number reads as an emergency rather than as a way to ask a question.
+ */
 export function ClinicContactCard({ className = '' }: { className?: string }) {
   const contact = useClinicContact();
   if (!contact) return null;
 
   return (
-    <div className={`card p-6 sm:p-8 ${className}`}>
+    <div className={`card p-7 sm:p-9 ${className}`}>
       <p className="eyebrow mb-3">Talk to someone</p>
-      <p className="text-reading leading-relaxed text-espresso">
+      <p className="max-w-measure text-reading leading-relaxed text-espresso">
         Your GP knows your full history and is the right first call about any result. The Aspire clinical team can
         also talk you through what you're looking at.
       </p>
-      <ul className="mt-5 flex flex-col gap-3 text-reading text-espresso">
-        {contact.phone && (
-          <li className="flex items-center gap-2.5">
-            <PhoneIcon className="shrink-0 text-bronze-700" />
-            <a
-              href={`tel:${contact.phone.replace(/\s/g, '')}`}
-              className="rounded-sm font-medium underline-offset-4 hover:underline"
-            >
-              {contact.phone}
-            </a>
-          </li>
-        )}
-        <li className="flex items-center gap-2.5">
-          <MailIcon className="shrink-0 text-bronze-700" />
-          <a href={`mailto:${contact.email}`} className="break-all rounded-sm font-medium underline-offset-4 hover:underline">
-            {contact.email}
-          </a>
-        </li>
-        <li className="flex items-start gap-2.5">
-          <PinIcon className="mt-1 shrink-0 text-bronze-700" />
-          <AddressBlock lines={contact.addressLines} />
-        </li>
-      </ul>
-      <p className="mt-5 border-t border-taupe pt-4 text-sm leading-relaxed text-espresso/80">
-        {contact.hours}. {contact.emergencyNote}
-      </p>
+      <ClinicContactLines className="mt-7" />
     </div>
   );
 }

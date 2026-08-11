@@ -172,7 +172,7 @@ export function LoginPage() {
             {lockedFor !== null && (
               <div
                 role="alert"
-                className="flex gap-3 rounded-input border border-status-significantHigh bg-cream-50 px-4 py-3"
+                className="flex gap-3 rounded-input border border-taupe bg-tint-significantHigh px-4 py-3"
               >
                 <svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" className="mt-0.5 shrink-0 text-status-significantHigh">
                   <rect x="3.5" y="7" width="9" height="6.5" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
@@ -197,7 +197,7 @@ export function LoginPage() {
           <p className="mt-[calc(var(--auth-step)*0.85)] text-sm text-espresso/80">
             <Link
               to="/forgot-password"
-              className="rounded-sm font-medium text-bronze underline underline-offset-2 hover:text-bronze-700"
+              className="rounded-input font-medium text-bronze underline underline-offset-2 hover:text-bronze-700"
             >
               Forgotten your password?
             </Link>

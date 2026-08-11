@@ -10,7 +10,7 @@ import { env } from '../config/env.js';
  *
  *  - It has to be independent of the access token. The access token's 15-minute
  *    lifetime is a security primitive and is deliberately left alone; the idle
- *    window is 30 minutes for patients and has to outlive it, sliding on
+ *    window is 90 minutes for patients and has to outlive it, sliding on
  *    activity rather than being fixed at issue time.
  *  - It has to be enforced by the server, not asserted by the browser. The
  *    payload is HMAC'd with a key derived from JWT_ACCESS_SECRET, so a client

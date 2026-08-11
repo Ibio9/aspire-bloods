@@ -129,7 +129,7 @@ export function RangeBar({ value, low, high, status, severityThreshold = null, o
       }
     >
       {/* The dot has to overhang the track, and the track has to clip its own
-          segments to a rounded pill — two things one element can't do, so the
+          segments to a rounded-input pill — two things one element can't do, so the
           clipping box is inset inside a wrapper the dot is free to overflow. */}
       <div className="relative h-2.5" aria-hidden="true">
       <div className="absolute inset-0 overflow-hidden rounded-full bg-cream-300">
@@ -198,6 +198,123 @@ export function RangeBar({ value, low, high, status, severityThreshold = null, o
       )}
     </div>
   );
+}
+
+/**
+ * THE CARD-SIZED VERSION of the bar above, and deliberately the same
+ * instrument rather than a second one.
+ *
+ * It replaces the mini sparkline that used to sit at the foot of a marker
+ * card. A sparkline at that size answers "which way is it going", which is a
+ * question about history; the question a card of forty markers actually gets
+ * asked is "where does this one sit", which is a question about position, and
+ * the bar is the thing that answers it. The history is still one click away on
+ * the marker's own page, where there is room to plot it honestly.
+ *
+ * Three differences from the full bar, all of them size:
+ *  · FLAT SEGMENTS, no gradient. At 8px tall and a third of a card wide, a
+ *    yellow-to-orange gradient is a smear; the boundaries have to be legible
+ *    at a glance or the bar is decoration.
+ *  · No axis numbers. The reference range is printed under the value on the
+ *    card in words, so repeating it here would be the same fact twice in a
+ *    space that has none to spare.
+ *  · The result is a POINTER above the track rather than a dot on it, so it is
+ *    still findable where it sits on a segment of its own colour.
+ *
+ * Everything else is identical, and that is the point: the same statusBands()
+ * boundaries derived from this result's own reference range and this marker's
+ * own severity threshold, the same three hues, the same reference-bound ticks.
+ * Somebody who has read the big one recognises this one immediately.
+ */
+export function MiniRangeBar({
+  value,
+  low,
+  high,
+  status,
+  severityThreshold = null,
+}: Omit<RangeBarProps, 'optimal'>) {
+  const width = high - low || 1;
+  const threshold = severityThresholdFor(low, high, severityThreshold);
+  // Same domain rule as the full bar: wide enough to show a real shoulder
+  // either side, capped so the reference band stays the thing the eye lands
+  // on. A marker whose severity threshold dwarfs its range would otherwise
+  // squeeze the green segment into a fifth of the bar, which inverts what the
+  // bar is for.
+  const pad = Math.min(Math.max(width * 0.4, threshold * 0.6), width * 0.9);
+  const rawMin = Math.min(low - pad, value - width * 0.1);
+  const nonNegative = Math.min(low, value) >= 0;
+  const domainMin = nonNegative ? Math.max(0, rawMin) : rawMin;
+  const domainMax = Math.max(high + pad, value + width * 0.1);
+  const domain = domainMax - domainMin || 1;
+
+  const pct = (v: number) => ((v - domainMin) / domain) * 100;
+  const clamp = (v: number) => Math.min(100, Math.max(0, v));
+  const bandLeft = clamp(pct(low));
+  const bandRight = clamp(pct(high));
+  const pointLeft = clamp(pct(value));
+
+  const segments = statusBands(low, high, severityThreshold)
+    .map((b) => {
+      const from = clamp(pct(b.from ?? domainMin));
+      const to = clamp(pct(b.to ?? domainMax));
+      return { ...b, from, width: Math.max(0, to - from) };
+    })
+    .filter((s) => s.width > 0);
+
+  const paint = statusPaint(status);
+
+  return (
+    <div
+      className="w-full"
+      role="img"
+      aria-label={`Result ${value}, reference range ${low} to ${high}, status: ${statusLabel(status)}`}
+    >
+      {/* The pointer's own row, so the triangle has somewhere to live without
+          overlapping the track or being clipped by it. */}
+      <div className="relative h-2" aria-hidden="true">
+        <div
+          className="absolute top-0 h-0 w-0 -translate-x-1/2 border-x-[5px] border-t-[6px] border-x-transparent"
+          style={{ left: `${pointLeft}%`, borderTopColor: paint.mark }}
+        />
+      </div>
+      <div className="relative h-2 overflow-hidden rounded-full bg-cream-300" aria-hidden="true">
+        {segments.map((s) => (
+          <div
+            key={s.status}
+            className="absolute inset-y-0"
+            style={{ left: `${s.from}%`, width: `${s.width}%`, backgroundColor: flatFillFor(s.status) }}
+          />
+        ))}
+        {/* The two reference bounds, marked. Without these the only thing
+            saying where the range ends is the colour change, which is exactly
+            what must never be true here — at this size most of all. */}
+        {[bandLeft, bandRight].map((left, i) => (
+          <div key={i} className="absolute inset-y-0 w-px bg-espresso/60" style={{ left: `${left}%` }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The flat fill for one segment of the compact bar. Three hues, no transition:
+ * yellow either side of green, red at both extremes. Orange is absent on
+ * purpose — it is the hinge between yellow and red in a gradient, and there is
+ * no gradient here for it to be the hinge of.
+ */
+function flatFillFor(status: MarkerStatusInput): string {
+  switch (asMarkerStatus(status)) {
+    case 'SIGNIFICANT_LOW':
+    case 'SIGNIFICANT_HIGH':
+      return hueTint.red.track;
+    case 'LOW':
+    case 'HIGH':
+      return hueTint.yellow.track;
+    case 'IN_RANGE':
+      return hueTint.green.track;
+    default:
+      return NO_STATUS_PAINT.bar;
+  }
 }
 
 /**

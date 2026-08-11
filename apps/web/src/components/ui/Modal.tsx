@@ -33,7 +33,7 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
         aria-labelledby="modal-title"
         className="relative flex max-h-[85vh] w-full max-w-md flex-col rounded-card border border-taupe bg-cream-50 p-7 shadow-popover sm:p-9 outline-none motion-safe:animate-riseIn"
       >
-        <h2 id="modal-title" className="font-display text-2xl text-espresso">
+        <h2 id="modal-title" className="font-display opsz-section text-xl text-espresso">
           {title}
         </h2>
         <div className="scroll-thin mt-4 overflow-y-auto text-sm text-espresso">{children}</div>

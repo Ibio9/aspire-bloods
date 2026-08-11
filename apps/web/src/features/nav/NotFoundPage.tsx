@@ -30,7 +30,7 @@ export function NotFoundPage() {
           <path d="M12 7.25v5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
           <circle cx="12" cy="16.25" r="1" fill="currentColor" />
         </svg>
-        <p className="mt-5 font-display text-3xl leading-tight text-espresso">This page doesn’t exist</p>
+        <p className="mt-5 font-display text-2xl leading-tight text-espresso">This page doesn’t exist</p>
         <p className="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-espresso/80">
           There’s nothing at <span className="break-all font-medium">{location.pathname}</span>. The link may be out
           of date, or typed slightly wrong.

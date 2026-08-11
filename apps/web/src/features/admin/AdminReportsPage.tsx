@@ -466,7 +466,7 @@ function ManualEntryForm({
         </div>
 
         {implausible && implausible.length > 0 && (
-          <Card className="border-status-high bg-white">
+          <Card className="bg-tint-high">
             <p className="font-medium text-espresso">These values look unusual. Please double-check:</p>
             <ul className="mt-2 list-disc pl-5 text-sm text-espresso">
               {implausible.map((f, i) => (

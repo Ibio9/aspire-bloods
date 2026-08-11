@@ -123,7 +123,7 @@ export function AppointmentDetailPage() {
       {/* ── just booked ─────────────────────────────────────────────────── */}
       {justBooked && appointment.status === 'CONFIRMED' && (
         <div role="status" className="mb-8 rounded-card border border-bronze/50 bg-bronze-50 p-6 sm:p-8">
-          <p className="flex items-center gap-3 font-display text-2xl leading-tight text-espresso sm:text-3xl">
+          <p className="flex items-center gap-3 font-display text-xl leading-tight text-espresso sm:text-2xl">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bronze text-onaccent">
               <TickIcon />
             </span>
@@ -182,13 +182,13 @@ export function AppointmentDetailPage() {
       {/* ── results, once they exist ────────────────────────────────────── */}
       {appointment.status === 'COMPLETED' && (
         <section aria-labelledby="results-heading" className="mt-12">
-          <h2 id="results-heading" className="font-display text-3xl text-espresso">
+          <h2 id="results-heading" className="font-display text-2xl text-espresso">
             Your results
           </h2>
           {appointment.reportId ? (
             <Link to={`/reports/${appointment.reportId}`} className="mt-6 block rounded-card">
               <Card interactive>
-                <p className="font-display text-2xl leading-tight text-espresso">{panel?.name ?? 'Your panel'}</p>
+                <p className="font-display text-xl leading-tight text-espresso">{panel?.name ?? 'Your panel'}</p>
                 <p className="mt-4 flex items-center gap-1.5 text-sm font-medium text-bronze-700">
                   Open the full panel <ArrowRightIcon />
                 </p>
@@ -209,7 +209,7 @@ export function AppointmentDetailPage() {
       {/* ── managing it ─────────────────────────────────────────────────── */}
       {appointment.status === 'CONFIRMED' && (
         <section aria-labelledby="manage-heading" className="mt-12">
-          <h2 id="manage-heading" className="font-display text-3xl text-espresso">
+          <h2 id="manage-heading" className="font-display text-2xl text-espresso">
             Need to change it?
           </h2>
 

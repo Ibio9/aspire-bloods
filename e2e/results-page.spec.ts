@@ -47,20 +47,23 @@ test.describe('Results', () => {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await page.goto('/results');
 
-      // By report is the default, and it is the report list.
-      await expect(segment(page, 'By report')).toHaveAttribute('aria-selected', 'true');
-      const reportLinks = page.locator('a[href^="/reports/"]');
-      await expect(reportLinks.first()).toBeVisible({ timeout: 10_000 });
-
-      // By marker: one row per marker, each with its own sparkline.
-      await segment(page, 'By marker').click();
-      await expect(page).toHaveURL(/view=by-marker/);
+      // By marker is the first tab and the default, and it is the marker list.
+      await expect(segment(page, 'By marker')).toHaveAttribute('aria-selected', 'true');
       const markerRows = page.locator('a[href^="/markers/"]');
       await expect(markerRows.first()).toBeVisible({ timeout: 10_000 });
+      // Every measured card carries a range bar saying where the value sits.
+      // (It replaced the sparkline that used to sit at the foot of these
+      // cards — see MarkerResultCard.)
       expect(
-        await page.locator('svg[role="img"][aria-label*="result"]').count(),
-        `${viewport.at}: the marker list must carry sparklines`,
+        await page.getByRole('img', { name: /reference range/ }).count(),
+        `${viewport.at}: the marker list must carry range bars`,
       ).toBeGreaterThan(0);
+
+      // By report: the report list.
+      await segment(page, 'By report').click();
+      await expect(page).toHaveURL(/view=by-report/);
+      const reportLinks = page.locator('a[href^="/reports/"]');
+      await expect(reportLinks.first()).toBeVisible({ timeout: 10_000 });
 
       // A search typed here survives the move to Compare — the whole point of
       // hoisting the filters above the switch.
@@ -80,7 +83,7 @@ test.describe('Results', () => {
       }
 
       // And back again, still carried.
-      await segment(page, 'By report').click();
+      await segment(page, 'By marker').click();
       await expect(page.getByLabel('Find a marker')).toHaveValue('ferritin');
     }
 
@@ -97,15 +100,15 @@ test.describe('Results', () => {
     await expect(strip).toBeVisible();
 
     // Roving tabindex: one stop for the whole strip, arrows between the three.
-    await segment(page, 'By report').focus();
+    await segment(page, 'By marker').focus();
     await page.keyboard.press('ArrowRight');
-    await expect(segment(page, 'By marker')).toHaveAttribute('aria-selected', 'true');
+    await expect(segment(page, 'By report')).toHaveAttribute('aria-selected', 'true');
     await page.keyboard.press('ArrowRight');
     await expect(segment(page, 'Compare')).toHaveAttribute('aria-selected', 'true');
     await page.keyboard.press('End');
     await expect(segment(page, 'Compare')).toHaveAttribute('aria-selected', 'true');
     await page.keyboard.press('Home');
-    await expect(segment(page, 'By report')).toHaveAttribute('aria-selected', 'true');
+    await expect(segment(page, 'By marker')).toHaveAttribute('aria-selected', 'true');
 
     await ctx.close();
   });
@@ -116,11 +119,12 @@ test.describe('Results', () => {
     const page = await ctx.newPage();
 
     await page.goto('/my-results');
-    await expect(page).toHaveURL(/\/results$/);
+    await expect(page).toHaveURL(/\/results\?view=by-report$/);
     await expect(segment(page, 'By report')).toHaveAttribute('aria-selected', 'true');
 
+    // By marker is the default now, so its URL is the bare one.
     await page.goto('/markers');
-    await expect(page).toHaveURL(/\/results\?view=by-marker$/);
+    await expect(page).toHaveURL(/\/results$/);
     await expect(segment(page, 'By marker')).toHaveAttribute('aria-selected', 'true');
 
     // A saved comparison keeps its selection across the move, which is the
@@ -182,7 +186,7 @@ test.describe('Results', () => {
     const page = await ctx.newPage();
     await page.setViewportSize({ width: 1280, height: 900 });
 
-    await page.goto('/results');
+    await page.goto('/results?view=by-report');
     const first = page.locator('a[href^="/reports/"]').first();
     await expect(first).toBeVisible({ timeout: 10_000 });
     const href = await first.getAttribute('href');
@@ -194,6 +198,9 @@ test.describe('Results', () => {
     // The markers themselves are the presentation — one flat grid of cards,
     // ungrouped, rather than a block of area bars saying it first.
     await expect(page.getByText('Every marker on this report')).toBeVisible();
+    // The pickers live behind the disclosure, closed on load — see the panel
+    // spec below.
+    await page.getByRole('button', { name: /^Filters/ }).click();
     await expect(page.getByLabel('Group by')).toContainText('Ungrouped');
     // Still inside Results rather than off on a page of its own.
     await expect(segment(page, 'By report')).toHaveAttribute('aria-selected', 'true');
@@ -237,7 +244,9 @@ test.describe('Results', () => {
     await expect(cards.first()).toBeVisible({ timeout: 10_000 });
 
     // Ungrouped is the default: every marker on the report, in one flat grid,
-    // with no area headings anywhere.
+    // with no area headings anywhere. The pickers are behind the disclosure,
+    // which is closed on load — see the panel spec below.
+    await page.getByRole('button', { name: /^Filters/ }).click();
     await expect(page.getByLabel('Group by')).toContainText('Ungrouped');
     await expect(sections).toHaveCount(0);
     const flat = await cards.count();
@@ -281,23 +290,23 @@ test.describe('Results', () => {
   });
 
   /**
-   * The control bar condenses once you have scrolled past it — and the page
-   * underneath does not pay for it.
+   * The filters panel is the READER'S, and nothing else touches it.
    *
-   * Two full rows of controls pinned to the top of a window is a third of a
-   * 720px screen, and it was taking the names off the cards immediately under
-   * it. The bar is now one row from the moment it pins, with the rest folded
-   * behind a disclosure.
+   * It used to open and close on SCROLL: an IntersectionObserver decided
+   * whether the bar was pinned, and the same callback wrote the panel's open
+   * state on every crossing. So the disclosure did not reliably toggle — a
+   * scroll of one pixel could reopen what had just been shut — and at the top
+   * of the page the button was not rendered at all, on the grounds that the
+   * panel was open anyway, which left no way to close it.
    *
-   * WHAT IS ACTUALLY BEING PINNED HERE is the arithmetic, because that is the
-   * part that is easy to get wrong and impossible to see in a screenshot. The
-   * bar is sticky, so its box is what the markers start after; anything that
-   * changes that box while the bar is pinned drags the whole page up or down
-   * under someone mid-read. So the marker grid's position in the DOCUMENT is
-   * measured before condensing, after condensing, and after unfolding, and it
-   * has to be the same number all three times.
+   * What is pinned here is every way the panel is meant to close, because a
+   * disclosure that opens and cannot be shut is the bug this replaced: the
+   * button, Escape, a click outside the bar, and a change of arrangement. Plus
+   * the two things that must survive the panel being shut — the count badge on
+   * the button and the chip row in the bar — because a filter somebody cannot
+   * see is how they conclude their results have gone missing.
    */
-  test('the control bar condenses on scroll without moving anything under it', async ({ browser }) => {
+  test('the filters panel opens and closes only when the reader says so', async ({ browser }) => {
     const ctx = await browser.newContext();
     await loginAsDemoPatient(ctx.request);
     const page = await ctx.newPage();
@@ -309,7 +318,7 @@ test.describe('Results', () => {
     }[];
     const biggest = reports.filter((r) => r.patientStatus === 'RELEASED').sort((a, b) => b.markerCount - a.markerCount)[0];
 
-    const fold = page.locator('#results-control-fold');
+    const panel = page.locator('#results-control-fold');
     const disclosure = page.getByRole('button', { name: /^Filters/ });
     const search = page.getByLabel('Find a marker');
     const applied = page.getByRole('group', { name: 'Applied filters' });
@@ -324,23 +333,9 @@ test.describe('Results', () => {
      */
     const gridTop = () =>
       page.evaluate(() => Math.round(document.getElementById('results-panel')!.getBoundingClientRect().top + window.scrollY));
-    /** What the bar actually PAINTS — its one row, once the rest has folded. */
-    const paintedHeight = () =>
-      page.evaluate(() =>
-        Math.round(document.querySelector('input[name="results-search"]')!.closest('div.border-y')!.getBoundingClientRect().height),
-      );
-    /** Its whole box, painted or not. */
-    const boxHeight = () =>
-      page.evaluate(() =>
-        Math.round(
-          document.querySelector('input[name="results-search"]')!.closest('div.border-y')!.parentElement!.getBoundingClientRect()
-            .height,
-        ),
-      );
 
-    // Mobile is not the afterthought here — it is where the walk back to the
-    // top of a 187-marker report costs the most, and where the unfolded bar is
-    // most of the screen.
+    // Mobile is not the afterthought here — it is where the bar is most of the
+    // screen and where an unclosable panel costs the most.
     for (const viewport of [
       { width: 1280, height: 720, at: 'desktop' },
       { width: 375, height: 780, at: 'mobile' },
@@ -349,54 +344,82 @@ test.describe('Results', () => {
       await page.goto(`/reports/${biggest.reportId}`);
       await expect(page.locator('a[href^="/markers/"]').first()).toBeVisible({ timeout: 10_000 });
 
-      // At the top: full height, everything on show, and nothing offering to
-      // unfold what is already unfolded.
-      await expect(fold).toBeVisible();
-      await expect(disclosure).toHaveCount(0);
-      const full = await boxHeight();
+      // Closed on load, and the disclosure is there to open it — at the top of
+      // the page as much as anywhere else.
+      await expect(disclosure).toBeVisible();
+      await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+      await expect(panel).toHaveCount(0);
       const grid = await gridTop();
 
-      // Scrolled past: one row, carrying the two controls a patient reaches
-      // for most often.
+      // It toggles. Every time, in both directions.
+      for (const _ of [0, 1]) {
+        await disclosure.click();
+        await expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+        await expect(page.getByLabel('Group by')).toBeVisible();
+        await disclosure.click();
+        await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+        await expect(panel).toHaveCount(0);
+      }
+
+      // Scrolling does not touch it, in either state. This is the regression:
+      // the panel used to be written by the scroll observer.
       await page.evaluate(() => window.scrollTo(0, 1500));
-      await expect(disclosure).toBeVisible();
-      await expect(fold).toBeHidden();
+      await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+      await disclosure.click();
+      await expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+      await page.evaluate(() => window.scrollBy(0, 600));
+      await expect(disclosure, `${viewport.at}: scrolling closed the panel`).toHaveAttribute('aria-expanded', 'true');
+
+      // Escape closes it.
+      await page.keyboard.press('Escape');
+      await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+
+      // A click outside the bar closes it; a click on the disclosure itself is
+      // not an outside click and must not close-then-reopen.
+      await disclosure.click();
+      await expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+      // The page title: unambiguously outside the bar, and never under the
+      // sticky one — the markers below it are, which is why this is not a
+      // click on the grid.
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.getByRole('heading', { level: 1 }).click();
+      await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+
+      // The condensed bar still carries the search and the view switch, and
+      // nothing about opening or closing the panel moves the markers.
       await expect(search).toBeVisible();
       await expect(page.getByRole('tablist', { name: 'Results view' })).toBeVisible();
-      expect(await paintedHeight(), `${viewport.at}: the condensed bar is not meaningfully shorter`).toBeLessThan(full / 2);
-      expect(await gridTop(), `${viewport.at}: condensing moved the markers`).toBe(grid);
+      expect(await gridTop(), `${viewport.at}: the panel moved the markers`).toBe(grid);
 
-      // Unfolding brings the rest back in place and takes the reader nowhere.
-      const scrolled = await page.evaluate(() => window.scrollY);
+      // A filter set from the panel stays VISIBLE once the panel has gone —
+      // as a chip in the bar and as a count on the disclosure itself.
       await disclosure.click();
-      await expect(fold).toBeVisible();
-      await expect(page.getByLabel('Group by')).toBeVisible();
-      expect(await page.evaluate(() => window.scrollY), `${viewport.at}: unfolding scrolled the page`).toBe(scrolled);
-      expect(await gridTop(), `${viewport.at}: unfolding moved the markers`).toBe(grid);
-
-      // A filter set from the fold stays VISIBLE once the fold has gone. A
-      // filter you cannot see is how somebody concludes their results have
-      // vanished, so the chip and the way out of it are on the condensed row.
       await page.getByLabel('Show').click();
       await page.getByRole('option', { name: /^Above range/ }).click();
-      // The fold holds itself open while it has the focus (see the bar) —
-      // this is the reader turning back to the results.
-      await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-      await page.evaluate(() => window.scrollBy(0, 400));
-      await expect(fold).toBeHidden();
+      await page.keyboard.press('Escape');
+      await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
       await expect(applied.getByRole('button', { name: /Above range/ })).toBeVisible();
+      await expect(disclosure).toContainText('1');
 
-      // And clearing from there clears it, without disturbing the arrangement
-      // the reader chose.
+      // And clearing from there clears it.
       await applied.getByRole('button', { name: 'Clear all filters' }).click();
       await expect(applied).toHaveCount(0);
       await expect(page.getByText('187 markers')).toBeVisible();
 
-      // Nothing about scrolling, folding or unfolding touches what was typed.
+      // Changing arrangement closes the panel — the four pickers mean
+      // different things per view, and a panel that survives the switch is
+      // showing the last view's controls over this view's results.
+      await disclosure.click();
+      await expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+      await segment(page, 'By marker').click();
+      await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+
+      // Nothing about any of it touches what was typed.
       await search.fill('ferritin');
       await page.evaluate(() => window.scrollTo(0, 0));
-      await expect(fold).toBeVisible();
+      await disclosure.click();
       await expect(search).toHaveValue('ferritin');
+      await page.keyboard.press('Escape');
     }
 
     await ctx.close();
@@ -415,7 +438,7 @@ test.describe('Results', () => {
     const page = await ctx.newPage();
     await page.setViewportSize({ width: 1280, height: 1000 });
 
-    await page.goto('/results');
+    await page.goto('/results?view=by-report');
     const firstReport = page.locator('a[href^="/reports/"]').first();
     await expect(firstReport).toBeVisible({ timeout: 10_000 });
     const href = await firstReport.getAttribute('href');
@@ -427,7 +450,7 @@ test.describe('Results', () => {
     // way in, when a report is opened from the list. Carrying between the three
     // views is the promise, and that is asserted above on /results itself.
     await segment(page, 'By marker').click();
-    await expect(page).toHaveURL(/\/results\?view=by-marker$/);
+    await expect(page).toHaveURL(/\/results$/);
     await expect(segment(page, 'By marker')).toHaveAttribute('aria-selected', 'true');
     // And it is genuinely the marker list, not a report still on screen.
     await expect(page.locator('a[href^="/markers/"]').first()).toBeVisible({ timeout: 10_000 });

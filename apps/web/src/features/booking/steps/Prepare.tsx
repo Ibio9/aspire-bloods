@@ -53,13 +53,13 @@ export function Prepare({
 
       {notes.length > 0 && (
         <section aria-labelledby="timing-heading">
-          <h3 id="timing-heading" className="font-display text-2xl leading-tight text-espresso sm:text-3xl">
+          <h3 id="timing-heading" className="font-display text-xl leading-tight text-espresso sm:text-2xl">
             Other things that affect the result
           </h3>
           <div className="mt-7 grid grid-cols-1 gap-5 md:grid-cols-2">
             {notes.map((note) => (
               <Card key={note.label} className="flex flex-col">
-                <p className="flex items-start gap-2.5 font-display text-xl leading-tight text-espresso">
+                <p className="flex items-start gap-2.5 font-display text-lg leading-tight text-espresso">
                   {/* Critical notes are flagged by an icon and by the word
                       "Important", never by colour alone. */}
                   {note.critical && <AlertIcon className="mt-1 shrink-0 text-bronze-700" />}
@@ -75,11 +75,11 @@ export function Prepare({
 
       {kits.length > 0 && (
         <section aria-labelledby="kit-heading">
-          <h3 id="kit-heading" className="font-display text-2xl leading-tight text-espresso sm:text-3xl">
+          <h3 id="kit-heading" className="font-display text-xl leading-tight text-espresso sm:text-2xl">
             Your home kit
           </h3>
           <Card className="mt-7">
-            <p className="flex items-center gap-2.5 font-display text-xl leading-tight text-espresso">
+            <p className="flex items-center gap-2.5 font-display text-lg leading-tight text-espresso">
               <HomeKitIcon className="shrink-0 text-bronze-700" />
               {kits.map((k) => k.name).join(' and ')}
             </p>
@@ -93,7 +93,7 @@ export function Prepare({
       )}
 
       <section aria-labelledby="onday-heading">
-        <h3 id="onday-heading" className="font-display text-2xl leading-tight text-espresso sm:text-3xl">
+        <h3 id="onday-heading" className="font-display text-xl leading-tight text-espresso sm:text-2xl">
           On the day
         </h3>
         <ul className="mt-7 grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -117,7 +117,7 @@ export function Prepare({
           ].map((item) => (
             <li key={item.title}>
               <Card className="flex h-full flex-col">
-                <p className="font-display text-xl leading-tight text-espresso">{item.title}</p>
+                <p className="font-display text-lg leading-tight text-espresso">{item.title}</p>
                 <p className="mt-2.5 text-reading leading-relaxed text-espresso/90">{item.body}</p>
               </Card>
             </li>
@@ -151,7 +151,7 @@ export function Prepare({
             />
             <span
               aria-hidden="true"
-              className={`relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-[5px] border-[1.5px] transition duration-150 ease-out ${
+              className={`relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-input border-[1.5px] transition duration-150 ease-out ${
                 acknowledged ? 'border-bronze bg-bronze' : 'border-taupe bg-white'
               }`}
             >

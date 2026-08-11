@@ -277,7 +277,7 @@ export function CompareView({
                 {/* The picker is beside it, labelled "Choose markers", with the
                     common comparisons at the top of it. Restating that here in
                     a sentence tells a competent adult nothing. */}
-                <p className="font-display text-3xl text-espresso">Pick a marker to begin</p>
+                <p className="font-display text-2xl text-espresso">Pick a marker to begin</p>
               </Card>
             ) : loadingSeries || series === null ? (
               <Card aria-busy="true" aria-label="Loading chart" className="min-h-96">
@@ -304,7 +304,7 @@ export function CompareView({
                       <Reveal key={s.markerId} delay={staggerDelay(i)} className="h-full">
                         <Link to={`/markers/${s.markerId}`} className="block h-full rounded-card">
                           <Card interactive padding="tight" className="h-full">
-                            <p className="font-display text-xl leading-tight text-espresso">{s.name}</p>
+                            <p className="font-display opsz-small text-lg leading-tight text-espresso">{s.name}</p>
                             <p className="tabular mt-2 text-sm text-espresso">
                               {first.value} → {last.value} {s.unit}
                             </p>

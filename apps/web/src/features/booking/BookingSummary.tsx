@@ -42,7 +42,7 @@ export function BookingSummary({ panel, addOns, location, date, time, durationMi
     <div className="flex flex-col gap-8">
       {/* ── what ────────────────────────────────────────────────────────── */}
       <Section title="What you're having" onEdit={onEdit?.test} editLabel="your test">
-        <p className="font-display text-2xl leading-tight text-espresso sm:text-3xl">{panel.name}</p>
+        <p className="font-display text-xl leading-tight text-espresso sm:text-2xl">{panel.name}</p>
         <p className="tabular mt-2 text-sm text-espresso/85">
           {panel.markerCount} markers · results in {turnaround.label}
         </p>
@@ -64,7 +64,7 @@ export function BookingSummary({ panel, addOns, location, date, time, durationMi
 
       {/* ── where ───────────────────────────────────────────────────────── */}
       <Section title="Where" onEdit={onEdit?.location} editLabel="the clinic">
-        <p className="font-display text-2xl leading-tight text-espresso">{location.name}</p>
+        <p className="font-display text-xl leading-tight text-espresso">{location.name}</p>
         <p className="mt-3 flex items-start gap-2.5 text-reading text-espresso">
           <PinIcon className="mt-1 shrink-0 text-bronze-700" />
           <span className="not-italic">
@@ -82,7 +82,7 @@ export function BookingSummary({ panel, addOns, location, date, time, durationMi
       <Section title="When" onEdit={onEdit?.slot} editLabel="the time">
         <p className="flex items-start gap-2.5">
           <CalendarIcon className="mt-1.5 shrink-0 text-bronze-700" />
-          <span className="font-display text-2xl leading-tight text-espresso sm:text-3xl">
+          <span className="font-display text-xl leading-tight text-espresso sm:text-2xl">
             {formatWeekdayDate(date)}
           </span>
         </p>

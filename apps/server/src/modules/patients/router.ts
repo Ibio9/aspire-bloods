@@ -7,7 +7,7 @@ import { verifyCsrf } from '../../middleware/csrf.js';
 import { asyncHandler } from '../../lib/asyncHandler.js';
 import { prisma } from '../../db/client.js';
 import { generateFileToken } from '../../lib/signedUrl.js';
-import { generateAspireSummaryPdf } from '../export/pdfSummary.js';
+import { generateAllMarkersPdf, generateAspireSummaryPdf } from '../export/pdfSummary.js';
 import { storageAdapter } from '../storage/LocalDiskStorageAdapter.js';
 import { buildDsarExport } from './dsarService.js';
 import { recordAuditLog } from '../../lib/auditLog.js';
@@ -231,6 +231,32 @@ patientsRouter.get(
     });
 
     res.json({ url: `/api/files/download?token=${generateFileToken(file.id)}` });
+  }),
+);
+
+/**
+ * Every marker, on paper — the By marker view's own download.
+ *
+ * NOT cached to a StoredFile the way the report summary is, and the difference
+ * is the point. A report is immutable once released (only an amendment
+ * changes it, which is what that route's freshness check is for), so a
+ * generated summary can be reused for ever. "Every marker I have" changes the
+ * moment the next report is released, and there is no single updatedAt to
+ * compare against — so this is generated per request and streamed straight
+ * back, never written to disk. That also keeps it out of the DSAR export,
+ * where a pile of near-identical snapshots of the same list would be noise.
+ *
+ * Streamed as the file itself rather than as a signed link for the same
+ * reason: there is nothing stored for a link to point at.
+ */
+patientsRouter.get(
+  '/markers-pdf',
+  asyncHandler(async (req, res) => {
+    const pdf = await generateAllMarkersPdf(req.user!.id);
+    await auditIfAdminViewer(req, 'own_all_markers_pdf', 'User');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="aspire-markers.pdf"');
+    res.send(pdf);
   }),
 );
 

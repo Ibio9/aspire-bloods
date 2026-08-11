@@ -49,7 +49,7 @@ export function SignupPage() {
           footer={
             <p className="mt-[calc(var(--auth-step)*1.4)] text-sm text-espresso/80">
               Already confirmed?{' '}
-              <Link to="/login" className="rounded-sm font-medium text-bronze underline underline-offset-2 hover:text-bronze-700">
+              <Link to="/login" className="rounded-input font-medium text-bronze underline underline-offset-2 hover:text-bronze-700">
                 Sign in
               </Link>
             </p>

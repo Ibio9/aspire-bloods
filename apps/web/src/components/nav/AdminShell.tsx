@@ -134,11 +134,11 @@ function SidebarContents({
         <Link
           to="/"
           onClick={onNavigate}
-          className={`flex items-center rounded-sm ${collapsed ? 'justify-center' : ''}`}
+          className={`flex items-center rounded-input ${collapsed ? 'justify-center' : ''}`}
           aria-label="Aspire Bloods, admin"
         >
           {collapsed ? (
-            <span className="font-display text-xl lowercase text-bronze">a</span>
+            <span className="font-display text-lg lowercase text-bronze">a</span>
           ) : (
             <Wordmark variant="light" size="sm" />
           )}
@@ -210,7 +210,7 @@ function AdminTopBar({ onOpenSearch, onOpenDrawer }: { onOpenSearch: () => void;
         >
           <SearchIcon />
           <span>Search patients…</span>
-          <span className="ml-6 rounded border border-taupe px-1.5 py-0.5 text-xs text-espresso/80">⌘K</span>
+          <span className="ml-6 rounded-input border border-taupe px-1.5 py-0.5 text-xs text-espresso/80">⌘K</span>
         </button>
         <button
           type="button"

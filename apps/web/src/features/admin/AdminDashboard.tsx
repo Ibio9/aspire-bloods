@@ -241,7 +241,7 @@ function ExceptionsCard() {
           </>
         ) : (
           <>
-            <p className="tabular text-3xl font-medium text-espresso">{count}</p>
+            <p className="tabular text-2xl font-medium text-espresso">{count}</p>
             <p className="mt-1.5 text-sm text-espresso">
               result{count === 1 ? '' : 's'} waiting to be placed, each with the reason it stopped.
             </p>
@@ -415,7 +415,7 @@ export function AdminDashboard() {
                 style={{ animationDelay: `${staggerDelay(i, 30)}ms` }}
               >
                 <Card interactive className="h-full">
-                  <p className="tabular text-3xl font-medium text-espresso">{b.count}</p>
+                  <p className="tabular text-2xl font-medium text-espresso">{b.count}</p>
                   <p className="mt-1.5 text-sm text-espresso">{b.label}</p>
                 </Card>
               </Link>

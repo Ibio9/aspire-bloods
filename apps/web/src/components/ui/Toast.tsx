@@ -16,10 +16,17 @@ interface ToastContextValue {
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
+/**
+ * A toast is a card, and cards carry no coloured outline (Aug 2026). The
+ * variant used to be a green or a red BORDER around an otherwise plain
+ * surface; it is now the ordinary taupe hairline with the status wash inside
+ * it — the same treatment a result card gets, and the same rule: the colour is
+ * a surface, and the icon beside the message is what carries the state.
+ */
 const VARIANT_STYLES: Record<ToastVariant, string> = {
-  default: 'border-taupe text-espresso',
-  success: 'border-status-inRange text-espresso',
-  error: 'border-status-significantHigh text-espresso',
+  default: 'border-taupe bg-cream-50 text-espresso',
+  success: 'border-taupe bg-tint-inRange text-espresso',
+  error: 'border-taupe bg-tint-significantHigh text-espresso',
 };
 
 const MIN_DURATION_MS = 3200;
