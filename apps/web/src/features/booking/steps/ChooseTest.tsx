@@ -169,7 +169,7 @@ function AddOnOption({ addOn, checked, onToggle }: { addOn: AddOn; checked: bool
             direct siblings of the input and would silently not apply here. */}
         <span
           aria-hidden="true"
-          className={`mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-input border-[1.5px] transition duration-150 ease-out ${
+          className={`mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-mark border-[1.5px] transition duration-150 ease-out ${
             checked ? 'border-bronze bg-bronze' : 'border-taupe bg-white'
           }`}
         >

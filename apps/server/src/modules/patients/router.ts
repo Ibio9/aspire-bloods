@@ -8,6 +8,7 @@ import { asyncHandler } from '../../lib/asyncHandler.js';
 import { prisma } from '../../db/client.js';
 import { generateFileToken } from '../../lib/signedUrl.js';
 import { generateAllMarkersPdf, generateAspireSummaryPdf } from '../export/pdfSummary.js';
+import { pdfFailure, streamPdf } from '../../lib/pdfResponse.js';
 import { storageAdapter } from '../storage/LocalDiskStorageAdapter.js';
 import { buildDsarExport } from './dsarService.js';
 import { recordAuditLog } from '../../lib/auditLog.js';
@@ -214,21 +215,31 @@ patientsRouter.get(
       return res.json({ url: `/api/files/download?token=${generateFileToken(existing.id)}` });
     }
 
-    const pdfBuffer = await generateAspireSummaryPdf(report.id);
-    const { storageKey, sizeBytes } = await storageAdapter.save(pdfBuffer, {
-      originalFilename: `aspire-summary-${report.id}.pdf`,
-      mimeType: 'application/pdf',
-    });
-    const file = await prisma.storedFile.create({
-      data: {
-        kind: 'ASPIRE_SUMMARY_PDF',
-        storageKey,
-        originalFilename: `aspire-summary-${report.sampleDate.toISOString().slice(0, 10)}.pdf`,
+    // Rendering is the one step here that hands work to a streaming library,
+    // and it is caught explicitly rather than left to the global boundary:
+    // "That download could not be prepared" is a sentence the client already
+    // shows verbatim, and "Something went wrong" is not. See lib/pdfRender.ts
+    // for what can go wrong inside and lib/pdfResponse.ts for the answer.
+    let file;
+    try {
+      const pdfBuffer = await generateAspireSummaryPdf(report.id);
+      const { storageKey, sizeBytes } = await storageAdapter.save(pdfBuffer, {
+        originalFilename: `aspire-summary-${report.id}.pdf`,
         mimeType: 'application/pdf',
-        sizeBytes,
-        generatedForReportId: report.id,
-      },
-    });
+      });
+      file = await prisma.storedFile.create({
+        data: {
+          kind: 'ASPIRE_SUMMARY_PDF',
+          storageKey,
+          originalFilename: `aspire-summary-${report.sampleDate.toISOString().slice(0, 10)}.pdf`,
+          mimeType: 'application/pdf',
+          sizeBytes,
+          generatedForReportId: report.id,
+        },
+      });
+    } catch (e) {
+      return pdfFailure(res, `Aspire summary for report ${report.id}`, e);
+    }
 
     res.json({ url: `/api/files/download?token=${generateFileToken(file.id)}` });
   }),
@@ -252,11 +263,16 @@ patientsRouter.get(
 patientsRouter.get(
   '/markers-pdf',
   asyncHandler(async (req, res) => {
-    const pdf = await generateAllMarkersPdf(req.user!.id);
     await auditIfAdminViewer(req, 'own_all_markers_pdf', 'User');
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename="aspire-markers.pdf"');
-    res.send(pdf);
+    // Generation failing is a failed REQUEST, never a failed process — see
+    // lib/pdfResponse.ts. The audit entry is written first on purpose: an
+    // admin viewing their own data has been shown the query either way, and a
+    // render that falls over afterwards must not quietly erase that fact.
+    await streamPdf(res, {
+      filename: 'aspire-markers.pdf',
+      what: `all-markers sheet for ${req.user!.id}`,
+      generate: () => generateAllMarkersPdf(req.user!.id),
+    });
   }),
 );
 

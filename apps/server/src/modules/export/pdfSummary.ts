@@ -1,5 +1,5 @@
-import PDFDocument from 'pdfkit';
 import { prisma } from '../../db/client.js';
+import { renderPdf } from '../../lib/pdfRender.js';
 import { decryptField } from '../../lib/crypto.js';
 import { decodeResultValue } from '../../lib/resultValue.js';
 import { formatDate, formatReportTitle, hasResultValue, NO_STATUS_LABEL } from '@aspire-bloods/shared';
@@ -164,165 +164,162 @@ export async function generateAspireSummaryPdf(reportId: string): Promise<Buffer
   // address line rather than printing a blank one.
   const address = profile?.addressEncrypted ? decryptField(profile.addressEncrypted) : '';
 
-  const chunks: Buffer[] = [];
-  const doc = new PDFDocument({ size: 'A4', margin: 56 });
-  doc.on('data', (chunk) => chunks.push(chunk));
-  const done = new Promise<Buffer>((resolve) => doc.on('end', () => resolve(Buffer.concat(chunks))));
+  // Every failure mode of the draw below — a synchronous throw, an 'error'
+  // on the stream, a document that never ends — comes back as a rejected
+  // promise rather than as a dead process. See lib/pdfRender.ts.
+  return renderPdf((doc) => {
+    const leftMargin = 56;
+    const fullWidth = 483;
 
-  const leftMargin = 56;
-  const fullWidth = 483;
+    drawLetterhead(doc);
 
-  drawLetterhead(doc);
-
-  // Right-aligned date + recipient block. The date is data, so it is set in
-  // the mono face like every other date rendered as data; the name and the
-  // address are not.
-  use(doc, 'mono', 9).fillColor(ESPRESSO).text(formatDate(new Date()), { align: 'right' });
-  doc.moveDown(0.5);
-  use(doc, 'body', 10).text(patientName, { align: 'right' });
-  if (address) doc.text(address, { align: 'right' });
-  if (profile?.postcode) doc.text(profile.postcode, { align: 'right' });
-  doc.moveDown(1.5);
-
-  // Body. The panel is optional (schema: Report.panelId) — formatReportTitle
-  // falls back to "12 markers · 4 August 2026" rather than leaving a dangling
-  // "results summary" with nothing in front of it.
-  const reportTitle = formatReportTitle(report.panel?.name, report.results.length, report.sampleDate);
-  use(doc, 'display', 16).fillColor(ESPRESSO).text(`${reportTitle}: results summary`);
-  use(doc, 'body', 10).moveDown(0.6);
-  doc.text(`Dear ${profile?.firstName ?? 'Patient'},`);
-  doc.moveDown(0.5);
-  doc.text(
-    report.panel?.name
-      ? `Please find below a summary of your ${report.panel.name} results, from a sample taken on ${formatDate(report.sampleDate)}.`
-      : `Please find below a summary of your results, from a sample taken on ${formatDate(report.sampleDate)}.`,
-  );
-  doc.moveDown(1);
-
-  // Results table. A 40-marker panel does not fit on one A4 page, and
-  // PDFKit's automatic page break does not know about our manually
-  // positioned columns — left to itself it writes rows off the bottom edge
-  // and drops the header. So pagination is explicit: we measure each row
-  // before drawing it, break when it would cross the bottom margin, and
-  // re-draw the column header on every new page so no page of results is
-  // ever unlabelled.
-  const colX = [56, 250, 320, 400, 470];
-  const colWidth = [190, 66, 76, 66, 90];
-  const ROW_GAP = 6;
-  const bottomLimit = doc.page.height - doc.page.margins.bottom - 24;
-
-  function drawTableHeader() {
-    const y = doc.y;
-    use(doc, 'bodyBold', 8).fillColor(ESPRESSO);
-    for (const [i, label] of ['MARKER', 'RESULT', 'UNIT', 'RANGE', 'STATUS'].entries()) {
-      doc.text(label, colX[i], y, { width: colWidth[i], characterSpacing: 0.8 });
-    }
-    const lineY = y + 13;
-    doc.moveTo(leftMargin, lineY).lineTo(leftMargin + fullWidth, lineY).strokeColor(TAUPE).stroke();
-    doc.y = lineY + 6;
-  }
-
-  drawTableHeader();
-
-  /**
-   * Which face each column is set in. The three middle ones — value, unit and
-   * range — are the numeric data on this page and take the mono face, for
-   * exactly the reason they do on screen: read as a column, they have to line
-   * up.
-   */
-  const cellFont: FontRole[] = ['body', 'mono', 'mono', 'mono', 'body'];
-
-  for (const { r, decoded } of rows) {
-    const cells = [
-      r.marker.name,
-      // Numeric or textual ("< 0.6") — decodeResultValue has already separated
-      // the two and rejected the placeholders that are neither.
-      decoded.valueText ?? String(decoded.value),
-      r.unit,
-      `${r.referenceRange.low}–${r.referenceRange.high}`,
-      r.status === null ? NO_STATUS_LABEL : (STATUS_LABEL[r.status] ?? r.status),
-    ];
-    // Tallest cell decides the row height — a long marker name wraps to two
-    // lines and the row has to grow with it, or the next row lands on top.
-    // Measured in each cell's OWN face: mono runs wider than the sans at the
-    // same size, so measuring everything in one face under-counts the wraps.
-    // Measured in each cell's OWN face: Courier runs wider than Helvetica at
-    // the same size, so measuring everything in one face under-counts the wraps.
-    const rowHeight = Math.max(
-      ...cells.map((text, i) => {
-        use(doc, cellFont[i], 9);
-        return doc.heightOfString(text, { width: colWidth[i] });
-      }),
-    );
-
-    if (doc.y + rowHeight > bottomLimit) {
-      doc.addPage();
-      // Landing on page 3 of a 40-marker report should not look like the
-      // start of a fresh table.
-      use(doc, 'bodyBold', 9).fillColor(ESPRESSO).text('(continued)', leftMargin, doc.y);
-      doc.moveDown(0.5);
-      drawTableHeader();
-    }
-
-    const y = doc.y;
-    // Bronze marks a result worth reading twice. A result with no status is
-    // not one of those — it is ordinary espresso, like an in-range row.
-    const flagged = r.status !== null && r.status !== 'IN_RANGE';
-    cells.forEach((text, i) => {
-      use(doc, cellFont[i], 9).fillColor(i === 4 && flagged ? BRONZE : ESPRESSO);
-      doc.text(text, colX[i], y, { width: colWidth[i] });
-    });
-    doc.y = y + rowHeight + ROW_GAP;
-  }
-
-  doc.x = leftMargin;
-  doc.moveDown(1);
-
-  // Same reasoning as the table: reserve space for a block before writing
-  // it, so the closing sections never split awkwardly across a page break
-  // or run off the bottom of a long report.
-  function ensureSpace(needed: number) {
-    if (doc.y + needed > bottomLimit) {
-      doc.addPage();
-      doc.x = leftMargin;
-    }
-  }
-
-  if (hasFlagged && outOfRangePrompt) {
-    use(doc, 'body', 9);
-    ensureSpace(doc.heightOfString(outOfRangePrompt.body, { width: fullWidth }) + CONTACT_BLOCK_HEIGHT + 30);
-    use(doc, 'display', 12).fillColor(ESPRESSO).text('Next steps', leftMargin, doc.y, { width: fullWidth });
-    use(doc, 'body', 9).moveDown(0.4);
-    doc.text(outOfRangePrompt.body, leftMargin, doc.y, { width: fullWidth });
-    doc.moveDown(0.9);
-    // The clinic's details, one item per line, from the same getClinicContact()
-    // the portal renders. They used to be pasted onto the end of the copy block
-    // above as one comma-joined line, which is both unreadable and a second
-    // place for them to go stale.
-    drawClinicContact(doc, leftMargin, fullWidth);
-    doc.moveDown(1);
-  }
-
-  if (footerDisclaimer) {
-    use(doc, 'body', 8);
-    ensureSpace(doc.heightOfString(footerDisclaimer.body, { width: fullWidth }) + 16);
-    doc.fillColor(ESPRESSO).text(footerDisclaimer.body, leftMargin, doc.y, { width: fullWidth });
+    // Right-aligned date + recipient block. The date is data, so it is set in
+    // the mono face like every other date rendered as data; the name and the
+    // address are not.
+    use(doc, 'mono', 9).fillColor(ESPRESSO).text(formatDate(new Date()), { align: 'right' });
+    doc.moveDown(0.5);
+    use(doc, 'body', 10).text(patientName, { align: 'right' });
+    if (address) doc.text(address, { align: 'right' });
+    if (profile?.postcode) doc.text(profile.postcode, { align: 'right' });
     doc.moveDown(1.5);
-  }
 
-  // Signed-off footer — kept whole; a signature split across a page break
-  // reads as an unsigned letter.
-  ensureSpace(64);
-  const staff = report.reviewedBy?.staffProfile;
-  use(doc, 'bodyBold', 9)
-    .fillColor(ESPRESSO)
-    .text(staff ? `${staff.firstName} ${staff.lastName}` : 'Aspire Clinical Team', leftMargin, doc.y, { width: fullWidth });
-  if (staff?.postNominals) use(doc, 'body', 9).text(staff.postNominals, leftMargin, doc.y, { width: fullWidth });
-  if (staff?.roleTitle) use(doc, 'body', 9).text(staff.roleTitle, leftMargin, doc.y, { width: fullWidth });
-  use(doc, 'body', 9).text('Aspire Clinic', leftMargin, doc.y, { width: fullWidth });
+    // Body. The panel is optional (schema: Report.panelId) — formatReportTitle
+    // falls back to "12 markers · 4 August 2026" rather than leaving a dangling
+    // "results summary" with nothing in front of it.
+    const reportTitle = formatReportTitle(report.panel?.name, report.results.length, report.sampleDate);
+    use(doc, 'display', 16).fillColor(ESPRESSO).text(`${reportTitle}: results summary`);
+    use(doc, 'body', 10).moveDown(0.6);
+    doc.text(`Dear ${profile?.firstName ?? 'Patient'},`);
+    doc.moveDown(0.5);
+    doc.text(
+      report.panel?.name
+        ? `Please find below a summary of your ${report.panel.name} results, from a sample taken on ${formatDate(report.sampleDate)}.`
+        : `Please find below a summary of your results, from a sample taken on ${formatDate(report.sampleDate)}.`,
+    );
+    doc.moveDown(1);
 
-  doc.end();
-  return done;
+    // Results table. A 40-marker panel does not fit on one A4 page, and
+    // PDFKit's automatic page break does not know about our manually
+    // positioned columns — left to itself it writes rows off the bottom edge
+    // and drops the header. So pagination is explicit: we measure each row
+    // before drawing it, break when it would cross the bottom margin, and
+    // re-draw the column header on every new page so no page of results is
+    // ever unlabelled.
+    const colX = [56, 250, 320, 400, 470];
+    const colWidth = [190, 66, 76, 66, 90];
+    const ROW_GAP = 6;
+    const bottomLimit = doc.page.height - doc.page.margins.bottom - 24;
+
+    function drawTableHeader() {
+      const y = doc.y;
+      use(doc, 'bodyBold', 8).fillColor(ESPRESSO);
+      for (const [i, label] of ['MARKER', 'RESULT', 'UNIT', 'RANGE', 'STATUS'].entries()) {
+        doc.text(label, colX[i], y, { width: colWidth[i], characterSpacing: 0.8 });
+      }
+      const lineY = y + 13;
+      doc.moveTo(leftMargin, lineY).lineTo(leftMargin + fullWidth, lineY).strokeColor(TAUPE).stroke();
+      doc.y = lineY + 6;
+    }
+
+    drawTableHeader();
+
+    /**
+     * Which face each column is set in. The three middle ones — value, unit and
+     * range — are the numeric data on this page and take the mono face, for
+     * exactly the reason they do on screen: read as a column, they have to line
+     * up.
+     */
+    const cellFont: FontRole[] = ['body', 'mono', 'mono', 'mono', 'body'];
+
+    for (const { r, decoded } of rows) {
+      const cells = [
+        r.marker.name,
+        // Numeric or textual ("< 0.6") — decodeResultValue has already separated
+        // the two and rejected the placeholders that are neither.
+        decoded.valueText ?? String(decoded.value),
+        r.unit,
+        `${r.referenceRange.low}–${r.referenceRange.high}`,
+        r.status === null ? NO_STATUS_LABEL : (STATUS_LABEL[r.status] ?? r.status),
+      ];
+      // Tallest cell decides the row height — a long marker name wraps to two
+      // lines and the row has to grow with it, or the next row lands on top.
+      // Measured in each cell's OWN face: mono runs wider than the sans at the
+      // same size, so measuring everything in one face under-counts the wraps.
+      // Measured in each cell's OWN face: Courier runs wider than Helvetica at
+      // the same size, so measuring everything in one face under-counts the wraps.
+      const rowHeight = Math.max(
+        ...cells.map((text, i) => {
+          use(doc, cellFont[i], 9);
+          return doc.heightOfString(text, { width: colWidth[i] });
+        }),
+      );
+
+      if (doc.y + rowHeight > bottomLimit) {
+        doc.addPage();
+        // Landing on page 3 of a 40-marker report should not look like the
+        // start of a fresh table.
+        use(doc, 'bodyBold', 9).fillColor(ESPRESSO).text('(continued)', leftMargin, doc.y);
+        doc.moveDown(0.5);
+        drawTableHeader();
+      }
+
+      const y = doc.y;
+      // Bronze marks a result worth reading twice. A result with no status is
+      // not one of those — it is ordinary espresso, like an in-range row.
+      const flagged = r.status !== null && r.status !== 'IN_RANGE';
+      cells.forEach((text, i) => {
+        use(doc, cellFont[i], 9).fillColor(i === 4 && flagged ? BRONZE : ESPRESSO);
+        doc.text(text, colX[i], y, { width: colWidth[i] });
+      });
+      doc.y = y + rowHeight + ROW_GAP;
+    }
+
+    doc.x = leftMargin;
+    doc.moveDown(1);
+
+    // Same reasoning as the table: reserve space for a block before writing
+    // it, so the closing sections never split awkwardly across a page break
+    // or run off the bottom of a long report.
+    function ensureSpace(needed: number) {
+      if (doc.y + needed > bottomLimit) {
+        doc.addPage();
+        doc.x = leftMargin;
+      }
+    }
+
+    if (hasFlagged && outOfRangePrompt) {
+      use(doc, 'body', 9);
+      ensureSpace(doc.heightOfString(outOfRangePrompt.body, { width: fullWidth }) + CONTACT_BLOCK_HEIGHT + 30);
+      use(doc, 'display', 12).fillColor(ESPRESSO).text('Next steps', leftMargin, doc.y, { width: fullWidth });
+      use(doc, 'body', 9).moveDown(0.4);
+      doc.text(outOfRangePrompt.body, leftMargin, doc.y, { width: fullWidth });
+      doc.moveDown(0.9);
+      // The clinic's details, one item per line, from the same getClinicContact()
+      // the portal renders. They used to be pasted onto the end of the copy block
+      // above as one comma-joined line, which is both unreadable and a second
+      // place for them to go stale.
+      drawClinicContact(doc, leftMargin, fullWidth);
+      doc.moveDown(1);
+    }
+
+    if (footerDisclaimer) {
+      use(doc, 'body', 8);
+      ensureSpace(doc.heightOfString(footerDisclaimer.body, { width: fullWidth }) + 16);
+      doc.fillColor(ESPRESSO).text(footerDisclaimer.body, leftMargin, doc.y, { width: fullWidth });
+      doc.moveDown(1.5);
+    }
+
+    // Signed-off footer — kept whole; a signature split across a page break
+    // reads as an unsigned letter.
+    ensureSpace(64);
+    const staff = report.reviewedBy?.staffProfile;
+    use(doc, 'bodyBold', 9)
+      .fillColor(ESPRESSO)
+      .text(staff ? `${staff.firstName} ${staff.lastName}` : 'Aspire Clinical Team', leftMargin, doc.y, { width: fullWidth });
+    if (staff?.postNominals) use(doc, 'body', 9).text(staff.postNominals, leftMargin, doc.y, { width: fullWidth });
+    if (staff?.roleTitle) use(doc, 'body', 9).text(staff.roleTitle, leftMargin, doc.y, { width: fullWidth });
+    use(doc, 'body', 9).text('Aspire Clinic', leftMargin, doc.y, { width: fullWidth });
+  });
 }
 
 /**
@@ -356,135 +353,129 @@ export async function generateAllMarkersPdf(patientId: string): Promise<Buffer> 
   const measured = markers.filter((m) => (m.resultType ?? 'MEASURED') === 'MEASURED');
   const hasFlagged = measured.some((m) => m.status !== null && m.status !== 'IN_RANGE');
 
-  const chunks: Buffer[] = [];
-  const doc = new PDFDocument({ size: 'A4', margin: 56 });
-  doc.on('data', (chunk) => chunks.push(chunk));
-  const done = new Promise<Buffer>((resolve) => doc.on('end', () => resolve(Buffer.concat(chunks))));
+  return renderPdf((doc) => {
+    const leftMargin = 56;
+    const fullWidth = 483;
+    const bottomLimit = doc.page.height - doc.page.margins.bottom - 24;
 
-  const leftMargin = 56;
-  const fullWidth = 483;
-  const bottomLimit = doc.page.height - doc.page.margins.bottom - 24;
+    drawLetterhead(doc);
 
-  drawLetterhead(doc);
-
-  use(doc, 'mono', 9).fillColor(ESPRESSO).text(formatDate(new Date()), { align: 'right' });
-  doc.moveDown(0.5);
-  use(doc, 'body', 10).text(
-    profile ? `${profile.title ? profile.title + ' ' : ''}${profile.firstName} ${profile.lastName}` : 'Patient',
-    { align: 'right' },
-  );
-  doc.moveDown(1.5);
-
-  use(doc, 'display', 16).fillColor(ESPRESSO).text('Every marker you have had tested', leftMargin, doc.y, { width: fullWidth });
-  use(doc, 'body', 10).moveDown(0.6);
-  doc.text(
-    measured.length === 1
-      ? 'The latest result for the one marker on your record, with the date the sample was taken.'
-      : `The latest result for each of the ${measured.length} markers on your record, with the date each sample was taken. Where a marker has been tested more than once, only the most recent value is shown here.`,
-    leftMargin,
-    doc.y,
-    { width: fullWidth },
-  );
-  doc.moveDown(1);
-
-  // The at-a-glance counts, in words rather than as tiles — a PDF has no
-  // filter to press, so the tiles would be three numbers pretending to be
-  // buttons. Statusless results are in none of the three, same as on screen.
-  const counts = {
-    inRange: measured.filter((m) => m.status === 'IN_RANGE').length,
-    outOfRange: measured.filter((m) => m.status === 'HIGH' || m.status === 'LOW').length,
-    significant: measured.filter((m) => m.status === 'SIGNIFICANT_HIGH' || m.status === 'SIGNIFICANT_LOW').length,
-  };
-  use(doc, 'bodyBold', 8).fillColor(ESPRESSO).text('AT A GLANCE', leftMargin, doc.y, { width: fullWidth, characterSpacing: 0.9 });
-  use(doc, 'body', 9).text(
-    `${counts.inRange} in range. ${counts.outOfRange} outside the usual range. ${counts.significant} significantly outside it.`,
-    leftMargin,
-    doc.y,
-    { width: fullWidth },
-  );
-  doc.moveDown(1);
-
-  const colX = [56, 236, 300, 366, 432];
-  const colWidth = [176, 60, 62, 62, 107];
-  // Marker, then three numeric columns, then the status word.
-  const cellFont: FontRole[] = ['body', 'mono', 'mono', 'mono', 'body'];
-  const ROW_GAP = 6;
-
-  function drawTableHeader() {
-    const y = doc.y;
-    use(doc, 'bodyBold', 8).fillColor(ESPRESSO);
-    for (const [i, label] of ['MARKER', 'RESULT', 'RANGE', 'SAMPLED', 'STATUS'].entries()) {
-      doc.text(label, colX[i], y, { width: colWidth[i], characterSpacing: 0.8 });
-    }
-    const lineY = y + 13;
-    doc.moveTo(leftMargin, lineY).lineTo(leftMargin + fullWidth, lineY).strokeColor(TAUPE).stroke();
-    doc.y = lineY + 6;
-  }
-
-  drawTableHeader();
-
-  for (const m of measured) {
-    // A qualitative result has no numeric range behind it, and printing "0–0"
-    // for one would be a half-populated row stating something false — the same
-    // rule the card and the row follow on screen.
-    const hasRange = m.status !== null && m.referenceHigh > m.referenceLow;
-    const cells = [
-      m.name,
-      `${m.valueText ?? m.value ?? ''}${m.unit ? ` ${m.unit}` : ''}`.trim(),
-      hasRange ? `${m.referenceLow}–${m.referenceHigh}` : '',
-      formatDate(m.sampleDate),
-      m.status === null ? NO_STATUS_LABEL : (STATUS_LABEL[m.status] ?? m.status),
-    ];
-    const rowHeight = Math.max(
-      ...cells.map((text, i) => {
-        use(doc, cellFont[i], 9);
-        return doc.heightOfString(text || ' ', { width: colWidth[i] });
-      }),
+    use(doc, 'mono', 9).fillColor(ESPRESSO).text(formatDate(new Date()), { align: 'right' });
+    doc.moveDown(0.5);
+    use(doc, 'body', 10).text(
+      profile ? `${profile.title ? profile.title + ' ' : ''}${profile.firstName} ${profile.lastName}` : 'Patient',
+      { align: 'right' },
     );
+    doc.moveDown(1.5);
 
-    if (doc.y + rowHeight > bottomLimit) {
-      doc.addPage();
-      use(doc, 'bodyBold', 9).fillColor(ESPRESSO).text('(continued)', leftMargin, doc.y);
-      doc.moveDown(0.5);
-      drawTableHeader();
-    }
-
-    const y = doc.y;
-    const flagged = m.status !== null && m.status !== 'IN_RANGE';
-    cells.forEach((text, i) => {
-      use(doc, cellFont[i], 9).fillColor(i === 4 && flagged ? BRONZE : ESPRESSO);
-      doc.text(text, colX[i], y, { width: colWidth[i] });
-    });
-    doc.y = y + rowHeight + ROW_GAP;
-  }
-
-  doc.x = leftMargin;
-  doc.moveDown(1);
-
-  function ensureSpace(needed: number) {
-    if (doc.y + needed > bottomLimit) {
-      doc.addPage();
-      doc.x = leftMargin;
-    }
-  }
-
-  if (hasFlagged && outOfRangePrompt) {
-    use(doc, 'body', 9);
-    ensureSpace(doc.heightOfString(outOfRangePrompt.body, { width: fullWidth }) + CONTACT_BLOCK_HEIGHT + 30);
-    use(doc, 'display', 12).fillColor(ESPRESSO).text('Next steps', leftMargin, doc.y, { width: fullWidth });
-    use(doc, 'body', 9).moveDown(0.4);
-    doc.text(outOfRangePrompt.body, leftMargin, doc.y, { width: fullWidth });
-    doc.moveDown(0.9);
-    drawClinicContact(doc, leftMargin, fullWidth);
+    use(doc, 'display', 16).fillColor(ESPRESSO).text('Every marker you have had tested', leftMargin, doc.y, { width: fullWidth });
+    use(doc, 'body', 10).moveDown(0.6);
+    doc.text(
+      measured.length === 1
+        ? 'The latest result for the one marker on your record, with the date the sample was taken.'
+        : `The latest result for each of the ${measured.length} markers on your record, with the date each sample was taken. Where a marker has been tested more than once, only the most recent value is shown here.`,
+      leftMargin,
+      doc.y,
+      { width: fullWidth },
+    );
     doc.moveDown(1);
-  }
 
-  if (footerDisclaimer) {
-    use(doc, 'body', 8);
-    ensureSpace(doc.heightOfString(footerDisclaimer.body, { width: fullWidth }) + 16);
-    doc.fillColor(ESPRESSO).text(footerDisclaimer.body, leftMargin, doc.y, { width: fullWidth });
-  }
+    // The at-a-glance counts, in words rather than as tiles — a PDF has no
+    // filter to press, so the tiles would be three numbers pretending to be
+    // buttons. Statusless results are in none of the three, same as on screen.
+    const counts = {
+      inRange: measured.filter((m) => m.status === 'IN_RANGE').length,
+      outOfRange: measured.filter((m) => m.status === 'HIGH' || m.status === 'LOW').length,
+      significant: measured.filter((m) => m.status === 'SIGNIFICANT_HIGH' || m.status === 'SIGNIFICANT_LOW').length,
+    };
+    use(doc, 'bodyBold', 8).fillColor(ESPRESSO).text('AT A GLANCE', leftMargin, doc.y, { width: fullWidth, characterSpacing: 0.9 });
+    use(doc, 'body', 9).text(
+      `${counts.inRange} in range. ${counts.outOfRange} outside the usual range. ${counts.significant} significantly outside it.`,
+      leftMargin,
+      doc.y,
+      { width: fullWidth },
+    );
+    doc.moveDown(1);
 
-  doc.end();
-  return done;
+    const colX = [56, 236, 300, 366, 432];
+    const colWidth = [176, 60, 62, 62, 107];
+    // Marker, then three numeric columns, then the status word.
+    const cellFont: FontRole[] = ['body', 'mono', 'mono', 'mono', 'body'];
+    const ROW_GAP = 6;
+
+    function drawTableHeader() {
+      const y = doc.y;
+      use(doc, 'bodyBold', 8).fillColor(ESPRESSO);
+      for (const [i, label] of ['MARKER', 'RESULT', 'RANGE', 'SAMPLED', 'STATUS'].entries()) {
+        doc.text(label, colX[i], y, { width: colWidth[i], characterSpacing: 0.8 });
+      }
+      const lineY = y + 13;
+      doc.moveTo(leftMargin, lineY).lineTo(leftMargin + fullWidth, lineY).strokeColor(TAUPE).stroke();
+      doc.y = lineY + 6;
+    }
+
+    drawTableHeader();
+
+    for (const m of measured) {
+      // A qualitative result has no numeric range behind it, and printing "0–0"
+      // for one would be a half-populated row stating something false — the same
+      // rule the card and the row follow on screen.
+      const hasRange = m.status !== null && m.referenceHigh > m.referenceLow;
+      const cells = [
+        m.name,
+        `${m.valueText ?? m.value ?? ''}${m.unit ? ` ${m.unit}` : ''}`.trim(),
+        hasRange ? `${m.referenceLow}–${m.referenceHigh}` : '',
+        formatDate(m.sampleDate),
+        m.status === null ? NO_STATUS_LABEL : (STATUS_LABEL[m.status] ?? m.status),
+      ];
+      const rowHeight = Math.max(
+        ...cells.map((text, i) => {
+          use(doc, cellFont[i], 9);
+          return doc.heightOfString(text || ' ', { width: colWidth[i] });
+        }),
+      );
+
+      if (doc.y + rowHeight > bottomLimit) {
+        doc.addPage();
+        use(doc, 'bodyBold', 9).fillColor(ESPRESSO).text('(continued)', leftMargin, doc.y);
+        doc.moveDown(0.5);
+        drawTableHeader();
+      }
+
+      const y = doc.y;
+      const flagged = m.status !== null && m.status !== 'IN_RANGE';
+      cells.forEach((text, i) => {
+        use(doc, cellFont[i], 9).fillColor(i === 4 && flagged ? BRONZE : ESPRESSO);
+        doc.text(text, colX[i], y, { width: colWidth[i] });
+      });
+      doc.y = y + rowHeight + ROW_GAP;
+    }
+
+    doc.x = leftMargin;
+    doc.moveDown(1);
+
+    function ensureSpace(needed: number) {
+      if (doc.y + needed > bottomLimit) {
+        doc.addPage();
+        doc.x = leftMargin;
+      }
+    }
+
+    if (hasFlagged && outOfRangePrompt) {
+      use(doc, 'body', 9);
+      ensureSpace(doc.heightOfString(outOfRangePrompt.body, { width: fullWidth }) + CONTACT_BLOCK_HEIGHT + 30);
+      use(doc, 'display', 12).fillColor(ESPRESSO).text('Next steps', leftMargin, doc.y, { width: fullWidth });
+      use(doc, 'body', 9).moveDown(0.4);
+      doc.text(outOfRangePrompt.body, leftMargin, doc.y, { width: fullWidth });
+      doc.moveDown(0.9);
+      drawClinicContact(doc, leftMargin, fullWidth);
+      doc.moveDown(1);
+    }
+
+    if (footerDisclaimer) {
+      use(doc, 'body', 8);
+      ensureSpace(doc.heightOfString(footerDisclaimer.body, { width: fullWidth }) + 16);
+      doc.fillColor(ESPRESSO).text(footerDisclaimer.body, leftMargin, doc.y, { width: fullWidth });
+    }
+  });
 }

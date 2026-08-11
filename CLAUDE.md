@@ -61,11 +61,34 @@ the throw happens inside the stream flush, so it is an UNCAUGHT EXCEPTION that
 kills the Node process rather than failing one request. The long note at the
 top of modules/export/pdfSummary.ts has the detail.
 
+**Every PDF goes through `renderPdf()` (lib/pdfRender.ts) and every download
+route answers through `streamPdf`/`pdfFailure` (lib/pdfResponse.ts).** Those
+close the three failure modes that are closeable — the builder throwing, the
+document emitting 'error' (an unhandled 'error' on a stream exits the process),
+and a document that never ends (which used to hang the request on an open
+socket) — and turn each into a 500 carrying the sentence the client toasts
+verbatim. They cannot catch an exception thrown inside a stream's own callback,
+which is the fontkit case above and the reason that decision stands.
+tests/pdfGeneration.test.ts pins all of it over real HTTP.
+
 ## Two radii, and only two
-`rounded-card` (1rem) for surfaces, `rounded-input` (0.625rem) for controls,
-plus `rounded-full` for things that are a shape rather than a corner. Tailwind's
-`borderRadius` is replaced, so `rounded-sm`, bare `rounded` and arbitrary radii
-do not exist. Shadows are espresso-derived in both themes, never neutral grey.
+The rule governs SURFACES: `rounded-card` (1rem) for surfaces, `rounded-input`
+(0.625rem) for controls, and nothing else. Tailwind's `borderRadius` is
+replaced rather than extended, so `rounded-sm`, bare `rounded` and arbitrary
+radii do not exist.
+
+Two tokens sit outside that rule because they are not surface corners, and
+neither is an escape hatch from it:
+- `rounded-full` is a SHAPE — avatars, pills, the range-bar dot, the radio
+  glyph (a radio genuinely is a circle).
+- `rounded-mark` (0.25rem) is ICON GEOMETRY, for the CHECKBOX glyph and
+  nothing else. An 18px square at the control radius renders as a circle,
+  which is a radio button — and a control meaning "several of these" must not
+  be the shape of one meaning "exactly one of these". That is correctness, not
+  taste. If `rounded-mark` ever appears on a card, a panel or a button, delete
+  it from there rather than widening its remit.
+
+Shadows are espresso-derived in both themes, never neutral grey.
 
 ## Traffic-light status — wanted, everywhere (changed Aug 2026)
 This overrides the old "no green, amber or red anywhere" rule. Patients expect

@@ -32,9 +32,16 @@ export function Checkbox({ label, error, id, labelHidden, className = '', ...pro
             className={`peer absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed ${className}`}
             {...props}
           />
+          {/* rounded-mark, NOT rounded-input. This box is 18px square, and at
+              the control radius its corners meet in the middle and it renders
+              as a circle — which is a radio button. "Several of these" and
+              "exactly one of these" must not be the same shape. The token
+              exists for this glyph and nothing else; see borderRadius in
+              tailwind.config.ts, where the two-radii rule and this exception
+              to it are both written down. */}
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute inset-0 rounded-input border-[1.5px] border-taupe bg-white transition duration-150 ease-out peer-hover:border-bronze/70 peer-checked:border-bronze peer-checked:bg-bronze peer-active:scale-90 peer-active:duration-0 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-bronze peer-disabled:cursor-not-allowed peer-disabled:opacity-50 peer-disabled:peer-checked:bg-taupe peer-disabled:peer-checked:border-taupe"
+            className="pointer-events-none absolute inset-0 rounded-mark border-[1.5px] border-taupe bg-white transition duration-150 ease-out peer-hover:border-bronze/70 peer-checked:border-bronze peer-checked:bg-bronze peer-active:scale-90 peer-active:duration-0 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-bronze peer-disabled:cursor-not-allowed peer-disabled:opacity-50 peer-disabled:peer-checked:bg-taupe peer-disabled:peer-checked:border-taupe"
           />
           <svg
             aria-hidden="true"

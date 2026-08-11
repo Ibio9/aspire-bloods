@@ -151,7 +151,7 @@ export function Prepare({
             />
             <span
               aria-hidden="true"
-              className={`relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-input border-[1.5px] transition duration-150 ease-out ${
+              className={`relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-mark border-[1.5px] transition duration-150 ease-out ${
                 acknowledged ? 'border-bronze bg-bronze' : 'border-taupe bg-white'
               }`}
             >

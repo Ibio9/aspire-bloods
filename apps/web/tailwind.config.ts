@@ -71,11 +71,30 @@ export default {
       ]),
     ) as Record<TypeStep, [string, { lineHeight: string; letterSpacing: string }]>,
     /**
-     * TWO RADII, and `full` for the things that are a shape rather than a
-     * corner (avatars, pills, the range-bar dot). Also a replacement rather
-     * than an extension: `rounded-sm`, `rounded-md`, bare `rounded` and every
-     * arbitrary radius are gone, because a third value is how a page ends up
-     * with three subtly different corners nobody chose.
+     * TWO SURFACE RADII, and that is the rule: `card` for surfaces, `input`
+     * for controls. A replacement rather than an extension, so `rounded-sm`,
+     * `rounded-md`, bare `rounded` and every arbitrary radius are gone —
+     * a third surface value is how a page ends up with three subtly different
+     * corners nobody chose.
+     *
+     * The other two are not surface radii and are not an escape hatch from
+     * that rule:
+     *
+     *  · `full` is a SHAPE — avatars, pills, the range-bar dot, the segmented
+     *    control's thumb. Nothing about it is a corner.
+     *  · `mark` is ICON GEOMETRY, and it exists for the CHECKBOX glyph and
+     *    nothing else — components/ui/Checkbox.tsx and the two bespoke
+     *    checkboxes in the booking steps. A checkbox glyph is 18–20px square;
+     *    at `input`'s 0.625rem its corners meet in the middle and it renders
+     *    as a circle, which is a radio button. The control that says "several
+     *    of these" must not be the shape of the one that says "exactly one of
+     *    these", so this is a correctness constraint rather than a stylistic
+     *    one. (The radio glyph itself is `full`, because a radio genuinely is
+     *    a circle.)
+     *
+     * `mark` is therefore never to be used on a surface. If it starts showing
+     * up on a card, a panel or a button, the fix is to delete it from there,
+     * not to widen its remit.
      */
     borderRadius: {
       none: '0',
@@ -83,6 +102,8 @@ export default {
       card: '1rem',
       // Controls: inputs, buttons, chips, focus rings.
       input: '0.625rem',
+      // The checkbox glyph ONLY. See above.
+      mark: '0.25rem',
       full: '9999px',
     },
     extend: {
