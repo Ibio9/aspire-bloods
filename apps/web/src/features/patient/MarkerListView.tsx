@@ -131,20 +131,61 @@ function DownloadMarkersButton() {
   );
 }
 
+/**
+ * THE SAME JOINED UNIT the report header carries, counting across every marker
+ * on record rather than one panel's worth — and it lives ABOVE the control bar
+ * rather than under it (Aug 2026).
+ *
+ * The page reads: what this is, how it went, then the tools for going through
+ * it. That order was already right inside an open report, where ReportHeader
+ * carries the report's own strip and the bar follows it, and wrong on this
+ * view, where the bar came first and the summary was the first thing INSIDE
+ * the results — so the same page answered "is anything worth a look" before
+ * the controls in one arrangement and after them in another.
+ *
+ * Rendered by ResultsPage, which is why this is exported and why the view
+ * below reports its markers upward rather than drawing the strip itself: the
+ * summary is a fact about the whole set, and the fetch that knows it is one
+ * level down. The strip counts what is ON RECORD and not what is currently
+ * filtered, deliberately — it is the denominator the filters act on, and a
+ * summary that moved with them would be a count of the thing the reader can
+ * already see. The segments still double as the status filter.
+ */
+export function AllMarkersSummary({
+  markers,
+  activeStatus,
+  onSelectStatus,
+}: {
+  markers: MarkerRow[];
+  activeStatus?: string;
+  onSelectStatus?: (status: MarkerStatus | 'ALL') => void;
+}) {
+  return (
+    <CountsStrip
+      markers={markers}
+      title="All markers at a glance"
+      activeStatus={activeStatus}
+      onSelectStatus={onSelectStatus}
+      action={<DownloadMarkersButton />}
+      className="mt-12"
+    />
+  );
+}
+
 export function MarkerListView({
   filters,
   arrangement,
   onClearFilters,
   onCategoriesAvailable,
   onStatusCounts,
-  onSelectStatus,
+  onSummaryMarkers,
 }: {
   filters: ResultsFilters;
   arrangement: ResultsArrangement;
   onClearFilters: () => void;
   onStatusCounts?: (counts: Record<StatusFilter, number>) => void;
-  /** The at-a-glance segments double as the status filter, exactly as a report's do. */
-  onSelectStatus?: (status: MarkerStatus | 'ALL') => void;
+  /** The measured set this view is showing, so the page can summarise it above the control bar. */
+  onSummaryMarkers?: (markers: MarkerRow[]) => void;
 } & ViewReportsCategories) {
   const [markers, setMarkers] = useState<MarkerRow[] | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -228,6 +269,12 @@ export function MarkerListView({
   useEffect(() => {
     onStatusCounts?.(statusCounts);
   }, [statusCounts, onStatusCounts]);
+  // The set the page's at-a-glance strip counts, reported up for the same
+  // reason the categories and the counts are: the strip sits above the control
+  // bar and this is the only thing that has fetched the markers.
+  useEffect(() => {
+    onSummaryMarkers?.(measured);
+  }, [measured, onSummaryMarkers]);
 
   const filtersApplied = query.trim() !== '' || statusFilter !== 'ALL' || categoryFilter !== 'ALL';
   const clearFilters = onClearFilters;
@@ -282,31 +329,12 @@ export function MarkerListView({
         </div>
       ) : (
         <>
-          {/* THE SAME JOINED UNIT the report header carries, counting across
-              every marker on record rather than one panel's worth. The By
-              marker view had no summary at all: it went straight from the
-              control bar into forty cards, so the one question the list is
-              opened with — "is anything worth a look" — could only be answered
-              by reading all of them.
+          {/* The at-a-glance strip that used to sit here is now ABOVE the
+              control bar, rendered by the page from the markers this view
+              reports up — see AllMarkersSummary. The order is: what this is,
+              how it went, then the tools for going through it.
 
-              It counts what is ON RECORD and not what is currently filtered,
-              deliberately: it is the denominator the filters act on, and a
-              summary that moved with them would be a count of the thing the
-              reader can already see. The segments still double as the status
-              filter, exactly as the report's do.
-
-              Its own download sits beneath it, in the same relationship the
-              report's downloads have to its summary. */}
-          <CountsStrip
-            markers={measured}
-            title="All markers at a glance"
-            activeStatus={statusFilter}
-            onSelectStatus={onSelectStatus}
-            action={<DownloadMarkersButton />}
-            className="mb-10"
-          />
-
-          {/* The live count and the way out of an over-narrow filter. Every
+              The live count and the way out of an over-narrow filter. Every
               control that produced them — search, both filters, the grouping
               and the sort — is in the one bar above. */}
           <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3">

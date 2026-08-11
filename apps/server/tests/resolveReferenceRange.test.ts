@@ -70,6 +70,59 @@ describe('resolveReferenceRange', () => {
     });
   });
 
+  /**
+   * THE TIE-BREAK, which used to be whatever order Postgres returned.
+   *
+   * `ReferenceRange` holds the catalogue AND one row per result ever
+   * materialised, so a marker accumulates dozens of rows with the same sex and
+   * no age bracket — the development database has one marker with 76. Among
+   * those the winner was arbitrary, which means the range suggested at verify
+   * time was effectively arbitrary among every range that marker had ever
+   * carried.
+   */
+  describe('when two rows are equally specific', () => {
+    it('prefers the one with a source behind it', () => {
+      const rows = [
+        range({ id: 'unsourced', sex: 'FEMALE', low: 60, high: 110, provenance: 'UNSOURCED' }),
+        range({ id: 'published', sex: 'FEMALE', low: 50, high: 98, provenance: 'PUBLISHED' }),
+        range({ id: 'randox', sex: 'FEMALE', low: 53, high: 97, provenance: 'RANDOX' }),
+      ];
+      expect(resolveReferenceRange(rows, 'FEMALE', 40)).toEqual({
+        status: 'resolved',
+        range: expect.objectContaining({ id: 'randox' }),
+      });
+      expect(resolveReferenceRange(rows.slice(0, 2), 'FEMALE', 40)).toEqual({
+        status: 'resolved',
+        range: expect.objectContaining({ id: 'published' }),
+      });
+    });
+
+    it('treats a row with no provenance as unsourced rather than as best', () => {
+      const rows = [
+        range({ id: 'bare', sex: 'FEMALE' }),
+        range({ id: 'published', sex: 'FEMALE', provenance: 'PUBLISHED' }),
+      ];
+      expect(resolveReferenceRange(rows, 'FEMALE', 40)).toEqual({
+        status: 'resolved',
+        range: expect.objectContaining({ id: 'published' }),
+      });
+    });
+
+    it('never lets provenance beat specificity, because the wrong sex is the bigger error', () => {
+      // A Randox range for everybody against an unsourced one for THIS
+      // patient's sex. Specificity wins: a citation does not make a band that
+      // describes the other half of the population apply to them.
+      const rows = [
+        range({ id: 'randox-any', sex: 'ANY', provenance: 'RANDOX' }),
+        range({ id: 'unsourced-female', sex: 'FEMALE', provenance: 'UNSOURCED' }),
+      ];
+      expect(resolveReferenceRange(rows, 'FEMALE', 40)).toEqual({
+        status: 'resolved',
+        range: expect.objectContaining({ id: 'unsourced-female' }),
+      });
+    });
+  });
+
   it('reports no matching range for an empty catalogue', () => {
     expect(resolveReferenceRange([], 'MALE', 40)).toEqual({ status: 'unavailable', reason: 'NO_MATCHING_RANGE' });
   });

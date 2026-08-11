@@ -27,7 +27,50 @@ export interface CatalogRange {
   unit: string;
   low: number;
   high: number;
+  /**
+   * WHAT KIND OF AUTHORITY IS BEHIND THIS NUMBER.
+   *
+   * It travels through so the verify form can SHOW it, which is the main
+   * point: a suggestion that is usually correct is one people stop checking,
+   * and the tier is what stops an unverified fallback looking identical to a
+   * range from the laboratory that ran the test.
+   *
+   * It is also the TIE-BREAK, and only the tie-break — see specificity()
+   * below. It never outranks a more specific row.
+   */
+  provenance?: RangeProvenance;
+  citation?: RangeCitation | null;
 }
+
+export type RangeProvenance = 'RANDOX' | 'PUBLISHED' | 'UNSOURCED';
+
+export interface RangeCitation {
+  document: string | null;
+  publisher: string | null;
+  date: string | null;
+  url: string | null;
+}
+
+/**
+ * One sentence per tier, so the admin console and any API response say the
+ * same thing. Written for somebody holding the paper result, which is why each
+ * one ends in what to actually do.
+ */
+export const PROVENANCE_LABEL: Record<RangeProvenance, { label: string; detail: string }> = {
+  RANDOX: {
+    label: 'From Randox',
+    detail: 'Transcribed from a Randox document. The laboratory that runs this assay, so it is the strongest source available. Still check it against the paper.',
+  },
+  PUBLISHED: {
+    label: 'Published, not Randox',
+    detail:
+      'From a named third-party laboratory or guideline. Reference intervals are assay-specific, so this describes somebody else’s instrument and population. Treat it as a prompt, not an answer, and take the range off the paper.',
+  },
+  UNSOURCED: {
+    label: 'Unverified',
+    detail: 'A seeded standard adult band that no document has been checked against. Enter the range printed on the result.',
+  },
+};
 
 export type PatientSex = 'MALE' | 'FEMALE' | 'ANY' | null;
 
@@ -65,6 +108,31 @@ function specificity(r: CatalogRange): number {
   return score;
 }
 
+/**
+ * THE TIE-BREAK, AND IT IS ONLY EVER A TIE-BREAK.
+ *
+ * Two rows of identical specificity is not a hypothetical: `ReferenceRange`
+ * holds the catalogue AND one row per result ever materialised, so a marker
+ * accumulates dozens of rows with the same sex and no age bracket. Until this
+ * existed the winner among them was whatever order Postgres happened to
+ * return — the range suggested at verify time was effectively arbitrary among
+ * every range that marker had ever carried.
+ *
+ * Any deterministic rule beats that, and this is the one that is also right:
+ * where two rows make the same claim about the same patient, prefer the one
+ * with a source behind it. It CANNOT override specificity, because it is
+ * applied second — an unsourced sex-specific band still beats a Randox `ANY`
+ * one for a patient whose sex we know, and it should, since the wrong sex is a
+ * bigger error than a weaker citation.
+ *
+ * A row with no provenance at all is treated as UNSOURCED, which is what it is.
+ */
+const PROVENANCE_RANK: Record<RangeProvenance, number> = { RANDOX: 2, PUBLISHED: 1, UNSOURCED: 0 };
+
+function sourceRank(r: CatalogRange): number {
+  return PROVENANCE_RANK[r.provenance ?? 'UNSOURCED'];
+}
+
 export function resolveReferenceRange(
   ranges: CatalogRange[],
   patientSex: PatientSex,
@@ -85,7 +153,10 @@ export function resolveReferenceRange(
     return { status: 'unavailable', reason: 'NO_MATCHING_RANGE' };
   }
 
-  return { status: 'resolved', range: candidates.slice().sort((a, b) => specificity(b) - specificity(a))[0] };
+  return {
+    status: 'resolved',
+    range: candidates.slice().sort((a, b) => specificity(b) - specificity(a) || sourceRank(b) - sourceRank(a))[0],
+  };
 }
 
 /** Whole-years age as of today, from an ISO (YYYY-MM-DD or full datetime) date-of-birth string. */

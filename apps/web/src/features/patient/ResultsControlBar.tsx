@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Segmented } from '../../components/ui/Segmented';
@@ -82,13 +81,33 @@ function FilterChip({ value, onClear }: { value: string; onClear: () => void }) 
  *
  * ONE BAR, IN TWO HALVES.
  *
- *   Row one, always on screen: the search box, whatever is currently
- *   narrowing the page, and the view switch. These are what a patient reaches
- *   for repeatedly while reading 187 markers.
+ *   Row one, always on screen: the search box, the Filters disclosure, the
+ *   view switch, and whatever is currently narrowing the page. These are what
+ *   a patient reaches for repeatedly while reading 187 markers.
  *
- *   The fold, below it: Show, Health area, Group by and Sort by. Open at the
- *   top of the page; folded away once the bar pins, behind a Filters
- *   disclosure that brings it straight back.
+ *   The fold, below it: Show, Health area, Group by and Sort by. Closed on
+ *   load, behind a Filters disclosure that brings it straight back.
+ *
+ * NO BOX, AND NO BAND (Aug 2026). It used to be a full-bleed sticky band —
+ * hairline top and bottom, a cream fill and a backdrop blur — and read as a
+ * form panel bolted onto the page: an outlined search box, an outlined
+ * disclosure and a filled segmented control, all inside a fourth outline. Four
+ * boxes to say three things.
+ *
+ * The controls sit on the page now. The search field is one hairline
+ * underneath (`.input-quiet`), the disclosure is a text control on the same
+ * baseline beside it, the view switch keeps its track because a segmented
+ * control genuinely is one object but takes the quiet tone, and the separation
+ * is space rather than a border.
+ *
+ * THE STICKINESS WENT WITH THE BAND, and that is a real trade rather than an
+ * oversight. A sticky element with no surface of its own has the page scrolling
+ * THROUGH it, so keeping the pin meant keeping the fill, and the fill is the
+ * thing that reads as a panel — it is also the thing the corner glow is not
+ * allowed to be painted over. What is left in its place is order: the summary
+ * answers "is anything worth a look" before the controls are offered at all,
+ * so the walk back up the page is a walk to a decision that has already been
+ * made rather than to a tool.
  *
  * Everything behaves exactly as it did — this moved the controls and changed
  * when they are on screen, it did not redesign any of them. Nothing here holds
@@ -119,11 +138,6 @@ function FilterChip({ value, onClear }: { value: string; onClear: () => void }) 
  * the report LIST has no markers to group, and the comparison arranges itself
  * around a selection. See ArrangementScope. Their state survives their absence,
  * so a report grouped by health area is still grouped when you come back to it.
- *
- * STICKY AT EVERY WIDTH, which it was not before. The old bar was five stacked
- * controls on a phone — 580px of a 780px screen — and pinning that is not a
- * toolbar, it is a lid. One row is a toolbar, and a phone is where the walk
- * back to the top of a 187-marker report costs the most.
  */
 export function ResultsControlBar({
   filters,
@@ -227,159 +241,141 @@ export function ResultsControlBar({
   const applied = filtersApplied(filters);
 
   return (
-    <>
-      {/* The bar's own top margin. It used to be carried by a one-pixel
-          sentinel div that an IntersectionObserver watched; nothing observes
-          the bar's position any more, so the margin is simply the bar's.
-          mt-8, down from mt-12: with the page header's own pb-2 under it the
-          heading and the bar sat 57px apart, which on a page whose header is
-          two lines read as a gap rather than as space. Trimmed, not stripped —
-          the air above the title is untouched, because that is the part doing
-          the work. */}
-      <div aria-hidden="true" className="mt-8 h-px" />
-
-      {/* Full-bleed: the negative margins are exactly the shell's own gutters,
-          so the band reaches the sidebar on one side and the window on the
-          other and reads as page furniture rather than as another card. Same
-          construction as the admin console's report bar.
-          The background lives on the two halves rather than here, because this
-          box is taller than what is painted the moment the fold closes, and a
-          band drawn on it would be a sheet of cream over the markers. */}
-      <div
-        ref={barRef}
-        className="pointer-events-none sticky top-topbar-patient z-20 -mx-5 sm:-mx-8 md:top-0 md:-mx-14 lg:-mx-20"
-      >
-        {/* ROW ONE — search, what is applied, and which arrangement you are in.
-            Its height is deliberately the same pinned as unpinned: the
-            disclosure is no taller than the search field beside it, so nothing
-            below the bar moves when it appears. */}
-        <div className="pointer-events-auto flex flex-wrap items-center gap-x-3 gap-y-3 border-y border-taupe bg-cream/95 px-5 py-3 backdrop-blur sm:px-8 md:px-14 lg:px-20">
-          {/* Takes whatever width is left over — a marker name is longer than
-              any fixed control beside it. The label is spoken but not drawn:
-              a caption above the field costs more of a pinned bar than the
-              field itself, and the placeholder carries the same sentence.
-              The basis is small enough on a phone that the disclosure beside
-              it still fits on the line WITH its count on: let it wrap and the
-              row grows a line at the moment the bar pins, which shunts the
-              markers down by exactly the amount this bar exists to save. */}
-          <div className="min-w-0 flex-1 basis-40 sm:basis-64">
-            <Input
-              label="Find a marker"
-              hideLabel
-              name="results-search"
-              type="search"
-              value={filters.query}
-              onChange={(e) => onChange({ query: e.target.value })}
-              // The abbreviation is the only name most people know, and search
-              // matches aliases as well as the printed name. A colon rather
-              // than the dash the old placeholder used: house style refuses em
-              // dashes in anything a patient reads, and the copy spec cannot
-              // see inside a placeholder to catch one.
-              placeholder="Find a marker: ferritin, ALT, TSH…"
-              // A filter, not a form field — Input marks required by default.
-              required={false}
-            />
-          </div>
-
-          {/* ALWAYS THERE, and it always toggles. It used to render only
-              while the bar was pinned, on the reasoning that an unpinned bar
-              already had the panel open — so at the top of the page there was
-              no way to shut the panel, and a scroll of one pixel could open or
-              close it under the reader's hand. The panel is closed on load
-              now, and this is the only thing that opens it.
-
-              The count badge sits on the button rather than inside the panel,
-              so it survives the panel being shut — which is the whole point of
-              it: a filter you cannot see is how somebody concludes their
-              results have gone missing. */}
-          <Button
-            variant="secondary"
-            onClick={() => setOpen((o) => !o)}
-            aria-expanded={open}
-            aria-controls={FOLD_ID}
-            className="shrink-0 px-4"
-          >
-            <span>
-              Filters<span className="hidden sm:inline"> and sort</span>
-            </span>
-            {narrowing > 0 && (
-              <span className="numeric rounded-full bg-bronze px-1.5 py-0.5 text-xs font-semibold text-onaccent">
-                {narrowing}
-                <span className="sr-only"> applied</span>
-              </span>
-            )}
-            {/* The chevron follows the state and cannot disagree with it —
-                there is one boolean to follow. */}
-            <ChevronIcon up={open} />
-          </Button>
-
-          {/* Its own line on a phone, where three labels and a search field
-              cannot share one; pushed to the far edge from sm up, where it
-              still reads as belonging to the panel directly beneath it. */}
-          <div className="min-w-0 basis-full sm:ml-auto sm:basis-auto">
-            <Segmented options={RESULTS_VIEWS} value={view} onChange={onViewChange} label="Results view" panelId={panelId} />
-          </div>
-
-          {/* WHAT IS CURRENTLY HIDING THINGS, on the last line of the row and
-              therefore on screen whether the panel is open or shut. A filter
-              you cannot see is how somebody concludes their results have gone
-              missing — and the page's own Clear filters button is below the
-              bar, which is to say gone by the time it is wanted. It is
-              deliberately outside the panel, so shutting the panel never takes
-              away either the chips or the way to clear them. */}
-          {applied && (
-            <div role="group" aria-label="Applied filters" className="flex basis-full flex-wrap items-center gap-2">
-              {/* Only where there is a chip to introduce — a search term on
-                  its own is already legible in the field above, and an eyebrow
-                  over nothing is a label for an empty set. */}
-              {narrowing > 0 && <span className="eyebrow">Filtered by</span>}
-              {filters.statusFilter !== 'ALL' && (
-                <FilterChip value={statusLabel ?? filters.statusFilter} onClear={() => onChange({ statusFilter: 'ALL' })} />
-              )}
-              {filters.categoryFilter !== 'ALL' && (
-                <FilterChip value={categoryLabel ?? 'Selected area'} onClear={() => onChange({ categoryFilter: 'ALL' })} />
-              )}
-              <button
-                type="button"
-                onClick={onClearFilters}
-                className="rounded-full border border-bronze/60 px-3 py-1.5 text-xs font-medium text-bronze transition duration-150 ease-out hover:border-bronze hover:bg-bronze-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
-              >
-                Clear all filters
-              </button>
-            </div>
-          )}
+    <div ref={barRef} className="mt-12">
+      {/* ROW ONE — search, the way into the rest, and which arrangement you
+          are in. Aligned on the BASELINE rather than the box: the search
+          field's hairline is its bottom edge, and the disclosure beside it
+          carries the same vertical padding over a transparent border so the
+          two sets of type sit on one line. Items-end is what holds that
+          together when the segmented control (a taller object, because it has
+          a track and padding of its own) shares the row. */}
+      <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
+        {/* Takes whatever width is left over — a marker name is longer than
+            any fixed control beside it. The label is spoken but not drawn:
+            a caption above the field would be a second line of chrome on a
+            row that exists to have almost none, and the placeholder carries
+            the same sentence. */}
+        <div className="min-w-0 flex-1 basis-48 sm:basis-72">
+          <Input
+            label="Find a marker"
+            hideLabel
+            variant="quiet"
+            name="results-search"
+            type="search"
+            value={filters.query}
+            onChange={(e) => onChange({ query: e.target.value })}
+            // The abbreviation is the only name most people know, and search
+            // matches aliases as well as the printed name. A colon rather
+            // than the dash the old placeholder used: house style refuses em
+            // dashes in anything a patient reads, and the copy spec cannot
+            // see inside a placeholder to catch one.
+            placeholder="Find a marker: ferritin, ALT, TSH…"
+            // A filter, not a form field — Input marks required by default.
+            required={false}
+          />
         </div>
 
-        {/* THE PANEL — how the markers are narrowed and how they are laid
-            out, in the order the questions get asked.
+        {/* A LIGHTER CONTROL, not a competing pill. It was a secondary Button:
+            a filled, bordered, shadowed object sitting beside a filled,
+            bordered, shadowed field, so the row had two pills and a track on
+            it and no way to tell which one mattered. This is type with a
+            chevron, on the same baseline as the field, going bronze on hover.
 
-            UNMOUNTED WHEN SHUT, not merely hidden.
+            The count badge stays exactly as it was, and it is the one thing
+            here allowed to be loud: it survives the panel being shut, and a
+            filter somebody cannot see is how they conclude their results have
+            gone missing.
 
-            It used to be held in the layout with `visibility: hidden` so that
-            collapsing it could not drag a pinned page upward. That reasoning
-            was sound while the panel opened and closed on SCROLL — the reader
-            had not asked for it and must not lose their place. It is not sound
-            now that the panel only ever changes because somebody pressed the
-            button: they are looking at the bar, the movement is the answer to
-            their press, and reserving the space permanently meant an invisible
-            box sitting over the markers on every screen, taking up room the
-            page below started after.
-
-            Absent when shut therefore means absent: nothing to overlap the
-            search field or the tab switcher above it, nothing to displace, and
-            the pickers genuinely out of the tab order rather than merely
-            unpainted. */}
-        {open && (
-        <div
-          id={FOLD_ID}
-          ref={foldRef}
-          className="pointer-events-auto border-b border-taupe bg-cream/95 px-5 pb-5 pt-4 backdrop-blur motion-safe:animate-fadeIn sm:px-8 md:px-14 lg:px-20"
+            border-b border-transparent is not decoration — it reserves the
+            same pixel the field's hairline occupies, so the two baselines
+            agree at every width without a magic offset. */}
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          aria-controls={FOLD_ID}
+          className="inline-flex min-h-tap shrink-0 items-center gap-2 border-b border-transparent py-2.5 text-sm font-medium text-espresso/85 transition duration-150 ease-out hover:text-bronze focus-visible:rounded-input focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-bronze"
         >
+          <span>
+            Filters<span className="hidden sm:inline"> and sort</span>
+          </span>
+          {narrowing > 0 && (
+            <span className="numeric rounded-full bg-bronze px-1.5 py-0.5 text-xs font-semibold text-onaccent">
+              {narrowing}
+              <span className="sr-only"> applied</span>
+            </span>
+          )}
+          {/* The chevron follows the state and cannot disagree with it —
+              there is one boolean to follow. */}
+          <ChevronIcon up={open} />
+        </button>
+
+        {/* Its own line on a phone, where three labels and a search field
+            cannot share one; pushed to the far edge from sm up. Quiet tone,
+            because a filled bronze block was the loudest thing on a page whose
+            loudest thing should be the results. */}
+        <div className="min-w-0 basis-full sm:ml-auto sm:basis-auto">
+          <Segmented
+            options={RESULTS_VIEWS}
+            value={view}
+            onChange={onViewChange}
+            label="Results view"
+            panelId={panelId}
+            tone="quiet"
+          />
+        </div>
+      </div>
+
+      {/* WHAT IS CURRENTLY HIDING THINGS, below the row and therefore on
+          screen whether the panel is open or shut. A filter you cannot see is
+          how somebody concludes their results have gone missing — and the
+          page's own Clear filters button is below the bar, which is to say
+          gone by the time it is wanted. It is deliberately outside the panel,
+          so shutting the panel never takes away either the chips or the way to
+          clear them. */}
+      {applied && (
+        <div role="group" aria-label="Applied filters" className="mt-4 flex flex-wrap items-center gap-2">
+          {/* Only where there is a chip to introduce — a search term on
+              its own is already legible in the field above, and an eyebrow
+              over nothing is a label for an empty set. */}
+          {narrowing > 0 && <span className="eyebrow">Filtered by</span>}
+          {filters.statusFilter !== 'ALL' && (
+            <FilterChip value={statusLabel ?? filters.statusFilter} onClear={() => onChange({ statusFilter: 'ALL' })} />
+          )}
+          {filters.categoryFilter !== 'ALL' && (
+            <FilterChip value={categoryLabel ?? 'Selected area'} onClear={() => onChange({ categoryFilter: 'ALL' })} />
+          )}
+          <button
+            type="button"
+            onClick={onClearFilters}
+            className="rounded-full border border-bronze/60 px-3 py-1.5 text-xs font-medium text-bronze transition duration-150 ease-out hover:border-bronze hover:bg-bronze-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
+          >
+            Clear all filters
+          </button>
+        </div>
+      )}
+
+      {/* THE PANEL — how the markers are narrowed and how they are laid
+          out, in the order the questions get asked.
+
+          UNMOUNTED WHEN SHUT, not merely hidden. It used to be held in the
+          layout with `visibility: hidden` so that collapsing it could not drag
+          a pinned page upward. That reasoning was sound while the panel opened
+          and closed on SCROLL — the reader had not asked for it and must not
+          lose their place. It is not sound now that the panel only ever
+          changes because somebody pressed the button: they are looking at the
+          controls, the movement is the answer to their press, and reserving
+          the space permanently meant an invisible box sitting over the markers
+          on every screen.
+
+          No border and no fill of its own either: it belongs to the row above
+          it, and drawing a box round four pickers is how the whole bar became
+          a form panel in the first place. */}
+      {open && (
+        <div id={FOLD_ID} ref={foldRef} className="mt-6 motion-safe:animate-fadeIn">
           {/* Four pickers, sized to sit on ONE line inside the narrowest
               content column that shows them all — 1280 with the sidebar out,
-              which is 880px less a scrollbar. At the old widths they landed a
-              pixel over and wrapped, which put the bar's resting height back
-              up above where it started. */}
+              which is 880px less a scrollbar. */}
           <div className="flex flex-wrap items-end gap-x-4 gap-y-4">
             <div className="w-full sm:w-48">
               <Select
@@ -450,8 +446,7 @@ export function ResultsControlBar({
             )}
           </div>
         </div>
-        )}
-      </div>
-    </>
+      )}
+    </div>
   );
 }

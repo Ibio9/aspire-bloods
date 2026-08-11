@@ -22,7 +22,9 @@ import { hashPassword } from '../src/lib/password.js';
 import { hashToken, generateToken } from '../src/lib/crypto.js';
 import { seedRandoxCatalogue, formatCatalogueReport } from './seedCatalogue.js';
 import { applyHouseStyle, applyVocabularyRule, sameWords } from '../src/lib/houseStyle.js';
+import { isRetractableApproval, retractionReason } from '../src/lib/explanationReview.js';
 import { explanationFor } from './markerExplanations.js';
+import { LOTHIAN, PUBLISHED_RANGES, WITHHELD, publishedRangeSource } from './publishedReferenceRanges.js';
 
 interface MarkerSeed {
   key: string;
@@ -385,6 +387,210 @@ async function restyleStoredCopy() {
 }
 
 /**
+ * THE SEX-SPECIFIC RANGES FROM A PUBLISHED THIRD-PARTY LABORATORY.
+ *
+ * Twenty analytes in the catalogue are sex-dependent in clinical use and store
+ * one blanket `ANY` band, which renders an ordinary, correctly-formatted
+ * suggestion that is wrong for roughly half of patients. Ten of them can now
+ * be answered from a named source; the other ten cannot and stay flagged. See
+ * publishedReferenceRanges.ts for the source, the conversions and, for every
+ * analyte NOT loaded, the reason.
+ *
+ * THREE PROPERTIES, ALL OF THEM DELIBERATE:
+ *
+ *  · IT NEVER OVERWRITES A RANDOX ROW. Reference intervals are assay-specific.
+ *    A row already at `RANDOX` is left exactly as it is and the fact is
+ *    printed, because "we skipped it" and "we forgot it" look identical in a
+ *    silent run.
+ *  · IT ONLY EVER TOUCHES A ROW NO RESULT POINTS AT, and this is the one that
+ *    bites. `ReferenceRange` holds two different things under one roof: the
+ *    catalogue of fallbacks, and one row per result ever materialised
+ *    recording what was printed on that patient's paper (see the audit —
+ *    3,127 rows across 444 markers in this development database, and one
+ *    marker with 76). A `findFirst` on marker-and-sex therefore lands on an
+ *    arbitrary RESULT record far more often than on the catalogue row, and
+ *    updating it rewrites one patient's history to say their laboratory
+ *    printed a range it did not. `results: { none: {} }` is the whole
+ *    difference and it is not an optimisation.
+ *  · IT REPLACES ITS OWN PREVIOUS ROW rather than adding a second one. The
+ *    catalogue is meant to hold one row per marker-and-sex; the table's habit
+ *    of accumulating rows is a separate known defect and this must not feed it.
+ *  · THE BLANKET `ANY` ROW GOES. Leaving it beside the two sex-specific rows
+ *    would keep answering for a patient with no sex on file — which is exactly
+ *    the silent wrong answer being fixed, still there, now with company. With
+ *    it gone the resolver refuses and says why.
+ */
+async function seedPublishedReferenceRanges() {
+  let written = 0;
+  let skippedRandox = 0;
+  let anyRemoved = 0;
+  const unknownMarkers: string[] = [];
+
+  for (const range of PUBLISHED_RANGES) {
+    const marker = await prisma.marker.findUnique({ where: { key: range.markerKey } });
+    if (!marker) {
+      unknownMarkers.push(range.markerKey);
+      continue;
+    }
+
+    // A CATALOGUE row and never a result's own record. See the third bullet
+    // above: without `results: { none: {} }` this rewrites a patient's history.
+    const existing = await prisma.referenceRange.findFirst({
+      where: { markerId: marker.id, sex: range.sex, ageMin: null, ageMax: null, results: { none: {} } },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (existing?.provenance === 'RANDOX') {
+      skippedRandox += 1;
+      continue;
+    }
+
+    const data = {
+      markerId: marker.id,
+      sex: range.sex,
+      unit: range.stored.unit,
+      low: range.stored.low,
+      high: range.stored.high,
+      source: publishedRangeSource(range),
+      provenance: 'PUBLISHED' as const,
+      sourceDocument: LOTHIAN.document,
+      sourcePublisher: LOTHIAN.publisher,
+      sourceDate: LOTHIAN.date,
+      sourceUrl: LOTHIAN.url,
+    };
+    if (existing) await prisma.referenceRange.update({ where: { id: existing.id }, data });
+    else await prisma.referenceRange.create({ data });
+    written += 1;
+  }
+
+  // The blanket row, once BOTH sexes are covered — never before. Removing it
+  // while only one sex had a band would leave the other with nothing.
+  for (const key of [...new Set(PUBLISHED_RANGES.map((r) => r.markerKey))]) {
+    const sexes = new Set(PUBLISHED_RANGES.filter((r) => r.markerKey === key).map((r) => r.sex));
+    if (sexes.size < 2) continue;
+    const marker = await prisma.marker.findUnique({ where: { key } });
+    if (!marker) continue;
+    const blanket = await prisma.referenceRange.findMany({
+      where: { markerId: marker.id, sex: 'ANY', provenance: { not: 'RANDOX' }, results: { none: {} } },
+    });
+    for (const row of blanket) {
+      // `results: { none: {} }` above is the guard that matters: a row a real
+      // result points at is that result's record of what was printed on the
+      // paper, not a catalogue fallback, and deleting one would rewrite
+      // history. Those are left and the count says so.
+      await prisma.referenceRange.delete({ where: { id: row.id } });
+      anyRemoved += 1;
+    }
+  }
+
+  console.log(
+    `  Wrote ${written} sex-specific range(s) at PUBLISHED, from ${LOTHIAN.publisher} (${LOTHIAN.date}).` +
+      (anyRemoved > 0 ? ` Removed ${anyRemoved} blanket ANY row(s) they replace.` : '') +
+      (skippedRandox > 0 ? ` Left ${skippedRandox} alone because a RANDOX range already covers them.` : ''),
+  );
+  console.log(
+    `  ${WITHHELD.length} sex-dependent analyte(s) are deliberately NOT loaded and stay flagged: ` +
+      `${WITHHELD.map((w) => w.name).join(', ')}. See prisma/publishedReferenceRanges.ts for the reason on each.`,
+  );
+  if (unknownMarkers.length > 0) {
+    console.log(`  ${unknownMarkers.length} range(s) name a marker this database has no row for: ${unknownMarkers.join(', ')}`);
+  }
+}
+
+/**
+ * THE FIXTURE ACCOUNTS. Every user any seed in this repository creates.
+ *
+ * Exported so `explanationApprovals.test.ts` asserts the retraction below
+ * against the same list rather than a second copy of it — a list that drifts
+ * from the accounts it names is a filter that quietly stops filtering.
+ */
+export const SEED_FIXTURE_EMAILS = [
+  'admin@aspireshield.dev',
+  'clinician@aspireshield.dev',
+  'demo.admin@aspireshield.dev',
+  'demo.clinician@aspireshield.dev',
+  'demo.showcase@aspireshield.dev',
+  'demo.patient@example.com',
+] as const;
+
+/**
+ * RETRACT EVERY APPROVAL THAT IS NOT A REAL ONE, AND SAY SO IN THE AUDIT LOG.
+ *
+ * The seed has not written a review status for some time (see the note in
+ * main() below), but the rows an earlier version of it wrote are still in every
+ * database it ever ran against — 69 attributed to Chloe Clinician, one to Ada
+ * Admin, two with no reviewer at all. "Stopped creating them" is not the same
+ * as "they are gone", and while they are there the product reports 72 pieces of
+ * clinical copy as checked when the honest number is zero. That is worse than
+ * a DRAFT row, not better: nobody goes back to something already ticked off.
+ *
+ * A REVIEW IS A NAMED PERSON WHO READ IT. So exactly three things are retracted
+ * here, and nothing else:
+ *
+ *  · A status with no `reviewedById`. There is nobody to ask what was checked.
+ *  · A status attributed to one of the accounts a seed creates. A fixture is
+ *    not a reviewer, whatever its job title says on the record.
+ *  · Nothing else. A row signed by a real account is left exactly as it is,
+ *    including one signed by an administrator rather than a clinician — that
+ *    is a real person's real act and it is the audit's job to say it is not a
+ *    clinical sign-off, not this sweep's job to erase it.
+ *
+ * Each retraction gets its own audit entry under a SYSTEM actor naming the
+ * status it held and the account it was attributed to, because a clinical
+ * record that changes silently is worse than one that changes.
+ */
+async function retractSeedApprovals() {
+  const fixtureIds = new Set(
+    (
+      await prisma.user.findMany({
+        where: { email: { in: [...SEED_FIXTURE_EMAILS] } },
+        select: { id: true, email: true },
+      })
+    ).map((u) => [u.id, u.email] as const),
+  );
+  const emailById = new Map(fixtureIds);
+
+  const suspect = await prisma.markerExplanation.findMany({
+    where: { reviewStatus: { not: 'DRAFT' } },
+    include: { marker: { select: { name: true } } },
+  });
+
+  const fixtureUserIds = new Set(emailById.keys());
+  let retracted = 0;
+  for (const e of suspect) {
+    // A real account signed it. Not ours to undo — see explanationReview.ts.
+    if (!isRetractableApproval(e, fixtureUserIds)) continue;
+    const attributedTo = e.reviewedById ? emailById.get(e.reviewedById) : undefined;
+
+    await prisma.markerExplanation.update({
+      where: { id: e.id },
+      data: { reviewStatus: 'DRAFT', reviewedById: null, reviewedAt: null },
+    });
+    await prisma.auditLogEntry.create({
+      data: {
+        actorType: 'SYSTEM',
+        action: 'MARKER_EXPLANATION_APPROVAL_RETRACTED',
+        targetType: 'MarkerExplanation',
+        targetId: e.id,
+        metadata: {
+          marker: e.marker.name,
+          from: e.reviewStatus,
+          to: 'DRAFT',
+          attributedTo: attributedTo ?? null,
+          reason: retractionReason(e, attributedTo ?? null),
+        },
+      },
+    });
+    retracted += 1;
+  }
+
+  if (retracted > 0) {
+    console.log(
+      `  Retracted ${retracted} explanation approval(s) that no real reviewer signed. Each is recorded in the audit log.`,
+    );
+  }
+}
+
+/**
  * Write patient-facing copy for every catalogue marker that has none.
  *
  * The catalogue import creates several hundred markers (food sensitivity items,
@@ -515,6 +721,11 @@ async function main() {
           low: m.low,
           high: m.high,
           source: 'Seed default: standard adult reference range, confirm against Randox report',
+          // UNSOURCED, and that is the honest tier for every one of these:
+          // they are standard adult bands nobody has verified against a
+          // document. The audit says so in a file; this says so on the row,
+          // which is what the verify form can actually show an admin.
+          provenance: 'UNSOURCED',
         },
       });
     }
@@ -559,8 +770,10 @@ async function main() {
     // checked wording no clinician has read. reviewStatus is a factual record
     // of who checked what, and a seed cannot truthfully write to it.
     //
-    // Rows already REVIEWED in an existing database are left exactly as they
-    // are: this changes what a fresh install records, not history.
+    // Rows already REVIEWED in an existing database by a REAL account are left
+    // exactly as they are. The ones an earlier version of this seed wrote are
+    // not — see retractSeedApprovals(), which runs below and undoes them with
+    // an audit entry each.
     void explanation;
   }
 
@@ -584,6 +797,18 @@ async function main() {
   // this writes copy for.
   console.log('Writing explanation copy for markers that have none...');
   await writeMissingExplanations();
+
+  // AFTER every explanation exists and BEFORE the run reports anything, so the
+  // count it prints is the count a reader would get. The seed does not create
+  // approvals; this takes back the ones an earlier version of it did.
+  console.log('Retracting explanation approvals no real reviewer signed...');
+  await retractSeedApprovals();
+
+  // After the catalogue too — several of these markers (troponin I, CA 125,
+  // the microalbumin ratio) exist only because the catalogue import created
+  // them, so running this earlier would file ranges against nothing.
+  console.log('Loading sourced sex-specific reference ranges...');
+  await seedPublishedReferenceRanges();
 
   // Anything else still active is either an older seed's guess that predates
   // SUPERSEDED_PANEL_KEYS, or a panel an admin deliberately created. Those two

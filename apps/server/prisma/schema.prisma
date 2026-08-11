@@ -534,6 +534,35 @@ model PanelMarker {
   @@index([markerId])
 }
 
+/// WHERE A REFERENCE RANGE CAME FROM, as a tier rather than as free text.
+///
+/// `source` below is a sentence and always has been, which means nothing can
+/// sort, filter or count on it and nothing can put a badge next to a
+/// suggestion in the verify form. That matters because the suggestion is shown
+/// to an admin who is looking at a paper result: a suggestion that is usually
+/// correct is one people stop checking, and the tier is the thing that stops
+/// that. It says what kind of authority is behind the number, so a range from
+/// the laboratory that ran the test does not look identical to one nobody has
+/// verified.
+///
+/// The order is deliberate and is the precedence order. RANDOX outranks
+/// PUBLISHED outranks UNSOURCED, always: a third-party interval never
+/// overwrites one from the laboratory that produced the result, because
+/// reference intervals are assay-specific.
+enum RangeProvenance {
+  /// From a Randox document in apps/server/src/modules/randox/specs/. The
+  /// laboratory that runs the assay, which is the only authority that is
+  /// actually about THIS test.
+  RANDOX
+  /// A named third-party laboratory or published guideline. Weaker than
+  /// RANDOX on purpose and replaced the moment a Randox range exists for the
+  /// same analyte.
+  PUBLISHED
+  /// A seeded fallback nobody has verified. The default, because that is what
+  /// most of the catalogue is.
+  UNSOURCED
+}
+
 model ReferenceRange {
   id        String   @id @default(uuid())
   markerId  String
@@ -544,7 +573,19 @@ model ReferenceRange {
   unit      String
   low       Float
   high      Float
+  /// Free text, kept as it was — a sentence for a human reading the row.
   source    String?
+  provenance RangeProvenance @default(UNSOURCED)
+  /// The citation, stored WITH the row rather than in a comment somewhere.
+  /// A tier on its own is an assertion; these four are what makes it checkable
+  /// by somebody who wants to go and read the document.
+  sourceDocument  String?
+  sourcePublisher String?
+  /// The document's own date, as printed on it. A string because that is what
+  /// a publication carries ("March 2020") and coercing it to a DateTime would
+  /// invent a day.
+  sourceDate      String?
+  sourceUrl       String?
   createdAt DateTime @default(now())
   results   ReportResult[]
 

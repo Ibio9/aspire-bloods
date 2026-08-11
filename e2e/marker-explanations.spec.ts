@@ -101,86 +101,114 @@ test('every marker in the library has real copy, and none of it is a placeholder
 test('a patient cannot tell reviewed copy from unreviewed copy', async ({ browser }) => {
   test.setTimeout(180_000);
 
-  // --- Admin: find one marker of each review state that the library lists ---
+  // --- Patient: what the library actually lists ---
+  const ctx = await browser.newContext();
+  await signIn(ctx.request, DEMO_EMAIL, DEMO_PASSWORD);
+  const entries = (await (await ctx.request.get('/api/patient/library')).json()) as LibraryEntry[];
+  const listed = new Map(entries.map((e) => [e.markerId, e]));
+
+  // --- Admin: two markers in one state, and one of them promoted ---
   const adminCtx = await browser.newContext();
   await signIn(adminCtx.request, ADMIN_EMAIL, ADMIN_PASSWORD);
+  const csrf =
+    (await adminCtx.request.storageState()).cookies.find((c) => c.name === 'csrf_token')?.value ?? '';
   const rows = (await (await adminCtx.request.get('/api/panels/markers/explanations')).json()) as {
     markerId: string;
     markerName: string;
     hasExplanation: boolean;
     reviewStatus: 'DRAFT' | 'REVIEWED' | 'PUBLISHED';
   }[];
-  await adminCtx.close();
 
-  const withCopy = rows.filter((r) => r.hasExplanation);
-  const drafts = withCopy.filter((r) => r.reviewStatus === 'DRAFT');
-  const signedOff = withCopy.filter((r) => r.reviewStatus !== 'DRAFT');
-  expect(drafts.length, 'no draft copy exists, so this test would prove nothing').toBeGreaterThan(0);
-  expect(signedOff.length, 'no reviewed copy exists, so there is nothing to compare against').toBeGreaterThan(0);
+  const candidates = rows.filter((r) => r.hasExplanation && r.reviewStatus === 'DRAFT' && listed.has(r.markerId));
+  expect(candidates.length, 'fewer than two draft markers in the library, so this would prove nothing').toBeGreaterThan(1);
+  const draft = candidates[0];
+  const reviewed = candidates[1];
 
-  // --- Patient: both must render the same way ---
-  const ctx = await browser.newContext();
-  await signIn(ctx.request, DEMO_EMAIL, DEMO_PASSWORD);
-  const entries = (await (await ctx.request.get('/api/patient/library')).json()) as LibraryEntry[];
-  const listed = new Map(entries.map((e) => [e.markerId, e]));
-
-  const draft = drafts.find((r) => listed.has(r.markerId));
-  const reviewed = signedOff.find((r) => listed.has(r.markerId));
-  expect(draft, 'expected at least one draft marker in the library').toBeTruthy();
-  expect(reviewed, 'expected at least one reviewed marker in the library').toBeTruthy();
-
-  const page = await ctx.newPage();
-  await page.setViewportSize({ width: 1280, height: 1400 });
-  await page.goto('/library');
-  await page.waitForLoadState('networkidle');
-
-  // Presentation, not structure. Two entries legitimately differ in shape when
-  // one has "if it's high" copy and the other does not, and that is true of two
-  // reviewed markers as much as of a reviewed and a draft one. What must not
-  // differ is how the copy is dressed: the same wrapper, the same prose
-  // container, the same type colour, and nothing extra hung off either.
-  const shapes: Record<string, { wrapper: string; prose: string; lede: string; colour: string; extras: string[] }> = {};
-  for (const [label, row] of [
-    ['draft', draft!],
-    ['reviewed', reviewed!],
-  ] as const) {
-    await page.getByLabel('Find a marker').fill(listed.get(row.markerId)!.name);
-    await page.waitForTimeout(250);
-    const panel = await openCard(page, listed.get(row.markerId)!.name);
-
-    shapes[label] = await panel.evaluate((el) => {
-      const prose = el.querySelector('div')!;
-      const lede = prose.querySelector('p')!;
-      // Anything that is not the prose block or the "see your own results"
-      // link: a badge, a banner or a marginal note would land here.
-      const extras = [...el.children]
-        .filter((c) => c !== prose && c.tagName !== 'A')
-        .map((c) => `${c.tagName}.${c.className}`);
-      return {
-        wrapper: el.className,
-        prose: prose.className,
-        lede: lede.className,
-        colour: getComputedStyle(lede).color,
-        extras,
-      };
+  /**
+   * THE REVIEWED ROW IS MADE HERE, BY A SIGNED-IN REVIEWER, AND PUT BACK
+   * AFTERWARDS.
+   *
+   * It used to be FOUND: the spec looked for a marker the seed had already
+   * marked PUBLISHED. Those rows were fixtures — 69 attributed to a seeded
+   * demo clinician, one to an administrator, two to nobody — and the seed now
+   * retracts every one of them, so a freshly seeded database has no reviewed
+   * copy in it at all and this test had nothing to compare against.
+   *
+   * Making its own is better than the version it replaces rather than a
+   * workaround for it. A review is a named person who read the copy, so the
+   * only honest way to have one is to be a named person and do it — which is
+   * exactly the path this now exercises. The state is handed back in a finally
+   * block, so a failed assertion cannot leave a marker approved.
+   */
+  const setStatus = (markerId: string, reviewStatus: 'DRAFT' | 'PUBLISHED') =>
+    adminCtx.request.patch(`/api/panels/markers/${markerId}/explanation/review-status`, {
+      headers: { 'X-CSRF-Token': csrf },
+      data: { reviewStatus },
     });
 
-    await page.getByLabel('Find a marker').fill('');
-    await page.waitForTimeout(150);
+  const promoted = await setStatus(reviewed.markerId, 'PUBLISHED');
+  expect(promoted.ok(), `could not approve ${reviewed.markerName}`).toBeTruthy();
+
+  try {
+    const page = await ctx.newPage();
+    await page.setViewportSize({ width: 1280, height: 1400 });
+    await page.goto('/library');
+    await page.waitForLoadState('networkidle');
+
+    // Presentation, not structure. Two entries legitimately differ in shape when
+    // one has "if it's high" copy and the other does not, and that is true of two
+    // reviewed markers as much as of a reviewed and a draft one. What must not
+    // differ is how the copy is dressed: the same wrapper, the same prose
+    // container, the same type colour, and nothing extra hung off either.
+    const shapes: Record<string, { wrapper: string; prose: string; lede: string; colour: string; extras: string[] }> = {};
+    for (const [label, row] of [
+      ['draft', draft],
+      ['reviewed', reviewed],
+    ] as const) {
+      await page.getByLabel('Find a marker').fill(listed.get(row.markerId)!.name);
+      await page.waitForTimeout(250);
+      const panel = await openCard(page, listed.get(row.markerId)!.name);
+
+      shapes[label] = await panel.evaluate((el) => {
+        const prose = el.querySelector('div')!;
+        const lede = prose.querySelector('p')!;
+        // Anything that is not the prose block or the "see your own results"
+        // link: a badge, a banner or a marginal note would land here.
+        const extras = [...el.children]
+          .filter((c) => c !== prose && c.tagName !== 'A')
+          .map((c) => `${c.tagName}.${c.className}`);
+        return {
+          wrapper: el.className,
+          prose: prose.className,
+          lede: lede.className,
+          colour: getComputedStyle(lede).color,
+          extras,
+        };
+      });
+
+      await page.getByLabel('Find a marker').fill('');
+      await page.waitForTimeout(150);
+    }
+
+    expect(shapes.draft.wrapper, 'draft copy sits in a different container').toBe(shapes.reviewed.wrapper);
+    expect(shapes.draft.prose, 'draft copy uses a different prose block').toBe(shapes.reviewed.prose);
+    expect(shapes.draft.lede, 'draft copy is styled differently from reviewed copy').toBe(shapes.reviewed.lede);
+    expect(shapes.draft.colour, 'draft copy is a different colour from reviewed copy').toBe(shapes.reviewed.colour);
+    expect(shapes.draft.extras, 'draft copy carries an element reviewed copy does not').toEqual([]);
+    expect(shapes.reviewed.extras, 'reviewed copy carries an element draft copy does not').toEqual([]);
+
+    // Nothing anywhere on the page announces an editorial state.
+    const body = (await page.locator('body').innerText()).toLowerCase();
+    for (const leak of ['draft', 'not yet reviewed', 'awaiting review', 'pending review', 'being finalised']) {
+      expect(body, `the library says "${leak}" to a patient`).not.toContain(leak);
+    }
+  } finally {
+    // Back to DRAFT whatever happened above. A failed assertion must not leave
+    // a marker recorded as approved — that is the exact defect the seed's own
+    // retraction exists to clean up, and a test that manufactured one would be
+    // reintroducing it on every run.
+    await setStatus(reviewed.markerId, 'DRAFT');
+    await adminCtx.close();
+    await ctx.close();
   }
-
-  expect(shapes.draft.wrapper, 'draft copy sits in a different container').toBe(shapes.reviewed.wrapper);
-  expect(shapes.draft.prose, 'draft copy uses a different prose block').toBe(shapes.reviewed.prose);
-  expect(shapes.draft.lede, 'draft copy is styled differently from reviewed copy').toBe(shapes.reviewed.lede);
-  expect(shapes.draft.colour, 'draft copy is a different colour from reviewed copy').toBe(shapes.reviewed.colour);
-  expect(shapes.draft.extras, 'draft copy carries an element reviewed copy does not').toEqual([]);
-  expect(shapes.reviewed.extras, 'reviewed copy carries an element draft copy does not').toEqual([]);
-
-  // Nothing anywhere on the page announces an editorial state.
-  const body = (await page.locator('body').innerText()).toLowerCase();
-  for (const leak of ['draft', 'not yet reviewed', 'awaiting review', 'pending review', 'being finalised']) {
-    expect(body, `the library says "${leak}" to a patient`).not.toContain(leak);
-  }
-
-  await ctx.close();
 });

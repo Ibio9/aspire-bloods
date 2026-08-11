@@ -118,6 +118,7 @@ If you need a working deploy before DNS/certs are sorted: in `vercel.json`, add 
 | `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` / `CSRF_SECRET` / `FILE_SIGNING_SECRET` / `ENCRYPTION_KEY` | ✅ | | |
 | `ADMIN_EMAILS` | ✅ | | |
 | `RESEND_API_KEY` | ✅ | | |
+| `ESCALATION_EMAIL` (not a secret — staff routing, and production refuses to boot without it) | ✅ | | |
 | `COOKIE_DOMAIN` / `APP_BASE_URL` / `API_BASE_URL` | ✅ | | |
 | `BACKUP_S3_*` / `BACKUP_RETENTION_DAYS` (off-platform backup target) | | ✅ | |
 | `VITE_API_BASE_URL` | | | ✅ |
@@ -138,6 +139,27 @@ These have working defaults and only need setting in Railway if the practice wan
 | `PASSWORD_RESET_RATE_LIMIT_MAX` | `5` | Reset links requestable per IP per `SIGNUP_RATE_LIMIT_WINDOW_SECONDS`. Not an enumeration control (the endpoint answers identically for an unknown address) — it stops our mail server being used to bombard an inbox. Leave it at the default in production; it exists as a setting so local/e2e runs can raise it |
 
 **Note the rename**: `LOGIN_RATE_LIMIT_WINDOW_MINUTES` and `OTP_RATE_LIMIT_WINDOW_MINUTES` are gone, replaced by the `_SECONDS` variables above — the login window is now shorter than a minute's granularity can express. Any value still set for the old names is ignored, so remove them from Railway when deploying this change or the numbers will silently be the defaults rather than what the dashboard appears to say.
+
+### Clinical escalation, and the address patients are given
+
+These were **one variable until August 2026** and are now two. Read this before setting either, because the failure mode of getting it wrong is silent and patient-facing.
+
+| Variable | Value | Who sees it |
+|---|---|---|
+| `ESCALATION_EMAIL` | `raheelmalik@me.com` | **Staff only.** Never rendered anywhere a patient can reach. |
+| `CLINIC_CONTACT_EMAIL` | `clinical-team@aspireshield.com` | **Every patient, constantly** — the portal sidebar on every screen, the out-of-range card, and the footer of every Aspire summary PDF. |
+
+`getClinicContact()` used to read `ESCALATION_EMAIL` for the patient-facing address, so one variable answered two unrelated questions: *where is a clinician paged* and *what address is a patient told to write to*. Those want different values — the first is a named person who is actually on duty, the second is a shared inbox that outlives whoever that is — and pointing the escalation at an individual, which is what a small practice actually wants, published that person's personal address to every patient and into every PDF already downloaded.
+
+**Set both in Railway.** `ESCALATION_EMAIL` is the one that must be a person or a rota inbox someone genuinely reads; production now **refuses to boot** if it is empty or is not an address (`assertEscalationRoutable` in `lib/productionBootChecks.ts`). That check deliberately stops there: no code can tell whether a mailbox is monitored, and one that pretended to would be worse than none.
+
+**What an escalation actually is.** After a report is released — and only then — `checkAndEscalate()` looks at every result on it. If any is `HIGH`, `LOW`, `SIGNIFICANT_HIGH` or `SIGNIFICANT_LOW`, one email goes to `ESCALATION_EMAIL`. Results never compared to a range are excluded, because a marker with no finding cannot be outside one. The severity is `SIGNIFICANT` if any result is significantly out, otherwise `MILD`.
+
+**What is in the email, and it does contain patient-identifying detail.** Subject: `[Aspire Bloods] <urgency>: <patient name>`. Body: the patient's name, the report title, the sample date, the names of the flagged markers, and a link to the report in the admin portal. **No values, no ranges, no statuses.** The name is the patient's full name if a profile exists and their email address if not, so the body carries an identifier either way — this is an email to the treating practice about its own patient, which is what makes that appropriate, and it is the reason the address must be a mailbox the practice controls rather than a personal account on a consumer provider. Worth a decision in the DPIA (`docs/DPIA.md`), which flags it.
+
+**SMS is different and deliberately barer.** Only if `SMS_ENABLED` and `ESCALATION_SMS_NUMBER` are both set. It is a ping — "review required for a released report" plus the link — with **no patient name and no marker names**, because a text message is read on a lock screen.
+
+Every escalation writes an `EscalationEvent` row and an `ESCALATION_TRIGGERED` audit entry recording the severity, the marker count and which channels fired.
 
 ## Feature flags
 

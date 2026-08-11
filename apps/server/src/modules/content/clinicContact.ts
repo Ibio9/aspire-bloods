@@ -11,6 +11,15 @@ import { env } from '../../config/env.js';
  * this codebase, and inventing one that rings nowhere is worse than showing
  * no phone number at all (same reasoning as lib/authErrors.ts). Set
  * CLINIC_PHONE and the portal starts showing it everywhere at once.
+ *
+ * THE EMAIL IS `CLINIC_CONTACT_EMAIL`, NOT `ESCALATION_EMAIL` (Aug 2026).
+ * It read the escalation address, so one variable answered two unrelated
+ * questions: where a clinician is paged when a release comes back out of
+ * range, and what address a patient is told to write to. Those want different
+ * values — the first is a named person who is on duty, the second is a shared
+ * inbox that outlives whoever that is — and pointing the escalation at an
+ * individual silently printed their personal address in the portal sidebar of
+ * every screen, beside every out-of-range result, and in every PDF.
  */
 export interface ClinicContact {
   name: string;
@@ -35,7 +44,7 @@ export function getClinicContact(): ClinicContact {
   return {
     name: 'Aspire Clinic',
     addressLines: ['27 Mortimer Street', 'London'],
-    email: env.ESCALATION_EMAIL,
+    email: env.CLINIC_CONTACT_EMAIL,
     phone: env.CLINIC_PHONE || null,
     hours: env.CLINIC_HOURS,
     emergencyNote: 'In a medical emergency, call 999 or NHS 111.',

@@ -20,7 +20,8 @@ import {
 import { ReportListView } from './ReportListView';
 import { ReportHeader } from './ReportHeader';
 import { ReportDetailView } from './ReportDetailView';
-import { MarkerListView } from './MarkerListView';
+import { AllMarkersSummary, MarkerListView } from './MarkerListView';
+import type { MarkerRow } from '../../lib/patientPortal';
 import { CompareView } from './CompareView';
 import { useReportDetail } from './useReportDetail';
 
@@ -81,6 +82,21 @@ export function ResultsPage() {
   // reads the answer straight off the payload rather than being told.
   const [available, setAvailable] = useState<{ key: string; name: string }[]>([]);
   const [viewStatusCounts, setViewStatusCounts] = useState<Record<StatusFilter, number> | undefined>();
+  /**
+   * The measured markers the By marker view is showing, so the page can put
+   * that view's at-a-glance strip ABOVE the control bar.
+   *
+   * The order of this page is: what this is, how it went, then the tools for
+   * going through it — and it was only half true. Inside an open report the
+   * summary is in ReportHeader and the bar follows it; on By marker the bar
+   * came first and the summary was the first thing inside the results. Same
+   * page, two answers to "when do I get told whether anything needs a look".
+   *
+   * Lifted as DATA rather than as markup: MarkerListView is what fetches the
+   * markers and it goes on owning them, exactly as it already reports its
+   * health areas and its status counts up here.
+   */
+  const [summaryMarkers, setSummaryMarkers] = useState<MarkerRow[]>([]);
 
   // No-ops without an id, so the two views that are not a report cost nothing.
   const report = useReportDetail(reportId);
@@ -106,6 +122,10 @@ export function ResultsPage() {
       // one says otherwise, the page offers neither rather than the last one's.
       setAvailable([]);
       setViewStatusCounts(undefined);
+      // Same rule for the summary: it describes one view's set, and carrying
+      // the last one's across the switch would print a count of markers the
+      // page is no longer showing.
+      setSummaryMarkers([]);
 
       /**
        * Inside an open report the view is pinned by the ROUTE, not by the query
@@ -146,6 +166,7 @@ export function ResultsPage() {
     setAvailable(categories);
   }, []);
   const onStatusCounts = useCallback((counts: Record<StatusFilter, number>) => setViewStatusCounts(counts), []);
+  const onSummaryMarkers = useCallback((markers: MarkerRow[]) => setSummaryMarkers(markers), []);
 
   // The report list arranges itself by date and the comparison by its own
   // selection, so neither offers a grouping or a sort — see ArrangementScope.
@@ -182,6 +203,18 @@ export function ResultsPage() {
           key={reportId}
           reportId={reportId}
           data={report}
+          activeStatus={filters.statusFilter}
+          onSelectStatus={onStatusFilter}
+        />
+      )}
+
+      {/* AT A GLANCE, THEN THE CONTROLS — in every view, without exception.
+          The summary is what you read; the controls are what you reach for
+          afterwards. An open report gets its own strip from ReportHeader
+          above; this is the By marker view's, over every marker on record. */}
+      {view === 'by-marker' && (
+        <AllMarkersSummary
+          markers={summaryMarkers}
           activeStatus={filters.statusFilter}
           onSelectStatus={onStatusFilter}
         />
@@ -228,7 +261,7 @@ export function ResultsPage() {
             onClearFilters={clearFilters}
             onCategoriesAvailable={onCategoriesAvailable}
             onStatusCounts={onStatusCounts}
-            onSelectStatus={onStatusFilter}
+            onSummaryMarkers={onSummaryMarkers}
           />
         )}
         {view === 'compare' && (

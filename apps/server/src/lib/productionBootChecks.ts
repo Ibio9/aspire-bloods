@@ -63,6 +63,36 @@ function assertValidCookieDomain(): void {
 }
 
 /**
+ * The escalation has somewhere real to go.
+ *
+ * This is the one notification in the product that exists because a patient
+ * might need to hear from somebody: a released report comes back with a result
+ * outside its range and a clinician is told. `emailProvider.sendEmail` to an
+ * empty or malformed address does not throw here — it fails at Resend, in a
+ * log, hours later, and the practice's evidence that nothing needed attention
+ * is that nothing arrived.
+ *
+ * Deliberately narrow. It checks that the value is present and is an address,
+ * not that anybody reads it: no code can tell whether a mailbox is monitored,
+ * and a check that pretended to would be worse than this one.
+ */
+export function isRoutableEscalationAddress(value: string): boolean {
+  const trimmed = value.trim();
+  return trimmed.length > 0 && /^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(trimmed);
+}
+
+function assertEscalationRoutable(): void {
+  const value = env.ESCALATION_EMAIL.trim();
+  if (!isRoutableEscalationAddress(value)) {
+    throw new Error(
+      `Refusing to boot in production: ESCALATION_EMAIL is ${value ? `"${value}", which is not an email address` : 'not set'}. ` +
+        'It is where a clinician is told that a released report came back outside its reference range, and a send to nowhere fails at the provider rather than here. ' +
+        'Set it to a monitored address — see DEPLOYMENT.md. It is staff-facing routing and is never shown to a patient; the address they see is CLINIC_CONTACT_EMAIL.',
+    );
+  }
+}
+
+/**
  * Phase 4 §4.5: fail loudly at startup, not silently at first request, if
  * production is misconfigured. Called once from index.ts before the
  * server starts listening — a thrown error here should crash the deploy,
@@ -76,4 +106,5 @@ export function runProductionBootChecks(): void {
   assertDevOtpBypassDisabled();
   assertRealEmailProviderConfigured();
   assertValidCookieDomain();
+  assertEscalationRoutable();
 }

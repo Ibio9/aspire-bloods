@@ -33,8 +33,29 @@ const envSchema = z.object({
   TWILIO_AUTH_TOKEN: z.string().optional().default(''),
   TWILIO_FROM_NUMBER: z.string().optional().default(''),
 
+  /**
+   * WHERE AN OUT-OF-RANGE RELEASE IS SENT. Internal routing, staff only.
+   *
+   * It used to be the patient-facing clinic address as well — `getClinicContact()`
+   * read this one variable, so it printed in the portal sidebar on every screen,
+   * beside every out-of-range result and in the footer of every PDF. That made
+   * one variable answer two unrelated questions, and pointing the escalation at
+   * a named individual (which is what a small practice actually wants) silently
+   * published that person's address to every patient.
+   *
+   * Two variables now. This one is never rendered to a patient; the address
+   * they see is CLINIC_CONTACT_EMAIL below.
+   */
   ESCALATION_EMAIL: z.string().default('clinical-team@aspireshield.com'),
   ESCALATION_SMS_NUMBER: z.string().optional().default(''),
+
+  /**
+   * THE ADDRESS A PATIENT IS GIVEN. Rendered in the sidebar, beside anything
+   * out of range, and in the Aspire summary PDF. A shared clinic inbox rather
+   * than a person, because it goes in front of everyone and outlives whoever
+   * is on the rota — see modules/content/clinicContact.ts.
+   */
+  CLINIC_CONTACT_EMAIL: z.string().default('clinical-team@aspireshield.com'),
 
   // Shown to patients in the portal's persistent "contact the clinic" panel.
   // CLINIC_PHONE has no default on purpose — see modules/content/clinicContact.ts.

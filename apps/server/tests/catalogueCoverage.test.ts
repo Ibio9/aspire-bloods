@@ -175,6 +175,62 @@ describe('catalogue counts', () => {
     expect(insight.length).toBeLessThan(250);
   });
 
+  /**
+   * THE TWO DISCREPANCIES ARE TWO PROBLEMS, AND REASSIGNMENT CANNOT FIX EITHER.
+   *
+   * Insight is 98 short of its published ~250 and Signature is 83 over its
+   * published ~350. Those nearly cancel, which is what made "one misfiling
+   * explains both" the obvious hypothesis — and the `categoryLevel` defect the
+   * obvious cause. This pins the arithmetic that rules it out, so the question
+   * is not re-opened from the counts alone. The note above CATALOGUE_PANELS
+   * has the reasoning.
+   */
+  it('cannot reconcile either panel with its published size by moving markers', () => {
+    const insight = CATALOGUE_PANELS.find((p) => p.key === 'insight-360')!;
+    const signature = CATALOGUE_PANELS.find((p) => p.key === 'signature')!;
+    const insightKeys = new Set(markerKeysForPanel(insight));
+    const signatureKeys = markerKeysForPanel(signature);
+
+    expect(insightKeys.size).toBe(152);
+    expect(signatureKeys.length).toBe(433);
+
+    // SIGNATURE CONTAINS INSIGHT BY CONSTRUCTION, so a marker moved out of
+    // "Signature only" and into Insight is a marker Signature still has.
+    // Reassignment is structurally incapable of subtracting from Signature's
+    // 433, whatever it does to Insight's 152.
+    expect([...insightKeys].filter((k) => !signatureKeys.includes(k))).toEqual([]);
+
+    // And of the 281 Signature holds that Insight does not, only these eleven
+    // are even candidates — the rest are in categories Insight does not list.
+    // Every one of the eleven is named in Signature's own description as what
+    // Signature adds, so moving them would contradict the product copy; and it
+    // would close 11 of the 98 in any case.
+    const signatureOnly = signatureKeys.filter((k) => !insightKeys.has(k));
+    expect(signatureOnly.length).toBe(281);
+    const byCategory = new Map(categoriesFor('signature').map((c) => [c.key, c]));
+    const inAnInsightArea = new Set(
+      insight.categoryKeys.flatMap((ck) =>
+        (byCategory.get(ck)?.markerNames ?? []).map(markerKeyForName).filter((k) => !insightKeys.has(k)),
+      ),
+    );
+    expect([...inAnInsightArea].sort()).toEqual(
+      [
+        'ana', 'anti-ttg', 'd-dimer', 'ecg', 'gastric-parietal-cell-antibodies',
+        'genetic-coeliac-disease', 'genetic-lactose-intolerance',
+        'intrinsic-factor-antibodies', 'troponin-i', 'troponin-t', 'ttg-iga',
+      ].sort(),
+    );
+    expect(insightKeys.size + inAnInsightArea.size).toBeLessThan(250);
+
+    // What is left is a counting unit, not a membership question: 207 of
+    // Signature's 433 are food-sensitivity IgG items, and Signature without
+    // them is UNDER the published figure rather than over it. Randox's "data
+    // points" is not our "markers", and that is a question for Randox.
+    const sensitivity = signatureKeys.filter((k) => byKey.get(k)?.resultType === 'SENSITIVITY').length;
+    expect(sensitivity).toBe(207);
+    expect(signatureKeys.length - sensitivity).toBeLessThan(350);
+  });
+
   it('gives only MEASURED a reference range, a trend and a place in the grid', () => {
     for (const [type, rules] of Object.entries(RESULT_TYPE_RULES)) {
       const measured = type === 'MEASURED';

@@ -50,6 +50,42 @@ import { applyHouseStyle, applyVocabularyRule, VOCABULARY_CORRECTIONS } from '..
 const OUT = path.resolve(process.cwd(), '../../docs/audits/marker-explanations.md');
 
 /**
+ * ─── THE CROSS-REFERENCE CANDIDATES, READ ONE BY ONE ──────────────────────
+ *
+ * The heuristic above flags an explanation that names a different catalogue
+ * marker and never names its own. It is crude on purpose and its false
+ * positives are by design — and the report has now twice been read as though
+ * the eleven rows it produces were eleven wrong explanations. A section headed
+ * "wrong-analyte candidates" over a bare table will keep being read that way,
+ * however carefully the paragraph above it is worded.
+ *
+ * So the reading is checked in, per marker, beside the heuristic that raised
+ * the flag. Each entry answers ONE question — does this text describe the
+ * marker it is attached to — against the copy as it stands in
+ * prisma/seed.ts and prisma/markerExplanations.ts.
+ *
+ * WHAT THIS IS NOT. It is not a clinical review and it does not promote
+ * anything out of DRAFT. All 442 explanations still need a clinician, these
+ * eleven included; what has been settled is only that none of them is a
+ * sentence pasted onto the wrong analyte, which is a different and much
+ * narrower claim. A marker that acquires the flag later and is not in this
+ * table is reported as unread rather than silently passing.
+ */
+const INSPECTED_CROSS_REFERENCES: Record<string, string> = {
+  'apo-cii': 'NO DEFECT. Describes ApoCII: the activator of lipoprotein lipase, carried on triglyceride-rich particles. Triglycerides are named because that is what the protein acts on.',
+  calcium: 'NO DEFECT. Describes calcium, and both directions are the right way round. Vitamin D is named in the low direction because that is one of the things a low calcium reflects.',
+  creatinine: 'NO DEFECT. Describes creatinine. Muscle mass is named because creatinine is produced by muscle, which is why the high direction mentions it.',
+  'cystatin-c': 'NO DEFECT. Describes cystatin C. Creatinine is named to draw the contrast that is the whole reason this test is used.',
+  'dhea-s': 'NO DEFECT. Describes DHEA-S. Testosterone is named because DHEA-S is a precursor of it.',
+  'free-androgen-index': 'NO DEFECT. Describes the index. Testosterone and SHBG are named because the index is calculated from them.',
+  globulin: 'NO DEFECT. Describes globulin. Total protein and albumin are named because globulin is usually derived by subtracting one from the other.',
+  haematocrit: 'NO DEFECT. Describes haematocrit, and both directions are the right way round. Haemoglobin is named as the marker it is read beside.',
+  phosphate: 'NO DEFECT. Describes phosphate, and both directions are the right way round. Calcium and vitamin D are named because phosphate is interpreted alongside them.',
+  urea: 'NO DEFECT. Describes urea. Creatinine and eGFR are named as the markers it is read beside.',
+  qfit: 'NO DEFECT. Describes the qFIT. Haemoglobin is named because human haemoglobin in stool is literally what the test measures.',
+};
+
+/**
  * Words the product must never use ABOUT A RESULT OR A LEVEL.
  *
  * The qualifier is the whole rule and the first version of this check ignored
@@ -585,6 +621,14 @@ async function main() {
     'The heuristic is crude on purpose: an entry is listed when its copy names a DIFFERENT catalogue marker and never names its own. That produces false positives by design — ferritin is best explained by mentioning iron, and repeating a marker’s own name inside its own description is worse copy, not better — and false positives are much cheaper here than a miss. Every candidate is listed rather than a sample, with enough text to decide from.',
   );
   lines.push('');
+  lines.push(
+    '**CANDIDATE IS NOT DEFECT, AND THIS SECTION HAS NOW BEEN READ TWICE AS THOUGH IT WERE.** A heading that says "wrong-analyte candidates" over a table of eleven rows reads as eleven wrong explanations, which is not what it is and not what the paragraph above it says. So the verdict column below carries the READING, per candidate, from `INSPECTED_CROSS_REFERENCES` in `scripts/auditExplanations.ts` — checked in beside the heuristic that raised the flag, so a re-run reproduces it rather than presenting eleven unresolved rows again.',
+  );
+  lines.push('');
+  lines.push(
+    'A verdict here is one person reading the sentence against the analyte it is attached to. **It is not a clinical sign-off and does not make the copy reviewed** — every one of these is still DRAFT and still inside the 442 that need a clinician. It answers one narrower question: does this text describe the marker it is on.',
+  );
+  lines.push('');
   const crossRefs = entries.filter((e) => e.flags.some((f) => f.startsWith('CROSS-REFERENCES')));
   if (crossRefs.length === 0) {
     lines.push('None.');
@@ -593,13 +637,25 @@ async function main() {
     // that is the condition that put it on the list — so a column saying so
     // for every row would be a tautology dressed as a finding. The question a
     // reader has to answer is the one no heuristic can: does the text in the
-    // last column actually describe the marker in the first?
-    lines.push('| Marker | Type | Names instead | Text |');
-    lines.push('| --- | --- | --- | --- |');
+    // first column actually describe the marker it is on — and that is what
+    // the verdict column now records, per candidate, rather than leaving it
+    // implied by a paragraph above the table.
+    lines.push('| Marker | Type | Names instead | Verdict | Text |');
+    lines.push('| --- | --- | --- | --- | --- |');
     for (const e of crossRefs) {
       const named = e.flags.find((f) => f.startsWith('CROSS-REFERENCES'))!.slice('CROSS-REFERENCES('.length, -1);
-      lines.push(`| ${esc(e.marker.name)} | ${e.marker.resultType} | ${esc(named)} | ${esc(e.body).slice(0, 220)}… |`);
+      const verdict = INSPECTED_CROSS_REFERENCES[e.marker.key] ?? 'NOT YET READ — a new candidate since the last inspection. Read it.';
+      lines.push(
+        `| ${esc(e.marker.name)} | ${e.marker.resultType} | ${esc(named)} | ${esc(verdict)} | ${esc(e.body).slice(0, 180)}… |`,
+      );
     }
+    const unread = crossRefs.filter((e) => !INSPECTED_CROSS_REFERENCES[e.marker.key]);
+    lines.push('');
+    lines.push(
+      unread.length === 0
+        ? `All **${crossRefs.length}** have been read, and none of them describes the wrong analyte. The flag is the heuristic firing on a legitimate cross-reference in every case.`
+        : `**${unread.length}** of the ${crossRefs.length} have not been read yet and are marked as such above.`,
+    );
   }
   lines.push('');
 

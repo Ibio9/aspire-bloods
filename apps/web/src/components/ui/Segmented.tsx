@@ -30,6 +30,7 @@ export function Segmented<T extends string>({
   onChange,
   label,
   panelId,
+  tone = 'accent',
   className = '',
 }: {
   options: SegmentedOption<T>[];
@@ -38,6 +39,20 @@ export function Segmented<T extends string>({
   /** Names the strip for a screen reader: "Results view", not an unlabelled group of three. */
   label: string;
   panelId: string;
+  /**
+   * `quiet` is the same control with its volume down: a warm bronze wash and
+   * the weight carrying selection, instead of a filled bronze block with
+   * light text on it.
+   *
+   * It exists because this sits on a page whose loudest thing should be the
+   * results. A solid accent tile is the right emphasis for a control that IS
+   * the page's main choice and the wrong one for a control that arranges
+   * something else — and the same reasoning already governs the sidebar's
+   * active row, which is a bronze rule and a whisper of fill for exactly this
+   * reason. Fill AND weight both still move, so selection is never carried by
+   * colour alone.
+   */
+  tone?: 'accent' | 'quiet';
   className?: string;
 }) {
   const refs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -65,7 +80,11 @@ export function Segmented<T extends string>({
       // A pill track rather than an underline: this sits above the content it
       // switches, where an underline would read as the bottom of a section.
       // Scrolls rather than widening the page — three labels exceed 375px.
-      className={`inline-flex max-w-full gap-1 overflow-x-auto rounded-input border border-taupe bg-cream-50 p-1 ${className}`}
+      // The quiet track keeps the hairline that makes it one object and drops
+      // the fill, so nothing is painted over the corner glow behind it.
+      className={`inline-flex max-w-full gap-1 overflow-x-auto rounded-input border border-taupe p-1 ${
+        tone === 'quiet' ? '' : 'bg-cream-50'
+      } ${className}`}
     >
       {options.map((o) => {
         const isActive = o.value === value;
@@ -86,7 +105,9 @@ export function Segmented<T extends string>({
               // Selected is carried by the fill AND the weight, never by colour
               // alone — same rule as the sidebar's active row.
               isActive
-                ? 'bg-bronze font-semibold text-onaccent shadow-btn'
+                ? tone === 'quiet'
+                  ? 'bg-bronze/[0.14] font-semibold text-espresso'
+                  : 'bg-bronze font-semibold text-onaccent shadow-btn'
                 : 'text-espresso/85 hover:bg-cream-200 hover:text-espresso'
             }`}
           >

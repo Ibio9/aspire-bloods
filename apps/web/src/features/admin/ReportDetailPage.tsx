@@ -54,6 +54,14 @@ interface ParsedRow {
   referenceHigh: number | null;
   /** Which of the two sources the range came from — the result itself, or the marker's stored fallback. */
   rangeSource: 'result' | 'marker_fallback' | null;
+  /**
+   * How well-founded the marker's stored fallback is. Null when the range came
+   * off the report itself, which needs no provenance from us — it IS the
+   * provenance. See PROVENANCE_LABEL on the server.
+   */
+  rangeProvenance: RangeProvenance | null;
+  rangeProvenanceLabel: string | null;
+  rangeProvenanceDetail: string | null;
   /** Why no range could be resolved, when none could. Never a silently blank field. */
   rangeNotice: string | null;
   sampleType: string | null;
@@ -96,8 +104,20 @@ interface ParseResponse {
  * hold, because a suggested range that quietly belongs to the wrong cohort
  * is worse than no suggestion at all.
  */
+type RangeProvenance = 'RANDOX' | 'PUBLISHED' | 'UNSOURCED';
+
 type ResolvedRangeResponse =
-  | { status: 'resolved'; referenceRangeId: string; low: number; high: number; unit: string }
+  | {
+      status: 'resolved';
+      referenceRangeId: string;
+      low: number;
+      high: number;
+      unit: string;
+      provenance: RangeProvenance;
+      provenanceLabel: string;
+      provenanceDetail: string;
+      citation: { document: string | null; publisher: string | null; date: string | null; url: string | null } | null;
+    }
   | { status: 'unavailable'; reason: string; message: string };
 
 interface ResultEdit {
@@ -287,6 +307,11 @@ export function ReportDetailPage() {
               referenceHigh: resolved.high,
               unit: row.unit ?? resolved.unit,
               rangeSource: 'marker_fallback',
+              // The tier comes with the number. Filling a field silently is
+              // how a suggestion stops being read as a suggestion.
+              rangeProvenance: resolved.provenance,
+              rangeProvenanceLabel: resolved.provenanceLabel,
+              rangeProvenanceDetail: resolved.provenanceDetail,
               rangeNotice: null,
             }
           : {},
@@ -947,6 +972,27 @@ function RowTable({
                 )}
                 {row.rangeSource && (
                   <p className="mt-1 text-xs text-espresso/80">Range {RANGE_SOURCE_LABEL[row.rangeSource]}</p>
+                )}
+                {/* WHERE THE SUGGESTION CAME FROM, on the row that carries it.
+                    Only on a marker fallback: a range printed on the report
+                    needs no provenance from us, it IS the provenance.
+
+                    A suggestion that is usually correct is one people stop
+                    checking, and until now an unverified standard adult band
+                    and a range transcribed from the Randox report looked
+                    exactly the same in this cell. The detail sentence says
+                    what to do about it rather than only naming a tier.
+
+                    No colour. A tier is not a status, and the traffic light in
+                    this table means something specific about the RESULT. */}
+                {row.rangeProvenanceLabel && (
+                  <p
+                    className="mt-1 max-w-[220px] text-xs leading-relaxed text-espresso/80"
+                    title={row.rangeProvenanceDetail ?? undefined}
+                  >
+                    <span className="font-medium">{row.rangeProvenanceLabel}</span>
+                    {row.rangeProvenance !== 'RANDOX' && row.rangeProvenanceDetail ? ` — ${row.rangeProvenanceDetail}` : ''}
+                  </p>
                 )}
                 {row.sampleType && <p className="mt-0.5 text-xs text-espresso/80">{row.sampleType}</p>}
                 {row.unevaluableReason && (

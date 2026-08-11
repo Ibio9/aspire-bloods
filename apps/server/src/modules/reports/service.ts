@@ -13,6 +13,8 @@ import {
   resolveReferenceRange,
   ageFromDob,
   RANGE_UNAVAILABLE_MESSAGE,
+  PROVENANCE_LABEL,
+  type RangeProvenance,
 } from '../../lib/resolveReferenceRange.js';
 import {
   classifyValue,
@@ -229,10 +231,15 @@ export async function parseReport(reportId: string, actorUserId: string, ip: str
     // --- Which range applies. Result first, marker fallback second, nothing third.
     let fallback: { low: number; high: number; unit: string } | null = null;
     let fallbackUnavailableReason: string | null = null;
+    // What kind of authority is behind the suggestion, so the verify form can
+    // show it beside the number rather than presenting every fallback as
+    // equally settled — see PROVENANCE_LABEL in lib/resolveReferenceRange.ts.
+    let fallbackProvenance: RangeProvenance | null = null;
     if (match) {
       const resolved = resolveReferenceRange(match.referenceRanges, patientSex, patientAge);
       if (resolved.status === 'resolved') {
         fallback = { low: resolved.range.low, high: resolved.range.high, unit: resolved.range.unit };
+        fallbackProvenance = resolved.range.provenance ?? 'UNSOURCED';
       } else {
         fallbackUnavailableReason = RANGE_UNAVAILABLE_MESSAGE[resolved.reason];
       }
@@ -289,6 +296,20 @@ export async function parseReport(reportId: string, actorUserId: string, ip: str
       referenceHigh: range.status === 'resolved' ? range.high : null,
       /** Which of the two sources the range above came from. Null when there is none. */
       rangeSource: range.status === 'resolved' ? range.source : null,
+      /**
+       * How well-founded the CATALOGUE fallback is, on the row that offers it.
+       * Null when the range came off the result itself, because a range printed
+       * on the paper needs no provenance from us — it IS the provenance.
+       */
+      rangeProvenance: range.status === 'resolved' && range.source === 'marker_fallback' ? fallbackProvenance : null,
+      rangeProvenanceLabel:
+        range.status === 'resolved' && range.source === 'marker_fallback' && fallbackProvenance
+          ? PROVENANCE_LABEL[fallbackProvenance].label
+          : null,
+      rangeProvenanceDetail:
+        range.status === 'resolved' && range.source === 'marker_fallback' && fallbackProvenance
+          ? PROVENANCE_LABEL[fallbackProvenance].detail
+          : null,
       rangeNotice: range.status === 'missing' ? range.reason : null,
       sampleType: row.sampleType ?? null,
       /** Derived here so the admin never types a status in. Null when no range could be resolved. */

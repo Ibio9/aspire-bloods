@@ -26,14 +26,14 @@ The map has to cover every marker Randox can send a result for, which is all of 
 
 | Result type | Markers | Answer to one spelling only |
 | --- | --- | --- |
-| SENSITIVITY | 207 | 205 |
+| SENSITIVITY | 207 | 0 |
 | MEASURED | 164 | 65 |
 | GENETIC | 32 | 29 |
 | QUALITATIVE | 22 | 21 |
 | COMPOSITION | 10 | 9 |
 
-**The SENSITIVITY row is the one to look at twice.** Our catalogue holds every food item with a disambiguating suffix — `Cod (IgG)`, `Casein (IgG)` — because deduplicating by name across categories would otherwise merge `Egg White` into a protein assay. That suffix is OURS, not Randox’s. If Randox print the food name bare, not one of those 207 resolves, and the whole food-sensitivity section of a Signature report lands in the exception queue at once.
-That is NOT fixed here by stripping the suffix or by adding 207 guessed aliases, for the same reason nothing else in this file is guessed: the queue catches an absent mapping and nothing catches a wrong one, and `Celery`, `Mustard Seed` and `Egg White` are exactly the names a future allergen panel would reuse. It is written down so the first Signature delivery is checked for it deliberately, rather than discovered as 207 exceptions.
+**The SENSITIVITY row WAS the single largest risk here, and is now closed (Aug 2026).** Our catalogue holds every food item with a disambiguating suffix — `Cod (IgG)`, `Casein (IgG)` — because deduplicating by name across categories would otherwise merge `Egg White` into a protein assay. That suffix is OURS, not Randox’s, and nobody has ever seen what Randox print. While all 207 answered to the suffixed spelling alone, Randox printing the food name bare meant not one of them resolved and the whole food-sensitivity section of a Signature report landed in the exception queue at once — which is not a queue, it is an outage with a list.
+**Both spellings now resolve.** The bare form is an alias on every sensitivity marker, which is why the count above is 0 rather than 207. This is NOT a guess at a Randox spelling and does not weaken the rule that governs the rest of this file: there is still no fuzzy matching, no similarity scoring and no substring fallback anywhere in `analyteMap.ts`. It is our own name accepted with and without a suffix we added ourselves. `Celery`, `Mustard Seed` and `Egg White` are still exactly the names a future allergen panel would reuse — if one ever collides, the index records BOTH claims and the row is refused as AMBIGUOUS rather than filed against a guess, and `tests/analyteObservations.test.ts` fails first, before the collision can reach a delivery.
 
 ## The 86 clinical markers that answer to exactly one spelling
 

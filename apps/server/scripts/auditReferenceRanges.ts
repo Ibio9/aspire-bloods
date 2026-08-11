@@ -71,6 +71,7 @@ import {
   resolveCatalogueMarkers,
 } from '@aspire-bloods/shared';
 import { prisma } from '../src/db/client.js';
+import { LOTHIAN, PUBLISHED_RANGES, WITHHELD } from '../prisma/publishedReferenceRanges.js';
 
 const OUT = path.resolve(process.cwd(), '../../docs/audits/reference-ranges.md');
 
@@ -299,9 +300,19 @@ interface SeededFallback {
   low: number;
   high: number;
   sex: 'MALE' | 'FEMALE' | 'ANY';
+  /**
+   * The row's provenance tier, which is now a column on ReferenceRange rather
+   * than a sentence in `source`. A range without one reads exactly like a
+   * range with one, which is why the tier exists at all.
+   */
+  provenance: 'RANDOX' | 'PUBLISHED' | 'UNSOURCED';
 }
 
 function readSeededFallbacks(): SeededFallback[] {
+  return applyPublishedRanges(readSeededFallbacksFromSeedFileOnly());
+}
+
+function readSeededFallbacksFromSeedFileOnly(): SeededFallback[] {
   const text = fs.readFileSync(SEED_FILE, 'utf8');
   const out: SeededFallback[] = [];
   for (const m of text.matchAll(SEED_ENTRY)) {
@@ -312,6 +323,7 @@ function readSeededFallbacks(): SeededFallback[] {
       low: Number(m[4]),
       high: Number(m[5]),
       sex: (m[6] as SeededFallback['sex']) ?? 'ANY',
+      provenance: 'UNSOURCED',
     });
   }
   if (out.length < 60) {
@@ -320,6 +332,37 @@ function readSeededFallbacks(): SeededFallback[] {
     );
   }
   return out;
+}
+
+/**
+ * WHAT THE SEED ACTUALLY LEAVES IN THE TABLE, which is no longer just the list
+ * in seed.ts.
+ *
+ * `seedPublishedReferenceRanges()` writes a sex-split pair for ten analytes and
+ * DELETES the blanket `ANY` row they replace. An audit that read only seed.ts
+ * would go on reporting those ten as "one ANY band" for ever — which is the
+ * report saying a defect is outstanding after it has been fixed, and is
+ * exactly as misleading as the reverse.
+ *
+ * The names come from whatever the seed's own row called the analyte, so a
+ * marker that only reaches the catalogue through the Randox import (troponin
+ * I, CA 125, the microalbumin ratio) picks its name up from the catalogue
+ * below instead.
+ */
+function applyPublishedRanges(seeded: SeededFallback[]): SeededFallback[] {
+  const replaced = new Set(PUBLISHED_RANGES.map((r) => r.markerKey));
+  const nameFor = new Map(seeded.map((s) => [s.key, s.name]));
+  const kept = seeded.filter((s) => !replaced.has(s.key));
+  const added = PUBLISHED_RANGES.map((r) => ({
+    key: r.markerKey,
+    name: nameFor.get(r.markerKey) ?? r.markerKey,
+    unit: r.stored.unit,
+    low: r.stored.low,
+    high: r.stored.high,
+    sex: r.sex,
+    provenance: 'PUBLISHED' as const,
+  }));
+  return [...kept, ...added];
 }
 
 /**
@@ -384,6 +427,9 @@ interface Row {
 
 async function main() {
   const seeded = readSeededFallbacks();
+  // What seed.ts alone holds, before the published ranges replace anything —
+  // so the report can say what each of the ten WAS rather than only what it is.
+  const beforePublished = readSeededFallbacksFromSeedFileOnly();
   const bySource = new Map(RANDOX_SOURCE.map((s) => [s.key, s]));
   const byDependence = new Map(DEPENDENCE.map((d) => [d.key, d]));
   const tierOf = buildTierIndex();
@@ -594,8 +640,79 @@ async function main() {
   }
   p();
   p(
-    '**Not one of these is corrected here, and that is deliberate.** The `randox` rows cannot be corrected because the example report prints ONE range per analyte and never says whose: haemoglobin 130.0–180.0 and haematocrit 40.0–54.0 read as male bands, creatinine 53.0–97.0 does not. Adopting them blind would replace a range that is wrong for half of patients with a range that is wrong for the other half — a different bug of the same shape. The `convention` rows are flagged from standard practice rather than from a document, and a flag is not a source. **These need the Pathology Services Catalogue or a female example report; neither is in `specs/`.**',
+    '**No `randox` row here is corrected, and that is deliberate.** The example report prints ONE range per analyte and never says whose: haemoglobin 130.0–180.0 and haematocrit 40.0–54.0 read as male bands, creatinine 53.0–97.0 does not. Adopting them blind would replace a range that is wrong for half of patients with a range that is wrong for the other half — a different bug of the same shape. **These still need the Pathology Services Catalogue or a female example report; neither is in `specs/`.** Ten of them are now answered from a weaker, named, third-party source instead — the next section — and that changes nothing about the ask.',
   );
+  p();
+
+  // ── The provenance tier, and the ten ranges loaded under it ──────────────
+  p('## Provenance: where a suggestion actually comes from');
+  p();
+  p(
+    '`ReferenceRange.source` has always been a sentence, which means nothing could sort, filter or count on it and the verify form could not put anything beside a suggested number. So an unverified standard adult band and a range transcribed from the Randox report looked identical in the one place where the difference matters: on screen, in front of somebody holding the paper result. **A suggestion that is usually correct is one people stop checking.**',
+  );
+  p();
+  p('There are three tiers, and the order is the precedence order.');
+  p();
+  p('| Tier | What it means | Rows |');
+  p('| --- | --- | --- |');
+  const tierCounts = (t: SeededFallback['provenance']) => seeded.filter((s) => s.provenance === t).length;
+  p(`| \`RANDOX\` | From a document in \`specs/\`. The laboratory that runs the assay, and the only authority that is actually about THIS test. | ${tierCounts('RANDOX')} |`);
+  p(`| \`PUBLISHED\` | A named third-party laboratory or guideline. Weaker on purpose, and replaced the moment a Randox range exists for the same analyte. | ${tierCounts('PUBLISHED')} |`);
+  p(`| \`UNSOURCED\` | A seeded fallback nobody has verified. The default, because that is what most of the catalogue is. | ${tierCounts('UNSOURCED')} |`);
+  p();
+  p(
+    '**A Randox range is never overwritten by a published one.** Reference intervals are assay-specific: they belong to the analyser, the method and the population a laboratory validated against, not to the analyte in the abstract. The tier is shown in the admin verify form beside the number, with a sentence saying what to do about it.',
+  );
+  p();
+  p('### The ten loaded, and what was there before');
+  p();
+  p(
+    `Source: **${LOTHIAN.publisher}**, "${LOTHIAN.document}", ${LOTHIAN.date}. <${LOTHIAN.url}>`,
+  );
+  p();
+  p(
+    'It is NOT Randox, and it goes in at the weaker tier for that reason. Every row carries the citation, and every row is replaced the moment the Pathology Services Catalogue or a female HSC5 report arrives.',
+  );
+  p();
+  p('| Marker | Was stored | Now stored | Printed as | Conversion | Tier |');
+  p('| --- | --- | --- | --- | --- | --- |');
+  for (const key of [...new Set(PUBLISHED_RANGES.map((r) => r.markerKey))]) {
+    const before = beforePublished.filter((s) => s.key === key);
+    const after = PUBLISHED_RANGES.filter((r) => r.markerKey === key);
+    const row = rows.find((r) => r.key === key);
+    p(
+      [
+        '',
+        esc(row?.name ?? key),
+        before.length
+          ? before.map((f) => `${f.sex === 'ANY' ? 'ANY' : f.sex} ${f.low}–${f.high} ${f.unit}`).join('<br>')
+          : '**nothing at all**',
+        after.map((r) => `${r.sex} ${r.stored.low}–${r.stored.high} ${r.stored.unit}`).join('<br>'),
+        after.map((r) => `${r.printed.low}–${r.printed.high} ${r.printed.unit}`).join('<br>'),
+        after[0].conversion ? `×${after[0].conversion.factor} — ${esc(after[0].conversion.why)}` : 'none, the printed unit is ours',
+        '`PUBLISHED`',
+        '',
+      ].join(' | '),
+    );
+  }
+  p();
+  p(
+    '**Both bands are loaded for every analyte, and the blanket `ANY` row is deleted.** Leaving it beside them would keep answering for a patient with no sex on file, which is the silent wrong answer this whole section is about — still there, now with company. With it gone `resolveReferenceRange()` refuses and says why. A row a real result points at is never deleted: that is that result\'s record of what was printed on the paper, not a catalogue fallback.',
+  );
+  p();
+  p(
+    '**Every conversion is asserted twice, independently** — once against the factor the row declares and once against the literal expected number, written out by hand in `tests/publishedReferenceRanges.test.ts`. A conversion error does not produce something that looks wrong: it produces a correctly formatted number in the right column that is out by a factor of a thousand, and nobody reading a verify form would catch a urate range of 0.12–0.36 µmol/L. A single self-consistent check could not see that.',
+  );
+  p();
+  p(`### The ${WITHHELD.length} deliberately NOT loaded, and why`);
+  p();
+  p(
+    '**The flag marking each of these as awaiting a sex-specific range stays on.** Loading ten of twenty does not clear the problem for the other ten, and a flag cleared by a partial fix is worse than one never raised.',
+  );
+  p();
+  p('| Marker | Why not |');
+  p('| --- | --- |');
+  for (const w of WITHHELD) p(`| ${esc(w.name)} | ${esc(w.why)} |`);
   p();
 
   p('## Age-specific ranges');
@@ -659,14 +776,14 @@ async function main() {
 
   p('## Every MEASURED marker, by panel tier');
   p();
-  p('`Fallback` is what the verify form suggests today. `Randox says` is the sourced range where there is one. `Sex` and `Age` say whether the stored data draws that distinction — not whether the analyte needs it, which is the two sections above.');
+  p('`Fallback` is what the verify form suggests today and `Tier` is how well-founded that suggestion is. `Randox says` is the sourced range where there is one. `Sex` and `Age` say whether the stored data draws that distinction — not whether the analyte needs it, which is the two sections above.');
   for (const t of tierSummary) {
     if (t.members.length === 0) continue;
     p();
     p(`### ${t.name}${t.code ? ` (${t.code})` : ''} — ${t.members.length} markers${t.sourced ? '' : ', no source document'}`);
     p();
-    p('| Marker | Key | Fallback | Unit | Sex | Age | Randox says | Page | Verdict | Action |');
-    p('| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
+    p('| Marker | Key | Fallback | Unit | Tier | Sex | Age | Randox says | Page | Verdict | Action |');
+    p('| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
     for (const r of t.members.sort((a, b) => a.name.localeCompare(b.name))) {
       p(
         [
@@ -675,6 +792,7 @@ async function main() {
           `\`${r.key}\``,
           r.fallbacks.length ? r.fallbacks.map((f) => `${f.low}–${f.high}`).join(' / ') : '—',
           esc(r.unit || '—'),
+          r.fallbacks.length ? [...new Set(r.fallbacks.map((f) => f.provenance))].map((x) => `\`${x}\``).join('/') : '—',
           r.fallbacks.length ? [...new Set(r.fallbacks.map((f) => f.sex))].join('/') : '—',
           'any',
           r.source ? `\`${esc(r.source.printed)}\` ${esc(r.source.unit)}` : '—',

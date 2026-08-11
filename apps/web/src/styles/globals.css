@@ -591,6 +591,26 @@
     @apply outline-none border-bronze border-2 px-[15px] py-[11px] shadow-inset-focus;
   }
 
+  /* A FIELD ON A PAGE, not a field in a form.
+     `.input-base` is a recessed box: a hairline all the way round, a control
+     radius, an inset shadow. That is exactly right for something a person
+     fills in and sends, and exactly wrong for a search that acts on every
+     keystroke — put one next to two other controls and the row reads as a
+     form panel bolted onto the page, which is what it was.
+     The box comes off and one hairline stays. Focus doubles that hairline and
+     turns it bronze, which is still a real 2px change rather than a colour
+     swap (WCAG 2.4.7), and the padding drops by the pixel the border gains so
+     the field cannot grow under the cursor. */
+  .input-quiet {
+    @apply w-full rounded-none border-0 border-b border-taupe bg-transparent px-0 py-2.5 text-espresso placeholder:text-espresso/50 transition duration-150 ease-out;
+  }
+  .input-quiet:hover:not(:disabled) {
+    @apply border-bronze/60;
+  }
+  .input-quiet:focus-visible {
+    @apply outline-none border-b-2 border-bronze pb-[9px];
+  }
+
   /* Off-screen until keyboard-focused, then drops into view above
      everything else — standard skip-to-content pattern. */
   .skip-link {

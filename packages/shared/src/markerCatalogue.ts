@@ -864,6 +864,41 @@ export const GP3_NESTING: { key: string; name: string; code: string | null; sour
 /** Advanced GP3's full flattened marker list, resolved down the nesting. */
 export const GP3_FLATTENED_MARKER_NAMES: readonly string[] = GP3_NESTING.flatMap((t) => t.addsMarkerNames);
 
+/**
+ * THE TWO PANEL-SIZE DISCREPANCIES ARE TWO PROBLEMS, NOT ONE (Aug 2026), AND
+ * NEITHER IS A MEMBERSHIP ERROR. Measured, so nobody re-derives it.
+ *
+ * Insight 360 enumerates 152 markers against a published "around 250 data
+ * points" — 98 short. Signature enumerates 433 against a published "around
+ * 350" — 83 over. Those nearly cancel, which is exactly why it looked like one
+ * misfiling, and the `categoryLevel` defect above (every panel resolved
+ * against Signature's fullest category definitions) looked like the cause.
+ *
+ * It is not, and the reason is structural rather than empirical: SIGNATURE
+ * CONTAINS INSIGHT BY CONSTRUCTION. Its categoryKeys are Insight's plus its
+ * own, so a marker moved out of "Signature only" and into Insight is a marker
+ * Signature still has. Reassignment cannot subtract from Signature. Whatever
+ * explains the 83 over, it is not where markers are filed.
+ *
+ * And it cannot explain the 98 short either. Of the 281 markers Signature
+ * holds and Insight does not, only ELEVEN sit in a health area Insight itself
+ * lists — SIGNATURE_CATEGORY_ADDITIONS, which is a resting ECG, two troponins,
+ * D-dimer, four antibodies, two genetic indicators and a tTg-IgA. Every one of
+ * them is named in Signature's own marketing as what Signature adds ("plus a
+ * resting ECG…"), so moving them would be wrong on the product's own copy, and
+ * it would close 11 of 98 even if it were right. The other 270 are in
+ * categories Insight does not list at all: 207 food sensitivity items, 19 UTI
+ * organisms, 33 genetic indicators, 10 microbiome proportions, 4 EBV
+ * serologies.
+ *
+ * What is left is a COUNTING UNIT, and it is a question for Randox rather than
+ * a defect here. "Data points" is their word, not ours, and 207 IgG foods
+ * plainly are not 207 of the 350 — Signature without them is 226, which is
+ * under the published figure rather than over it. The catalogue seeds the
+ * ENUMERATION and never the headline, because a list is more specific than a
+ * count. Nothing has been moved. See catalogueCoverage.test.ts, which pins the
+ * arithmetic so a future edit cannot quietly make one of these numbers agree.
+ */
 export const CATALOGUE_PANELS: CataloguePanel[] = [
   {
     key: 'core',
@@ -956,6 +991,19 @@ export const ALL_CATEGORIES: CatalogueCategory[] = categoriesFor('signature');
  * record with several memberships, never several records. A patient with a
  * raised ferritin has one raised ferritin, not three.
  */
+/**
+ * A food-sensitivity name with our own "(IgG)" suffix taken off, or null where
+ * there is nothing to take off.
+ *
+ * Exported because it is the definition of the alias, and the test that asserts
+ * every sensitivity marker resolves from both spellings has to be able to
+ * derive the bare form the same way rather than re-implementing the regex.
+ */
+export function bareSensitivityName(name: string): string | null {
+  const bare = name.replace(/\s*\(IgG\)\s*$/i, '').trim();
+  return bare && bare !== name.trim() ? bare : null;
+}
+
 export function resolveCatalogueMarkers(): CatalogueMarker[] {
   const byKey = new Map<string, CatalogueMarker>();
 
@@ -987,6 +1035,37 @@ export function resolveCatalogueMarkers(): CatalogueMarker[] {
   };
 
   for (const c of ALL_CATEGORIES) for (const n of c.markerNames) add(n, c.key, c.resultType);
+
+  /**
+   * THE "(IgG)" SUFFIX IS OURS, SO BOTH SPELLINGS RESOLVE (Aug 2026).
+   *
+   * All 207 food-sensitivity items are stored as `Cod (IgG)`, and the suffix is
+   * a decision made HERE — it exists so a food can never collide with a blood
+   * analyte of the same name (see FOOD_SENSITIVITY_CATEGORIES: "Egg White" and
+   * "Casein" are one slug away from a protein assay). It is not something
+   * Randox print, and nobody has seen what they do print.
+   *
+   * That made 207 markers depend on a guess about a laboratory's formatting. If
+   * Randox send the food name bare, every single one misses, and an admin opens
+   * the exception queue on the first Signature delivery to find 207 unmapped
+   * analytes at once — which is not a queue, it is an outage with a list.
+   *
+   * So the bare form goes on as an alias. This is NOT guessing at a Randox
+   * spelling, which the analyte map refuses to do and should go on refusing:
+   * it is accepting our own name with and without a suffix we added ourselves.
+   * Exact and normalised matching are untouched. Where a bare name collides
+   * with a real analyte the index records BOTH claims and refuses the row as
+   * ambiguous rather than picking — that is analyteMap.ts's existing behaviour
+   * and it is the right one, because a food filed as a protein assay is exactly
+   * the failure the suffix was invented to prevent.
+   */
+  for (const marker of byKey.values()) {
+    if (marker.resultType !== 'SENSITIVITY') continue;
+    for (const term of [marker.name, ...marker.aliases]) {
+      const bare = bareSensitivityName(term);
+      if (bare && bare !== marker.name && !marker.aliases.includes(bare)) marker.aliases.push(bare);
+    }
+  }
 
   // Core's markers reach the catalogue through the panel rather than a
   // category — the GP3 nesting is a product structure, not a health area.

@@ -7,7 +7,12 @@ import { verifyCsrf } from '../../middleware/csrf.js';
 import { asyncHandler } from '../../lib/asyncHandler.js';
 import { recordAuditLog } from '../../lib/auditLog.js';
 import { decryptField } from '../../lib/crypto.js';
-import { resolveReferenceRange, ageFromDob, RANGE_UNAVAILABLE_MESSAGE } from '../../lib/resolveReferenceRange.js';
+import {
+  resolveReferenceRange,
+  ageFromDob,
+  RANGE_UNAVAILABLE_MESSAGE,
+  PROVENANCE_LABEL,
+} from '../../lib/resolveReferenceRange.js';
 
 export const panelsRouter = Router();
 
@@ -553,7 +558,19 @@ panelsRouter.get(
       age = ageFromDob(decryptField(patient.patientProfile.dobEncrypted));
     }
 
-    const resolved = resolveReferenceRange(marker.referenceRanges, sex, age);
+    const resolved = resolveReferenceRange(
+      marker.referenceRanges.map((r) => ({
+        ...r,
+        citation: {
+          document: r.sourceDocument,
+          publisher: r.sourcePublisher,
+          date: r.sourceDate,
+          url: r.sourceUrl,
+        },
+      })),
+      sex,
+      age,
+    );
     if (resolved.status === 'unavailable') {
       // 200 with a reason, not a bare null. "We can't suggest one" is a real
       // answer and WHY is the whole point: a null was indistinguishable
@@ -566,12 +583,21 @@ panelsRouter.get(
         message: RANGE_UNAVAILABLE_MESSAGE[resolved.reason],
       });
     }
+    // THE TIER TRAVELS WITH THE SUGGESTION. A suggestion that is usually
+    // correct is one people stop checking, so the form has to be able to say
+    // whether this came from the laboratory that ran the test, from somebody
+    // else's laboratory, or from nothing at all — see PROVENANCE_LABEL.
+    const provenance = resolved.range.provenance ?? 'UNSOURCED';
     res.json({
       status: 'resolved',
       referenceRangeId: resolved.range.id,
       low: resolved.range.low,
       high: resolved.range.high,
       unit: resolved.range.unit,
+      provenance,
+      provenanceLabel: PROVENANCE_LABEL[provenance].label,
+      provenanceDetail: PROVENANCE_LABEL[provenance].detail,
+      citation: resolved.range.citation ?? null,
     });
   }),
 );

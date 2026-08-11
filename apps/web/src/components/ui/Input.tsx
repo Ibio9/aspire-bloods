@@ -15,6 +15,17 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
    * vertical space than the field itself. The placeholder has to carry the field's purpose when
    * this is set. Same escape hatch, same conditions, as Select's. Prefer a visible label. */
   hideLabel?: boolean;
+  /**
+   * `quiet` is a field ON A PAGE rather than a field in a form — one hairline
+   * underneath instead of a recessed box with a control radius. It exists for
+   * the results control bar and for nothing that submits: see `.input-quiet`
+   * in globals.css for why an outlined box was the wrong shape there.
+   *
+   * Anything a person fills in and sends keeps the default. A boxed field is
+   * what says "this is a slot you complete", and a search that acts on every
+   * keystroke is not one.
+   */
+  variant?: 'default' | 'quiet';
 }
 
 /**
@@ -35,6 +46,7 @@ export function Input({
   className = '',
   validate,
   hideLabel,
+  variant = 'default',
   onBlur,
   onChange,
   ...props
@@ -104,7 +116,13 @@ export function Input({
         id={fieldId}
         aria-describedby={[hintId, errorId].filter(Boolean).join(' ') || undefined}
         aria-invalid={!!shownError}
-        className={`input-base ${shownError ? 'border-status-significantHigh' : ''} ${className}`}
+        // A quiet field keeps the error border, because a field is a control
+        // and not a card — that border is its only non-text error state, and
+        // the no-coloured-outlines rule governs surfaces. On the underlined
+        // variant it is the underline that turns.
+        className={`${variant === 'quiet' ? 'input-quiet' : 'input-base'} ${
+          shownError ? 'border-status-significantHigh' : ''
+        } ${className}`}
         required={!optional}
         onBlur={validate ? handleBlur : onBlur}
         // handleChange is wired whenever there's a validator OR a parent

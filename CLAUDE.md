@@ -307,6 +307,20 @@ route-console.spec.ts). See DEPLOYMENT.md → Feature flags for the full note.
 - Source labels: `Analysed by Randox Health` where the result genuinely came
   from Randox. In-house results carry NO source line at all (sourceLabel is
   empty for `aspire_inhouse`), so every render site guards it.
+- **`ESCALATION_EMAIL` and `CLINIC_CONTACT_EMAIL` ARE TWO VARIABLES (Aug
+  2026).** They were one, and `getClinicContact()` read the escalation address
+  — so the address a clinician is paged at was also the address printed in the
+  portal sidebar on every screen, beside every out-of-range result and in the
+  footer of every PDF. Pointing the escalation at a named individual, which is
+  what a small practice actually wants, published their personal address to
+  every patient and into every PDF already downloaded. ESCALATION_EMAIL is
+  STAFF ONLY and is read in exactly two places (the escalation itself and the
+  boot check); CLINIC_CONTACT_EMAIL is what a patient sees and should be a
+  shared inbox that outlives whoever is on the rota.
+  `tests/escalationRouting.test.ts` pins the separation, including the list of
+  files allowed to read the escalation address. Production refuses to boot
+  without a routable ESCALATION_EMAIL — and that check deliberately stops at
+  "is it an address", because no code can tell whether a mailbox is read.
 
 # Randox Nexus — the OpenAPI spec is the source of truth (Aug 2026)
 
@@ -404,9 +418,19 @@ What changed is that the uncertainty is visible rather than buried:
   is keyed by `analyteIdentity()` (normalised name PLUS sample type), so
   accepting a urine "Glucose" cannot file a serum one.
 - `npm run audit:analytes` writes `docs/audits/analyte-mapping.md`, which names
-  all 86 as the check-first list. It also names the largest single risk: our
-  catalogue holds every food item as `Cod (IgG)` and that suffix is OURS, so if
-  Randox print the food name bare, all 207 land in the queue at once.
+  all 86 as the check-first list.
+- **THE FOOD-SENSITIVITY SUFFIX IS ACCEPTED BOTH WAYS (Aug 2026).** Our
+  catalogue holds every food item as `Cod (IgG)` and that suffix is OURS, so
+  while it was the only spelling any of them answered to, Randox printing the
+  food name bare put all 207 in the exception queue at once — an outage with a
+  list rather than a queue. The BARE form is now an alias on every sensitivity
+  marker (`bareSensitivityName` in markerCatalogue.ts), so both resolve. This
+  is not a guess at a Randox spelling and does not weaken the rule above:
+  exact and normalised matching only, still no fuzzy matching anywhere. It is
+  our own name accepted with and without a suffix we added ourselves. If a
+  bare food name ever collides with a real analyte, the index records both
+  claims and refuses the row as AMBIGUOUS — and `analyteObservations.test.ts`
+  fails first, in `npm test`, before a collision can reach a delivery.
 
 **PRICES ARE STRIPPED AT THE TRANSPORT BOUNDARY.** GetPanels and GetTests both
 carry `cost` and `currency`. `stripPricing()` in `clients/NexusLabClient.ts`
@@ -574,6 +598,49 @@ while the code map is the checked-in placeholder. Do not weaken it.
   low/high null and the reason. Never invent one, never extrapolate from a related
   marker.
 - Reference ranges live on the result, not the marker
+- **A CATALOGUE RANGE CARRIES A PROVENANCE TIER, AND IT IS ON SCREEN (Aug
+  2026).** `ReferenceRange.provenance` is `RANDOX` / `PUBLISHED` / `UNSOURCED`,
+  with the citation (document, publisher, date, URL) stored on the row beside
+  it, and the tier is shown in the admin verify form with a sentence saying
+  what to do about it. `source` was a sentence, so nothing could sort or count
+  on it and an unverified standard adult band looked identical to a range
+  transcribed from the Randox report — in the one place the difference matters,
+  in front of somebody holding the paper. **A RANDOX RANGE IS NEVER OVERWRITTEN
+  BY A PUBLISHED ONE**: reference intervals are assay-specific and belong to
+  the analyser, method and population a laboratory validated against.
+  Provenance is also the TIE-BREAK in `resolveReferenceRange()` and only the
+  tie-break — specificity first, always, because the wrong sex is a bigger
+  error than a weaker citation.
+- **Ten sex-specific ranges are loaded from NHS Lothian, at the weaker tier**
+  (`prisma/publishedReferenceRanges.ts`). Ten more are deliberately WITHHELD
+  with the reason on each, and the flag stays on all of them — ferritin and
+  iron because the source prints the female band higher than the male, which is
+  the wrong direction and reads as a transposition; GGT because a Randox range
+  already covers it; HDL because 1.55 is a desirable threshold and not an
+  interval; every hormone because the source excludes them. **Both bands go in
+  and the blanket `ANY` row is deleted**, since leaving it keeps answering for
+  a patient with no sex on file. Two rows need a unit conversion and each is
+  asserted twice, independently — against the declared factor AND against the
+  literal expected number — because a conversion error produces a correctly
+  formatted number in the right column that is out by a factor of a thousand.
+- **Anything writing to `ReferenceRange` must scope to `results: { none: {} }`.**
+  The table holds the catalogue AND one row per result ever materialised (3,100+
+  rows across 444 markers here, one marker with 76), so a `findFirst` on
+  marker-and-sex lands on an arbitrary RESULT record far more often than on the
+  catalogue row — and updating one rewrites a patient's history to say their
+  laboratory printed a range it did not. This was caught by inspection after a
+  seed run did exactly that to ten rows. The real fix is a schema flag and is
+  still for Richard.
+- **The seed never marks an explanation reviewed, and retracts the ones it used
+  to.** A review is a NAMED PERSON WHO READ IT: a status with no `reviewedById`
+  is a row somebody clicked, and one attributed to an account the seed creates
+  is a fixture whatever its job title says. 72 rows were reported as checked
+  when the honest number was zero, which is worse than DRAFT because nobody
+  goes back to something already ticked off. `lib/explanationReview.ts` holds
+  the one definition; the seed retracts with an audit entry per row. A real
+  person's decision is NEVER retracted, including a non-clinical one — saying
+  an administrator's approval is not a clinical sign-off is the audit's job,
+  not the sweep's.
 - **Label/value rows are an explicit GRID, never a flex row.** `.value-row` in
   globals.css: declared columns with measured minimums, the list as the
   container-query context so every row switches arrangement together and the
