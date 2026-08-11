@@ -52,6 +52,14 @@ interface BandGeometry {
   periods: { x: number; width: number; bands: number }[];
   narrowest: number;
   stepRules: number;
+  /** Every dashed vertical rule: its x, and the y range it spans. */
+  steps: { x: number; y1: number; y2: number; width: number; opacity: number; dash: string }[];
+  /** The horizontal band-boundary hairlines, as x extents. */
+  hairlines: { x1: number; x2: number }[];
+  /** The plot area itself, for "does the rule run its full height". */
+  plot: { x: number; y: number; width: number; height: number };
+  /** The inline reference-bound labels — mono numerals drawn beside a boundary. */
+  boundLabels: { text: string; x: number }[];
 }
 
 async function bandGeometry(page: Page): Promise<BandGeometry> {
@@ -77,12 +85,55 @@ async function bandGeometry(page: Page): Promise<BandGeometry> {
     }
     const periods = [...byExtent.values()].sort((a, b) => a.x - b.x);
     const plotWidth = periods.reduce((total, p) => total + p.width, 0);
+
+    const lines = [...svg.querySelectorAll('.recharts-reference-line line')] as SVGLineElement[];
+    const num = (el: SVGLineElement, a: string) => Number(el.getAttribute(a));
+    // Vertical and dashed: the step. Horizontal: a band boundary. The optimal
+    // band's own dashed edges are horizontal, so the orientation test separates
+    // them from the step without depending on the dash pattern.
+    const steps = lines
+      .filter((l) => Math.abs(num(l, 'x1') - num(l, 'x2')) < 0.5 && (l.getAttribute('stroke-dasharray') ?? '') !== '')
+      .map((l) => ({
+        x: Math.round(num(l, 'x1')),
+        y1: Math.round(Math.min(num(l, 'y1'), num(l, 'y2'))),
+        y2: Math.round(Math.max(num(l, 'y1'), num(l, 'y2'))),
+        width: Number(l.getAttribute('stroke-width')),
+        opacity: Number(l.getAttribute('stroke-opacity')),
+        dash: l.getAttribute('stroke-dasharray') ?? '',
+      }));
+    const hairlines = lines
+      .filter((l) => Math.abs(num(l, 'y1') - num(l, 'y2')) < 0.5)
+      .map((l) => ({
+        x1: Math.round(Math.min(num(l, 'x1'), num(l, 'x2'))),
+        x2: Math.round(Math.max(num(l, 'x1'), num(l, 'x2'))),
+      }));
+
+    // Recharts does not expose the plot rect in the DOM, so it is taken from the
+    // x-axis ticks' own extent plus the axis line.
+    const axis = svg.querySelector('.recharts-xAxis .recharts-cartesian-axis-line') as SVGLineElement | null;
+    const plot = {
+      x: axis ? Math.round(num(axis, 'x1')) : 0,
+      y: 0,
+      width: axis ? Math.round(num(axis, 'x2') - num(axis, 'x1')) : 0,
+      height: axis ? Math.round(num(axis, 'y1')) : 0,
+    };
+
+    // The inline bound labels are the only mono <text> nodes outside the axes.
+    const boundLabels = ([...svg.querySelectorAll('text')] as SVGTextElement[])
+      .filter((t) => !t.closest('.recharts-cartesian-axis'))
+      .filter((t) => (t.getAttribute('font-family') ?? '').includes('mono'))
+      .map((t) => ({ text: t.textContent ?? '', x: Math.round(Number(t.getAttribute('x'))) }));
+
     return {
       plotWidth,
       periods,
       narrowest: Math.min(...periods.map((p) => p.width)),
       // The dashed vertical rules marking where the range changed.
-      stepRules: document.querySelectorAll('.recharts-reference-line line[stroke-dasharray="3 3"]').length,
+      stepRules: steps.length,
+      steps,
+      hairlines,
+      plot,
+      boundLabels,
     };
   });
 }
@@ -171,6 +222,73 @@ test('a series whose reference range changes steps, and says so', async ({ brows
   // ...and stated in words, because a silent change of reference range between
   // two results is exactly what misleads someone reading their own trend.
   await expect(page.getByText('The lab’s reference range changed during this period')).toBeVisible();
+
+  // -------------------------------------------------------------------------
+  // AND IT LOOKS THE SAME EVERY TIME IT HAPPENS.
+  //
+  // "Consistent" is four separate facts, and each of them is a measurement
+  // rather than something anybody notices in a screenshot.
+  // -------------------------------------------------------------------------
+
+  // 1. EVERY BAND STEPS TOGETHER. The periods are grouped by exact x-extent, so
+  //    one band edge landing anywhere of its own shows up as an extra period
+  //    with a partial band count. Every period carries the same number.
+  const bandCounts = [...new Set(geometry.periods.map((p) => p.bands))];
+  expect(bandCounts, `${marker.name}: the bands do not all share their period's extent`).toHaveLength(1);
+  expect(geometry.periods.length, `${marker.name}: one step rule per boundary between periods`).toBe(
+    geometry.stepRules + 1,
+  );
+
+  // 2. THE RULE IS AT THE BOUNDARY, not near it. Each step's x is the x where
+  //    one period ends and the next begins.
+  const boundaries = geometry.periods.slice(1).map((p) => p.x);
+  for (const step of geometry.steps) {
+    expect(
+      boundaries.some((x) => Math.abs(x - step.x) <= 1),
+      `${marker.name}: a step rule at x=${step.x} sits at no band boundary (${boundaries.join(', ')})`,
+    ).toBe(true);
+  }
+
+  // 3. ONE DASHED HAIRLINE, FULL PLOT HEIGHT, SAME WEIGHT AND PATTERN EVERY
+  //    TIME. The values come from chart.stepDashArray / stepWidth / stepOpacity.
+  for (const step of geometry.steps) {
+    expect(step.dash, `${marker.name}: the step's dash pattern`).toBe('3 3');
+    expect(step.width, `${marker.name}: the step's weight`).toBe(1);
+    expect(step.opacity, `${marker.name}: the step's opacity`).toBeCloseTo(0.7, 2);
+    expect(step.y2 - step.y1, `${marker.name}: the step runs the full plot height`).toBeGreaterThan(
+      geometry.plot.height * 0.9,
+    );
+  }
+
+  // 4. THE HORIZONTAL HAIRLINES STAY IN THEIR OWN PERIOD and meet the step
+  //    cleanly. A boundary line spanning the whole plot would draw the old
+  //    range's edge across the new range's territory.
+  const extents = geometry.periods.map((p) => ({ x1: p.x, x2: p.x + p.width }));
+  for (const line of geometry.hairlines) {
+    const fits = extents.some((e) => Math.abs(e.x1 - line.x1) <= 1 && Math.abs(e.x2 - line.x2) <= 1);
+    // The optimal band's dashed edges do span the plot, by design — they are an
+    // advisory band and not a per-period reference bound. They are excluded by
+    // matching the FULL extent rather than by their dash pattern.
+    const spansPlot = Math.abs(line.x2 - line.x1 - geometry.plot.width) <= 2;
+    expect(fits || spansPlot, `${marker.name}: a boundary hairline runs ${line.x1}–${line.x2}, which is no period`).toBe(
+      true,
+    );
+  }
+
+  // 5. BOTH RANGES ARE LABELLED. Each period's bounds are printed at the right
+  //    hand end of its own extent, so the reader can see what the range stepped
+  //    FROM without going to the sentence. Two periods, two bounds each.
+  expect(
+    geometry.boundLabels.length,
+    `${marker.name}: expected a bound label per period bound, got ${JSON.stringify(geometry.boundLabels)}`,
+  ).toBeGreaterThanOrEqual(geometry.periods.length * 2);
+  // AND NONE OF THEM IS AN UNROUNDED FLOAT. A converted range arrives with no
+  // rounding of its own and printed 5.494444506110488 beside the plot.
+  for (const label of geometry.boundLabels) {
+    expect(label.text.length, `${marker.name}: "${label.text}" is a raw float, not a reference bound`).toBeLessThanOrEqual(
+      7,
+    );
+  }
 
   await ctx.close();
 });

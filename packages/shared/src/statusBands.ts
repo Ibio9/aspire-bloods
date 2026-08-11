@@ -21,6 +21,96 @@ import type { MarkerStatus } from './types.js';
 /** The system default when a marker doesn't override it. Mirrors Marker.severityMultiplier's schema default. */
 export const DEFAULT_SEVERITY_MULTIPLIER = 1.5;
 
+// ---------------------------------------------------------------------------
+// IS THIS THE SAME REFERENCE RANGE, OR A DIFFERENT ONE?
+//
+// A trend chart draws a step, a dashed rule and a sentence wherever a marker's
+// reference range changes between two results, because a silent change of range
+// is exactly what makes a trend misleading. Which means the question "did it
+// change" has to have ONE answer, and that answer has to be the same one the
+// printed sentence gives — a step drawn over two ranges that print identically
+// is a fault report, not a fact.
+//
+// It cannot be `low === low && high === high` on the raw numbers, because the
+// numbers reaching the chart have been through a unit conversion. Measured, on
+// a fasting glucose whose two results were reported as 3.9–5.5 mmol/L and
+// 70–99 mg/dL — the same interval, written twice:
+//
+//     70 / 18.0182 = 3.884960761896305
+//     99 / 18.0182 = 5.494444506110488
+//
+// Float-equal says those are two ranges. So the chart stepped, drew a dashed
+// rule, named the change in the key, and printed the sentence "3.9–5.5 mmol/L
+// up to 1 January 2026, then 3.884960761896305–5.494444506110488 mmol/L from
+// 1 March 2026" — with 5.494444506110488 also set as an inline axis label
+// beside the plot. The range had not changed at all.
+//
+// So identity is decided at the precision a reference range is READ at, and the
+// same rounding is what gets printed. The two can then never disagree: a step
+// exists if and only if the two ranges print differently.
+// ---------------------------------------------------------------------------
+
+/**
+ * How many decimals a reference bound of this magnitude is written to.
+ *
+ * A ladder rather than significant figures, and deliberately coarse — three
+ * significant figures keeps 5.494 apart from 5.500 and reintroduces the whole
+ * problem above. It is per BOUND rather than per range, so a marker with a
+ * decimal floor and a whole-number ceiling (TSH 0.27–4.2) keeps the precision
+ * its floor needs: taking the precision from the high bound alone would round
+ * 0.27 and 0.34 to the same 0.3 and hide a change that is real.
+ */
+export function referenceBoundDecimals(value: number): number {
+  const magnitude = Math.abs(value);
+  if (!Number.isFinite(magnitude) || magnitude === 0) return 0;
+  if (magnitude < 0.2) return 3;
+  if (magnitude < 2) return 2;
+  if (magnitude < 20) return 1;
+  return 0;
+}
+
+/** A reference bound at the precision it is read at. */
+export function roundReferenceBound(value: number): number {
+  if (!Number.isFinite(value)) return value;
+  return Number(value.toFixed(referenceBoundDecimals(value)));
+}
+
+/**
+ * A reference bound as text. Trailing zeros are dropped — a range printed
+ * "0.00–3.00" is the rounding showing through, and the product writes that
+ * range as 0–3.
+ */
+export function formatReferenceBound(value: number): string {
+  if (!Number.isFinite(value)) return '';
+  return String(roundReferenceBound(value));
+}
+
+/**
+ * A range, set the way every reference range in the product and the PDF is set:
+ * an en dash between the bounds, the unit after, and no space around the dash.
+ */
+export function formatReferenceRange(low: number, high: number, unit?: string | null): string {
+  const range = `${formatReferenceBound(low)}–${formatReferenceBound(high)}`;
+  return unit ? `${range} ${unit}` : range;
+}
+
+/**
+ * Whether two results were measured against the same reference range — i.e.
+ * whether a chart should draw a step between them.
+ *
+ * True exactly when the two ranges print the same, which is what keeps the
+ * drawn step and the written sentence from ever disagreeing.
+ */
+export function sameReferenceRange(
+  a: { low: number; high: number },
+  b: { low: number; high: number },
+): boolean {
+  return (
+    roundReferenceBound(a.low) === roundReferenceBound(b.low) &&
+    roundReferenceBound(a.high) === roundReferenceBound(b.high)
+  );
+}
+
 export interface StatusBandRange {
   /** Null means "open" — this band runs to the edge of whatever domain it's drawn in. */
   from: number | null;

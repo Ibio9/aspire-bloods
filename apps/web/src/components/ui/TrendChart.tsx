@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
   usePlotArea,
+  useXAxisScale,
   useYAxisScale,
 } from 'recharts';
 import {
@@ -23,6 +24,9 @@ import {
   BAND_WEIGHT,
   severityThresholdFor,
   formatOptimalRange,
+  formatReferenceBound,
+  formatReferenceRange,
+  sameReferenceRange,
   formatDate,
   type MarkerStatus,
   type MarkerStatusInput,
@@ -318,46 +322,88 @@ function CustomDot(props: { cx?: number; cy?: number; payload?: PlottedPoint; la
 }
 
 /**
- * THE REFERENCE BOUNDS, LABELLED WHERE THEY ARE.
+ * THE REFERENCE BOUNDS, LABELLED WHERE THEY ARE — AND EVERY PERIOD'S, NOT JUST
+ * THE LAST ONE'S.
  *
  * A boundary line with no number on it sends the reader to the key to find out
  * what it is, and the key cannot tell them — it can say "the reference range"
- * but not "3.5 to 5.3". Printing the two values at the right edge of the plot,
- * level with their own lines, answers it in place; it is also what lets the
- * band entries in the key stop being the only place the range is stated.
+ * but not "3.5 to 5.3". Printing the values level with their own lines answers
+ * it in place; it is also what lets the band entries in the key stop being the
+ * only place the range is stated.
  *
- * The bounds are the LAST period's, because the right edge of the plot is the
- * last period's territory — where a marker's range changed partway through, the
- * numbers beside the newest results are the ones that applied to them.
+ * It used to print the LAST period's two bounds and nothing else, on the
+ * reasoning that the right edge of the plot is the last period's territory. That
+ * is true of the right edge and false of the chart: on a marker whose range
+ * changed partway through, the earlier results sat inside a band whose bounds
+ * were the one thing on screen that did not say what they were, so the reader
+ * could see that the range had stepped and could not read what it stepped FROM
+ * without going to the sentence below the chart.
+ *
+ * So each period is labelled at the right-hand end of its OWN extent: the last
+ * one in the margin outside the plot, as before, and every earlier one just
+ * inside its own step rule, right-aligned against it. Same face, same size, same
+ * colour; only the anchor differs, because one is outside the plot and the rest
+ * are in it.
  */
-function BoundaryLabels({ bounds }: { bounds: { value: number; text: string }[] }) {
+interface BoundLabel {
+  value: number;
+  text: string;
+}
+interface LabelColumn {
+  /** Where this period ends, in the x domain. Null for the last one, which ends at the plot edge. */
+  endsAt: number | null;
+  bounds: BoundLabel[];
+}
+
+/** Roughly how wide this text is at 11px in the mono face — enough to know whether it fits. */
+function labelWidth(text: string): number {
+  return text.length * 6.6;
+}
+
+function BoundaryLabels({ columns }: { columns: LabelColumn[] }) {
   const plot = usePlotArea();
   const yScale = useYAxisScale();
+  const xScale = useXAxisScale();
   if (!plot || !yScale) return null;
-  const placed: number[] = [];
   return (
     <g aria-hidden="true">
-      {bounds.map(({ value, text }) => {
-        const y = yScale(value);
-        if (y == null || !Number.isFinite(y)) return null;
-        // Outside the plot, or close enough to a label already placed that the
-        // two would overlap into an unreadable smudge.
-        if (y < plot.y || y > plot.y + plot.height) return null;
-        if (placed.some((other) => Math.abs(other - y) < 12)) return null;
-        placed.push(y);
+      {columns.map((column, ci) => {
+        // Collisions are resolved per COLUMN. Two labels a few pixels apart in
+        // the same column overlap into an unreadable smudge; the same two in
+        // different columns are metres apart on screen and both fine.
+        const placed: number[] = [];
+        const outside = column.endsAt === null;
+        const endX = outside ? null : xScale?.(column.endsAt as number);
+        if (!outside && (endX == null || !Number.isFinite(endX))) return null;
         return (
-          <text
-            key={text}
-            x={plot.x + plot.width + 7}
-            y={y}
-            dy="0.32em"
-            textAnchor="start"
-            fontSize={11}
-            fontFamily="var(--font-mono)"
-            fill={chartTokens.axisText}
-          >
-            {text}
-          </text>
+          <g key={`bounds-${ci}`}>
+            {column.bounds.map(({ value, text }) => {
+              const y = yScale(value);
+              if (y == null || !Number.isFinite(y)) return null;
+              if (y < plot.y || y > plot.y + plot.height) return null;
+              if (placed.some((other) => Math.abs(other - y) < 12)) return null;
+              // A period too narrow to hold its own label goes unlabelled rather
+              // than printing over its neighbour's band. The sentence below the
+              // chart still names every range and its dates, which is why this
+              // can be dropped without losing the fact.
+              if (!outside && (endX as number) - labelWidth(text) - 4 < plot.x) return null;
+              placed.push(y);
+              return (
+                <text
+                  key={text}
+                  x={outside ? plot.x + plot.width + 7 : (endX as number) - 4}
+                  y={y}
+                  dy="0.32em"
+                  textAnchor={outside ? 'start' : 'end'}
+                  fontSize={11}
+                  fontFamily="var(--font-mono)"
+                  fill={chartTokens.axisText}
+                >
+                  {text}
+                </text>
+              );
+            })}
+          </g>
         );
       })}
     </g>
@@ -403,10 +449,13 @@ function ChartTooltip({
       </p>
       {/* THAT point's range, not the marker's current one — the whole reason a
           changed reference range gets a step, a dashed rule and a sentence. */}
+      {/* Formatted, never interpolated raw. These bounds have been through a
+          unit conversion by the time they get here, and `{point.referenceLow}`
+          printed one as 3.884960761896305 in a patient-facing tooltip. */}
       <p className="mt-2 border-t border-taupe/60 pt-2 text-espresso/80">
         Reference range{' '}
         <span className="numeric">
-          {point.referenceLow}–{point.referenceHigh}
+          {formatReferenceRange(point.referenceLow, point.referenceHigh)}
           {unit}
         </span>
       </p>
@@ -594,6 +643,17 @@ export function TrendChart({
    * also guarantees every period is at least half a sampling gap wide, which
    * is what makes a sliver impossible even when the change lands on the final
    * result. Anchoring the step ON the new point is what produced the gutter.
+   *
+   * WHETHER THE RANGE CHANGED AT ALL is `sameReferenceRange` (statusBands.ts)
+   * and not a float compare, because the bounds arriving here have been through
+   * a unit conversion. A fasting glucose reported as 3.9–5.5 mmol/L and then as
+   * 70–99 mg/dL is ONE range written twice, and 99/18.0182 = 5.494444506110488
+   * is not float-equal to 5.5 — so the chart stepped, drew the dashed rule, named
+   * the change in the key, and printed a sentence claiming the laboratory had
+   * changed a range it had not touched. Identity is now decided at the precision
+   * the range is printed at, so a step exists exactly when the two printed ranges
+   * differ. The BAND GEOMETRY still uses the exact numbers the server sent (the
+   * period takes its first row's), so no band edge moves to suit a rounding.
    */
   const periods: {
     rows: PlottedPoint[];
@@ -602,12 +662,18 @@ export function TrendChart({
     threshold: number;
   }[] = [];
   for (const point of rows) {
-    const threshold = severityThresholdFor(point.referenceLow, point.referenceHigh, point.severityThreshold);
     const open = periods[periods.length - 1];
-    if (open && open.low === point.referenceLow && open.high === point.referenceHigh && open.threshold === threshold) {
+    if (open && sameReferenceRange(open, { low: point.referenceLow, high: point.referenceHigh })) {
       open.rows.push(point);
     } else {
-      periods.push({ rows: [point], low: point.referenceLow, high: point.referenceHigh, threshold });
+      periods.push({
+        rows: [point],
+        low: point.referenceLow,
+        high: point.referenceHigh,
+        // From the period's own bounds, so it is one number for the whole
+        // period rather than one per row that happens to agree.
+        threshold: severityThresholdFor(point.referenceLow, point.referenceHigh, point.severityThreshold),
+      });
     }
   }
 
@@ -616,10 +682,20 @@ export function TrendChart({
     .slice(1)
     .map((next, i) => (periods[i].rows[periods[i].rows.length - 1].t + next.rows[0].t) / 2);
 
+  /**
+   * ONE X EXTENT PER PERIOD, AND EVERYTHING IN THAT PERIOD IS DRAWN TO IT.
+   *
+   * The five bands, the four boundary hairlines, the step rule at each end and
+   * the bound labels all read `x1`/`x2` from here. That is what makes "every band
+   * steps together at the same x" structural rather than a coincidence of four
+   * separate expressions agreeing — nothing in a period has an x of its own to
+   * get wrong.
+   *
+   * The outer periods run out to the axis edges so the padding gutters aren't
+   * bare: the range that applied at the first sample is the range that applied
+   * just before it, and likewise at the end.
+   */
   const bandSegments = periods.map((period, i) => ({
-    // The outer periods run out to the axis edges so the padding gutters
-    // aren't bare — the range that applied at the first sample is the range
-    // that applied just before it, and likewise at the end.
     x1: i === 0 ? tMin : stepBoundaries[i - 1],
     x2: i === periods.length - 1 ? tMax : stepBoundaries[i],
     low: period.low,
@@ -637,13 +713,17 @@ export function TrendChart({
     ],
   }));
 
-  // The range in force at the right-hand edge of the plot, which is the one
-  // the inline labels are about.
-  const lastPeriod = periods[periods.length - 1];
-  const boundaryLabels = [
-    { value: lastPeriod.high, text: String(lastPeriod.high) },
-    { value: lastPeriod.low, text: String(lastPeriod.low) },
-  ];
+  // Every period's own bounds, at the right-hand end of its own extent. The last
+  // one ends at the plot edge (endsAt null) and prints in the margin; the rest
+  // end at their step rule and print just inside it.
+  const labelColumns: LabelColumn[] = periods.map((period, i) => ({
+    endsAt: i === periods.length - 1 ? null : stepBoundaries[i],
+    bounds: [
+      { value: period.high, text: formatReferenceBound(period.high) },
+      { value: period.low, text: formatReferenceBound(period.low) },
+    ],
+  }));
+  const boundaryLabels = labelColumns.flatMap((c) => c.bounds);
 
   /**
    * The scale, minus anything the inline boundary labels already say.
@@ -676,15 +756,20 @@ export function TrendChart({
    * the sort of silent change that misleads someone reading their own trend,
    * so it gets a sentence as well as a step. Positional wording only: which
    * range applied from when, and nothing about what the change means.
+   *
+   * The bounds go through `formatReferenceRange` — the same rounding that decided
+   * there was a step at all, so this sentence can never name two ranges that are
+   * the same range, and can never print one of them as 3.884960761896305.
    */
   const rangeChangeNote =
     periods.length < 2
       ? null
       : periods
           .map((p, i) => {
-            const unit = p.rows[0].unit ? ` ${p.rows[0].unit}` : '';
-            const from = formatDate(p.rows[0].sampleDate);
-            return i === 0 ? `${p.low}–${p.high}${unit} up to ${formatDate(p.rows[p.rows.length - 1].sampleDate)}` : `${p.low}–${p.high}${unit} from ${from}`;
+            const range = formatReferenceRange(p.low, p.high, p.rows[0].unit);
+            return i === 0
+              ? `${range} up to ${formatDate(p.rows[p.rows.length - 1].sampleDate)}`
+              : `${range} from ${formatDate(p.rows[0].sampleDate)}`;
           })
           .join(', then ');
 
@@ -974,20 +1059,27 @@ export function TrendChart({
                 vertical rule at the same x says the jump is the point. Paired
                 with the sentence under the chart and its own entry in the key,
                 so the change is stated three ways and carried by none of them
-                alone. */}
+                alone.
+
+                ONE rule per change, at exactly the x the bands either side of it
+                step at (both come from `stepBoundaries`), the full height of the
+                plot, and every value describing it is a token — see
+                chart.stepDashArray. The same three literals used to be written
+                out here and again in the key's swatch, which is two places for
+                one appearance to drift apart in. */}
             {stepBoundaries.map((x) => (
               <ReferenceLine
                 key={`step-${x}`}
                 x={x}
                 stroke={chartTokens.referenceEdge}
-                strokeDasharray="3 3"
-                strokeWidth={1}
-                strokeOpacity={0.7}
+                strokeDasharray={chartTokens.stepDashArray.join(' ')}
+                strokeWidth={chartTokens.stepWidth}
+                strokeOpacity={chartTokens.stepOpacity}
                 zIndex={210}
               />
             ))}
 
-            <BoundaryLabels bounds={boundaryLabels} />
+            <BoundaryLabels columns={labelColumns} />
 
             <Tooltip
               content={<ChartTooltip optimal={optimal} />}
@@ -1150,6 +1242,8 @@ function ChartKey({
     ...(stepped
       ? [
           <li key="stepped" className="flex items-center gap-2">
+            {/* The rule itself, from the same tokens the plot draws it with, so
+                the swatch cannot describe a mark the chart no longer makes. */}
             <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true" className="shrink-0">
               <line
                 x1="9"
@@ -1157,9 +1251,9 @@ function ChartKey({
                 x2="9"
                 y2="12"
                 stroke={chartTokens.referenceEdge}
-                strokeWidth="1"
-                strokeDasharray="3 3"
-                strokeOpacity="0.7"
+                strokeWidth={chartTokens.stepWidth}
+                strokeDasharray={chartTokens.stepDashArray.join(' ')}
+                strokeOpacity={chartTokens.stepOpacity}
               />
             </svg>
             <span className="min-w-0">Where the reference range changed</span>

@@ -9,10 +9,12 @@ import {
   canGoSignificantlyAbove,
   withinDemoEnvelope,
   syntheticBand,
+  findRangeChanges,
   CORRELATED_GROUPS,
   OPPOSITE,
   SOFTENED,
   type Band,
+  type GeneratedReport,
   type MarkerRow,
 } from '../src/modules/admin/demoSeedData.js';
 
@@ -290,5 +292,91 @@ describe('demo values stay inside the outpatient envelope', () => {
     // values by removing the significantly-out state from the demo entirely.
     expect(canGoSignificantlyAbove({ low: 30, high: 400, unit: 'µg/L', fromCatalogue: true }, marker({ key: 'ferritin' }))).toBe(true);
     expect(canGoSignificantlyAbove({ low: 0, high: 40, unit: 'U/L', fromCatalogue: true }, marker({ key: 'alt' }))).toBe(true);
+  });
+});
+
+/**
+ * A MARKER'S REFERENCE RANGE DOES NOT DRIFT ACROSS THE DEMO PATIENT'S HISTORY.
+ *
+ * A range that changes between two results makes the trend chart draw a step, a
+ * dashed rule, a second pair of axis labels and a sentence saying the laboratory
+ * changed the range. That machinery is right; what it must not be handed is a
+ * range that differs because three rows of a hand-written table happened not to
+ * match.
+ *
+ * Three markers were stepping and only fasting-insulin meant to. Vitamin D
+ * (50–250, 50–250, 75–200) and ferritin (30–400, 30–400, 20–200) both computed to
+ * the SAME status against either range, so the step was drawn, named and
+ * explained over a change that did nothing. Both are constant now, and
+ * buildDemoReports throws on any undeclared change rather than shipping one.
+ */
+describe('demo reference ranges are stable unless the change is declared', () => {
+  const report = (
+    sampleDate: string,
+    rows: { markerKey: string; referenceLow: number; referenceHigh: number }[],
+  ): GeneratedReport => ({
+    panelId: null,
+    panelKey: null,
+    panelName: null,
+    sourceKey: 'randox_portal',
+    sampleDate: new Date(`${sampleDate}T09:15:00Z`),
+    demonstrates: '',
+    results: rows.map((r) => ({
+      markerId: r.markerKey,
+      markerKey: r.markerKey,
+      resultType: 'MEASURED' as const,
+      value: 1,
+      unit: 'mmol/L',
+      referenceLow: r.referenceLow,
+      referenceHigh: r.referenceHigh,
+      intendedStatus: null,
+    })),
+  });
+
+  it('finds nothing where the range holds', () => {
+    const changes = findRangeChanges([
+      report('2025-02-11', [{ markerKey: 'hba1c', referenceLow: 20, referenceHigh: 42 }]),
+      report('2025-08-19', [{ markerKey: 'hba1c', referenceLow: 20, referenceHigh: 42 }]),
+    ]);
+    expect(changes).toEqual([]);
+  });
+
+  it('flags an undeclared change as undeclared', () => {
+    const changes = findRangeChanges([
+      report('2025-02-11', [{ markerKey: 'vitamin-d', referenceLow: 50, referenceHigh: 250 }]),
+      report('2025-08-19', [{ markerKey: 'vitamin-d', referenceLow: 75, referenceHigh: 200 }]),
+    ]);
+    expect(changes).toHaveLength(1);
+    expect(changes[0].declared).toBe(false);
+  });
+
+  it('accepts the one change that is declared, which is the step the chart exists to draw', () => {
+    const changes = findRangeChanges([
+      report('2025-02-11', [{ markerKey: 'fasting-insulin', referenceLow: 2, referenceHigh: 25 }]),
+      report('2026-02-03', [{ markerKey: 'fasting-insulin', referenceLow: 2, referenceHigh: 10 }]),
+    ]);
+    expect(changes).toHaveLength(1);
+    expect(changes[0].declared).toBe(true);
+  });
+
+  it('reads oldest first, whatever order the reports arrive in', () => {
+    // REPORT_PLANS is authored newest-last today. A future edit that reverses it
+    // must not turn "from 2–25 to 2–10" into "from 2–10 to 2–25".
+    const changes = findRangeChanges([
+      report('2026-02-03', [{ markerKey: 'fasting-insulin', referenceLow: 2, referenceHigh: 10 }]),
+      report('2025-02-11', [{ markerKey: 'fasting-insulin', referenceLow: 2, referenceHigh: 25 }]),
+    ]);
+    expect(changes[0].from.high).toBe(25);
+    expect(changes[0].to.high).toBe(10);
+  });
+
+  it('does not count a row that has no range at all', () => {
+    // The qualitative markers and every non-measured type carry 0/0. A pair of
+    // those is not a range that changed.
+    const changes = findRangeChanges([
+      report('2025-02-11', [{ markerKey: 'ecg', referenceLow: 0, referenceHigh: 0 }]),
+      report('2025-08-19', [{ markerKey: 'ecg', referenceLow: 0, referenceHigh: 0 }]),
+    ]);
+    expect(changes).toEqual([]);
   });
 });

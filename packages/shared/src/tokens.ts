@@ -1019,6 +1019,26 @@ export const chart = {
   referenceEdgeOpacity: 0.55,
   severityEdgeOpacity: 0.28,
   /**
+   * THE STEP: where a marker's reference range changed between two results.
+   *
+   * One dashed vertical hairline, the full height of the plot, at the midpoint
+   * between the two samples the change happened between. These three values are
+   * tokens rather than literals because the requirement on them is that it looks
+   * the SAME every time it happens — and the pattern is stated in two places (the
+   * rule on the plot and the swatch in the key) which drifted apart the moment
+   * either was edited. The colour is `referenceEdge`, the same neutral every
+   * other boundary in the chart is drawn in: the step is a boundary, and a
+   * boundary that carries a hue is a boundary competing with the status layer.
+   *
+   * Held as a tuple rather than the "3 3" string SVG wants, so it stays a
+   * non-colour token — tokenContrast.test.ts asserts every STRING in here is an
+   * `rgb(var(--x))` colour, which is the check that stops a bare `var()` reaching
+   * an SVG attribute and rendering black.
+   */
+  stepDashArray: [3, 3],
+  stepOpacity: 0.7,
+  stepWidth: 1,
+  /**
    * The fade at each end of a band, as a share of its own height.
    *
    * This is what turns four stacked blocks into four regions. Zero here is the

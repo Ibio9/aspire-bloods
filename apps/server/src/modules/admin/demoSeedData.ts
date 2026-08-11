@@ -48,7 +48,7 @@
  * RESULT ROW via verifyReport, never on the marker.
  */
 import type { MarkerStatus, ResultType } from '@aspire-bloods/shared';
-import { FOOD_SENSITIVITY_GROUPS } from '@aspire-bloods/shared';
+import { FOOD_SENSITIVITY_GROUPS, formatReferenceRange, sameReferenceRange } from '@aspire-bloods/shared';
 import { computeMarkerStatus } from '../../lib/markerStatus.js';
 import { prisma } from '../../db/client.js';
 import { CATALOGUE_RANGE_ORDER } from '../../lib/catalogueRanges.js';
@@ -92,6 +92,13 @@ export interface DemoDataDiagnostics {
   foodSensitivityGroups: number;
   /** Out-of-range results that followed a correlated partner rather than being rolled independently. */
   correlatedFollowers: number;
+  /**
+   * Every marker whose reference range changes partway through the history — the
+   * markers that render a stepped trend. In the run log so the count is a fact
+   * somebody sees, rather than something only the chart knows. Undeclared entries
+   * never reach here; the build throws on them.
+   */
+  rangeChanges: DemoRangeChange[];
   /** Per report, so a partial panel is visible in the run log rather than only in the database. */
   markersPerReport: {
     panel: string;
@@ -501,13 +508,50 @@ interface ScriptedValue {
   high?: number;
 }
 
+/**
+ * A MARKER'S REFERENCE RANGE STAYS THE SAME ACROSS THE DEMO PATIENT'S HISTORY
+ * UNLESS IT IS DECLARED HERE.
+ *
+ * The trend chart draws a step, a dashed rule, both ranges on the axis and a
+ * sentence naming them wherever a marker's range changes between two results,
+ * because a silent change of reference range is exactly what makes a trend
+ * misleading. That machinery is right and it needs something real to draw. What
+ * it does not need is a range that drifted because three rows of a table were
+ * hand-written and two of them happened to differ.
+ *
+ * Three markers were stepping. Only one of them meant to:
+ *
+ *  · fasting-insulin — 2–25 for the first two draws (the catalogue's own band,
+ *    reached by fall-through) and 2–25 → 2–10 on the third. DELIBERATE, and
+ *    load-bearing: 24.6 is IN_RANGE against 2–25 and SIGNIFICANT_HIGH against
+ *    2–10, so the chart's own story depends on the change.
+ *  · vitamin-d — 50–250, 50–250, then 75–200. INCIDENTAL. 104 is inside both,
+ *    so the step changed nothing except to claim the laboratory had moved the
+ *    range under the patient's third result.
+ *  · ferritin — 30–400, 30–400, then 20–200. INCIDENTAL. 18 is LOW against
+ *    both (the severity threshold is a multiple of a width of 370 and of 180,
+ *    and 18 clears neither), so again the step said something happened and
+ *    nothing had.
+ *
+ * Both are now constant at the catalogue's own band, and the check at the foot
+ * of buildDemoReports THROWS on any range that changes between two reports
+ * without an entry here — including a change produced by the fall-through, where
+ * a scripted range on one report meets a generated one on the next, which is how
+ * fasting-insulin's step actually arises and is not visible in this table alone.
+ */
+const DECLARED_RANGE_CHANGES: Record<string, string> = {
+  'fasting-insulin':
+    'The third report applies a functional band (2–10) narrower than the assay range (2–25) used on the earlier two, which is what makes 24.6 read as significantly high rather than as a shrug. The chart draws the step, names both ranges and dates the change.',
+};
+
 /** markerKey → per-report-index value. Absent entries fall through to generation. */
 const NARRATIVE: Record<string, Record<number, ScriptedValue>> = {
-  // Clearly low at baseline, then the classic supplementation recovery.
+  // Clearly low at baseline, then the classic supplementation recovery. One
+  // range throughout — the catalogue's own 50–250. See DECLARED_RANGE_CHANGES.
   'vitamin-d': {
     0: { value: 31, low: 50, high: 250 },
     1: { value: 58, low: 50, high: 250 },
-    2: { value: 104, low: 75, high: 200 },
+    2: { value: 104, low: 50, high: 250 },
   },
   // Creeping up, tipping just over on the newest panel.
   hba1c: {
@@ -515,11 +559,12 @@ const NARRATIVE: Record<string, Record<number, ScriptedValue>> = {
     1: { value: 39, low: 20, high: 42 },
     2: { value: 44, low: 20, high: 42 },
   },
-  // A steady fall, ending frankly low.
+  // A steady fall, ending frankly low. One range throughout — the catalogue's
+  // own 30–400. See DECLARED_RANGE_CHANGES.
   ferritin: {
     0: { value: 88, low: 30, high: 400 },
     1: { value: 52, low: 30, high: 400 },
-    2: { value: 18, low: 20, high: 200 },
+    2: { value: 18, low: 30, high: 400 },
   },
   // Below the assay's detection limit on report 2 (textual, skipped by the
   // trend line), a one-off spike on report 3, settled by report 4.
@@ -695,6 +740,60 @@ function sampleDateFor(plan: ReportPlan, now: Date): Date {
     return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 9, 15));
   }
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - plan.monthsAgo, plan.dayOfMonth, 9, 15));
+}
+
+// ---------------------------------------------------------------------------
+// Did a range change, and was it meant to?
+// ---------------------------------------------------------------------------
+
+export interface DemoRangeChange {
+  markerKey: string;
+  from: { low: number; high: number; sampleDate: string };
+  to: { low: number; high: number; sampleDate: string };
+  /** True where DECLARED_RANGE_CHANGES names this marker. */
+  declared: boolean;
+}
+
+/**
+ * Every point in the generated history where a marker's reference range differs
+ * from the one it had on the previous report.
+ *
+ * "Differs" is `sameReferenceRange` from the shared package — the SAME predicate
+ * the trend chart uses to decide whether to draw a step. Comparing the floats
+ * directly would let the seed and the chart disagree about whether the demo has
+ * a stepped trend in it, which is the one thing this check exists to prevent.
+ *
+ * Reads the built reports rather than the NARRATIVE table, because that is where
+ * the two sources of a range meet: fasting-insulin's step is a SCRIPTED range on
+ * report 3 against the CATALOGUE's own band on reports 1 and 2, and nothing in
+ * the narrative table shows it.
+ */
+export function findRangeChanges(reports: GeneratedReport[]): DemoRangeChange[] {
+  const seen = new Map<string, { low: number; high: number; sampleDate: string }>();
+  const changes: DemoRangeChange[] = [];
+  // Oldest first, so "the one before it" means the same thing here as it does on
+  // a chart. REPORT_PLANS is authored newest-last today; sorting says so.
+  const ordered = [...reports].sort((a, b) => a.sampleDate.getTime() - b.sampleDate.getTime());
+  for (const report of ordered) {
+    const sampleDate = report.sampleDate.toISOString().slice(0, 10);
+    for (const res of report.results) {
+      // A row with no range at all — a qualitative outcome, a non-measured type
+      // — is not a range that changed. Those carry 0/0 rather than a band.
+      if (!(res.referenceHigh > res.referenceLow)) continue;
+      const previous = seen.get(res.markerKey);
+      const current = { low: res.referenceLow, high: res.referenceHigh, sampleDate };
+      if (previous && !sameReferenceRange(previous, current)) {
+        changes.push({
+          markerKey: res.markerKey,
+          from: previous,
+          to: current,
+          declared: res.markerKey in DECLARED_RANGE_CHANGES,
+        });
+      }
+      seen.set(res.markerKey, current);
+    }
+  }
+  return changes;
 }
 
 // ---------------------------------------------------------------------------
@@ -1035,6 +1134,31 @@ export async function buildDemoReports(opts: {
     });
   }
 
+  // --- a range may not change by accident -----------------------------------
+  //
+  // Loud rather than logged. An undeclared change puts a step, a dashed rule, a
+  // second pair of axis labels and a sentence about the laboratory changing a
+  // reference range onto a chart, over data where nothing of the kind happened —
+  // and it does it in the artefact used to show the product to people. There is
+  // no version of that worth shipping past a warning nobody reads.
+  const rangeChanges = findRangeChanges(reports);
+  const undeclared = rangeChanges.filter((c) => !c.declared);
+  if (undeclared.length > 0) {
+    throw new Error(
+      `Demo reference range changed without being declared:\n` +
+        undeclared
+          .map(
+            (c) =>
+              `  · ${c.markerKey}: ${formatReferenceRange(c.from.low, c.from.high)} on ${c.from.sampleDate} ` +
+              `→ ${formatReferenceRange(c.to.low, c.to.high)} on ${c.to.sampleDate}`,
+          )
+          .join('\n') +
+        `\nA marker's reference range stays the same across the demo patient's results. If the change is ` +
+        `intentional, add the marker to DECLARED_RANGE_CHANGES in demoSeedData.ts with the reason; ` +
+        `otherwise make the range constant across the NARRATIVE entries for it.`,
+    );
+  }
+
   // --- diagnostics ----------------------------------------------------------
   const measuredCategories = await prisma.markerCategory.findMany({
     where: { resultType: 'MEASURED' },
@@ -1063,6 +1187,7 @@ export async function buildDemoReports(opts: {
     markersInTwoOrMoreReports: [...reportsPerMarkerKey.values()].filter((n) => n >= 2).length,
     foodSensitivityGroups: groupsCovered,
     correlatedFollowers,
+    rangeChanges,
     // `results` and `panelMarkers` must be equal for every report that has a
     // panel behind it. They are reported side by side rather than as a boolean
     // so a partial panel says by how much, and tests/demoSeedData.test.ts

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
   asMarkerStatus,
+  formatReferenceRange,
   NO_STATUS_LABEL,
   type MarkerStatusInput,
   type OptimalRangeDTO,
@@ -192,9 +193,9 @@ export function MarkerResultCard({
         {status !== null && hasRange && (
           <p className="mt-2.5 text-xs leading-snug text-espresso/80">
             Lab reference range{' '}
-            <span className="numeric">
-              {m.referenceLow}–{m.referenceHigh} {m.unit}
-            </span>
+            {/* Formatted, never interpolated raw — a converted range has no
+                rounding of its own. See the same line in MarkerDetailPage. */}
+            <span className="numeric">{formatReferenceRange(m.referenceLow, m.referenceHigh, m.unit)}</span>
           </p>
         )}
         {status === null && <p className="mt-2.5 text-xs leading-snug text-espresso/80">{NO_STATUS_LABEL}</p>}

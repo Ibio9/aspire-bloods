@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { asMarkerStatus, formatDate, type MarkerStatusInput, type OptimalRangeDTO } from '@aspire-bloods/shared';
+import {
+  asMarkerStatus,
+  formatDate,
+  formatReferenceRange,
+  type MarkerStatusInput,
+  type OptimalRangeDTO,
+} from '@aspire-bloods/shared';
 import { Breadcrumbs } from '../../components/nav/Breadcrumbs';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
@@ -259,8 +265,13 @@ export function MarkerDetailPage() {
           {latestStatus !== null && detail.latest.referenceHigh > detail.latest.referenceLow && (
             <p className="mt-2.5 text-xs text-espresso/80">
               Lab reference range{' '}
+              {/* Formatted rather than interpolated: a range that arrived through
+                  a unit conversion has no rounding of its own, and printed raw it
+                  read "3.884960761896305–5.494444506110488 mmol/L". Same
+                  formatter the trend chart's tooltip, sentence and axis labels
+                  use, so one range reads the same everywhere on the page. */}
               <span className="numeric">
-                {detail.latest.referenceLow}–{detail.latest.referenceHigh} {detail.latest.unit}
+                {formatReferenceRange(detail.latest.referenceLow, detail.latest.referenceHigh, detail.latest.unit)}
               </span>
             </p>
           )}

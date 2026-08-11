@@ -168,6 +168,53 @@ by colour, which is why high and low share a hue and both significants share one
    both ranges and their dates, because a silent change of reference range
    between two results is exactly what misleads someone reading their own trend.
    The key is a two-column grid, not two rows of wrapping flex items.
+   **WHETHER THE RANGE CHANGED IS ONE QUESTION WITH ONE ANSWER (Aug 2026).**
+   `sameReferenceRange` (statusBands.ts) decides it, and it is NOT a float
+   compare, because the bounds reaching a chart have been through a unit
+   conversion: a fasting glucose reported as 3.9–5.5 mmol/L and then as
+   70–99 mg/dL is one interval written twice, and 99/18.0182 =
+   5.494444506110488 is not float-equal to 5.5. So the chart stepped, drew the
+   dashed rule, named the change in the key, printed both ranges on the axis,
+   and stated in a sentence that the laboratory had changed a range it had
+   never touched — with 5.494444506110488 set as an inline axis label.
+   Identity is decided at the precision a range is READ at
+   (`roundReferenceBound`: 3 decimals under 0.2, then 2, then 1, then whole
+   numbers — per BOUND, so TSH's 0.27 floor keeps its precision beside a 4.2
+   ceiling), and the same rounding is what gets printed. **A step therefore
+   exists exactly when the two printed ranges differ**, which is what stops the
+   drawn step and the written sentence ever disagreeing;
+   `referenceRangeIdentity.test.ts` pins the biconditional. The BAND GEOMETRY
+   still uses the exact numbers the server sent — a period takes its first
+   row's — so no band edge moves to suit a rounding. **No reference range is
+   ever interpolated raw into copy**: `formatReferenceRange` is the only way one
+   reaches a screen, in the chart's tooltip, sentence and axis labels and in
+   the two "Lab reference range" lines on MarkerDetailPage and
+   MarkerResultCard.
+   **THE STEP LOOKS THE SAME EVERY TIME IT HAPPENS.** One dashed vertical
+   hairline, the full plot height, at the midpoint — `chart.stepDashArray` /
+   `stepWidth` / `stepOpacity`, tokens rather than literals because the pattern
+   was written out twice (the rule on the plot and the swatch in the key) and
+   two copies of one appearance is one edit away from drifting. Every band in a
+   period is drawn to ONE x extent held on the period, so "all the bands step
+   together" is structural rather than four expressions agreeing; the boundary
+   hairlines run only across their own period and meet the step. Every period's
+   bounds are labelled at the right-hand end of its OWN extent, not just the
+   last period's — a reader could previously see that the range had stepped and
+   not read what it stepped from. `e2e/chart-bands.spec.ts` measures all of it:
+   two overlapping boxes and a 1px band edge out of place are facts you
+   measure, not things anybody notices in a screenshot.
+   **THE DEMO SEED DOES NOT DRIFT A RANGE BY ACCIDENT.** Three markers were
+   stepping and one meant to. `fasting-insulin` is deliberate and load-bearing
+   (2–25 → 2–10 is what makes 24.6 significantly high rather than a shrug);
+   `vitamin-d` (50–250 → 75–200) and `ferritin` (30–400 → 20–200) were
+   hand-written rows that happened to differ, and both computed to the SAME
+   status against either range — so the step was drawn, named and explained over
+   a change that did nothing. Both are constant now.
+   `DECLARED_RANGE_CHANGES` in demoSeedData.ts is the closed list, and
+   `buildDemoReports` THROWS on any change not on it, including one produced by
+   the fall-through where a scripted range on one report meets the catalogue's
+   own band on the next — which is how fasting-insulin's step actually arises
+   and is invisible in the narrative table alone.
    **THE BANDS ARE CONTEXT AND THE LINE IS CONTENT (redesigned Aug 2026).**
    They were four opaque saturated slabs edge to edge with a near-solid rule
    over every boundary, which is a fill tool rather than a chart: at equal
