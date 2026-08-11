@@ -84,7 +84,7 @@ export function Prepare({
               {kits.map((k) => k.name).join(' and ')}
             </p>
             <p className="mt-3 text-reading leading-relaxed text-espresso/90">
-              This one is not taken at your appointment. We'll post the kit within two working days, with a prepaid
+              This one is not taken at your appointment. We’ll post the kit within two working days, with a prepaid
               return envelope. Complete it whenever suits you. There is no window to hit, and your blood draw on{' '}
               {formatWeekdayDate(slot.date)} is unaffected.
             </p>
@@ -165,17 +165,17 @@ export function Prepare({
                 <>
                   I understand I must not eat after{' '}
                   <span className="tabular font-semibold">{deadlinePhrase(window.closeBy)}</span>, and that if I do,
-                  the sample can't be used.
+                  the sample can’t be used.
                 </>
               ) : (
-                <>I've read the preparation above and understand what I need to do before this appointment.</>
+                <>I’ve read the preparation above and understand what I need to do before this appointment.</>
               )}
             </span>
           </label>
           {showAcknowledgeError && !acknowledged && (
             <p id="fasting-ack-error" role="alert" className="mt-3 flex items-center gap-2 text-sm text-status-significantHigh">
               <AlertIcon className="shrink-0" />
-              Please confirm you've read this before continuing.
+              Please confirm you’ve read this before continuing.
             </p>
           )}
         </section>

@@ -73,7 +73,7 @@ export function SignupPage() {
                 said once, on the field that asks for them (see
                 RegistrationForm) rather than again here. */}
             <p className="mt-[var(--auth-step)] max-w-prose text-sm leading-relaxed text-espresso/80">
-              No invitation needed. We'll confirm your email address, then set up two-factor sign-in.
+              No invitation needed. We’ll confirm your email address, then set up two-factor sign-in.
             </p>
 
             {/* The exact mirror of the band on the sign-in screen — same component,

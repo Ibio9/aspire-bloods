@@ -501,7 +501,7 @@ export async function ingestOrderResults(ref: OrderRef): Promise<IngestResult> {
   if (outcome.excludedCount > 0) parts.push(`${outcome.excludedCount} could not be reported`);
   if (pendingCount > 0) parts.push(`${pendingCount} still being processed by the lab`);
   if (outcome.disagreementCount > 0) {
-    parts.push(`${outcome.disagreementCount} where Randox's own high/low flag disagrees with the range they sent`);
+    parts.push(`${outcome.disagreementCount} where Randox’s own high/low flag disagrees with the range they sent`);
   }
   // Where it stopped, and why. A report that advanced on its own to
   // admin-verified needs no admin at all before the clinician sees it; one

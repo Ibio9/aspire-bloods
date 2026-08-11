@@ -192,7 +192,7 @@ function DemoSeedCard() {
             Run the demo seed now
           </Button>
           <p className="mt-2 text-xs leading-relaxed text-espresso/80">
-            Replaces the demo patient's reports with a fresh set. Touches nothing else.
+            Replaces the demo patient’s reports with a fresh set. Touches nothing else.
           </p>
         </div>
       </Card>
@@ -328,8 +328,8 @@ function ErasureRequestsCard() {
       <p className="eyebrow mb-4">Erasure requests</p>
       <Card className="max-w-2xl">
         <p className="text-sm leading-relaxed text-espresso/85">
-          Approving one schedules a purge in 30 days. It de-identifies the patient's profile; clinical results are
-          kept under the practice's records retention obligation. Nothing is deleted immediately and every step is
+          Approving one schedules a purge in 30 days. It de-identifies the patient’s profile; clinical results are
+          kept under the practice’s records retention obligation. Nothing is deleted immediately and every step is
           audited.
         </p>
         <ul className="mt-4 border-t border-taupe">
@@ -404,7 +404,7 @@ export function AdminDashboard() {
             ))}
           </div>
         ) : buckets.length === 0 ? (
-          <EmptyState title="Nothing waiting" description="Every report is either released or hasn't been uploaded yet." />
+          <EmptyState title="Nothing waiting" description="Every report is either released or hasn’t been uploaded yet." />
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {buckets.map((b, i) => (

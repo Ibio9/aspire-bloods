@@ -111,11 +111,17 @@ function SectionFilters({
 function PlainResult({ marker }: { marker: NonMeasuredMarker }) {
   const shown = marker.valueText ?? (marker.value !== null ? `${marker.value}${marker.unit ? ` ${marker.unit}` : ''}` : null);
   return (
-    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-taupe py-2.5 last:border-b-0">
+    // The same `.value-row` grid the previous-results list uses, with the third
+    // column absent — a genetic indicator, a food sensitivity and a microbiome
+    // proportion have no status, so there is nothing to put in it. Sharing the
+    // primitive is the point: this was a wrapping flex row, which did not
+    // overlap but did let the values wander left and right down the page
+    // instead of forming a column. Grid gives it the same clean right edge.
+    <div className="value-row border-b border-taupe py-2.5 last:border-transparent">
       <p className="text-sm text-espresso">{marker.name}</p>
       {/* No tint and no status badge, on purpose — there is no reference range
           behind any of these, so there is nothing for a colour to mean. */}
-      <p className="tabular shrink-0 text-sm font-medium text-espresso">{shown ?? 'Not reported'}</p>
+      <p className="value-row-value tabular text-sm font-medium text-espresso">{shown ?? 'Not reported'}</p>
     </div>
   );
 }
@@ -360,7 +366,7 @@ export function SensitivitySection({ markers }: { markers: NonMeasuredMarker[] }
         onGroup={setGroup}
         groups={allGroups.map((g) => ({ key: g.key, name: g.name }))}
         groupLabel="Food group"
-        placeholder="Wheat, almond, cow's milk…"
+        placeholder="Wheat, almond, cow’s milk…"
         count={filterCountLabelFor(shown, total, 'food', 'foods')}
       />
 

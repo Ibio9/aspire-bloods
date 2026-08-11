@@ -41,7 +41,7 @@ export function BookingSummary({ panel, addOns, location, date, time, durationMi
   return (
     <div className="flex flex-col gap-8">
       {/* ── what ────────────────────────────────────────────────────────── */}
-      <Section title="What you're having" onEdit={onEdit?.test} editLabel="your test">
+      <Section title="What you’re having" onEdit={onEdit?.test} editLabel="your test">
         <p className="font-display text-xl leading-tight text-espresso sm:text-2xl">{panel.name}</p>
         <p className="tabular mt-2 text-sm text-espresso/85">
           {panel.markerCount} markers · results in {turnaround.label}
@@ -110,7 +110,7 @@ export function BookingSummary({ panel, addOns, location, date, time, durationMi
       <Section title="Afterwards">
         <p className="text-reading leading-relaxed text-espresso">
           Expect your results {expectedResultsLabel(panel, addOns, date)}. They come back to the Aspire clinical team
-          first. A clinician reviews every result before it appears in your portal, and we'll email you the moment it
+          first. A clinician reviews every result before it appears in your portal, and we’ll email you the moment it
           does.
         </p>
       </Section>

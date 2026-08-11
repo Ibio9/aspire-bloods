@@ -111,7 +111,11 @@ function drawClinicContact(doc: PDFKit.PDFDocument, x: number, width: number) {
   };
 
   if (contact.phone) line('Phone', contact.phone, true);
-  line('Address', [contact.name, ...contact.addressLines].join(', '));
+  // ONE ITEM PER LINE, and that includes the address's own lines. Joined with
+  // commas the PDF quietly reintroduced the "Aspire Clinic, 27 Mortimer Street,
+  // London" run-on that the screen version was rebuilt to get rid of — the two
+  // renderings of the same four facts have to agree.
+  line('Address', [contact.name, ...contact.addressLines].join('\n'));
   line('Opening hours', contact.hours);
   line('Emergency line', contact.emergencyNote);
   line('Email', contact.email);

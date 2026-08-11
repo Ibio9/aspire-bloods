@@ -205,7 +205,7 @@ export function AccountPage() {
       >
         {confirmWithdraw && (
           <p>
-            You're about to withdraw consent for <strong>{CONSENT_LABEL[confirmWithdraw]}</strong>. We may no
+            You’re about to withdraw consent for <strong>{CONSENT_LABEL[confirmWithdraw]}</strong>. We may no
             longer be able to provide parts of the portal without it.
           </p>
         )}
@@ -228,7 +228,7 @@ export function AccountPage() {
       >
         <p>
           This starts erasing your personal details from our records. Clinical results are retained for the period
-          required by law regardless. It can't be undone once our team has actioned it.
+          required by law regardless. It can’t be undone once our team has actioned it.
         </p>
       </Modal>
     </>

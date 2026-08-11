@@ -112,8 +112,8 @@ export function BiologicalSexCard({ variant, onSaved }: Props) {
         {editing
           ? 'Update the biological sex recorded on your account.'
           : blocking
-            ? "We don't have your biological sex on file, and the laboratory can't accept an order without it."
-            : "We don't have your biological sex on file. It's optional when you register, but it's worth adding."}
+            ? "We don’t have your biological sex on file, and the laboratory can’t accept an order without it."
+            : "We don’t have your biological sex on file. It’s optional when you register, but it’s worth adding."}
       </p>
       {/* One explanation of why we ask, and only one — the consequence of
           leaving it blank followed from the same sentence. */}
@@ -160,7 +160,7 @@ export function BiologicalSexCard({ variant, onSaved }: Props) {
       </div>
 
       <p className="mt-4 text-xs leading-relaxed text-espresso/80">
-        If neither option fits, or your record needs to say something different, call the clinic and we'll handle
+        If neither option fits, or your record needs to say something different, call the clinic and we’ll handle
         it with you.
       </p>
     </Card>

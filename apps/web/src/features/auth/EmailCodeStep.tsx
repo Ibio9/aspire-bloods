@@ -158,8 +158,8 @@ export function EmailCodeStep({ email, sentTo, expiresInMinutes, cooldownSeconds
       <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">Almost there</p>
       <h2 className="auth-heading">Confirm your email</h2>
       <p className="mt-[var(--auth-step)] text-sm leading-relaxed text-espresso/80">
-        We've sent a 6-digit code to{' '}
-        <span className="font-medium text-espresso">{maskedAddress ?? 'your email address'}</span>. It's valid for{' '}
+        We’ve sent a 6-digit code to{' '}
+        <span className="font-medium text-espresso">{maskedAddress ?? 'your email address'}</span>. It’s valid for{' '}
         {expiry} minutes. Two-factor sign-in comes next.
       </p>
 
@@ -199,7 +199,7 @@ export function EmailCodeStep({ email, sentTo, expiresInMinutes, cooldownSeconds
       </form>
 
       <div className="mt-[calc(var(--auth-step)*1.4)] border-t border-taupe pt-[calc(var(--auth-step)*1.2)]">
-        <p className="text-sm text-espresso/80">Didn't get it? Check your junk folder first.</p>
+        <p className="text-sm text-espresso/80">Didn’t get it? Check your junk folder first.</p>
         <div className="mt-[calc(var(--auth-step)*0.75)] flex flex-wrap items-center gap-x-4 gap-y-2">
           <Button
             variant="secondary"
@@ -208,7 +208,7 @@ export function EmailCodeStep({ email, sentTo, expiresInMinutes, cooldownSeconds
             disabled={cooldown > 0 || exhausted}
             disabledReason={
               exhausted
-                ? "We've sent as many codes as we can to this address for now."
+                ? "We’ve sent as many codes as we can to this address for now."
                 : `You can request another code in ${cooldown} second${cooldown === 1 ? '' : 's'}.`
             }
           >
@@ -223,7 +223,7 @@ export function EmailCodeStep({ email, sentTo, expiresInMinutes, cooldownSeconds
 
         {(exhausted || resendAttempts >= 2) && (
           <p className="mt-[var(--auth-step)] rounded-input border border-taupe bg-cream-50 px-4 py-2.5 text-sm leading-relaxed text-espresso">
-            If it still hasn't arrived,{' '}
+            If it still hasn’t arrived,{' '}
             {CLINIC_PHONE && CLINIC_PHONE_HREF ? (
               <>
                 call the clinic on{' '}
@@ -239,7 +239,7 @@ export function EmailCodeStep({ email, sentTo, expiresInMinutes, cooldownSeconds
                 </a>
               </>
             )}{' '}
-            and we'll get your account confirmed.
+            and we’ll get your account confirmed.
           </p>
         )}
       </div>

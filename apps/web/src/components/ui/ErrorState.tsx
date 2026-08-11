@@ -39,14 +39,14 @@ function explain(error: unknown, subject: string): Explanation {
   if (status === 404) {
     return {
       title: 'Not found',
-      description: `We couldn't find ${subject}. It may have been removed, or the link may be out of date.`,
+      description: `We couldn’t find ${subject}. It may have been removed, or the link may be out of date.`,
       retryable: false,
     };
   }
   if (status === 403) {
     return {
       title: 'You don’t have access to this',
-      description: `${subject.charAt(0).toUpperCase()}${subject.slice(1)} belongs to an account you're not permitted to view. If that's wrong, ask an administrator to check your access.`,
+      description: `${subject.charAt(0).toUpperCase()}${subject.slice(1)} belongs to an account you’re not permitted to view. If that’s wrong, ask an administrator to check your access.`,
       retryable: false,
     };
   }
@@ -67,7 +67,7 @@ function explain(error: unknown, subject: string): Explanation {
   if (status >= 500) {
     return {
       title: 'Something went wrong at our end',
-      description: `We couldn't load ${subject}. That's a fault on our side, not anything you did.`,
+      description: `We couldn’t load ${subject}. That’s a fault on our side, not anything you did.`,
       retryable: true,
     };
   }

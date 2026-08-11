@@ -109,20 +109,20 @@ function FastingRequired({
               {panelName} needs {rule.minHours} to {rule.maxHours} hours without food, and your appointment is at{' '}
               <span className="tabular font-medium text-oncolor">{formatClockTime(appointmentTime ?? '00:00')}</span>.{' '}
               {fastingInstruction(window)} Fasting for longer than {rule.maxHours} hours skews the results as surely
-              as not fasting at all, so don't start early to be safe.
+              as not fasting at all, so don’t start early to be safe.
             </p>
           </>
         ) : (
           <>
             <h2 id={headingId} className="mt-4 font-display text-2xl leading-[1.08] sm:text-3xl">
-              You'll need to fast for{' '}
+              You’ll need to fast for{' '}
               <span className="tabular whitespace-nowrap">
                 {rule.minHours}–{rule.maxHours} hours
               </span>
             </h2>
             <p className="mt-5 max-w-2xl text-reading leading-relaxed text-oncolor/90">
               {panelName} measures things that food moves within minutes: blood sugar and triglycerides most of all.
-              Once you've picked a time we'll tell you the exact hour to stop eating, so there is nothing for you to
+              Once you’ve picked a time we’ll tell you the exact hour to stop eating, so there is nothing for you to
               work out.
             </p>
           </>
@@ -161,8 +161,8 @@ function FastingRequired({
       <div className="flex items-start gap-3 border-t border-oncolor/20 bg-ink p-6 sm:px-9">
         <AlertIcon className="mt-0.5 shrink-0 text-oncolor" />
         <p className="text-reading leading-relaxed text-oncolor">
-          <span className="font-medium">If you eat, we can't use the sample.</span> The draw would go ahead and the
-          results would be misleading, so we'd have to ask you back for a second appointment. If you slip up, tell the
+          <span className="font-medium">If you eat, we can’t use the sample.</span> The draw would go ahead and the
+          results would be misleading, so we’d have to ask you back for a second appointment. If you slip up, tell the
           phlebotomist when you arrive. Rebooking on the day costs you nothing.
         </p>
       </div>

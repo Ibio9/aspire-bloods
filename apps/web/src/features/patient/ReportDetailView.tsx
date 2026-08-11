@@ -124,7 +124,7 @@ export function ReportDetailView({
   if (failed) {
     return (
       <Card className="max-w-xl">
-        <p className="font-display text-xl text-espresso">We couldn't open that panel</p>
+        <p className="font-display text-xl text-espresso">We couldn’t open that panel</p>
         <p className="mt-2 text-sm leading-relaxed text-espresso/90">
           This report may no longer be available, or the link may be out of date.
         </p>

@@ -177,7 +177,7 @@ export function SessionGuard() {
       }
     >
       <p>
-        You've been inactive, so for your security you'll be signed out in{' '}
+        You’ve been inactive, so for your security you’ll be signed out in{' '}
         <span className="tabular font-medium text-espresso">
           {minutes}:{seconds.toString().padStart(2, '0')}
         </span>

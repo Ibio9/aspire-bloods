@@ -262,7 +262,7 @@ function LinkConfirmModal({
           thing to click past. */}
       <div className="mt-5">
         <Input
-          label="Re-type the patient's date of birth"
+          label="Re-type the patient’s date of birth"
           name="confirmedDob"
           inputMode="numeric"
           placeholder="DD/MM/YYYY"
@@ -436,7 +436,7 @@ function UnmatchedResultCard({ result, onChanged }: { result: UnmatchedResult; o
       >
         <p className="text-sm leading-relaxed text-espresso">
           The result stays on record with your reason attached and stops appearing in this queue. Use it for
-          duplicates and results that were never ours, not for ones you can't place yet.
+          duplicates and results that were never ours, not for ones you can’t place yet.
         </p>
       </ConfirmModal>
     </Card>
@@ -539,7 +539,7 @@ export function LinkingPage() {
       <>
         <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Result linking" />
         <Card className="mt-10 max-w-xl">
-          <p className="font-display text-xl text-espresso">We couldn't load the linking queue</p>
+          <p className="font-display text-xl text-espresso">We couldn’t load the linking queue</p>
           <p className="mt-2 text-sm text-espresso/80">Please refresh the page.</p>
         </Card>
       </>
@@ -606,7 +606,7 @@ export function LinkingPage() {
                 )}
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-espresso/80">
-                Not a problem to solve: most are patients who haven't been tested yet.
+                Not a problem to solve: most are patients who haven’t been tested yet.
               </p>
 
               {queue.unlinkedAccounts.length > 0 && (

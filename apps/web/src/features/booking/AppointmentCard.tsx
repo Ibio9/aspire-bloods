@@ -103,7 +103,7 @@ export function AppointmentCard({ appointment, catalogue, compact = false }: App
         {!compact && homeKitAddOns(addOns).length > 0 && (
           <p className="mt-3 flex items-start gap-2 text-sm text-espresso/85">
             <HomeKitIcon className="mt-0.5 shrink-0 text-bronze-700" />
-            <span>{homeKitAddOns(addOns).map((a) => a.name).join(', ')} arrives by post. It isn't taken at this appointment.</span>
+            <span>{homeKitAddOns(addOns).map((a) => a.name).join(', ')} arrives by post. It isn’t taken at this appointment.</span>
           </p>
         )}
 

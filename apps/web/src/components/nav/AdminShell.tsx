@@ -277,7 +277,10 @@ export function AdminShell({ children }: { children?: ReactNode }) {
     // the sidebar's containing block, so the disclaimer footer belongs inside
     // it. h-viewport rather than h-screen so the panel is measured against the
     // same 100dvh the shell is.
-    <div className="min-h-viewport flex bg-cream">
+    // No background here: `html` carries the page colour, and an opaque one on
+    // this div covers `body::before`, which is the ambient glow. See the same
+    // note in PatientShell.
+    <div className="min-h-viewport flex">
       {/* Desktop persistent sidebar. `md:flex` rather than `md:block`: the
           panel is the flex column itself, so its bands measure against the
           panel's own height and the footer sits on its bottom edge. */}

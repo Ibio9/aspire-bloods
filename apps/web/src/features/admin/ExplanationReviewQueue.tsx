@@ -246,13 +246,13 @@ export function ExplanationReviewQueue() {
                         <p className="mt-5 leading-relaxed text-espresso">{row.whatItIs}</p>
                         {row.highMeans && (
                           <p className="mt-4 text-sm leading-relaxed text-espresso/90">
-                            <span className="font-medium text-espresso">If it's high: </span>
+                            <span className="font-medium text-espresso">If it’s high: </span>
                             {row.highMeans}
                           </p>
                         )}
                         {row.lowMeans && (
                           <p className="mt-2 text-sm leading-relaxed text-espresso/90">
-                            <span className="font-medium text-espresso">If it's low: </span>
+                            <span className="font-medium text-espresso">If it’s low: </span>
                             {row.lowMeans}
                           </p>
                         )}

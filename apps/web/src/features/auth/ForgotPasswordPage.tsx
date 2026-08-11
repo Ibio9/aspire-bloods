@@ -10,7 +10,7 @@ import { validateEmail } from '../../lib/validateEmail';
 const EYEBROW = 'Aspire Clinic';
 const HEADLINE = 'Locked out? Not for long.';
 const SUPPORTING =
-  "Tell us the address you registered with and we'll email you a link to set a new password.";
+  "Tell us the address you registered with and we’ll email you a link to set a new password.";
 
 /**
  * "I've forgotten my password" — the exit that didn't exist. Without it the
@@ -91,7 +91,7 @@ export function ForgotPasswordPage() {
       <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">Patient portal</p>
       <h2 className="auth-heading">Reset your password</h2>
       <p className="mt-[var(--auth-step)] text-sm leading-relaxed text-espresso/80">
-        You'll still need your two-factor code to sign in afterwards.
+        You’ll still need your two-factor code to sign in afterwards.
       </p>
 
       <form

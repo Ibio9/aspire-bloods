@@ -137,7 +137,7 @@ export function ReportHeader({
         <Button
           variant="secondary"
           disabled={report.hasOriginalPdf === false}
-          disabledReason="These results were entered by the clinical team, so there's no original laboratory PDF."
+          disabledReason="These results were entered by the clinical team, so there’s no original laboratory PDF."
           loading={downloading === 'original-pdf-link'}
           onClick={() => void handleDownload('original-pdf-link')}
         >

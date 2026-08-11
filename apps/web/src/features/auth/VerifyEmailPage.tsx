@@ -85,7 +85,7 @@ export function VerifyEmailPage() {
       <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">Confirmation</p>
       <h2 className="auth-heading">Get a confirmation code</h2>
       <p className="mt-[var(--auth-step)] text-sm leading-relaxed text-espresso/80">
-        Tell us the address you registered with and we'll send a fresh 6-digit code to it.
+        Tell us the address you registered with and we’ll send a fresh 6-digit code to it.
       </p>
 
       <form onSubmit={handleSubmit} className="mt-[calc(var(--auth-step)*1.6)] flex flex-col gap-[calc(var(--auth-step)*1.2)]" noValidate>
@@ -109,7 +109,7 @@ export function VerifyEmailPage() {
       </form>
 
       <p className="mt-[calc(var(--auth-step)*1.4)] text-sm text-espresso/80">
-        Haven't registered yet?{' '}
+        Haven’t registered yet?{' '}
         <Link to="/signup" className="rounded-input font-medium text-bronze underline underline-offset-2">
           Create an account
         </Link>

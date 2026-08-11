@@ -86,18 +86,40 @@
   }
 
   /* ── The ambient light source (dark only) ──────────────────────────────
-     Dark mode is the default theme now, and at the surface values it had it
-     read as a cave. The room comes from a soft gold-bronze glow anchored in
-     one corner of the viewport rather than from raising every surface until
-     the contrast goes flat — the surfaces did move (see nightBase in
-     tokens.ts), but only enough that a card separates from the page on its
-     own, in the corner furthest from this.
+     A near-black page with ONE point of warm light in it. That is the whole
+     brief, and the previous version met none of it: two radials sized 112% and
+     140% of the viewport put every pixel inside the bright part of the curve,
+     so what read on screen was not a light source but a flat gold wash over a
+     brown page. The falloff existed and was invisible, which is the same thing
+     as not existing.
+
+     THE THREE THINGS THAT MAKE IT A SOURCE:
+
+     1. A SMALL RADIUS. 62% × 58%, anchored just inside the top-right corner.
+        The distance from there to the opposite corner is more than 1.7 radii,
+        so the light is long gone before it arrives — which is what "a source"
+        means and what a viewport-sized radial can never do.
+     2. A BRIGHT CENTRE. 0.40 at the core, against 0.15 before. On #110F0D that
+        is a visible point of light rather than a suggestion of one.
+     3. A STEEP, MANY-STOPPED FALLOFF. The alpha roughly halves every 12% of
+        the radius, which is what makes it read as light rather than as paint.
+        Eight stops rather than four, spaced unevenly and closest together
+        where the curve is steepest: a two-stop version of this ramp bands
+        visibly on an 8-bit panel, and the banding is worst exactly where the
+        gradient changes fastest.
+
+     The tail ends at `rgb(var(--c-glow) / 0)` and NOT at `transparent`.
+     `transparent` is rgba(0,0,0,0), so a browser interpolating toward it takes
+     the colour through black on the way — a grey-brown shoulder around the
+     light, which on a warm palette is the one thing that cannot be there.
+     Fading to the same hue at zero alpha keeps the whole ramp warm.
 
      Fixed to the viewport, so it does not travel on scroll; pointer-events
-     none, so it never intercepts anything; entirely behind content, so it
-     cannot reduce the contrast of a single character. Two stops rather than
-     one, at unequal radii, because a single wide radial with a hard tail is
-     exactly what bands on an 8-bit display.
+     none, so it never intercepts anything; z-index -1, so it is behind every
+     scrap of content and cannot reduce the contrast of a single character.
+     Nothing on the page depends on it: the card surfaces, the hairline borders
+     and the shadows separate on their own, and turning this rule off leaves an
+     interface that still works.
 
      Static, at every motion preference. An ambient light that breathes is a
      notification, not a room. */
@@ -107,21 +129,18 @@
     inset: 0;
     z-index: -1;
     pointer-events: none;
-    background:
-      radial-gradient(
-        112% 78% at 96% -4%,
-        rgb(var(--c-glow) / 0.15) 0%,
-        rgb(var(--c-glow) / 0.09) 26%,
-        rgb(var(--c-glow) / 0.035) 52%,
-        rgb(var(--c-glow) / 0.012) 72%,
-        transparent 88%
-      ),
-      radial-gradient(
-        140% 110% at 88% 8%,
-        rgb(var(--c-glow) / 0.05) 0%,
-        rgb(var(--c-glow) / 0.018) 45%,
-        transparent 80%
-      );
+    background: radial-gradient(
+      62% 58% at 96% 1%,
+      rgb(var(--c-glow) / 0.4) 0%,
+      rgb(var(--c-glow) / 0.28) 9%,
+      rgb(var(--c-glow) / 0.165) 19%,
+      rgb(var(--c-glow) / 0.1) 30%,
+      rgb(var(--c-glow) / 0.055) 42%,
+      rgb(var(--c-glow) / 0.027) 55%,
+      rgb(var(--c-glow) / 0.011) 70%,
+      rgb(var(--c-glow) / 0.003) 85%,
+      rgb(var(--c-glow) / 0) 100%
+    );
   }
 
   /* Theme switching. Every colour in the product resolves through a custom
@@ -371,6 +390,85 @@
      family as well. */
   .tabular {
     font-variant-numeric: tabular-nums slashed-zero;
+  }
+
+  /* ── Label / value rows ────────────────────────────────────────────────
+     Every place a label, a value with its unit and a status word share one
+     row: the previous-results list on a marker page, and the genetic /
+     sensitivity / microbiome rows, which are the same object with the third
+     column absent.
+
+     IT IS A GRID, WITH EXPLICIT TRACKS, and that is the fix rather than the
+     styling. It was a flex row with `justify-between`, a `shrink-0` date and a
+     `min-w-0` value group — which is a layout that reads correctly right up
+     until the content is wider than the box, at which point the value group
+     shrinks past its own content and its children paint straight over the
+     date. On a 40%-width card at lg that is not an edge case, it is the
+     ordinary case: "19 August 2026", "102 mmol/L" and "Significantly above
+     range" do not fit on one 384px line and never did. A grid track cannot be
+     overflowed by a sibling, so the collision is structurally impossible now
+     rather than merely unlikely.
+
+     THE LIST IS THE QUERY CONTAINER, not each row. Every row in one card
+     therefore switches arrangement at the same instant, which is what keeps
+     the row heights uniform — a per-row query would let one row go to two
+     lines because its status word happened to be longer.
+
+     No absolute positioning, no negative margins, nothing overlapping. */
+  .value-rows {
+    container-type: inline-size;
+  }
+
+  /* THE NARROW ARRANGEMENT, and the DEFAULT one — a layout that is only
+     correct above some width is a layout that overlaps below it. Label and
+     value on the first line, the status word beneath the value on the second,
+     both right-aligned into one column so the numbers still read down the
+     card. `auto` on the first track (min-content..max-content) means a long
+     label wraps inside its own track instead of running under the value. */
+  .value-row {
+    display: grid;
+    grid-template-columns: auto minmax(3.5rem, 1fr);
+    column-gap: 1rem;
+    row-gap: 0.0625rem;
+    align-items: baseline;
+  }
+
+  .value-row > * {
+    min-width: 0;
+  }
+
+  .value-row-value,
+  .value-row-status {
+    justify-self: end;
+    text-align: right;
+  }
+
+  /* THE FULL WIDTH OF THE ROW, not the second column. The status word is by far
+     the longest string in the row — "Significantly above range" is three times
+     "In range" — and confined to the value's column it wrapped to three lines
+     at the narrow end, which made the row heights depend on which status each
+     result happened to have. Given the whole row it fits on one line at every
+     width this list is rendered at, and every row is the same height. */
+  .value-row-status {
+    grid-column: 1 / -1;
+  }
+
+  /* ONE LINE, once there is genuinely room for all three columns at their own
+     minimums. The threshold is measured, not chosen by eye: 7.25rem holds
+     "19 September 2026" in the mono face, 5.5rem holds a four-character value
+     with "10^9/L" after it, 10.5rem holds the chevron and "Significantly above
+     range" — 23.25rem of track plus 2rem of gap. 29rem leaves enough headroom
+     that no track is ever squeezed below its content, so nothing here wraps
+     and every row is exactly one line tall. */
+  @container (min-width: 29rem) {
+    .value-row {
+      grid-template-columns: minmax(7.25rem, max-content) minmax(5.5rem, 1fr) minmax(10.5rem, max-content);
+    }
+    .value-row-status {
+      grid-column: 3;
+      justify-self: start;
+      text-align: left;
+    }
   }
 
   /* Exactly one viewport tall, dvh where it is understood.

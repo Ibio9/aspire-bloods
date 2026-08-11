@@ -115,13 +115,13 @@ function LibraryCard({ entry }: { entry: LibraryEntry }) {
             <p>{entry.explanation.whatItIs}</p>
             {entry.explanation.highMeans && (
               <div>
-                <p className="font-medium">If it's above the usual range</p>
+                <p className="font-medium">If it’s above the usual range</p>
                 <p className="mt-1">{entry.explanation.highMeans}</p>
               </div>
             )}
             {entry.explanation.lowMeans && (
               <div>
-                <p className="font-medium">If it's below the usual range</p>
+                <p className="font-medium">If it’s below the usual range</p>
                 <p className="mt-1">{entry.explanation.lowMeans}</p>
               </div>
             )}

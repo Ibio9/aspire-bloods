@@ -89,7 +89,7 @@ test('invite -> activate -> login -> 2FA -> session', async ({ page, request }) 
   expect(loginBody.status).toBe('otp_required');
   expect(loginBody.devOtpCode).toBeTruthy();
 
-  await expect(page.getByText("We've sent a 6-digit verification code")).toBeVisible();
+  await expect(page.getByText("We’ve sent a 6-digit verification code")).toBeVisible();
   // OTP is six auto-advancing single-digit boxes rather than one field — typing into the first
   // one fills the rest via the same auto-advance a real user gets, and completing the code
   // auto-submits (see OtpInput's onComplete), so there's no separate submit click here.

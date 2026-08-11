@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { removeEmDashes, sameWords } from '../src/lib/houseStyle.js';
+import {
+  applyHouseStyle,
+  curlyApostrophes,
+  plainCompoundDashes,
+  removeEmDashes,
+  sameWords,
+} from '../src/lib/houseStyle.js';
 
 /**
  * The house-style sweep runs over copy a clinician wrote, so the property that
@@ -60,6 +66,78 @@ describe('removeEmDashes', () => {
 
   it('leaves an unspaced dash alone, which could be part of a compound', () => {
     expect(removeEmDashes('low—risk')).toBe('low—risk');
+  });
+});
+
+describe('curlyApostrophes', () => {
+  it('curls a contraction and a singular possessive', () => {
+    expect(curlyApostrophes("If it's high")).toBe('If it’s high');
+    expect(curlyApostrophes("your blood's acid-base balance")).toBe('your blood’s acid-base balance');
+  });
+
+  it('leaves an already-curled apostrophe alone', () => {
+    expect(curlyApostrophes('your body’s iron reserves')).toBe('your body’s iron reserves');
+  });
+
+  /**
+   * The reason the rule is "between two letters" and nothing wider. A quote
+   * mark is half of a pair, and a rule loose enough to catch a plural
+   * possessive is also loose enough to curl the closing quote of a list item —
+   * which is how a font stack once became `'IBM Plex Sans’, system-ui`.
+   */
+  it('never touches a quotation mark', () => {
+    expect(curlyApostrophes("'IBM Plex Sans', system-ui")).toBe("'IBM Plex Sans', system-ui");
+    expect(curlyApostrophes("Often called 'good' cholesterol")).toBe("Often called 'good' cholesterol");
+  });
+});
+
+describe('plainCompoundDashes', () => {
+  it('hyphenates an en dash joining two words', () => {
+    expect(plainCompoundDashes('the blood’s acid–base balance')).toBe('the blood’s acid-base balance');
+  });
+
+  /**
+   * A numeric range keeps its en dash. Every reference range in the product is
+   * set that way, on screen and in the PDF, and a rule that hyphenated
+   * `3.9–5.1` would be rewriting the one piece of punctuation the design
+   * system is most explicit about.
+   */
+  it('leaves a numeric range exactly as it is', () => {
+    expect(plainCompoundDashes('3.9–5.1 mmol/L')).toBe('3.9–5.1 mmol/L');
+    expect(plainCompoundDashes('Reference range 20–42')).toBe('Reference range 20–42');
+  });
+
+  it('leaves a range between abbreviations alone', () => {
+    expect(plainCompoundDashes('especially Oct–Mar in the UK')).toBe('especially Oct–Mar in the UK');
+    expect(plainCompoundDashes('Name (A–Z)')).toBe('Name (A–Z)');
+  });
+});
+
+describe('applyHouseStyle', () => {
+  const REAL_COPY = [
+    'A protein that stores iron — reflects your body\'s iron reserves.',
+    'An electrolyte that maintains the blood\'s acid–base balance.',
+    'Levels vary through the day — highest in the morning — so timing matters.',
+    'Reference range 3.9–5.1 mmol/L. Nothing to change here.',
+  ];
+
+  it('changes punctuation and never a word', () => {
+    for (const copy of REAL_COPY) {
+      expect(words(applyHouseStyle(copy)), copy).toEqual(words(copy));
+    }
+  });
+
+  it('is idempotent, so a re-seed is a no-op', () => {
+    for (const copy of REAL_COPY) {
+      const once = applyHouseStyle(copy);
+      expect(applyHouseStyle(once), copy).toBe(once);
+    }
+  });
+
+  it('applies all three corrections at once', () => {
+    expect(applyHouseStyle("An electrolyte — it maintains the blood's acid–base balance.")).toBe(
+      'An electrolyte. It maintains the blood’s acid-base balance.',
+    );
   });
 });
 

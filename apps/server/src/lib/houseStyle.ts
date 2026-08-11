@@ -39,6 +39,87 @@ export function removeEmDashes(text: string): string {
 }
 
 /**
+ * The straight apostrophe, curled.
+ *
+ * The product had both, side by side and often in the same card: seeded copy
+ * written with `’` next to a UI label written with `'`, so "your blood’s
+ * acid-base balance" sat two lines above "If it's high". One or the other, and
+ * curly is the one a typographic serif page wants.
+ *
+ * ONLY BETWEEN TWO LETTERS, which is the whole of a contraction or a singular
+ * possessive. A quotation mark is left alone deliberately: it is a pair, and
+ * curling one half of a pair is worse than curling neither.
+ */
+export function curlyApostrophes(text: string): string {
+  return text.replace(/(\p{L})'(\p{L})/gu, '$1’$2');
+}
+
+/**
+ * An en dash inside a WORD, replaced with a hyphen: `acid–base` → `acid-base`.
+ *
+ * Deliberately not every en dash. Between two numbers it is a range —
+ * `3.9–5.1 mmol/L` is set that way in every reference range on screen and in
+ * the PDF — and between two abbreviations it is usually a range too
+ * (`Oct–Mar`). Those are correct and are left exactly as they are. A dash
+ * joining two words is a compound, and the house style for a compound is a
+ * plain hyphen.
+ */
+export function plainCompoundDashes(text: string): string {
+  return text.replace(/(\p{Ll})–(\p{Ll})/gu, '$1-$2');
+}
+
+/**
+ * The whole house style, in the order it must run.
+ *
+ * PUNCTUATION ONLY — not one word is added, removed or reordered by any of the
+ * three, which is what makes it safe to run over clinical copy nobody in this
+ * repository wrote.
+ */
+export function applyHouseStyle(text: string): string {
+  return plainCompoundDashes(curlyApostrophes(removeEmDashes(text)));
+}
+
+/**
+ * The non-diagnostic vocabulary rule, as a FIXED SUBSTITUTION TABLE and
+ * nothing more.
+ *
+ * The product never labels a result or a level good, bad, healthy, unhealthy,
+ * normal, abnormal, concerning or dangerous. Its vocabulary is: in range, above
+ * range, below range, significantly out, and "the usual range". Seeded copy had
+ * drifted off that in a handful of places, all of the same shape — a lifestyle
+ * line ending "support healthy levels", and one "if SHBG is abnormal".
+ *
+ * WHY A TABLE AND NOT A RULE. This is clinical copy that no clinician has
+ * signed off, and a session must not rewrite clinical wording. A fixed list of
+ * exact phrase → exact replacement is the narrowest possible instrument: every
+ * substitution was decided once, is written down here, is reviewable in a
+ * diff, and cannot fire on a sentence nobody looked at. A regex over
+ * `/healthy/` would have caught "healthy weight" and "good dietary sources"
+ * too, which are not breaches — the rule is about labelling a RESULT, and a
+ * food can be a good source of zinc.
+ *
+ * Each entry restates the same fact in the product's own vocabulary. Nothing
+ * here changes what is claimed, which is why it is applied without review;
+ * anything that would have gone in the audit report for a clinician instead.
+ */
+export const VOCABULARY_CORRECTIONS: readonly (readonly [string, string])[] = [
+  // The longer phrase first: it contains the shorter one's words and would
+  // otherwise be half-corrected into "support cholesterol levels in the usual
+  // range levels".
+  ['support healthy cholesterol levels', 'support cholesterol levels in the usual range'],
+  ['supports healthy levels', 'supports levels in the usual range'],
+  ['support healthy levels', 'support levels in the usual range'],
+  ['if SHBG is abnormal', 'if SHBG is outside its usual range'],
+] as const;
+
+/** Apply the table above. Returns the text unchanged when nothing matches. */
+export function applyVocabularyRule(text: string): string {
+  let out = text;
+  for (const [from, to] of VOCABULARY_CORRECTIONS) out = out.split(from).join(to);
+  return out;
+}
+
+/**
  * "The same words, differently punctuated."
  *
  * Used to decide whether a stored string is still the seed's own copy in an

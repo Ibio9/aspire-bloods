@@ -275,7 +275,7 @@ const TINT_MIX = {
   // costs it the chroma that makes it recognisably green or gold. Giving up
   // two points of wash buys back the label. It still measures ~1.5:1 against
   // the card it replaces, which is a wash you can see across a room.
-  washDark: 0.26,
+  washDark: 0.2,
   band: 0.3,
   bandDark: 0.32,
   track: 0.58,
@@ -293,6 +293,35 @@ const TINT_MIX = {
  * yellow legible on its own band would drag green and red into mud.
  */
 const MARK_SHIFT: Record<StatusHue, number> = { green: 0.18, yellow: 0.4, orange: 0.24, red: 0.12 };
+
+/**
+ * How far each hue is lifted toward the theme's text tone before anything in
+ * dark is derived from it.
+ *
+ * Small, and smaller than it used to be (it was a flat 0.34). A lift toward a
+ * near-white desaturates, and on a near-black page the hue does not need much
+ * of one to be visible — what it needs is to stay chromatic. Yellow gets the
+ * least because it starts brightest; red gets the most because a brick red is
+ * the darkest of the four and the one most at risk of disappearing.
+ */
+const DARK_HUE_LIFT: Record<StatusHue, number> = { green: 0.2, yellow: 0.1, orange: 0.14, red: 0.26 };
+
+/**
+ * The strength of a dark FILL — the fraction of the lifted hue that survives
+ * against black — per role and then per hue.
+ *
+ * Per role: a band sits behind data and stays calm; a track has nothing on it
+ * at all and can carry far more; an edge is nearly the hue itself.
+ *
+ * Per hue: the multiplier corrects for the fact that the four hues do not
+ * start at the same luminance. Yellow at the same fraction as green is a
+ * headlight; red at the same fraction as yellow is a smear. These are the
+ * numbers at which the three read as green, gold and red side by side on
+ * #110F0D, checked by tokenContrast.test.ts for separation and for the point
+ * mark still standing off its own band.
+ */
+const DARK_FILL = { band: 0.46, track: 0.78, edge: 0.94 } as const;
+const DARK_FILL_HUE: Record<StatusHue, number> = { green: 1, yellow: 0.82, orange: 0.9, red: 1.08 };
 
 // ---------------------------------------------------------------------------
 // Dark mode.
@@ -321,24 +350,36 @@ const MARK_SHIFT: Record<StatusHue, number> = { green: 0.18, yellow: 0.4, orange
  * The darkest warm tone in the system: espresso taken most of the way to
  * black, never past it.
  *
- * Lifted from 0.60 to 0.44 (Aug 2026) because dark mode is now the DEFAULT
- * theme rather than an opt-in, and at 0.60 the page was a near-black that made
- * every card fight for separation. The room is bought here, in the surface
- * itself, rather than being asked of the ambient glow — a glow doing all the
- * separating leaves the corner furthest from it as dark as it ever was.
+ * 0.60 → 0.44 → 0.74. The middle value is the one worth explaining, because it
+ * was the wrong answer to a real problem. Dark mode read as a cave, so the
+ * surfaces were lifted until a card separated from the page without any help —
+ * and the result was a page that read BROWN. Not dark and warm: brown. At 0.44
+ * this base is #25211E, and a whole viewport of #25211E with a wide, low-
+ * contrast glow washed over it is a mid-brown field, which is the opposite of
+ * the near-black, atmospheric register the clinic's own site is in.
+ *
+ * 0.74 is #110F0D: black at a glance, warm on inspection (r > g > b, never a
+ * neutral #111 and never a cool one). Separation is no longer asked of the base
+ * being light; it comes from the card being genuinely lifted off it (see the
+ * surface scale below), from the hairline border, and from the one corner of
+ * warm light — in that order, so the interface still works with the glow turned
+ * off entirely.
  */
-const nightBase = mix(brand.espresso, '#000000', 0.44);
+const nightBase = mix(brand.espresso, '#000000', 0.74);
 /** The lift direction for dark surfaces — toward a warm mid-brown, never toward grey. */
 const nightLift = mix(brand.espresso, brand.taupe, 0.55);
 
 /** Surface family in dark: lower step = more raised. */
 function buildDarkSurfaceScale(base: string): Record<number, string> {
-  // The raised steps are a shade further apart than they were, for the same
-  // reason the base moved: a card has to read as sitting ON the page from
-  // across the room, not only when you go looking for its border.
+  // The raised steps are a long way apart, and they have to be: a lift is a
+  // RATIO against the surface under it, so the same 0.10 mix that visibly
+  // raised a card off #25211E is nearly invisible against #110F0D. The card
+  // (step 50) lands about 1.5:1 above the page, which is a step you can see
+  // across a room and still well below the point where the page stops reading
+  // as black.
   const steps: Record<number, number> = {
-    50: 0.1, 100: 0.14, 200: 0.2, 300: 0.28, 400: 0.38,
-    500: 0, 600: -0.18, 700: -0.34, 800: -0.5, 900: -0.66,
+    50: 0.2, 100: 0.27, 200: 0.35, 300: 0.45, 400: 0.58,
+    500: 0, 600: -0.2, 700: -0.4, 800: -0.6, 900: -0.8,
   };
   const out: Record<number, string> = {};
   for (const [step, t] of Object.entries(steps)) {
@@ -381,8 +422,14 @@ export const darkScales = {
  * The recessed input surface. Light: literal white, one step brighter than
  * the card. Dark: one step *darker* than the card, which is what makes the
  * same inset shadow read as recessed in both themes.
+ *
+ * Eased from 0.35 to 0.18 when the page went to #110F0D. A field cut 35% below
+ * a near-black page is #0B0A09, which is not a recessed surface, it is a hole —
+ * and the depth cue stops working the moment there is no further down to go.
+ * The card is now lifted far enough that a field sitting just below the PAGE
+ * still reads as recessed relative to the card it is drawn on.
  */
-const darkWhite = mix(darkPage, '#000000', 0.35);
+const darkWhite = mix(darkPage, '#000000', 0.18);
 
 /**
  * The status label colour in dark, re-derived from the HUE rather than
@@ -400,13 +447,15 @@ const darkWhite = mix(darkPage, '#000000', 0.35);
  * tighter of the two constraints.
  */
 function darkStatusHex(hue: StatusHue): string {
-  // Re-derived (Aug 2026) against the lifted dark surfaces — a page and a card
-  // that are two steps brighter make every one of these a tighter fit against
-  // its own wash, which is the binding constraint of the four it has to clear.
-  // Solved per hue for the smallest lift that clears 4.5:1 on the wash, the
-  // page, the card and the input, plus a little headroom: spending more than
-  // that is spending chroma for nothing.
-  const toward: Record<StatusHue, number> = { green: 0.58, yellow: 0.5, orange: 0.54, red: 0.63 };
+  // Re-derived a second time (Aug 2026) against the near-black base. The
+  // surfaces went DOWN this round rather than up, so every one of these has
+  // more room than it had and can keep more of its own chroma: the binding
+  // constraint is still AA against its own wash, and the wash is now a mix from
+  // a much darker card. Solved per hue for the smallest lift that clears 4.5:1
+  // on the wash, the page, the card and the input — spending more than that is
+  // spending chroma for nothing, and chroma is the whole reason a status colour
+  // exists.
+  const toward: Record<StatusHue, number> = { green: 0.44, yellow: 0.34, orange: 0.42, red: 0.5 };
   return mix(statusHue[hue], darkText, toward[hue]);
 }
 
@@ -429,7 +478,30 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * text tone puts every hue at roughly the weight of body copy in its own
    * theme, which is what makes a 30% band read the same in both.
    */
-  const themedHue = (hue: StatusHue): string => (dark ? mix(statusHue[hue], darkText, 0.34) : statusHue[hue]);
+  const themedHue = (hue: StatusHue): string => (dark ? mix(statusHue[hue], darkText, DARK_HUE_LIFT[hue]) : statusHue[hue]);
+
+  /**
+   * A FILL of colour in dark: a chart band, a range-bar segment, a boundary
+   * line. Mixed from BLACK toward the hue, not from the warm surface toward it,
+   * and that difference is the whole of why the chart bands read as green,
+   * gold and red now instead of as three shades of mud.
+   *
+   * A wash is a tint OF THE CARD and is still mixed from the card, because it
+   * is the card's own background and has to belong to it. A band is not: it is
+   * a region of colour drawn over the plot, and mixing it from a warm brown
+   * near-black adds red to every hue at once. On the old base that produced a
+   * green band of #434A36 — a colour with more red in it than green — and a red
+   * band a shade away from it. Mixing from neutral black keeps each hue's own
+   * channel ratios and only takes lightness away, so green stays green.
+   *
+   * The per-hue strengths exist for the same reason `statusTextHex` and
+   * `MARK_SHIFT` have per-hue values: yellow starts far brighter than the other
+   * three, and one constant that made green visible would make yellow glare.
+   */
+  const darkFill = (hue: StatusHue, role: 'band' | 'track' | 'edge'): string =>
+    // Clamped at 1: red's edge multiplier takes it fractionally past the hue
+    // itself, and "past the hue" is not a colour anybody chose.
+    mix('#000000', themedHue(hue), Math.min(1, DARK_FILL[role] * DARK_FILL_HUE[hue]));
 
   const out: Record<string, string> = {};
 
@@ -475,10 +547,13 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
   // and the shoulder of a chart band) while never being a status of its own.
   for (const hue of Object.keys(statusHue) as StatusHue[]) {
     const h = themedHue(hue);
+    // The wash is the card's own background, so it is mixed FROM the card in
+    // both themes. Everything below it is a fill and, in dark, is mixed from
+    // neutral black instead — see darkFill.
     out[`--c-hue-${hue}-wash`] = mix(tintTowards, h, dark ? TINT_MIX.washDark : TINT_MIX.wash);
-    out[`--c-hue-${hue}-band`] = mix(tintTowards, h, dark ? TINT_MIX.bandDark : TINT_MIX.band);
-    out[`--c-hue-${hue}-track`] = mix(tintTowards, h, dark ? TINT_MIX.trackDark : TINT_MIX.track);
-    out[`--c-hue-${hue}-edge`] = mix(tintTowards, h, dark ? TINT_MIX.edgeDark : TINT_MIX.edge);
+    out[`--c-hue-${hue}-band`] = dark ? darkFill(hue, 'band') : mix(tintTowards, h, TINT_MIX.band);
+    out[`--c-hue-${hue}-track`] = dark ? darkFill(hue, 'track') : mix(tintTowards, h, TINT_MIX.track);
+    out[`--c-hue-${hue}-edge`] = dark ? darkFill(hue, 'edge') : mix(tintTowards, h, TINT_MIX.edge);
     // Away from the surface rather than toward it — see TINT_MIX.mark.
     out[`--c-hue-${hue}-mark`] = dark
       ? mix(h, darkText, MARK_SHIFT[hue])
@@ -533,20 +608,27 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * The ambient light source (dark mode only — see `.dark body::before` in
    * globals.css).
    *
-   * A soft radial glow anchored in one corner of the viewport, behind all
-   * content, fixed so it does not travel on scroll. It is the reason dark mode
-   * stopped reading as a cave without every surface value being raised until
-   * the contrast went flat.
+   * ONE radial gradient, anchored at one corner of the viewport, with a defined
+   * bright centre that falls away to nothing well before the opposite corner.
+   * It is a light SOURCE and has to read as one: brightest at a point, dimming
+   * outward, gone. What it was instead was a pair of radials at 112% and 140%
+   * of the viewport, which put the entire page inside the bright part of the
+   * curve — every pixel got roughly the same 5–15% of gold, so it was not a
+   * glow at all, it was a flat brown wash over a brown page. The falloff was
+   * technically present and nowhere visible.
    *
-   * Gold-bronze: the brand accent warmed toward gold, not the accent itself —
-   * bronze alone reads as a brown stain at 16%, and a neutral white glow turns
-   * the whole warm palette grey the moment it lands on anything.
+   * Gold-bronze, and pushed further toward gold than it was: the brand accent
+   * alone reads as a brown stain, and a neutral white glow turns the whole warm
+   * palette grey the moment it lands on anything. The centre is bright enough
+   * to be a source on a #110F0D page and the tail reaches zero at the hue
+   * itself rather than at `transparent` — see globals.css, where fading to
+   * `transparent` would fade through a grey shoulder.
    *
    * It is emitted in light mode too so nothing has to branch on the theme, but
    * the rule that paints it is inside `.dark`. Static, at every motion
    * preference: an ambient light that breathes is a notification, not a room.
    */
-  out['--c-glow'] = mix(brand.bronze, '#e8b25c', 0.55);
+  out['--c-glow'] = mix(brand.bronze, '#f0bd6a', 0.72);
 
   return out;
 }

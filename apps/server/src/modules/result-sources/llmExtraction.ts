@@ -65,7 +65,7 @@ const extractionResponseSchema = {
 // The prompt still asks for care because a wrong-but-plausible value (5.4
 // read as 54) is far more dangerous than an obviously-failed extraction:
 // the regex fallback fails loudly with zero rows, an LLM can fail quietly.
-const EXTRACTION_SYSTEM_PROMPT = `You are extracting blood test results from a lab report's raw text for a clinical admin to verify. Every value you extract will be shown to a human before it is ever saved — your job is to read accurately and flag anything uncertain, not to guess.
+const EXTRACTION_SYSTEM_PROMPT = `You are extracting blood test results from a lab report’s raw text for a clinical admin to verify. Every value you extract will be shown to a human before it is ever saved — your job is to read accurately and flag anything uncertain, not to guess.
 
 For every marker/result row in the text, extract:
 - rawName: the marker name as printed
@@ -74,7 +74,7 @@ For every marker/result row in the text, extract:
 - valueText: if the result is NOT purely numeric (e.g. "Not detected", "Positive", "Trace"), put the full text here and leave value null. If a bound like "< 5.0" or "> 40" has a clear numeric reading, put the number in value AND the original text in valueText.
 - unit: the unit as printed (e.g. mmol/L, µg/L, %) — null if none is printed.
 - referenceLow / referenceHigh: the reference range printed alongside THIS result, if any — null if not present. For a one-sided range like "< 5.0" use referenceHigh only; for "> 40" use referenceLow only.
-- sampleType: the specimen this analyte was measured on, if the report names one (e.g. "Serum", "Whole blood", "Plasma", "Stool"). Null if the report doesn't say — do not infer it from the marker name.
+- sampleType: the specimen this analyte was measured on, if the report names one (e.g. "Serum", "Whole blood", "Plasma", "Stool"). Null if the report doesn’t say — do not infer it from the marker name.
 - confidence: your own confidence (0 to 1) that you read this row correctly — lower it for anything blurry, ambiguous, wrapped across lines, or where the layout is unclear.
 
 Also extract:

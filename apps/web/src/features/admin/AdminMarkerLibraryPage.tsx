@@ -156,7 +156,7 @@ function MarkersTab() {
         <p className="eyebrow">New marker</p>
         <p className="text-sm leading-relaxed text-espresso/80">
           Most analytes arrive with the Randox catalogue import. Add one here only where the clinic measures
-          something Randox doesn't supply.
+          something Randox doesn’t supply.
         </p>
         <Input
           label="Key"
@@ -355,7 +355,7 @@ function ExplanationsTab() {
           </div>
           <div className="flex flex-col gap-1.5">
             <label htmlFor="highMeans" className="text-sm font-medium text-espresso">
-              If it's high
+              If it’s high
             </label>
             <textarea
               id="highMeans"
@@ -366,7 +366,7 @@ function ExplanationsTab() {
           </div>
           <div className="flex flex-col gap-1.5">
             <label htmlFor="lowMeans" className="text-sm font-medium text-espresso">
-              If it's low
+              If it’s low
             </label>
             <textarea
               id="lowMeans"
@@ -478,7 +478,7 @@ export function AdminMarkerLibraryPage() {
     <>
       <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Marker library" />
       <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
-        Every analyte the clinic can report, and the wording a patient reads beside it. Explanation copy isn't
+        Every analyte the clinic can report, and the wording a patient reads beside it. Explanation copy isn’t
         visible to patients until it has been reviewed.
       </p>
 

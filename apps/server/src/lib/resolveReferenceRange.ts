@@ -44,7 +44,7 @@ export type ResolvedRange =
 /** One phrasing per reason, so admin UI and API responses can't drift apart. */
 export const RANGE_UNAVAILABLE_MESSAGE: Record<RangeUnavailableReason, string> = {
   SEX_NOT_RECORDED:
-    "This marker's reference range differs by sex, and this patient has no biological sex on file, so there is no range to suggest. Enter the range printed on the result, or ask the patient to add their sex to their account.",
+    "This marker’s reference range differs by sex, and this patient has no biological sex on file, so there is no range to suggest. Enter the range printed on the result, or ask the patient to add their sex to their account.",
   NO_MATCHING_RANGE:
     'No range in the catalogue covers this patient. Enter the range printed on the result.',
 };

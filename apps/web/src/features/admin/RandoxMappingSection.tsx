@@ -148,7 +148,7 @@ export function RandoxMappingSection({ ourPanels }: { ourPanels: { key: string; 
         Randox panel mapping
       </h2>
       <p className="mt-3 max-w-3xl text-sm leading-relaxed text-espresso/85">
-        Which of our panels each of Randox's corresponds to. A panel with nothing mapped against it cannot be
+        Which of our panels each of Randox’s corresponds to. A panel with nothing mapped against it cannot be
         ordered — ordering refuses rather than sending a partial order, because a partial order means a patient is
         bled for tests that were never placed.
       </p>
@@ -169,7 +169,7 @@ export function RandoxMappingSection({ ourPanels }: { ourPanels: { key: string; 
       {current.length === 0 ? (
         <Card className="mt-5 max-w-3xl">
           <p className="text-sm leading-relaxed text-espresso">
-            Randox's panel list has not been fetched yet. Refresh above — it is a handful of calls and only needs
+            Randox’s panel list has not been fetched yet. Refresh above — it is a handful of calls and only needs
             doing when their catalogue changes.
           </p>
         </Card>

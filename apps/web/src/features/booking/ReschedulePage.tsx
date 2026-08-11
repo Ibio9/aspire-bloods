@@ -72,7 +72,7 @@ export function ReschedulePage() {
     return (
       <>
         <Breadcrumbs items={[{ label: 'Appointments', to: '/appointments' }, { label: 'Not found' }]} />
-        <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="We couldn't find that appointment" />
+        <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="We couldn’t find that appointment" />
         <Card className="mt-8 max-w-xl">
           <p className="text-sm leading-relaxed text-espresso/90">
             The link may be out of date. Everything currently in your diary is listed under your appointments.
@@ -113,7 +113,7 @@ export function ReschedulePage() {
             { label: 'Move' },
           ]}
         />
-        <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="This one can't be moved online" />
+        <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="This one can’t be moved online" />
         <div className="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-2">
           <Card>
             <p className="flex items-center gap-2.5 font-medium text-espresso">
@@ -150,7 +150,7 @@ export function ReschedulePage() {
       />
       <TwoTierHeading eyebrow={`Reference ${appointment.reference}`} title="Move your appointment" />
       <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
-        You're moving your <span className="font-medium">{panel?.name}</span> at {location?.name}. Everything else
+        You’re moving your <span className="font-medium">{panel?.name}</span> at {location?.name}. Everything else
         stays as it is, including your reference.
       </p>
 

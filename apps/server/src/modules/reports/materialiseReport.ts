@@ -191,7 +191,7 @@ export async function materialiseParsedReport(input: {
   }
   if (disagreementCount > 0) {
     holdReasons.push(
-      `${disagreementCount} result(s) where the laboratory's own high/low flag disagrees with the reference range they sent`,
+      `${disagreementCount} result(s) where the laboratory’s own high/low flag disagrees with the reference range they sent`,
     );
   }
   if (parsed.isPartial) {

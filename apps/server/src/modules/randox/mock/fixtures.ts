@@ -312,6 +312,6 @@ export const FIXTURE_ETHNICITIES = [
 ];
 
 export const FIXTURE_TESTING_REASONS = [
-  { id: '1', name: "To investigate the cause of the patient's symptoms" },
+  { id: '1', name: "To investigate the cause of the patient’s symptoms" },
   { id: '2', name: 'To confirm a suspected diagnosis' },
 ];

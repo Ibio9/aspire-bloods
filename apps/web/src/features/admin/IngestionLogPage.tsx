@@ -68,7 +68,7 @@ function UnknownCodesPanel() {
   return (
     <section className="mt-14" aria-labelledby="unknown-codes-heading">
       <h2 id="unknown-codes-heading" className="font-display text-xl text-espresso">
-        Result codes we don't recognise
+        Result codes we don’t recognise
       </h2>
       <p className="mt-2 max-w-2xl text-sm leading-relaxed text-espresso/85">
         Randox sent these alongside results and our code map has no entry for them, so each one withheld a result
@@ -140,7 +140,7 @@ export function IngestionLogPage() {
     <>
       <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Ingestion log" />
       <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
-        Every attempt to pull a result in from Randox's API, successful or not. A clean result attaches itself to the
+        Every attempt to pull a result in from Randox’s API, successful or not. A clean result attaches itself to the
         patient its order was placed for and stops at admin-verified; anything ambiguous stops earlier and says so
         here. A clinician still reviews and releases before a patient sees anything.
       </p>

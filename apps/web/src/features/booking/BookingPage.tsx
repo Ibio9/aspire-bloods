@@ -196,10 +196,10 @@ export function BookingPage() {
     return (
       <>
         <Breadcrumbs items={[{ label: 'Overview', to: '/overview' }, { label: 'Book a test' }]} />
-        <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="We couldn't load the booking page" />
+        <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="We couldn’t load the booking page" />
         <Card className="mt-10 max-w-xl">
           <p className="text-sm leading-relaxed text-espresso/90">
-            Please refresh and try again. If it keeps happening, call the clinic and we'll book you in over the phone.
+            Please refresh and try again. If it keeps happening, call the clinic and we’ll book you in over the phone.
             Nothing you do here is ever the only way to get an appointment.
           </p>
         </Card>
@@ -383,7 +383,7 @@ export function BookingPage() {
             onClick={() => void confirm()}
             loading={submitting}
             disabled={needsBiologicalSex}
-            disabledReason="Add your biological sex above. The laboratory can't accept an order without it"
+            disabledReason="Add your biological sex above. The laboratory can’t accept an order without it"
             className="shrink-0"
           >
             Confirm booking

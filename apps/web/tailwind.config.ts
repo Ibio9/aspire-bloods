@@ -26,6 +26,27 @@ import {
  */
 const v = (name: string) => `rgb(var(${name}) / <alpha-value>)`;
 
+/**
+ * The one failure this config can have that looks like a design bug.
+ *
+ * Everything below is imported from `@aspire-bloods/shared`, whose package
+ * `main` points at `dist/`. Start the dev server without building that package
+ * and jiti resolves the import to nothing: `typeScale` is `undefined`,
+ * `Object.keys` throws inside PostCSS, and Vite serves the app with NO
+ * STYLESHEET AT ALL. The page then renders in the browser's own faces, which
+ * reads exactly like a botched font migration — body copy in Times, headings in
+ * something else again — and sends whoever sees it hunting through the type
+ * tokens for a bug that is not there. `npm run dev:web` builds shared first for
+ * this reason; this is the message for anyone who starts Vite another way.
+ */
+if (!typeScale || typeof typeScale !== 'object') {
+  throw new Error(
+    'Tailwind cannot read the design tokens: @aspire-bloods/shared has not been built. ' +
+      'Run `npm run build --workspace=packages/shared` (or use `npm run dev:web`, which does it for you). ' +
+      'Without this the app is served with no stylesheet and renders in the browser default fonts.',
+  );
+}
+
 const scaleVars = (family: string) => ({
   DEFAULT: v(`--c-${family}`),
   50: v(`--c-${family}-50`),

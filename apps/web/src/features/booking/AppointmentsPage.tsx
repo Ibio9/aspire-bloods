@@ -52,9 +52,9 @@ export function AppointmentsPage() {
 
       {failed && (
         <Card className="mt-10 max-w-xl">
-          <p className="font-display text-xl text-espresso">We couldn't load your appointments</p>
+          <p className="font-display text-xl text-espresso">We couldn’t load your appointments</p>
           <p className="mt-2 text-sm leading-relaxed text-espresso/80">
-            Please refresh the page. If it keeps happening, call the clinic. We can always tell you what's in the
+            Please refresh the page. If it keeps happening, call the clinic. We can always tell you what’s in the
             diary.
           </p>
         </Card>

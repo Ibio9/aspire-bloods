@@ -244,7 +244,7 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
       <div
         className="tabular h-[340px] w-full"
         role="img"
-        aria-label={`Comparison chart. Each marker is plotted against its own reference range, where the shaded band is that marker's usual range. ${summary}`}
+        aria-label={`Comparison chart. Each marker is plotted against its own reference range, where the shaded band is that marker’s usual range. ${summary}`}
       >
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={rows} margin={{ top: 12, right: 16, left: 4, bottom: 0 }}>
@@ -391,8 +391,8 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
       </ul>
       {sharedThreshold === null && (
         <p className="mt-3 text-sm leading-relaxed text-espresso/80">
-          These markers don't share a common point at which a result counts as significantly outside its range, so
-          only the reference range itself is shaded here. Each marker's own full shading is on its detail page.
+          These markers don’t share a common point at which a result counts as significantly outside its range, so
+          only the reference range itself is shaded here. Each marker’s own full shading is on its detail page.
         </p>
       )}
 
@@ -409,7 +409,7 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
       {incomparableNames.length > 0 && (
         <p className="mt-3 text-sm leading-relaxed text-espresso/80">
           {incomparableNames.length === 1 ? `${incomparableNames[0]} has` : `${incomparableNames.join(' and ')} have`} results
-          from sources we can't directly convert between, so those points are shown separately rather than joined into a
+          from sources we can’t directly convert between, so those points are shown separately rather than joined into a
           line. They are still plotted against their own reference range.
         </p>
       )}

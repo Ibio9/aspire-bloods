@@ -257,7 +257,7 @@ export async function parseReport(reportId: string, actorUserId: string, ip: str
     if (!match) {
       attention.push({
         kind: 'unmatched_marker',
-        message: `“${row.rawName}” doesn't match any marker in the catalogue. Pick the right one, or leave it unmatched to skip this row.`,
+        message: `“${row.rawName}” doesn’t match any marker in the catalogue. Pick the right one, or leave it unmatched to skip this row.`,
       });
     }
     if (range.status === 'missing') {
@@ -266,7 +266,7 @@ export async function parseReport(reportId: string, actorUserId: string, ip: str
     if (labDisagrees) {
       attention.push({
         kind: 'lab_status_disagreement',
-        message: `The lab flagged this result “${row.labStatusIndicator}”, which disagrees with the status derived from the range on the result. That usually means the range read here isn't the range the lab applied.`,
+        message: `The lab flagged this result “${row.labStatusIndicator}”, which disagrees with the status derived from the range on the result. That usually means the range read here isn’t the range the lab applied.`,
       });
     }
     for (const flag of row.flags ?? []) {

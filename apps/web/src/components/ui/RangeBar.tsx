@@ -179,9 +179,14 @@ export function RangeBar({ value, low, high, status, severityThreshold = null, o
           style={{ left: `${displayLeft}%`, backgroundColor: paint.mark }}
         />
       </div>
-      <div className="mt-1.5 flex justify-between text-xs tabular text-espresso" aria-hidden="true">
-        <span>{low}</span>
-        <span>{high}</span>
+      {/* The two bounds ARE the data — a bare number with no words around it —
+          so they are set in the mono face like every other number in the
+          product. They carried `.tabular` alone, which gave them tabular
+          figures in the body face: right about the figures, wrong about the
+          family, and directly under a value that is in mono. */}
+      <div className="mt-1.5 flex justify-between text-xs text-espresso" aria-hidden="true">
+        <span className="numeric">{low}</span>
+        <span className="numeric">{high}</span>
       </div>
       {optimalBand && (
         <p className="mt-2 flex items-center gap-2 text-xs text-espresso/80" aria-hidden="true">
@@ -193,7 +198,11 @@ export function RangeBar({ value, low, high, status, severityThreshold = null, o
               opacity: 0.75,
             }}
           />
-          <span className="tabular">Optimal {optimalBand}</span>
+          {/* "Optimal" is a word and the band is data, so the family changes
+              at the boundary between them rather than across the whole line. */}
+          <span>
+            Optimal <span className="numeric">{optimalBand}</span>
+          </span>
         </p>
       )}
     </div>

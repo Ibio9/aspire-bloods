@@ -5,6 +5,9 @@ import {
   valueForStatus,
   canGoBelow,
   canGoMildlyBelow,
+  canGoMildlyAbove,
+  canGoSignificantlyAbove,
+  withinDemoEnvelope,
   syntheticBand,
   CORRELATED_GROUPS,
   OPPOSITE,
@@ -208,5 +211,84 @@ describe('syntheticBand', () => {
       expect(band.high).toBeGreaterThan(band.low);
       expect(band.low).toBeGreaterThanOrEqual(0);
     }
+  });
+});
+
+/**
+ * A DEMO IS A CLAIM ABOUT WHAT THE PRODUCT LOOKS LIKE, and a clinician looking
+ * at it reads the numbers before they read the layout. The generator derives an
+ * out-of-range value from a multiple of the reference range's WIDTH, which is
+ * the right model for deriving a status and the wrong one for inventing a
+ * value: chloride's 13-wide band gave a severity threshold of 19.5 and so a
+ * "significantly below" demo value of 65 mmol/L, which is not an outpatient
+ * result. The demo was also showing a neutrophil count of 19.5 against a
+ * 2.0–7.5 range.
+ *
+ * The fix is eligibility, not clamping — a clamped value would compute to a
+ * different status than the one it was generated for, which is the exact
+ * agreement the tests above exist to protect. These are the real catalogue
+ * bands for the analytes that broke.
+ */
+describe('demo values stay inside the outpatient envelope', () => {
+  const REAL: { key: string; band: Band; multiplier?: number }[] = [
+    { key: 'chloride', band: { low: 95, high: 108, unit: 'mmol/L', fromCatalogue: true } },
+    { key: 'sodium', band: { low: 133, high: 146, unit: 'mmol/L', fromCatalogue: true } },
+    { key: 'potassium', band: { low: 3.5, high: 5.3, unit: 'mmol/L', fromCatalogue: true } },
+    { key: 'neutrophils', band: { low: 2, high: 7.5, unit: '10^9/L', fromCatalogue: true } },
+    { key: 'wbc', band: { low: 4, high: 10, unit: '10^9/L', fromCatalogue: true } },
+    { key: 'haemoglobin', band: { low: 130, high: 170, unit: 'g/L', fromCatalogue: true } },
+    { key: 'platelets', band: { low: 150, high: 450, unit: '10^9/L', fromCatalogue: true } },
+    { key: 'ferritin', band: { low: 30, high: 400, unit: 'µg/L', fromCatalogue: true } },
+    { key: 'alt', band: { low: 0, high: 40, unit: 'U/L', fromCatalogue: true } },
+  ];
+
+  it('never generates a value a clinician would find absurd', () => {
+    for (const { key, band } of REAL) {
+      const m = marker({ key });
+      for (let seed = 1; seed <= 40; seed += 1) {
+        for (const status of ALL_STATUSES) {
+          if (status === 'SIGNIFICANT_LOW' && !canGoBelow(band, m)) continue;
+          if (status === 'LOW' && !canGoMildlyBelow(band, m)) continue;
+          if (status === 'SIGNIFICANT_HIGH' && !canGoSignificantlyAbove(band, m)) continue;
+          if (status === 'HIGH' && !canGoMildlyAbove(band, m)) continue;
+          const value = valueForStatus(status, band, m, sampler(seed));
+          expect(withinDemoEnvelope(m, band, value), `${key} ${status} seed ${seed} = ${value}`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('still computes to the status it was asked for, envelope or not', () => {
+    for (const { key, band } of REAL) {
+      const m = marker({ key });
+      for (let seed = 1; seed <= 40; seed += 1) {
+        for (const status of ALL_STATUSES) {
+          if (status === 'SIGNIFICANT_LOW' && !canGoBelow(band, m)) continue;
+          if (status === 'LOW' && !canGoMildlyBelow(band, m)) continue;
+          if (status === 'SIGNIFICANT_HIGH' && !canGoSignificantlyAbove(band, m)) continue;
+          if (status === 'HIGH' && !canGoMildlyAbove(band, m)) continue;
+          const value = valueForStatus(status, band, m, sampler(seed));
+          expect(
+            computeMarkerStatus(value, band.low, band.high, m.severityMultiplier, m.severityAbsoluteDelta),
+            `${key} ${status} seed ${seed} = ${value}`,
+          ).toBe(status);
+        }
+      }
+    }
+  });
+
+  it('rules out the exact cases that shipped: chloride 65 and a neutrophil count of 19.5', () => {
+    const chloride = { low: 95, high: 108, unit: 'mmol/L', fromCatalogue: true };
+    expect(canGoBelow(chloride, marker({ key: 'chloride' }))).toBe(false);
+    const neutrophils = { low: 2, high: 7.5, unit: '10^9/L', fromCatalogue: true };
+    expect(canGoSignificantlyAbove(neutrophils, marker({ key: 'neutrophils' }))).toBe(false);
+  });
+
+  it('leaves an analyte with real headroom eligible, so the demo still shows every state', () => {
+    // Ferritin and ALT genuinely reach several times their upper bound in
+    // outpatients; a guard that excluded those would have fixed the absurd
+    // values by removing the significantly-out state from the demo entirely.
+    expect(canGoSignificantlyAbove({ low: 30, high: 400, unit: 'µg/L', fromCatalogue: true }, marker({ key: 'ferritin' }))).toBe(true);
+    expect(canGoSignificantlyAbove({ low: 0, high: 40, unit: 'U/L', fromCatalogue: true }, marker({ key: 'alt' }))).toBe(true);
   });
 });

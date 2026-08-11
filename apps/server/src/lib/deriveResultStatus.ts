@@ -159,7 +159,7 @@ export function deriveStatus(
     // be in range or below it, and there is no honest way to choose.
     return {
       status: 'unevaluable',
-      reason: `The result is a limit, not a measurement (“${text}”), and it straddles the reference range ${low}–${high}, so its position can't be determined. Recorded as reported.`,
+      reason: `The result is a limit, not a measurement (“${text}”), and it straddles the reference range ${low}–${high}, so its position can’t be determined. Recorded as reported.`,
     };
   }
 

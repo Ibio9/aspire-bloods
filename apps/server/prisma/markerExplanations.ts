@@ -74,7 +74,7 @@ export const MEASURED_EXPLANATIONS: Record<string, ExplanationSeed> = {
   },
   'gastric-parietal-cell-antibodies': {
     whatItIs:
-      "Antibodies directed at the stomach's parietal cells, which make stomach acid and the protein needed to absorb vitamin B12. They are measured as part of the assessment of vitamin B12 deficiency and autoimmune conditions of the stomach lining.",
+      "Antibodies directed at the stomach’s parietal cells, which make stomach acid and the protein needed to absorb vitamin B12. They are measured as part of the assessment of vitamin B12 deficiency and autoimmune conditions of the stomach lining.",
   },
   'intrinsic-factor-antibodies': {
     whatItIs:

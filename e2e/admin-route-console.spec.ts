@@ -52,7 +52,7 @@ function assertClean(w: Watcher, where: string) {
   expect(
     unique(w.errors),
     `${where} logged ${w.errors.length} console error(s). An admin screen that throws while rendering ` +
-      `is a screen the clinic cannot do its day's work on.`,
+      `is a screen the clinic cannot do its day’s work on.`,
   ).toEqual([]);
   w.errors.length = 0;
   w.csp.length = 0;

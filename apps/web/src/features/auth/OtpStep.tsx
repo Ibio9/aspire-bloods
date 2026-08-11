@@ -161,9 +161,9 @@ export function OtpStep({
   return (
     <>
       <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">{eyebrow ?? 'One more step'}</p>
-      <h2 className="auth-heading">{heading ?? "Verify it's you"}</h2>
+      <h2 className="auth-heading">{heading ?? "Verify it’s you"}</h2>
       <p className="mt-[var(--auth-step)] text-sm leading-relaxed text-espresso/80">
-        We've sent a 6-digit verification code to {sentTo ?? 'your email'}. It's valid for {expiresInMinutes}{' '}
+        We’ve sent a 6-digit verification code to {sentTo ?? 'your email'}. It’s valid for {expiresInMinutes}{' '}
         minutes.
       </p>
 
@@ -216,7 +216,7 @@ export function OtpStep({
       </form>
 
       <div className="mt-[calc(var(--auth-step)*1.4)] border-t border-taupe pt-[calc(var(--auth-step)*1.2)]">
-        <p className="text-sm text-espresso/80">Didn't get the code?</p>
+        <p className="text-sm text-espresso/80">Didn’t get the code?</p>
         <div className="mt-[calc(var(--auth-step)*0.75)] flex flex-wrap items-center gap-x-4 gap-y-2">
           <Button
             variant="secondary"
@@ -225,7 +225,7 @@ export function OtpStep({
             disabled={cooldown > 0 || exhausted}
             disabledReason={
               exhausted
-                ? "We've sent as many codes as we can for this sign-in attempt."
+                ? "We’ve sent as many codes as we can for this sign-in attempt."
                 : `You can request another code in ${cooldown} second${cooldown === 1 ? '' : 's'}.`
             }
           >
@@ -243,7 +243,7 @@ export function OtpStep({
 
         {showWayOut && (
           <p className="mt-[var(--auth-step)] rounded-input border border-taupe bg-cream-50 px-4 py-2.5 text-sm leading-relaxed text-espresso">
-            Check your junk folder. If it still hasn't arrived,{' '}
+            Check your junk folder. If it still hasn’t arrived,{' '}
             {CLINIC_PHONE && CLINIC_PHONE_HREF ? (
               <>
                 call the clinic on{' '}
@@ -259,7 +259,7 @@ export function OtpStep({
                 </a>
               </>
             )}{' '}
-            and we'll get you signed in.
+            and we’ll get you signed in.
           </p>
         )}
 

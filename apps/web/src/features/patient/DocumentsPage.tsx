@@ -97,7 +97,7 @@ export function DocumentsPage() {
         <div className="mt-10 max-w-2xl">
           <EmptyState
             title="No documents yet"
-            description="Once a report is released to you, its PDFs appear here: the laboratory's report and an Aspire summary."
+            description="Once a report is released to you, its PDFs appear here: the laboratory’s report and an Aspire summary."
             action={<LinkButton to="/overview">Back to overview</LinkButton>}
           />
         </div>
@@ -151,7 +151,7 @@ export function DocumentsPage() {
                   <Button
                     variant="secondary"
                     disabled={!doc.hasOriginalPdf}
-                    disabledReason="These results were entered by the clinical team, so there's no original laboratory PDF."
+                    disabledReason="These results were entered by the clinical team, so there’s no original laboratory PDF."
                     loading={downloading?.reportId === doc.reportId && downloading.kind === 'original-pdf-link'}
                     onClick={() => void download(doc, 'original-pdf-link')}
                   >

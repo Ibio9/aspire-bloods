@@ -141,9 +141,9 @@ export function PatientOverview() {
         <p className="eyebrow mb-3">Aspire Clinic · Patient portal</p>
         <h1 className="display-heading break-words">Overview</h1>
         <Card className="mt-10 max-w-xl">
-          <p className="font-display opsz-section text-xl text-espresso">We couldn't load your overview</p>
+          <p className="font-display opsz-section text-xl text-espresso">We couldn’t load your overview</p>
           <p className="mt-2 text-sm text-espresso/80">
-            Please refresh the page. If it keeps happening, get in touch and we'll sort it out.
+            Please refresh the page. If it keeps happening, get in touch and we’ll sort it out.
           </p>
         </Card>
       </>
@@ -244,7 +244,7 @@ export function PatientOverview() {
             <Card>
               <p className="eyebrow mb-3">Your account is ready</p>
               <p className="max-w-measure text-reading leading-relaxed text-espresso">
-                A new account starts empty. Results appear once you've had a sample taken and the clinic has
+                A new account starts empty. Results appear once you’ve had a sample taken and the clinic has
                 matched it to you.
               </p>
             </Card>
@@ -252,7 +252,7 @@ export function PatientOverview() {
               <p className="eyebrow mb-3">After your test</p>
               <p className="max-w-measure text-reading leading-relaxed text-espresso">
                 Your sample goes to the laboratory and the results come back to the Aspire clinical team. A
-                clinician reviews every one before it's published, and we'll email you when yours is ready.
+                clinician reviews every one before it’s published, and we’ll email you when yours is ready.
               </p>
             </Card>
             <ClinicContactCard />
@@ -352,7 +352,7 @@ export function PatientOverview() {
       {data.changes.length > 0 && (
         <section aria-labelledby="changes-heading">
           <h2 id="changes-heading" className="section-heading">
-            What's changed
+            What’s changed
           </h2>
           {/* No standfirst: every card below carries its own movement label and
               the date it is compared with, which is the whole of what the

@@ -498,7 +498,7 @@ export const OPTIMAL_RANGES: readonly OptimalRangeEntry[] = [
 
   // --- Kidney ---------------------------------------------------------------
   gap('b2-microglobulin', 'mg/L', 'Used in specific disease monitoring rather than as a general kidney measure; no optimal band is defined.'),
-  gap('bicarbonate', 'mmol/L', 'Part of the acid–base picture and interpreted with it. No published optimal sub-band.'),
+  gap('bicarbonate', 'mmol/L', 'Part of the acid-base picture and interpreted with it. No published optimal sub-band.'),
   gap('cystatin-c', 'mg/L', 'Cystatin C is interpreted through the eGFR equation it feeds, not against a concentration target.'),
   gap('ngal', 'ng/mL', 'An acute kidney injury marker studied against event thresholds in hospital settings. No optimal is defined for a well population.'),
   gap('magnesium', 'mmol/L', 'Serum magnesium reflects only about 1% of total body magnesium and is held tightly constant, so no optimal sub-band is defined. Distinct from RBC Magnesium, which is a different analyte with its own entry.'),

@@ -76,7 +76,7 @@ export function AppointmentDetailPage() {
     return (
       <>
         <Breadcrumbs items={[{ label: 'Overview', to: '/overview' }, { label: 'Appointments', to: '/appointments' }, { label: 'Not found' }]} />
-        <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="We couldn't find that appointment" />
+        <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="We couldn’t find that appointment" />
         <Card className="mt-10 max-w-xl">
           <p className="text-sm leading-relaxed text-espresso/90">
             The link may be out of date. Everything currently in your diary is listed under your appointments.
@@ -127,10 +127,10 @@ export function AppointmentDetailPage() {
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bronze text-onaccent">
               <TickIcon />
             </span>
-            You're booked in
+            You’re booked in
           </p>
           <p className="mt-4 text-reading leading-relaxed text-espresso">
-            We've emailed you a confirmation. Your reference is{' '}
+            We’ve emailed you a confirmation. Your reference is{' '}
             <span className="tabular font-semibold">{appointment.reference}</span>. Quote it if you call us. Read
             the preparation below before the day.
           </p>
@@ -157,7 +157,7 @@ export function AppointmentDetailPage() {
             This appointment was cancelled
           </p>
           <p className="mt-3 text-reading leading-relaxed text-espresso/90">
-            Nothing was taken and nothing is owed. Book again whenever you're ready.
+            Nothing was taken and nothing is owed. Book again whenever you’re ready.
           </p>
           <Button className="mt-6" onClick={() => navigate('/book')}>
             Book another test

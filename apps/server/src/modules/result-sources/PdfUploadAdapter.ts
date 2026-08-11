@@ -300,7 +300,7 @@ export function extractRows(text: string): ParsedMarkerRow[] {
         referenceHigh: null,
         resultText: null,
         needsReview: true,
-        reviewReason: `Single-sided threshold in source (${comparator}${limit}). Which side is the healthy range can't be inferred from text alone, so enter the full range manually.`,
+        reviewReason: `Single-sided threshold in source (${comparator}${limit}). Which side is the healthy range can’t be inferred from text alone, so enter the full range manually.`,
         rawLine: line,
       });
       pendingNamePrefix = '';

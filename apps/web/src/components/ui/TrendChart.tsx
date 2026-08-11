@@ -189,7 +189,7 @@ function ChartTooltip({
 
   return (
     <div className="rounded-card border border-taupe bg-white px-4 py-3 text-xs shadow-popover">
-      <p className="tabular text-base font-semibold leading-none text-espresso">
+      <p className="numeric tabular text-base font-semibold leading-none text-espresso">
         {point.value}
         {point.unit && <span className="ml-1 text-xs font-normal text-espresso/80">{point.unit}</span>}
       </p>
@@ -203,8 +203,11 @@ function ChartTooltip({
         </svg>
         {statusLabel(point.status)}
       </p>
-      <p className="tabular mt-1.5 text-espresso/80">
-        Reference range {point.referenceLow}–{point.referenceHigh}
+      <p className="mt-1.5 text-espresso/80">
+        Reference range{' '}
+        <span className="numeric">
+          {point.referenceLow}–{point.referenceHigh}
+        </span>
       </p>
       {/* Advisory, and clearly separate from the status above it. */}
       {optimal && (
@@ -234,11 +237,18 @@ export function TrendChart({
   /** The advisory optimal band, or null when this marker has no established one — in which case nothing about optimal is drawn or said. */
   optimal?: OptimalRangeDTO | null;
   /**
-   * `tall` is the marker detail page, where this card now takes 60% of the row
-   * rather than 50% and the chart is the reason somebody opened the page. The
-   * extra height is not decoration: a trend line in a squat plot area
-   * exaggerates every movement in it, which on a page about someone's blood is
-   * the wrong kind of wrong.
+   * `tall` is the marker detail page, where this card takes 60% of the row
+   * rather than 50%. The extra height over `default` is not decoration: a trend
+   * line in a squat plot area exaggerates every movement in it, which on a page
+   * about someone's blood is the wrong kind of wrong.
+   *
+   * It used to run to 30rem at lg, which is where the marker page stopped
+   * fitting on a 900px screen — the chart card sets the height of the row and
+   * therefore of the card beside it, so 480px of plot plus the eyebrow, the key
+   * and the padding pushed the pair past the fold on the exact laptop most
+   * patients read this on. 22rem is the plot area at which a 60%-width card
+   * still reads wider than it is tall (roughly 640×352 at 1440), which is the
+   * proportion that was actually being protected. The pair clears a 1280 × 800 laptop as well, but the height that binds there is the LEFT card, not this one: see PREVIOUS_SHOWN.
    */
   height?: 'default' | 'tall';
 }) {
@@ -281,7 +291,7 @@ export function TrendChart({
   if (data.length === 0) {
     return (
       <p className="text-sm leading-relaxed text-espresso/80">
-        This marker's result isn't a number, so there is nothing to plot. The result itself is shown above.
+        This marker’s result isn’t a number, so there is nothing to plot. The result itself is shown above.
       </p>
     );
   }
@@ -426,7 +436,7 @@ export function TrendChart({
           on a phone, where a squat chart with clipped labels is the failure
           mode. `tall` is the marker detail page's 60%-width card. */}
       <div
-        className={`tabular w-full ${height === 'tall' ? 'h-80 sm:h-[26rem] lg:h-[30rem]' : 'h-72 sm:h-80'}`}
+        className={`tabular w-full ${height === 'tall' ? 'h-64 sm:h-80 lg:h-[22rem]' : 'h-72 sm:h-80'}`}
         role="img"
         aria-label={
           `Trend chart for ${data.length} result${data.length === 1 ? '' : 's'}. ` +
@@ -673,7 +683,7 @@ function ChartKey({
               <circle cx="9" cy="6" r="2" fill={chartTokens.point} />
               <circle cx="15" cy="6" r="2" fill={chartTokens.point} />
             </svg>
-            Separate points, not joined: these came from sources that aren't comparable for this marker
+            Separate points, not joined: these came from sources that aren’t comparable for this marker
           </li>
         )}
       </ul>

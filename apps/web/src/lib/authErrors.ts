@@ -55,5 +55,5 @@ export function authErrorMessage(e: unknown): string {
   // fetch() itself throwing (offline, DNS failure, server unreachable) is a
   // plain TypeError, not an ApiError — this is the genuine "service is
   // down" case, not a validation or auth failure.
-  return `Aspire Bloods isn't reachable right now. Check your connection, or contact ${CLINIC_CONTACT} if it continues.`;
+  return `Aspire Bloods isn’t reachable right now. Check your connection, or contact ${CLINIC_CONTACT} if it continues.`;
 }

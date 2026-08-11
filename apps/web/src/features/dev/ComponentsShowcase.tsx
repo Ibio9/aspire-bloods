@@ -9,6 +9,11 @@ import { DateField } from '../../components/ui/DateField';
 import { Checkbox } from '../../components/ui/Checkbox';
 import { Radio } from '../../components/ui/Radio';
 import { StatusBadge } from '../../components/ui/StatusBadge';
+import {
+  PreviousResults,
+  PREVIOUS_RESULTS_MIN_WIDTH,
+  type PreviousResultPoint,
+} from '../../components/patient/PreviousResults';
 import { ThemeToggle } from '../../components/ui/ThemeToggle';
 import { statusBarClass } from '../../lib/markerCopy';
 import { RangeBar } from '../../components/ui/RangeBar';
@@ -33,6 +38,21 @@ const STATUS_LIST: { key: MarkerStatus; hex: string; label: string }[] = [
   { key: 'LOW', hex: status.low.hex, label: status.low.label },
   { key: 'SIGNIFICANT_HIGH', hex: status.significantHigh.hex, label: status.significantHigh.label },
   { key: 'SIGNIFICANT_LOW', hex: status.significantLow.hex, label: status.significantLow.label },
+];
+
+/**
+ * The longest realistic content in every column at once: a September date (the
+ * widest month name), a four-character value, `10^9/L` (the widest unit in the
+ * catalogue) and "Significantly above range" (the longest status label). The
+ * last entry is dropped by PreviousResults, which prints the history BEFORE the
+ * latest result, so there is one extra.
+ */
+const WORST_CASE_TREND: PreviousResultPoint[] = [
+  { reportId: 'r1', sampleDate: '2025-09-19', value: 19.5, unit: '10^9/L', status: 'SIGNIFICANT_HIGH' },
+  { reportId: 'r2', sampleDate: '2026-09-19', value: 102, unit: 'mmol/L', status: 'SIGNIFICANT_LOW' },
+  { reportId: 'r3', sampleDate: '2026-11-30', value: 4.4, unit: '10^12/L', status: 'IN_RANGE' },
+  { reportId: 'r4', sampleDate: '2026-12-31', value: 7.8, unit: 'mmol/L', status: 'HIGH' },
+  { reportId: 'r5', sampleDate: '2027-01-01', value: 5.1, unit: 'mmol/L', status: 'IN_RANGE' },
 ];
 
 function ContrastPill({ ratio, min }: { ratio: number; min: number }) {
@@ -161,7 +181,7 @@ export function ComponentsShowcase() {
       <p className="mt-4 max-w-2xl text-espresso">
         Token audit, status triad with contrast ratios, and every component in the library with its interactive
         states — rest, hover, focus-visible, active, disabled, loading, error. Tab through this page to audit focus
-        order and rings. Not part of the patient product — this route doesn't ship in production builds.
+        order and rings. Not part of the patient product — this route doesn’t ship in production builds.
       </p>
 
       <Section title="Theme">
@@ -225,9 +245,41 @@ export function ComponentsShowcase() {
         </div>
       </Section>
 
+      {/* THE WORST CASE, at the narrowest width the list is ever rendered at.
+          Not decoration: this is the fixture e2e/previous-results-layout.spec.ts
+          measures. The rows used to be a flex row with a `min-w-0` value group,
+          which let the value and the status badge paint straight over the date
+          the moment the three would not fit on one line — and on the marker
+          page's 40%-width card they never did. Every field here is the longest
+          realistic one: a September date, a four-character value, the widest
+          unit in the catalogue, and the longest status label. */}
+      <Section title="Previous results — longest realistic row, at the narrowest card">
+        <p className="max-w-3xl text-sm text-espresso/80">
+          Each row is a grid with declared columns, so a sibling cannot overflow into another&apos;s track. The list is
+          the container-query context, so every row switches between the one-line and two-line arrangement together and
+          the row heights stay uniform whatever the status word says.
+        </p>
+        <div className="flex flex-wrap gap-6">
+          <div style={{ width: PREVIOUS_RESULTS_MIN_WIDTH }} data-testid="previous-results-narrow">
+            <p className="mb-2 text-xs text-espresso/80">
+              Narrowest ({PREVIOUS_RESULTS_MIN_WIDTH}) — two lines
+            </p>
+            <Card padding="tight">
+              <PreviousResults trend={WORST_CASE_TREND} />
+            </Card>
+          </div>
+          <div className="w-[34rem]" data-testid="previous-results-wide">
+            <p className="mb-2 text-xs text-espresso/80">Wide (34rem) — one line, three columns</p>
+            <Card padding="tight">
+              <PreviousResults trend={WORST_CASE_TREND} />
+            </Card>
+          </div>
+        </div>
+      </Section>
+
       <Section title="Traffic-light status (deliberate change, Aug 2026)">
         <p className="max-w-3xl text-sm text-espresso/80">
-          The system's original rule was no green, amber or red anywhere. That rule has been deliberately changed:
+          The system’s original rule was no green, amber or red anywhere. That rule has been deliberately changed:
           patients arrive expecting traffic-light coding on a blood result and the clinic asked for it. Withholding
           it made the page harder to scan without making it any calmer.
         </p>
@@ -238,7 +290,7 @@ export function ComponentsShowcase() {
         </p>
         <p className="max-w-3xl text-sm text-espresso/80">
           What did NOT change is everything that makes it safe. On a card the colour is a background wash and nothing
-          else — the border, the type and the shadow are the ordinary card's, and the level mark / chevron / doubled
+          else — the border, the type and the shadow are the ordinary card’s, and the level mark / chevron / doubled
           chevron plus the word still carry the status on their own. Every chart band carries a boundary line and a
           written entry in its key. Turn every colour on this page to greyscale and not one fact is lost. The hues are
           low-saturation and warm-leaning so a page of results still reads as this product rather than a dashboard,
@@ -328,7 +380,7 @@ export function ComponentsShowcase() {
             defaultValue="a@b.com"
             validate={(v) => (isValidEmail(v) ? undefined : 'Enter a valid email address.')}
           />
-          <Input label="Disabled" name="demo5" disabled defaultValue="Can't edit this" />
+          <Input label="Disabled" name="demo5" disabled defaultValue="Can’t edit this" />
           <Select label="Select" name="demo6" value={demoSelect} onChange={(e) => setDemoSelect(e.target.value)}>
             <option value="">Choose…</option>
             <option value="one">Option one</option>
@@ -476,7 +528,7 @@ export function ComponentsShowcase() {
         <div className="max-w-md">
           <EmptyState
             title="No results yet"
-            description="Once you've had a sample taken, your results will appear here."
+            description="Once you’ve had a sample taken, your results will appear here."
             action={<Button variant="secondary">Contact the clinic</Button>}
           />
         </div>

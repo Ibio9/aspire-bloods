@@ -22,6 +22,41 @@ import { MailIcon, PhoneIcon, PinIcon } from '../nav/patientIcons';
  * email address that works.
  */
 
+/**
+ * An email address with its own break opportunities, and no others.
+ *
+ * `break-all` is what this used to carry, and `break-all` gives the browser
+ * permission to break between ANY two characters — so a 250px column split
+ * "clinical-team@theaspireclinic.com" as "theaspireclinic." / "com" and the
+ * address stopped being readable as an address. `break-word` is no better
+ * here: an email is one unbroken word, so it either overflows the card or
+ * breaks at an arbitrary letter.
+ *
+ * An address has exactly three kinds of place a reader will accept a line
+ * ending: after the `@`, and after each dot in the domain. `<wbr>` marks those
+ * and nothing else, so a narrow column breaks at a boundary that is part of
+ * the address's own structure and a wide one does not break at all.
+ *
+ * Also used for the phone number, whose separators are spaces and which
+ * therefore needs nothing beyond not being told to break anywhere.
+ */
+function BreakableAddress({ value }: { value: string }) {
+  // Split AFTER each @ or dot, keeping the separator on the end of the piece
+  // before it — a line ending in "@" or "." reads as continuing, whereas one
+  // beginning with them reads as a typo.
+  const pieces = value.split(/(?<=[@.])/);
+  return (
+    <>
+      {pieces.map((piece, i) => (
+        <span key={`${piece}-${i}`}>
+          {piece}
+          {i < pieces.length - 1 && <wbr />}
+        </span>
+      ))}
+    </>
+  );
+}
+
 /** The four (or five) lines, and the only place their order is decided. */
 export function ClinicContactLines({
   className = '',
@@ -38,7 +73,11 @@ export function ClinicContactLines({
   const gap = size === 'compact' ? 'gap-2.5' : 'gap-3.5';
 
   return (
-    <ul className={`flex flex-col ${gap} ${text} leading-relaxed text-espresso ${className}`}>
+    // `break-words` on the list, never `break-all`: a long word that genuinely
+    // has nowhere to break still stays inside the card rather than painting out
+    // of it, but ordinary words are left alone. The email and the phone number
+    // carry their own break points instead — see BreakableAddress.
+    <ul className={`flex min-w-0 flex-col break-words ${gap} ${text} leading-relaxed text-espresso ${className}`}>
       {contact.phone && (
         <li className="flex items-start gap-2.5">
           <PhoneIcon className="mt-0.5 shrink-0 text-bronze-700" />
@@ -94,9 +133,9 @@ export function ClinicContactLines({
           <span className="eyebrow mb-0.5 block">Email</span>
           <a
             href={`mailto:${contact.email}`}
-            className="block break-all rounded-input font-medium underline-offset-4 hover:underline"
+            className="block rounded-input font-medium underline-offset-4 hover:underline"
           >
-            {contact.email}
+            <BreakableAddress value={contact.email} />
           </a>
         </span>
       </li>
@@ -229,11 +268,17 @@ export function ClinicContactCard({ className = '' }: { className?: string }) {
   if (!contact) return null;
 
   return (
-    <div className={`card p-7 sm:p-9 ${className}`}>
+    // `p-7` at every width, not `p-7 sm:p-9`. The padding step is keyed to the
+    // VIEWPORT and this card lives in the narrowest column on the page — a
+    // third of the content width beside the out-of-range results — so a 1440px
+    // window was spending 72px of a ~350px column on padding and squeezing the
+    // address into what was left. `min-w-0` so a long line can wrap rather than
+    // widening the card past its grid track.
+    <div className={`card min-w-0 p-7 ${className}`}>
       <p className="eyebrow mb-3">Talk to someone</p>
       <p className="max-w-measure text-reading leading-relaxed text-espresso">
         Your GP knows your full history and is the right first call about any result. The Aspire clinical team can
-        also talk you through what you're looking at.
+        also talk you through what you’re looking at.
       </p>
       <ClinicContactLines className="mt-7" />
     </div>

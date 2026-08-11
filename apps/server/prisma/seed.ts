@@ -21,7 +21,7 @@ import { encryptField } from '../src/lib/crypto.js';
 import { hashPassword } from '../src/lib/password.js';
 import { hashToken, generateToken } from '../src/lib/crypto.js';
 import { seedRandoxCatalogue, formatCatalogueReport } from './seedCatalogue.js';
-import { removeEmDashes, sameWords } from '../src/lib/houseStyle.js';
+import { applyHouseStyle, applyVocabularyRule, sameWords } from '../src/lib/houseStyle.js';
 import { explanationFor } from './markerExplanations.js';
 
 interface MarkerSeed {
@@ -40,16 +40,16 @@ interface MarkerSeed {
 
 const markers: MarkerSeed[] = [
   // --- Full blood count ---
-  { key: 'haemoglobin', name: 'Haemoglobin', unit: 'g/L', low: 130, high: 170, sex: 'MALE', whatItIs: 'The protein in red blood cells that carries oxygen around your body.', highMeans: 'Can reflect dehydration, smoking, or conditions that increase red cell production.', lowMeans: 'Often reflects anaemia: reduced capacity to carry oxygen, which can cause fatigue and breathlessness.', lifestyleContext: 'Iron-rich food, staying hydrated, and treating any underlying cause support healthy levels.' },
-  { key: 'haemoglobin-f', name: 'Haemoglobin', unit: 'g/L', low: 120, high: 150, sex: 'FEMALE', whatItIs: 'The protein in red blood cells that carries oxygen around your body.', highMeans: 'Can reflect dehydration, smoking, or conditions that increase red cell production.', lowMeans: 'Often reflects anaemia: reduced capacity to carry oxygen, which can cause fatigue and breathlessness.', lifestyleContext: 'Iron-rich food, staying hydrated, and treating any underlying cause support healthy levels.' },
-  { key: 'wbc', name: 'White Blood Cell Count', unit: '10^9/L', low: 4.0, high: 11.0, whatItIs: 'Cells that make up your immune system and fight infection.', highMeans: 'Can indicate infection, inflammation, or stress on the body.', lowMeans: 'Can indicate a weakened immune response or certain viral infections.', lifestyleContext: 'Levels vary with recent illness, so a repeat test when well is often more informative.' },
-  { key: 'platelets', name: 'Platelet Count', unit: '10^9/L', low: 150, high: 400, whatItIs: 'Cell fragments that help your blood clot.', highMeans: 'Can occur after inflammation, infection, or iron deficiency.', lowMeans: 'Can increase bruising or bleeding risk.', lifestyleContext: 'Usually monitored alongside other blood count markers rather than in isolation.' },
+  { key: 'haemoglobin', name: 'Haemoglobin', unit: 'g/L', low: 130, high: 170, sex: 'MALE', whatItIs: 'The protein in red blood cells that carries oxygen around your body.', highMeans: 'Can reflect dehydration, smoking, or conditions that increase red cell production.', lowMeans: 'Often reflects anaemia: reduced capacity to carry oxygen, which can cause fatigue and breathlessness.', lifestyleContext: 'Iron-rich food, staying hydrated, and treating any underlying cause support levels in the usual range.' },
+  { key: 'haemoglobin-f', name: 'Haemoglobin', unit: 'g/L', low: 120, high: 150, sex: 'FEMALE', whatItIs: 'The protein in red blood cells that carries oxygen around your body.', highMeans: 'Can reflect dehydration, smoking, or conditions that increase red cell production.', lowMeans: 'Often reflects anaemia: reduced capacity to carry oxygen, which can cause fatigue and breathlessness.', lifestyleContext: 'Iron-rich food, staying hydrated, and treating any underlying cause support levels in the usual range.' },
+  { key: 'wbc', name: 'White Blood Cell Count', unit: '10^9/L', low: 4.0, high: 10.0, whatItIs: 'Cells that make up your immune system and fight infection.', highMeans: 'Can indicate infection, inflammation, or stress on the body.', lowMeans: 'Can indicate a weakened immune response or certain viral infections.', lifestyleContext: 'Levels vary with recent illness, so a repeat test when well is often more informative.' },
+  { key: 'platelets', name: 'Platelet Count', unit: '10^9/L', low: 150, high: 450, whatItIs: 'Cell fragments that help your blood clot.', highMeans: 'Can occur after inflammation, infection, or iron deficiency.', lowMeans: 'Can increase bruising or bleeding risk.', lifestyleContext: 'Usually monitored alongside other blood count markers rather than in isolation.' },
   { key: 'rbc', name: 'Red Blood Cell Count', unit: '10^12/L', low: 4.2, high: 5.9, whatItIs: 'The number of oxygen-carrying cells circulating in your blood.', highMeans: 'Can reflect dehydration or conditions that overproduce red cells.', lowMeans: 'Often reflects anaemia.', lifestyleContext: 'Interpreted alongside haemoglobin and haematocrit.' },
   { key: 'haematocrit', name: 'Haematocrit', unit: '%', low: 36, high: 50, whatItIs: 'The proportion of your blood made up of red blood cells.', highMeans: 'Can reflect dehydration or overproduction of red cells.', lowMeans: 'Often reflects anaemia or overhydration.', lifestyleContext: 'Interpreted alongside haemoglobin and red cell count.' },
-  { key: 'mcv', name: 'Mean Cell Volume (MCV)', unit: 'fL', low: 80, high: 100, whatItIs: 'The average size of your red blood cells.', highMeans: 'Can relate to vitamin B12 or folate deficiency, or alcohol intake.', lowMeans: 'Can relate to iron deficiency.', lifestyleContext: 'A useful clue to the underlying cause when haemoglobin is also low.' },
+  { key: 'mcv', name: 'Mean Cell Volume (MCV)', unit: 'fL', low: 76, high: 100, whatItIs: 'The average size of your red blood cells.', highMeans: 'Can relate to vitamin B12 or folate deficiency, or alcohol intake.', lowMeans: 'Can relate to iron deficiency.', lifestyleContext: 'A useful clue to the underlying cause when haemoglobin is also low.' },
   { key: 'rdw', name: 'Red Cell Distribution Width (RDW)', unit: '%', low: 11.5, high: 14.5, whatItIs: 'How much variation there is in the size of your red blood cells.', highMeans: 'Can indicate an early nutrient deficiency or mixed causes of anaemia.', lifestyleContext: 'Most useful alongside other full blood count markers.' },
   { key: 'neutrophils', name: 'Neutrophils', unit: '10^9/L', low: 2.0, high: 7.5, whatItIs: 'The most common type of white blood cell, first responders to infection.', highMeans: 'Can indicate bacterial infection, inflammation, or stress.', lowMeans: 'Can increase susceptibility to infection.', lifestyleContext: 'Levels shift quickly with acute illness.' },
-  { key: 'lymphocytes', name: 'Lymphocytes', unit: '10^9/L', low: 1.0, high: 4.0, whatItIs: 'White blood cells central to your immune system’s response to viruses.', highMeans: 'Can reflect a recent or ongoing viral infection.', lowMeans: 'Can reflect immune suppression or recent illness.', lifestyleContext: 'Often interpreted alongside white cell count and recent health history.' },
+  { key: 'lymphocytes', name: 'Lymphocytes', unit: '10^9/L', low: 1.0, high: 3.5, whatItIs: 'White blood cells central to your immune system’s response to viruses.', highMeans: 'Can reflect a recent or ongoing viral infection.', lowMeans: 'Can reflect immune suppression or recent illness.', lifestyleContext: 'Often interpreted alongside white cell count and recent health history.' },
   { key: 'monocytes', name: 'Monocyte Count', unit: '10^9/L', low: 0.2, high: 0.8, whatItIs: 'A type of white blood cell that clears damaged cells and helps coordinate the immune response.', highMeans: 'Can reflect a chronic infection or an inflammatory process.', lowMeans: 'Uncommon in isolation and usually interpreted alongside the rest of the blood count.', lifestyleContext: 'Read alongside the other white cell types rather than on its own.' },
   { key: 'eosinophils', name: 'Eosinophil Count', unit: '10^9/L', low: 0.04, high: 0.4, whatItIs: 'A white blood cell involved in allergic responses and in resisting parasitic infection.', highMeans: 'Can reflect allergy, asthma, eczema or hay fever, and less commonly a parasitic infection.', lowMeans: 'Rarely significant on its own.', lifestyleContext: 'Often higher during hay fever season or an allergic flare.' },
   { key: 'basophils', name: 'Basophil Count', unit: '10^9/L', low: 0.01, high: 0.1, whatItIs: 'The least common white blood cell, involved in allergic and inflammatory responses.', highMeans: 'Uncommon; usually interpreted alongside the rest of the blood count.', lifestyleContext: 'Read alongside the other white cell types rather than on its own.' },
@@ -57,29 +57,29 @@ const markers: MarkerSeed[] = [
   { key: 'mchc', name: 'Mean Cell Haemoglobin Concentration (MCHC)', unit: 'g/L', low: 320, high: 360, whatItIs: 'How concentrated the haemoglobin is within your red blood cells.', highMeans: 'Uncommon; can occur in certain inherited red cell conditions.', lowMeans: 'Can accompany iron deficiency.', lifestyleContext: 'Interpreted alongside MCV and MCH rather than on its own.' },
 
   // --- Liver function ---
-  { key: 'alt', name: 'ALT (Alanine Aminotransferase)', unit: 'U/L', low: 0, high: 41, whatItIs: 'An enzyme found mainly in the liver; raised levels can signal liver cell stress.', highMeans: 'Can reflect fatty liver, alcohol intake, medication effects, or viral hepatitis.', lifestyleContext: 'Alcohol reduction, weight management, and reviewing medications can help.' },
+  { key: 'alt', name: 'ALT (Alanine Aminotransferase)', unit: 'U/L', low: 0, high: 40, whatItIs: 'An enzyme found mainly in the liver; raised levels can signal liver cell stress.', highMeans: 'Can reflect fatty liver, alcohol intake, medication effects, or viral hepatitis.', lifestyleContext: 'Alcohol reduction, weight management, and reviewing medications can help.' },
   { key: 'ast', name: 'AST (Aspartate Aminotransferase)', unit: 'U/L', low: 0, high: 40, whatItIs: 'An enzyme found in the liver and muscles; raised levels can signal cell stress.', highMeans: 'Can reflect liver strain, muscle damage, or heavy alcohol intake.', lifestyleContext: 'Interpreted alongside ALT and the AST:ALT ratio.' },
-  { key: 'ggt', name: 'GGT (Gamma-Glutamyl Transferase)', unit: 'U/L', low: 0, high: 60, whatItIs: 'A liver enzyme sensitive to alcohol intake and bile flow.', highMeans: 'Can reflect alcohol intake, fatty liver, or bile duct issues.', lifestyleContext: 'Often the first liver marker to rise with alcohol intake and the first to fall on reduction.' },
+  { key: 'ggt', name: 'GGT (Gamma-Glutamyl Transferase)', unit: 'U/L', low: 10, high: 71, whatItIs: 'A liver enzyme sensitive to alcohol intake and bile flow.', highMeans: 'Can reflect alcohol intake, fatty liver, or bile duct issues.', lifestyleContext: 'Often the first liver marker to rise with alcohol intake and the first to fall on reduction.' },
   { key: 'bilirubin', name: 'Total Bilirubin', unit: 'µmol/L', low: 0, high: 21, whatItIs: 'A breakdown product of red blood cells, processed by the liver.', highMeans: 'Can reflect liver dysfunction, bile duct blockage, or increased red cell breakdown.', lifestyleContext: 'Mildly raised levels in isolation are often a benign, harmless variant (Gilbert’s syndrome).' },
-  { key: 'albumin', name: 'Albumin', unit: 'g/L', low: 35, high: 50, whatItIs: 'The main protein made by your liver, important for fluid balance and transport.', lowMeans: 'Can reflect liver disease, inflammation, or poor nutrition.', lifestyleContext: 'Adequate protein intake supports healthy levels.' },
-  { key: 'alp', name: 'Alkaline Phosphatase (ALP)', unit: 'U/L', low: 30, high: 130, whatItIs: 'An enzyme found in the liver and bone.', highMeans: 'Can reflect bile duct issues, liver conditions, or bone turnover.', lifestyleContext: 'Naturally higher during bone growth or healing.' },
+  { key: 'albumin', name: 'Albumin', unit: 'g/L', low: 35, high: 50, whatItIs: 'The main protein made by your liver, important for fluid balance and transport.', lowMeans: 'Can reflect liver disease, inflammation, or poor nutrition.', lifestyleContext: 'Adequate protein intake supports levels in the usual range.' },
+  { key: 'alp', name: 'Alkaline Phosphatase (ALP)', unit: 'U/L', low: 30, high: 120, whatItIs: 'An enzyme found in the liver and bone.', highMeans: 'Can reflect bile duct issues, liver conditions, or bone turnover.', lifestyleContext: 'Naturally higher during bone growth or healing.' },
   { key: 'total-protein', name: 'Total Protein', unit: 'g/L', low: 60, high: 80, whatItIs: 'The combined level of all proteins in your blood, including albumin.', lifestyleContext: 'Interpreted alongside albumin and overall nutritional status.' },
 
   // --- Kidney function ---
   { key: 'creatinine', name: 'Creatinine', unit: 'µmol/L', low: 60, high: 110, whatItIs: 'A waste product filtered out by your kidneys, used to estimate kidney function.', highMeans: 'Can reflect reduced kidney function or high muscle mass.', lifestyleContext: 'Staying well hydrated supports accurate results.' },
-  { key: 'egfr', name: 'eGFR (Estimated Glomerular Filtration Rate)', unit: 'mL/min/1.73m²', low: 90, high: 999, whatItIs: 'An estimate of how well your kidneys are filtering waste from your blood.', lowMeans: 'Lower values can indicate reduced kidney function.', lifestyleContext: 'Blood pressure control and hydration support kidney health.' },
+  { key: 'egfr', name: 'eGFR (Estimated Glomerular Filtration Rate)', unit: 'mL/min/1.73m²', low: 60, high: 999, whatItIs: 'An estimate of how well your kidneys are filtering waste from your blood.', lowMeans: 'Lower values can indicate reduced kidney function.', lifestyleContext: 'Blood pressure control and hydration support kidney health.' },
   { key: 'urea', name: 'Urea', unit: 'mmol/L', low: 2.5, high: 7.8, whatItIs: 'A waste product from protein breakdown, cleared by the kidneys.', highMeans: 'Can reflect reduced kidney function or dehydration.', lifestyleContext: 'Interpreted alongside creatinine and eGFR.' },
-  { key: 'sodium', name: 'Sodium', unit: 'mmol/L', low: 135, high: 145, whatItIs: 'An electrolyte that helps regulate fluid balance and nerve function.', highMeans: 'Can reflect dehydration.', lowMeans: 'Can reflect fluid overload or certain medications.', lifestyleContext: 'Usually reflects hydration status at the time of testing.' },
-  { key: 'potassium', name: 'Potassium', unit: 'mmol/L', low: 3.5, high: 5.1, whatItIs: 'An electrolyte essential for nerve and muscle function, including the heart.', highMeans: 'Can reflect kidney function or certain medications.', lowMeans: 'Can occur with certain medications or gastrointestinal losses.', lifestyleContext: 'Significant abnormalities here warrant prompt clinical attention.' },
-  { key: 'chloride', name: 'Chloride', unit: 'mmol/L', low: 95, high: 108, whatItIs: 'An electrolyte that works with sodium to maintain fluid balance and the blood’s acid–base balance.', highMeans: 'Can reflect dehydration or an acid–base disturbance.', lowMeans: 'Can reflect fluid overload or losses through vomiting.', lifestyleContext: 'Largely reflects hydration status at the time of testing.' },
+  { key: 'sodium', name: 'Sodium', unit: 'mmol/L', low: 133, high: 146, whatItIs: 'An electrolyte that helps regulate fluid balance and nerve function.', highMeans: 'Can reflect dehydration.', lowMeans: 'Can reflect fluid overload or certain medications.', lifestyleContext: 'Usually reflects hydration status at the time of testing.' },
+  { key: 'potassium', name: 'Potassium', unit: 'mmol/L', low: 3.5, high: 5.3, whatItIs: 'An electrolyte essential for nerve and muscle function, including the heart.', highMeans: 'Can reflect kidney function or certain medications.', lowMeans: 'Can occur with certain medications or gastrointestinal losses.', lifestyleContext: 'Significant abnormalities here warrant prompt clinical attention.' },
+  { key: 'chloride', name: 'Chloride', unit: 'mmol/L', low: 95, high: 108, whatItIs: 'An electrolyte that works with sodium to maintain fluid balance and the blood’s acid-base balance.', highMeans: 'Can reflect dehydration or an acid-base disturbance.', lowMeans: 'Can reflect fluid overload or losses through vomiting.', lifestyleContext: 'Largely reflects hydration status at the time of testing.' },
   { key: 'phosphate', name: 'Phosphate', unit: 'mmol/L', low: 0.8, high: 1.5, whatItIs: 'A mineral that works with calcium to build bone and is central to how cells store energy.', highMeans: 'Can reflect reduced kidney function.', lowMeans: 'Can reflect poor absorption, vitamin D deficiency or certain medications.', lifestyleContext: 'Interpreted alongside calcium and vitamin D.' },
 
   // --- Lipids ---
-  { key: 'total-cholesterol', name: 'Total Cholesterol', unit: 'mmol/L', low: 0, high: 5.0, whatItIs: 'The combined measure of all cholesterol carried in your blood.', highMeans: 'Higher levels are linked to increased cardiovascular risk over time.', lifestyleContext: 'Diet, exercise, and not smoking all support healthy cholesterol levels.' },
-  { key: 'hdl', name: 'HDL Cholesterol', unit: 'mmol/L', low: 1.0, high: 999, whatItIs: 'Often called "good" cholesterol. It helps remove excess cholesterol from your bloodstream.', lowMeans: 'Lower levels are linked to increased cardiovascular risk.', lifestyleContext: 'Regular exercise is one of the most effective ways to raise HDL.' },
+  { key: 'total-cholesterol', name: 'Total Cholesterol', unit: 'mmol/L', low: 0, high: 5.0, whatItIs: 'The combined measure of all cholesterol carried in your blood.', highMeans: 'Higher levels are linked to increased cardiovascular risk over time.', lifestyleContext: 'Diet, exercise, and not smoking all support cholesterol levels in the usual range.' },
+  { key: 'hdl', name: 'HDL Cholesterol', unit: 'mmol/L', low: 1.55, high: 999, whatItIs: 'Often called "good" cholesterol. It helps remove excess cholesterol from your bloodstream.', lowMeans: 'Lower levels are linked to increased cardiovascular risk.', lifestyleContext: 'Regular exercise is one of the most effective ways to raise HDL.' },
   { key: 'ldl', name: 'LDL Cholesterol', unit: 'mmol/L', low: 0, high: 3.0, whatItIs: 'Often called "bad" cholesterol. It can build up in artery walls over time.', highMeans: 'Higher levels are linked to increased cardiovascular risk.', lifestyleContext: 'Diet lower in saturated fat and regular activity both help.' },
-  { key: 'triglycerides', name: 'Triglycerides', unit: 'mmol/L', low: 0, high: 1.7, whatItIs: 'A type of fat in your blood, largely influenced by diet.', highMeans: 'Can reflect diet, alcohol intake, or metabolic factors.', lifestyleContext: 'Reducing refined sugar and alcohol intake often has a quick effect.' },
-  { key: 'chol-hdl-ratio', name: 'Total Cholesterol / HDL Ratio', unit: 'ratio', low: 0, high: 4.5, whatItIs: 'A calculated ratio that helps put your total cholesterol into context.', highMeans: 'A higher ratio is linked to increased cardiovascular risk.', lifestyleContext: 'Improves with the same lifestyle changes that improve cholesterol overall.' },
+  { key: 'triglycerides', name: 'Triglycerides', unit: 'mmol/L', low: 0, high: 2.3, whatItIs: 'A type of fat in your blood, largely influenced by diet.', highMeans: 'Can reflect diet, alcohol intake, or metabolic factors.', lifestyleContext: 'Reducing refined sugar and alcohol intake often has a quick effect.' },
+  { key: 'chol-hdl-ratio', name: 'Total Cholesterol / HDL Ratio', unit: 'ratio', low: 0, high: 5.0, whatItIs: 'A calculated ratio that helps put your total cholesterol into context.', highMeans: 'A higher ratio is linked to increased cardiovascular risk.', lifestyleContext: 'Improves with the same lifestyle changes that improve cholesterol overall.' },
   { key: 'apob', name: 'ApoB (Apolipoprotein B)', unit: 'g/L', low: 0, high: 1.0, whatItIs: 'A protein found on the particles that carry "bad" cholesterol. It reflects how many of those particles you have.', highMeans: 'Considered a strong marker of cardiovascular risk, sometimes more precise than LDL alone.', lifestyleContext: 'Responds to the same diet and lifestyle changes as LDL cholesterol.' },
   // Oxidised LDL and MPO are deliberately NOT seeded — Randox cannot supply
   // either under Aspire's current agreement. See EXCLUDED_MARKER_KEYS below,
@@ -108,9 +108,9 @@ const markers: MarkerSeed[] = [
   { key: 'free-t3', name: 'Free T3', unit: 'pmol/L', low: 3.1, high: 6.8, whatItIs: 'An active thyroid hormone that influences metabolism.', highMeans: 'Can indicate an overactive thyroid.', lowMeans: 'Can indicate an underactive thyroid or non-thyroidal illness.', lifestyleContext: 'Interpreted alongside TSH and Free T4.' },
 
   // --- Vitamins & minerals ---
-  { key: 'vitamin-d', name: 'Vitamin D', unit: 'nmol/L', low: 50, high: 250, whatItIs: 'A vitamin essential for bone health and immune function, made mostly by sunlight on skin.', lowMeans: 'Low levels are common, especially in winter, and can affect bone and immune health.', lifestyleContext: 'Sensible sun exposure and supplementation (especially Oct–Mar in the UK) support healthy levels.' },
+  { key: 'vitamin-d', name: 'Vitamin D', unit: 'nmol/L', low: 50, high: 250, whatItIs: 'A vitamin essential for bone health and immune function, made mostly by sunlight on skin.', lowMeans: 'Low levels are common, especially in winter, and can affect bone and immune health.', lifestyleContext: 'Sensible sun exposure and supplementation (especially Oct–Mar in the UK) support levels in the usual range.' },
   { key: 'vitamin-b12', name: 'Vitamin B12', unit: 'ng/L', low: 197, high: 771, whatItIs: 'A vitamin essential for nerve function and red blood cell production.', lowMeans: 'Can cause fatigue, and if prolonged, nerve symptoms.', lifestyleContext: 'Found mainly in animal products, so plant-based diets often benefit from supplementation.' },
-  { key: 'folate', name: 'Folate', unit: 'µg/L', low: 3.9, high: 26.8, whatItIs: 'A B-vitamin needed for cell division and red blood cell production.', lowMeans: 'Can contribute to fatigue and anaemia.', lifestyleContext: 'Leafy greens, legumes, and fortified foods support healthy levels.' },
+  { key: 'folate', name: 'Folate', unit: 'µg/L', low: 3.9, high: 26.8, whatItIs: 'A B-vitamin needed for cell division and red blood cell production.', lowMeans: 'Can contribute to fatigue and anaemia.', lifestyleContext: 'Leafy greens, legumes, and fortified foods support levels in the usual range.' },
   { key: 'ferritin', name: 'Ferritin', unit: 'µg/L', low: 30, high: 400, whatItIs: 'A protein that stores iron. It reflects your body’s iron reserves.', highMeans: 'Can reflect iron overload or, commonly, an inflammatory response rather than true excess iron.', lowMeans: 'Indicates depleted iron stores, often before anaemia develops.', lifestyleContext: 'Iron-rich food helps; persistent low levels are worth discussing with your GP.' },
   { key: 'iron', name: 'Serum Iron', unit: 'µmol/L', low: 10, high: 30, whatItIs: 'The amount of iron currently circulating in your blood.', highMeans: 'Can fluctuate with recent diet or supplementation.', lowMeans: 'Can contribute to iron-deficiency anaemia.', lifestyleContext: 'Best interpreted alongside ferritin for the full iron picture.' },
   { key: 'tibc', name: 'Total Iron Binding Capacity', unit: 'µmol/L', low: 45, high: 72, whatItIs: 'A measure of how much iron your blood could carry, reflecting iron transport capacity.', lifestyleContext: 'Interpreted alongside serum iron and ferritin.' },
@@ -121,8 +121,8 @@ const markers: MarkerSeed[] = [
   // --- Hormones ---
   { key: 'testosterone', name: 'Testosterone', unit: 'nmol/L', low: 8.6, high: 29, sex: 'MALE', whatItIs: 'The primary male sex hormone, also present in smaller amounts in women.', highMeans: 'Can reflect certain hormonal conditions.', lowMeans: 'Can contribute to low energy, reduced libido, and mood changes.', lifestyleContext: 'Sleep, resistance exercise, and healthy weight all support natural levels.' },
   { key: 'testosterone-f', name: 'Testosterone', unit: 'nmol/L', low: 0.3, high: 1.7, sex: 'FEMALE', whatItIs: 'A sex hormone present in smaller amounts in women, important for energy and libido.', highMeans: 'Can reflect conditions such as PCOS.', lowMeans: 'Can contribute to low energy and reduced libido.', lifestyleContext: 'Sleep, resistance exercise, and healthy weight all support natural levels.' },
-  { key: 'free-testosterone', name: 'Free Testosterone', unit: 'pmol/L', low: 198, high: 619, sex: 'MALE', whatItIs: 'The portion of testosterone that’s freely available for your body to use.', lowMeans: 'Can better explain symptoms than total testosterone alone, especially if SHBG is abnormal.', lifestyleContext: 'Sleep, resistance exercise, and healthy weight all support natural levels.' },
-  { key: 'free-testosterone', name: 'Free Testosterone', unit: 'pmol/L', low: 1.0, high: 8.5, sex: 'FEMALE', whatItIs: 'The portion of testosterone that’s freely available for your body to use.', lowMeans: 'Can better explain symptoms than total testosterone alone, especially if SHBG is abnormal.', lifestyleContext: 'Sleep, resistance exercise, and healthy weight all support natural levels.' },
+  { key: 'free-testosterone', name: 'Free Testosterone', unit: 'pmol/L', low: 198, high: 619, sex: 'MALE', whatItIs: 'The portion of testosterone that’s freely available for your body to use.', lowMeans: 'Can better explain symptoms than total testosterone alone, especially if SHBG is outside its usual range.', lifestyleContext: 'Sleep, resistance exercise, and healthy weight all support natural levels.' },
+  { key: 'free-testosterone', name: 'Free Testosterone', unit: 'pmol/L', low: 1.0, high: 8.5, sex: 'FEMALE', whatItIs: 'The portion of testosterone that’s freely available for your body to use.', lowMeans: 'Can better explain symptoms than total testosterone alone, especially if SHBG is outside its usual range.', lifestyleContext: 'Sleep, resistance exercise, and healthy weight all support natural levels.' },
   { key: 'oestradiol', name: 'Oestradiol', unit: 'pmol/L', low: 100, high: 500, sex: 'FEMALE', whatItIs: 'The main form of oestrogen, central to the menstrual cycle and bone health.', lowMeans: 'Can relate to menopause or reduced ovarian function.', lifestyleContext: 'Levels vary naturally across the menstrual cycle and life stage.' },
   { key: 'amh', name: 'AMH (Anti-Müllerian Hormone)', unit: 'pmol/L', low: 7.0, high: 35.0, sex: 'FEMALE', whatItIs: 'A hormone that reflects your remaining ovarian egg reserve.', lowMeans: 'Suggests a lower ovarian reserve. This is context for fertility planning, not a diagnosis.', highMeans: 'Can be associated with conditions such as PCOS.', lifestyleContext: 'AMH declines naturally with age; a single result is best discussed in context.' },
   { key: 'fsh', name: 'FSH (Follicle Stimulating Hormone)', unit: 'IU/L', low: 1.5, high: 12.4, whatItIs: 'A hormone that regulates the menstrual cycle and sperm production.', highMeans: 'Can relate to reduced ovarian reserve or menopause.', lifestyleContext: 'Timing in the menstrual cycle significantly affects this result.' },
@@ -255,9 +255,14 @@ const retentionPolicies = [
 /**
  * The house-style sweep over copy that lives in the database.
  *
+ * Three corrections now, not one: the spaced em dash out, the straight
+ * apostrophe curled, and an en dash joining two words replaced with a hyphen.
+ * A numeric range keeps its en dash, here and everywhere else — `3.9–5.1` is
+ * how every reference range in the product is set.
+ *
  * Two boundaries, both deliberate.
  *
- * It is punctuation only — removeEmDashes adds and removes no words — so the
+ * It is punctuation only — applyHouseStyle adds and removes no words — so the
  * meaning of a clinical sentence cannot change here.
  *
  * Copy a named clinician has signed off is corrected too, and that is the part
@@ -272,7 +277,7 @@ const retentionPolicies = [
  * approved copy back into the queue over a comma would take it off the
  * patient's screen for no clinical reason.
  */
-async function removeEmDashesFromStoredCopy() {
+async function restyleStoredCopy() {
   const explanations = await prisma.markerExplanation.findMany({
     include: { marker: { select: { name: true } } },
   });
@@ -280,20 +285,35 @@ async function removeEmDashesFromStoredCopy() {
   const FIELDS = ['whatItIs', 'highMeans', 'lowMeans', 'lifestyleContext'] as const;
   let cleaned = 0;
   let audited = 0;
+  let reworded = 0;
 
   for (const e of explanations) {
     const patch: Partial<Record<(typeof FIELDS)[number], string>> = {};
     const changedFields: string[] = [];
+    let wordingChanged = false;
     for (const field of FIELDS) {
       const value = e[field];
-      if (typeof value !== 'string' || !value.includes('—')) continue;
-      patch[field] = removeEmDashes(value);
+      if (typeof value !== 'string') continue;
+      // Compare rather than sniff for a character: several corrections run here
+      // now, and "does it contain an em dash" stopped being the question.
+      //
+      // Two passes, and the difference between them is the whole reason the
+      // audit entry below distinguishes them. applyHouseStyle is punctuation
+      // and cannot change a word. applyVocabularyRule substitutes from a fixed,
+      // written-down table of exact phrases that breach the non-diagnostic
+      // vocabulary rule — it DOES change words, so it is recorded as such.
+      const styled = applyHouseStyle(value);
+      const restyled = applyVocabularyRule(styled);
+      if (restyled === value) continue;
+      if (restyled !== styled) wordingChanged = true;
+      patch[field] = restyled;
       changedFields.push(field);
     }
     if (changedFields.length === 0) continue;
 
     await prisma.markerExplanation.update({ where: { id: e.id }, data: patch });
     cleaned += 1;
+    if (wordingChanged) reworded += 1;
 
     if (e.reviewedById) {
       await prisma.auditLogEntry.create({
@@ -305,8 +325,12 @@ async function removeEmDashesFromStoredCopy() {
           metadata: {
             marker: e.marker.name,
             fields: changedFields,
-            change: 'em dashes replaced with a full stop or a comma',
-            wordingChanged: false,
+            change: wordingChanged
+              ? 'house style applied, and a phrase from the non-diagnostic vocabulary table substituted (see VOCABULARY_CORRECTIONS in lib/houseStyle.ts)'
+              : 'house style applied: em dashes replaced with a full stop or a comma, apostrophes curled, compound en dashes hyphenated',
+            // True ONLY where the fixed vocabulary table fired. Every other
+            // correction in this sweep is punctuation and cannot change a word.
+            wordingChanged,
           },
         },
       });
@@ -316,23 +340,27 @@ async function removeEmDashesFromStoredCopy() {
 
   if (cleaned > 0) {
     console.log(
-      `  Removed em dashes from ${cleaned} marker explanation(s). Punctuation only, no wording changed.` +
+      `  Applied house style to ${cleaned} marker explanation(s).` +
+        (reworded > 0
+          ? ` ${reworded} also had a phrase substituted from the non-diagnostic vocabulary table; the rest were punctuation only.`
+          : ' Punctuation only, no wording changed.') +
         (audited > 0 ? ` ${audited} were clinician-reviewed and are recorded in the audit log.` : ''),
     );
   }
 
   // The same sweep over the two copy blocks. They ship from this file so they
-  // should never carry one, but they are editable in the admin console and
-  // this is the only place that would catch it if somebody pasted one in.
+  // should already be in style, but they are editable in the admin console and
+  // this is the only place that would catch it if somebody pasted otherwise.
   const blocks = await prisma.copyBlock.findMany();
   let blocksCleaned = 0;
   for (const b of blocks) {
-    if (!b.body.includes('—')) continue;
-    await prisma.copyBlock.update({ where: { id: b.id }, data: { body: removeEmDashes(b.body) } });
+    const restyled = applyVocabularyRule(applyHouseStyle(b.body));
+    if (restyled === b.body) continue;
+    await prisma.copyBlock.update({ where: { id: b.id }, data: { body: restyled } });
     blocksCleaned += 1;
   }
   if (blocksCleaned > 0) {
-    console.log(`  Removed em dashes from ${blocksCleaned} copy block(s). Punctuation only, no wording changed.`);
+    console.log(`  Applied house style to ${blocksCleaned} copy block(s). Punctuation only, no wording changed.`);
   }
 }
 
@@ -589,10 +617,10 @@ async function main() {
     }
   }
   if (restyledBlocks > 0) {
-    console.log(`  Brought ${restyledBlocks} copy block(s) up to this file's current wording and punctuation.`);
+    console.log(`  Brought ${restyledBlocks} copy block(s) up to this file’s current wording and punctuation.`);
   }
 
-  await removeEmDashesFromStoredCopy();
+  await restyleStoredCopy();
 
   console.log('Seeding retention policies...');
   for (const r of retentionPolicies) {

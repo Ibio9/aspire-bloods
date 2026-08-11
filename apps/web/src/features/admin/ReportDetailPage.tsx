@@ -29,7 +29,7 @@ interface MarkerOption {
 }
 
 const FLAG_LABEL: Record<string, string> = {
-  unknown_marker: "Marker isn't in the catalogue",
+  unknown_marker: "Marker isn’t in the catalogue",
   implausible_unit: 'Unit looks wrong for this marker',
   value_order_of_magnitude: 'Value is far outside the reference range',
   two_pass_disagreement: 'A second AI read disagreed, so check closely',
@@ -37,7 +37,7 @@ const FLAG_LABEL: Record<string, string> = {
   duplicate_printing_disagreement: 'Printed twice with different values, so check closely',
   comparator_result: 'Result is a limit ("< 5.0") rather than a measurement',
   one_sided_reference_range: 'The lab gave only one side of the reference range',
-  lab_status_disagreement: "Our derived status disagrees with the lab's own flag",
+  lab_status_disagreement: "Our derived status disagrees with the lab’s own flag",
 };
 
 type ParseAttentionKind = 'unmatched_marker' | 'no_usable_range' | 'lab_status_disagreement' | 'extraction_flag';
@@ -149,7 +149,7 @@ const PARSEABLE = ['UPLOADED', 'PARSED', 'CHANGES_REQUESTED'];
 
 const RANGE_SOURCE_LABEL: Record<'result' | 'marker_fallback', string> = {
   result: 'from the report',
-  marker_fallback: "marker's stored range",
+  marker_fallback: "marker’s stored range",
 };
 
 export function ReportDetailPage() {
@@ -506,7 +506,7 @@ export function ReportDetailPage() {
             {report.voidReason ? `: “${report.voidReason}”` : ''}
           </p>
           <p className="mt-1 text-sm text-espresso/80">
-            This report no longer appears in the patient's own view. It remains here, and in the audit log, for
+            This report no longer appears in the patient’s own view. It remains here, and in the audit log, for
             admin reference.
           </p>
         </Card>
@@ -614,7 +614,7 @@ export function ReportDetailPage() {
               {/* The collapse below already says how many parsed cleanly. */}
               <p className="mb-3 max-w-2xl text-sm text-espresso/80">
                 Nothing could settle these automatically: an unrecognised marker, a result with no usable range, or
-                a status that disagrees with the lab's own flag.
+                a status that disagrees with the lab’s own flag.
               </p>
               <RowTable
                 entries={attentionRows}
@@ -760,7 +760,7 @@ export function ReportDetailPage() {
         {!publishable && (
           <p className="mt-3 text-sm text-status-significantHigh">
             {attentionRows.length > 0
-              ? `${attentionRows.length} row${attentionRows.length === 1 ? '' : 's'} still need${attentionRows.length === 1 ? 's' : ''} your input, so this can't go out as parsed. Choose “Review first”.`
+              ? `${attentionRows.length} row${attentionRows.length === 1 ? '' : 's'} still need${attentionRows.length === 1 ? 's' : ''} your input, so this can’t go out as parsed. Choose “Review first”.`
               : 'There is nothing complete enough to publish yet. Choose “Review first”.'}
           </p>
         )}
@@ -897,7 +897,7 @@ function ParseSummaryCard({
       {extractionMethod === 'llm' && (
         <p className="mt-3 text-xs text-espresso/80">
           Extracted with AI assistance. Statuses are derived from the reference range on each result, falling back to
-          the marker's stored range only where the report printed none.
+          the marker’s stored range only where the report printed none.
         </p>
       )}
     </Card>

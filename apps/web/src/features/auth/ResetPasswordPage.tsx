@@ -9,7 +9,7 @@ import { AuthSplitLayout } from './AuthSplitLayout';
 
 const EYEBROW = 'Aspire Clinic';
 const HEADLINE = 'Choose a new password.';
-const SUPPORTING = "You'll sign in with it and your two-factor code, exactly as before.";
+const SUPPORTING = "You’ll sign in with it and your two-factor code, exactly as before.";
 
 /**
  * Spending the emailed reset link.
@@ -37,7 +37,7 @@ export function ResetPasswordPage() {
     e.preventDefault();
     setError(null);
     if (password !== confirm) {
-      setError("Those two passwords don't match.");
+      setError("Those two passwords don’t match.");
       return;
     }
     setSubmitting(true);
@@ -79,7 +79,7 @@ export function ResetPasswordPage() {
         <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">Done</p>
         <h2 className="auth-heading">Your password is changed</h2>
         <p role="status" className="mt-[var(--auth-step)] text-sm leading-relaxed text-espresso/80">
-          You've been signed out everywhere else. Sign in with your new password and we'll send your two-factor
+          You’ve been signed out everywhere else. Sign in with your new password and we’ll send your two-factor
           code as usual.
         </p>
         <LinkButton to="/login" variant="primary" className="mt-[calc(var(--auth-step)*1.5)] w-full">
@@ -94,7 +94,7 @@ export function ResetPasswordPage() {
       <p className="eyebrow mb-[calc(var(--auth-step)*0.6)]">Password reset</p>
       <h2 className="auth-heading">Set a new password</h2>
       <p className="mt-[var(--auth-step)] text-sm leading-relaxed text-espresso/80">
-        Saving it signs you out on every device, including any you don't recognise.
+        Saving it signs you out on every device, including any you don’t recognise.
       </p>
 
       <form
@@ -121,7 +121,7 @@ export function ResetPasswordPage() {
           autoComplete="new-password"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
-          validate={(v) => (v === password ? undefined : "Those two passwords don't match.")}
+          validate={(v) => (v === password ? undefined : "Those two passwords don’t match.")}
         />
         {error && (
           <p role="alert" className="text-sm text-status-significantHigh">

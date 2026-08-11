@@ -143,6 +143,10 @@ test('nothing patient-visible until a report is RELEASED', async ({ page, browse
     .getByRole('navigation', { name: 'Patient portal' })
     .getByRole('link', { name: 'Results', exact: true })
     .click();
+  // Results opens on By marker, which is the default view — the pending-report
+  // card lives in the report list, so switch to it. (This step was missing and
+  // the assertion below had been failing since By marker became the default.)
+  await patientPage.getByRole('tab', { name: /By report/ }).click();
   await expect(patientPage.getByText('Your results are with the clinical team')).toBeVisible();
   await expect(patientPage.getByText('in range')).not.toBeVisible();
 

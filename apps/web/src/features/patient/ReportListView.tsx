@@ -121,9 +121,9 @@ export function ReportListView() {
   if (failed) {
     return (
       <Card className="max-w-xl">
-        <p className="font-display text-xl text-espresso">We couldn't load your results</p>
+        <p className="font-display text-xl text-espresso">We couldn’t load your results</p>
         <p className="mt-2 text-sm text-espresso/80">
-          Please refresh the page. If it keeps happening, get in touch and we'll sort it out.
+          Please refresh the page. If it keeps happening, get in touch and we’ll sort it out.
         </p>
       </Card>
     );
@@ -157,8 +157,8 @@ export function ReportListView() {
             rather than leaving a new patient to wonder whether they did
             the sign-up right. */}
         <EmptyState
-          title="Nothing here yet, and that's exactly right"
-          description="Once you've had a sample taken, the clinic matches the result to you and a clinician reviews it. Then your first panel appears here."
+          title="Nothing here yet, and that’s exactly right"
+          description="Once you’ve had a sample taken, the clinic matches the result to you and a clinician reviews it. Then your first panel appears here."
           action={<LinkButton to="/overview">What happens next</LinkButton>}
         />
       </div>

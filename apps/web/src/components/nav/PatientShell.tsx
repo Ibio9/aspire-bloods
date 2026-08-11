@@ -342,7 +342,15 @@ export function PatientShell({ children }: { children?: ReactNode }) {
     // the footer outside, scrolling to the bottom of any page left the panel's
     // background ending a footer's height above the window edge, with page
     // cream below it.
-    <div className="min-h-viewport flex bg-cream">
+    // NO BACKGROUND ON THIS DIV, and that is deliberate. `html` already carries
+    // the page colour, and this element is a descendant of body — so painting
+    // `bg-cream` here drew an opaque sheet over `body::before`, which is where
+    // the ambient glow lives (see globals.css). The glow was rendering
+    // perfectly and being covered by the shell on every single signed-in
+    // screen, which is the whole product. The comment in globals.css warns
+    // about giving BODY a background; this is the same mistake one element
+    // further down.
+    <div className="min-h-viewport flex">
       {/* Sticky and exactly one viewport tall, so the panel's background runs
           edge to edge however long the page behind it is (see .h-viewport —
           100dvh with a 100vh fallback). */}

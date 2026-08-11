@@ -385,7 +385,7 @@ export function PatientDetailPage() {
       >
         <p>
           Revokes every device this account has trusted to skip 2FA. {name} will need to verify a fresh code by
-          email the next time they sign in. Use this if they've lost a trusted device or think one may be
+          email the next time they sign in. Use this if they’ve lost a trusted device or think one may be
           compromised.
         </p>
       </ConfirmModal>
@@ -444,8 +444,8 @@ export function PatientDetailPage() {
           still needs scheduling before anything is purged.
         </p>
         <p className="mt-3">
-          <strong>Clinical results are never deleted by this.</strong> They're retained for the period required by
-          law. Only the patient's personal and contact details are de-identified once the purge runs.
+          <strong>Clinical results are never deleted by this.</strong> They’re retained for the period required by
+          law. Only the patient’s personal and contact details are de-identified once the purge runs.
         </p>
       </ConfirmModal>
     </>

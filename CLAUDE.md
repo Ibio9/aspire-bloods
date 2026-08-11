@@ -51,6 +51,26 @@ at `max-w-measure` (68ch). Tabular figures on every number without exception —
 vendored rather than `@import`ed from the fontsource packages (preload needs
 stable, unhashed URLs). No Google Fonts request anywhere.
 
+**If the whole product suddenly renders in Times and system-ui, the fonts are
+not the problem.** `tailwind.config.ts` imports the tokens from
+`@aspire-bloods/shared`, whose package `main` points at `dist/`. Start Vite
+without building that package and jiti resolves the import to nothing,
+`Object.keys(typeScale)` throws inside PostCSS, and the app is served with NO
+STYLESHEET AT ALL — which looks exactly like a botched type migration and sends
+people hunting through the tokens. `npm run dev:web` and `dev:server` build
+shared first for this reason, and the config throws with a named message if it
+is ever reached unbuilt.
+
+**Punctuation is part of the type system.** Curly apostrophes everywhere
+(`it’s`, not `it's`); an en dash joining two words becomes a hyphen
+(`acid-base`); a numeric range KEEPS its en dash (`3.9–5.1`), which is how every
+reference range in the product and the PDF is set. Source files are swept by an
+AST-based pass over JSX text and string literals only — never comments, never
+`markerCatalogue.ts`, whose names are matching keys rather than copy. Stored
+copy is swept by `applyHouseStyle` in `src/lib/houseStyle.ts` on every seed,
+which is punctuation-only and asserted word-for-word identical by
+`houseStyle.test.ts`.
+
 **The PDF keeps the three ROLES in the PDF base-14 faces** — Times for display,
 Helvetica for body and UI, Courier for numerics. Do not try to embed Fraunces
 or IBM Plex there again: PDFKit subsets through fontkit, and fontkit's TTF
@@ -158,18 +178,40 @@ public/theme-bootstrap.js, pinned by theme.test.ts. Anything that is not
 'light' and not 'system' resolves to dark, so the empty case lands on dark
 without a second branch and there is no flash.
 
-**The ambient glow.** Dark mode was too dark, and the fix is a warm light
-source rather than raising every surface until the contrast goes flat: a soft
-gold-bronze radial (`--c-glow`, bronze warmed toward gold) anchored in one
-viewport corner, fixed so it does not travel on scroll, two stops at unequal
-radii so it cannot band, entirely behind content and never over it. It is
-`.dark body::before` at `z-index: -1`, which is why the page colour sits on
-`<html>` and body is transparent — give body a background and the glow
-disappears under it. Static at every motion preference. The darkest surfaces
-were also lifted (`nightBase` 0.60 → 0.44) so a card separates from the page in
-the corner furthest from the glow, and the dark status colours and the dark
-wash strength were re-derived against that — never lightened from the
-light-mode values.
+**Dark mode is NEAR-BLACK PLUS ONE CORNER GLOW, never a brown wash (changed
+Aug 2026).** The page reads black at a glance and warm on inspection —
+`nightBase` is espresso taken 74% to black (#110F0D). It went 0.60 → 0.44 → 0.74,
+and the middle value is the one worth remembering: raising the surfaces until a
+card separated on its own turned the whole viewport brown, which is the opposite
+of the register the clinic's own site is in. Separation now comes from the card
+being genuinely lifted off the page (the surface scale's raised steps are far
+apart, because a lift is a RATIO and the same mix that showed on #25211E is
+invisible on #110F0D), from the hairline border, and only then from the light.
+
+**The glow is ONE radial with a real falloff.** 62% × 58% anchored just inside
+the top-right corner, a 0.40 core, and eight unevenly-spaced stops that roughly
+halve every 12% of the radius. What it replaced was two radials at 112% and 140%
+of the viewport, which put every pixel inside the bright part of the curve — a
+falloff that existed and was invisible, i.e. a flat gold wash. The tail ends at
+`rgb(var(--c-glow) / 0)` and never at `transparent`, because `transparent` is
+rgba(0,0,0,0) and interpolating toward it takes the ramp through a grey
+shoulder. Fixed, static at every motion preference, `z-index: -1`.
+
+**Nothing may paint an opaque background over it.** The page colour sits on
+`<html>` and body is transparent — but the trap is one element further down:
+the patient and admin shell roots carried `bg-cream`, which drew an opaque sheet
+over `body::before` and hid the glow on every signed-in screen. They carry no
+background now. Turn the glow off entirely and the interface must still work;
+that is the test.
+
+**Dark status colours are re-derived, and a FILL is mixed from black.** The wash
+under a card is still mixed from the card, because it is that card's own
+background. A band, a track and an edge are not: they are regions of colour, and
+mixing them from a warm brown near-black adds red to every hue at once — which
+is what made the chart bands read as three shades of mud. They are mixed from
+neutral black toward the hue instead, with per-hue strengths, so green reads
+green and red reads red. See `DARK_FILL` / `DARK_HUE_LIFT` in tokens.ts;
+`tokenContrast.test.ts` holds the separation and the AA floors.
 
 Every colour resolves through a CSS custom property, so one class name is right in
 both themes (`text-espresso` is espresso in light, warm cream in dark). Tokens live
@@ -271,6 +313,36 @@ route-console.spec.ts). See DEPLOYMENT.md → Feature flags for the full note.
   low/high null and the reason. Never invent one, never extrapolate from a related
   marker.
 - Reference ranges live on the result, not the marker
+- **Label/value rows are an explicit GRID, never a flex row.** `.value-row` in
+  globals.css: declared columns with measured minimums, the list as the
+  container-query context so every row switches arrangement together and the
+  heights stay uniform, three columns where there is room and two clean lines
+  where there is not. It replaced a `justify-between` flex row with a `min-w-0`
+  value group — which is a layout that reads correctly right up until the content
+  is wider than the box, at which point the group shrinks past its own children
+  and they paint over the date beside them. On the marker page's 40%-width card
+  that was not an edge case, it was every out-of-range marker. A grid track
+  cannot be overflowed by a sibling; a flex item can. Used by the
+  previous-results list and by the genetic / sensitivity / microbiome rows, and
+  pinned geometrically by `e2e/previous-results-layout.spec.ts` — two boxes
+  overlapping is a fact you measure, not something you review a screenshot for.
+- **Reference ranges and marker explanations are sourced or clinician-signed,
+  never authored by a session.** A range comes from the result, then from the
+  Randox documents in `modules/randox/specs/` (transcribed with a page reference
+  in `scripts/auditReferenceRanges.ts`), and from nothing else — anything
+  unsourceable stays as it is and goes on the list. Explanation copy may be
+  corrected for punctuation and for the fixed non-diagnostic vocabulary table,
+  and for nothing else: ~350 of them were written by an assistant and none has
+  been read by a clinician, so replacing text that looks wrong with more
+  unreviewed text relabels the risk rather than reducing it. Both audits
+  regenerate into `docs/audits/` (`npm run audit:explanations` /
+  `audit:ranges` in apps/server) and both are read-only.
+- Demo values must be ones a clinician would not find absurd. The severity
+  threshold is a multiple of the range WIDTH, which invents a chloride of 65 and
+  a neutrophil count of 19.5 — so the demo carries an outpatient envelope
+  (`DEMO_ENVELOPE`) and a marker whose required excursion falls outside it is not
+  chosen for that quota. Never clamped instead: a clamped value computes to a
+  different status than the one it was generated for.
 - Nothing auto-publishes; release is an explicit state change
 - Admin role only via ADMIN_EMAILS, checked per request
 - Editing a released report versions, never overwrites

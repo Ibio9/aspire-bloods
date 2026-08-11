@@ -180,7 +180,7 @@ test('a test cannot be ordered until biological sex is on file, and the prompt e
   // Registered without a sex (it's optional there on purpose), so the
   // account page should be asking for it — with a reason, not a nag.
   await page.goto('/account');
-  await expect(page.getByText("We don't have your biological sex on file")).toBeVisible();
+  await expect(page.getByText("We don’t have your biological sex on file")).toBeVisible();
   await expect(page.getByText(/reference ranges differ for men and women/i)).toBeVisible();
 
   await page.getByLabel('Female').check();
@@ -188,7 +188,7 @@ test('a test cannot be ordered until biological sex is on file, and the prompt e
 
   // Recorded — the ask is replaced by the fact, not repeated.
   await expect(page.getByText('Female')).toBeVisible();
-  await expect(page.getByText("We don't have your biological sex on file")).toHaveCount(0);
+  await expect(page.getByText("We don’t have your biological sex on file")).toHaveCount(0);
 
   // page.request, not the standalone `request` fixture — the latter has its
   // own cookie jar and would be unauthenticated here.

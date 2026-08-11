@@ -328,7 +328,7 @@ export function RegistrationForm({ showEmailField, variant = 'full', submitLabel
       <Card padding="tight" className="flex flex-col gap-[calc(var(--auth-step)*0.9)]">
         <p className="eyebrow">GP &amp; medical details</p>
         <p className="text-sm text-espresso -mt-2">
-          If a result comes back outside the usual range we'll point you to your GP, so it helps to have these on
+          If a result comes back outside the usual range we’ll point you to your GP, so it helps to have these on
           file.
         </p>
         <div className="grid grid-cols-1 gap-[calc(var(--auth-step)*0.9)] sm:grid-cols-2">
@@ -418,13 +418,13 @@ export function RegistrationForm({ showEmailField, variant = 'full', submitLabel
           name="consentCommsEmail"
           checked={consents.commsEmail}
           onChange={(e) => setConsents((c) => ({ ...c, commsEmail: e.target.checked }))}
-          label="I'm happy to receive email communications about my results and account."
+          label="I’m happy to receive email communications about my results and account."
         />
         <Checkbox
           name="consentCommsSms"
           checked={consents.commsSms}
           onChange={(e) => setConsents((c) => ({ ...c, commsSms: e.target.checked }))}
-          label="I'm happy to receive SMS communications about my results and account."
+          label="I’m happy to receive SMS communications about my results and account."
         />
       </Card>
       )}

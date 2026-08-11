@@ -125,7 +125,7 @@ test.describe('traffic-light status', () => {
       await ctx.close();
     });
 
-    test(`the trend chart draws bands derived from the result's own range in ${theme} mode`, async ({ browser }) => {
+    test(`the trend chart draws bands derived from the result’s own range in ${theme} mode`, async ({ browser }) => {
       const ctx = await browser.newContext();
       await loginAsDemoPatient(ctx.request);
       const page = await ctx.newPage();
@@ -173,7 +173,7 @@ test.describe('traffic-light status', () => {
       });
       expect(bandPaint.length, `${theme}: no status bands were painted at all`).toBeGreaterThan(0);
       for (const opacity of bandPaint) {
-        expect(opacity, `${theme}: a status band is painted at ${opacity}, not at its token's own weight`).toBe(1);
+        expect(opacity, `${theme}: a status band is painted at ${opacity}, not at its token’s own weight`).toBe(1);
       }
 
       // The band tokens themselves still carry real colour in this theme. A
@@ -202,7 +202,7 @@ test.describe('traffic-light status', () => {
       // paragraph above every healthy chart explaining the absence of a
       // problem, is gone; only the two cases worth stating are stated.)
       const text = await page.locator('body').innerText();
-      const saysUnjoined = text.includes("aren't comparable for this marker");
+      const saysUnjoined = text.includes("aren’t comparable for this marker");
       const saysFirst = text.includes('first result for this marker');
       const saysJoined = !saysUnjoined && !saysFirst;
       const line = await page.evaluate(() => {

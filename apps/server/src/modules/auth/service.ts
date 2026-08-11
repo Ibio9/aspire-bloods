@@ -203,8 +203,8 @@ async function sendVerificationCode(userId: string, email: string, resendCount =
   await emailProvider.sendEmail({
     to: email,
     subject: 'Your Aspire Bloods confirmation code',
-    text: `Welcome to the Aspire Bloods patient portal. Your confirmation code is ${code}.\n\nEnter it on the confirm-your-email screen to finish setting up. It expires in ${ttlMinutes} minutes. If you didn't create an account, ignore this email.`,
-    html: `<p>Welcome to the Aspire Bloods patient portal.</p><p>Your confirmation code is <strong>${code}</strong>.</p><p>Enter it on the confirm-your-email screen to finish setting up. It expires in ${ttlMinutes} minutes. If you didn't create an account, ignore this email.</p>`,
+    text: `Welcome to the Aspire Bloods patient portal. Your confirmation code is ${code}.\n\nEnter it on the confirm-your-email screen to finish setting up. It expires in ${ttlMinutes} minutes. If you didn’t create an account, ignore this email.`,
+    html: `<p>Welcome to the Aspire Bloods patient portal.</p><p>Your confirmation code is <strong>${code}</strong>.</p><p>Enter it on the confirm-your-email screen to finish setting up. It expires in ${ttlMinutes} minutes. If you didn’t create an account, ignore this email.</p>`,
   });
 
   return code;
@@ -252,8 +252,8 @@ export async function signup(input: SignupRequest, ip: string | null): Promise<S
       .sendEmail({
         to: existing.email,
         subject: 'Someone tried to register with your email',
-        text: `Someone just tried to create an Aspire Bloods account with this email address, but you already have one. If that was you, sign in at ${env.APP_BASE_URL}/login, and reset your password there if you've forgotten it. If it wasn't you, no new account was created and nothing about yours has changed.`,
-        html: `<p>Someone just tried to create an Aspire Bloods account with this email address, but you already have one.</p><p>If that was you, <a href="${env.APP_BASE_URL}/login">sign in</a> instead. If it wasn't, no new account was created and nothing about yours has changed.</p>`,
+        text: `Someone just tried to create an Aspire Bloods account with this email address, but you already have one. If that was you, sign in at ${env.APP_BASE_URL}/login, and reset your password there if you’ve forgotten it. If it wasn’t you, no new account was created and nothing about yours has changed.`,
+        html: `<p>Someone just tried to create an Aspire Bloods account with this email address, but you already have one.</p><p>If that was you, <a href="${env.APP_BASE_URL}/login">sign in</a> instead. If it wasn’t, no new account was created and nothing about yours has changed.</p>`,
       })
       .catch((e) => {
         // The notice failing must not change the response shape and give
@@ -340,7 +340,7 @@ export async function signup(input: SignupRequest, ip: string | null): Promise<S
       error: e instanceof Error ? e.message : e,
     });
     throw new AuthError(
-      "We couldn't send your confirmation email. Your details are saved, so try again in a few minutes.",
+      "We couldn’t send your confirmation email. Your details are saved, so try again in a few minutes.",
       502,
     );
   }
@@ -555,8 +555,8 @@ export async function requestPasswordReset(email: string, ip: string | null): Pr
   await emailProvider.sendEmail({
     to: user.email,
     subject: 'Reset your Aspire Bloods password',
-    text: `Someone asked to reset the password for your Aspire Bloods account. Choose a new one here: ${resetUrl}\n\nThis link expires in ${expiry} and can only be used once. If it wasn't you, you can ignore this email. Your password has not changed.`,
-    html: `<p>Someone asked to reset the password for your Aspire Bloods account.</p><p><a href="${resetUrl}">Choose a new password</a></p><p>This link expires in ${expiry} and can only be used once. If it wasn't you, you can ignore this email. Your password has not changed.</p>`,
+    text: `Someone asked to reset the password for your Aspire Bloods account. Choose a new one here: ${resetUrl}\n\nThis link expires in ${expiry} and can only be used once. If it wasn’t you, you can ignore this email. Your password has not changed.`,
+    html: `<p>Someone asked to reset the password for your Aspire Bloods account.</p><p><a href="${resetUrl}">Choose a new password</a></p><p>This link expires in ${expiry} and can only be used once. If it wasn’t you, you can ignore this email. Your password has not changed.</p>`,
   });
 
   await recordAuditLog({
@@ -625,8 +625,8 @@ export async function resetPassword(rawToken: string, newPassword: string, ip: s
     .sendEmail({
       to: user.email,
       subject: 'Your Aspire Bloods password was changed',
-      text: `The password on your Aspire Bloods account was just changed, and you have been signed out on every device. If this wasn't you, call the clinic straight away.`,
-      html: `<p>The password on your Aspire Bloods account was just changed, and you have been signed out on every device.</p><p>If this wasn't you, call the clinic straight away.</p>`,
+      text: `The password on your Aspire Bloods account was just changed, and you have been signed out on every device. If this wasn’t you, call the clinic straight away.`,
+      html: `<p>The password on your Aspire Bloods account was just changed, and you have been signed out on every device.</p><p>If this wasn’t you, call the clinic straight away.</p>`,
     })
     .catch((e) => {
       // The reset itself has already succeeded and been audited — a failed
@@ -728,8 +728,8 @@ async function createOtpChallenge(
       await emailProvider.sendEmail({
         to: user.email,
         subject: 'Your Aspire Bloods verification code',
-        text: `Your verification code is ${code}. It expires in ${OTP_TTL_MINUTES} minutes. If you didn't request this, you can ignore this email.`,
-        html: `<p>Your verification code is <strong>${code}</strong>.</p><p>It expires in ${OTP_TTL_MINUTES} minutes. If you didn't request this, you can ignore this email.</p>`,
+        text: `Your verification code is ${code}. It expires in ${OTP_TTL_MINUTES} minutes. If you didn’t request this, you can ignore this email.`,
+        html: `<p>Your verification code is <strong>${code}</strong>.</p><p>It expires in ${OTP_TTL_MINUTES} minutes. If you didn’t request this, you can ignore this email.</p>`,
       });
     }
   } catch (e) {
@@ -861,7 +861,7 @@ export async function resendOtp(challengeId: string, ip: string | null): Promise
 
   if (otp.resendCount >= OTP_MAX_RESENDS) {
     throw new AuthError(
-      'We\'ve sent several codes to this account already. Please call the clinic so we can help you sign in.',
+      'We’ve sent several codes to this account already. Please call the clinic so we can help you sign in.',
       429,
     );
   }

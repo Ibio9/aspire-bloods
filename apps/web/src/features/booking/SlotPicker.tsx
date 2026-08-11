@@ -158,10 +158,10 @@ export function SlotPicker({
         <div role="alert" className="mt-5 rounded-card border border-taupe bg-tint-significantHigh p-6">
           <p className="flex items-center gap-2 font-medium text-espresso">
             <AlertIcon className="shrink-0 text-status-significantHigh" />
-            We couldn't load the diary
+            We couldn’t load the diary
           </p>
           <p className="mt-2 text-sm leading-relaxed text-espresso/90">
-            Nothing you've chosen has been lost. Try again. If it keeps happening, call the clinic and we'll book you
+            Nothing you’ve chosen has been lost. Try again. If it keeps happening, call the clinic and we’ll book you
             in over the phone.
           </p>
           <Button variant="secondary" className="mt-5" onClick={() => setRetry((n) => n + 1)}>
@@ -205,7 +205,7 @@ export function SlotPicker({
                     <ClockIcon className="mt-0.5 shrink-0 text-bronze-700" />
                     <span>
                       {morningRequiredBy
-                        ? `${morningRequiredBy} needs a slot before ${MORNING_CUTOFF_HOUR}am. Later times are shown, but can't be booked alongside it.`
+                        ? `${morningRequiredBy} needs a slot before ${MORNING_CUTOFF_HOUR}am. Later times are shown, but can’t be booked alongside it.`
                         : 'An overnight fast is far easier to finish than a daytime one, so the earliest slots are marked.'}
                     </span>
                   </p>
@@ -378,7 +378,7 @@ function NoAvailability({
         </Button>
       ) : (
         <p className="mx-auto mt-6 max-w-md text-sm leading-relaxed text-espresso/85">
-          There is nothing bookable at this clinic in the next few months. Try another location, or call us and we'll
+          There is nothing bookable at this clinic in the next few months. Try another location, or call us and we’ll
           find you something.
         </p>
       )}

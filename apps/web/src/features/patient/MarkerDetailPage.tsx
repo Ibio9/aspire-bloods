@@ -11,6 +11,7 @@ import { TrendChart } from '../../components/ui/TrendChart';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { CopyButton } from '../../components/ui/CopyButton';
 import { ClinicContactLines } from '../../components/patient/ClinicContact';
+import { PreviousResults } from '../../components/patient/PreviousResults';
 import { apiFetch } from '../../lib/api';
 import { optimalRangeLabel, optimalStatusLabel } from '../../lib/markerCopy';
 import type { MarkerNavState } from './markerNavState';
@@ -69,73 +70,6 @@ interface MarkerDetail {
   } | null;
 }
 
-/** How many prior results the card shows before it offers the rest. */
-const PREVIOUS_SHOWN = 5;
-
-/**
- * The history under the range bar — every result for this marker before the
- * latest one, newest first.
- *
- * It exists because the left card had a large empty area below the bar and the
- * data to fill it was already on the page. It is not a second chart: the
- * question it answers is "what was it last time", which is a lookup, and a
- * lookup wants a column of dates against a column of values rather than a
- * shape. Both columns are mono and the values are right-aligned for exactly
- * that reason — read down, the numbers line up.
- *
- * The trend arrives oldest-first (see getMarkerTrendForPatient's orderBy), so
- * the last entry is the value already printed at the top of this card, and it
- * is dropped here rather than repeated.
- *
- * No history is stated in words rather than left as an empty box. A patient
- * with one result has not lost anything; they simply have one result.
- */
-function PreviousResults({ trend, className = '' }: { trend: TrendPoint[]; className?: string }) {
-  const [expanded, setExpanded] = useState(false);
-  const previous = [...trend].slice(0, -1).reverse();
-  const shown = expanded ? previous : previous.slice(0, PREVIOUS_SHOWN);
-
-  return (
-    <div className={`mt-auto border-t border-taupe pt-6 ${className}`}>
-      <p className="eyebrow mb-3">Previous results</p>
-      {previous.length === 0 ? (
-        <p className="text-sm text-espresso/80">No previous results yet</p>
-      ) : (
-        <>
-          <ul className="flex flex-col">
-            {shown.map((point) => (
-              <li
-                key={`${point.reportId}-${point.sampleDate}`}
-                className="flex items-baseline justify-between gap-4 border-b border-taupe/60 py-2.5 last:border-b-0"
-              >
-                <span className="numeric shrink-0 text-xs text-espresso/80">{formatDate(point.sampleDate)}</span>
-                <span className="flex min-w-0 items-baseline justify-end gap-2 text-right">
-                  <span className="numeric tabular text-sm font-medium text-espresso">
-                    {point.value}
-                    <span className="ml-1 font-normal text-espresso/80">{point.unit}</span>
-                  </span>
-                  {/* The same chevron and the same word as everywhere else, so
-                      the column still reads in greyscale. */}
-                  <StatusBadge status={point.status} className="shrink-0 !text-xs" />
-                </span>
-              </li>
-            ))}
-          </ul>
-          {previous.length > PREVIOUS_SHOWN && (
-            <button
-              type="button"
-              onClick={() => setExpanded((open) => !open)}
-              className="mt-3 rounded-input text-xs font-medium text-bronze-700 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
-            >
-              {expanded ? 'Show fewer' : `View all ${previous.length}`}
-            </button>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
 export function MarkerDetailPage() {
   const { markerId } = useParams<{ markerId: string }>();
   const location = useLocation();
@@ -171,7 +105,7 @@ export function MarkerDetailPage() {
     return (
       <>
         <Breadcrumbs items={[{ label: 'Overview', to: '/overview' }, { label: 'Results', to: '/results?view=by-marker' }, { label: 'Not available' }]} />
-        <TwoTierHeading eyebrow="Marker detail" title="We couldn't open that marker" />
+        <TwoTierHeading eyebrow="Marker detail" title="We couldn’t open that marker" />
         <Card className="mt-10 max-w-xl">
           <p className="max-w-measure text-sm leading-relaxed text-espresso/90">
             You may not have a released result for this marker yet, or the link may be out of date.
@@ -278,9 +212,16 @@ export function MarkerDetailPage() {
           which at half width had a plot area narrower than it was tall. Five
           columns split two and three, because that is the closest simple ratio
           to 40/60. Below lg they stack full width, as before. */}
-      <div className="mt-12 grid grid-cols-1 gap-7 lg:grid-cols-5">
-        <Card className="flex flex-col lg:col-span-2">
-          <p className="eyebrow mb-5">Latest result</p>
+      <div className="mt-10 grid grid-cols-1 gap-7 lg:grid-cols-5">
+        {/* NOT `flex flex-col`, and the previous-results block below carries no
+            `mt-auto`. That pair is what opened the dead zone: the history was
+            pinned to the floor of a card whose height comes from the chart
+            beside it, so a short left card grew a hand's width of nothing
+            between the range bar and PREVIOUS RESULTS. The sections now follow
+            each other at ordinary section spacing and any slack falls at the
+            bottom of the card, where slack reads as nothing at all. */}
+        <Card className="lg:col-span-2">
+          <p className="eyebrow mb-4">Latest result</p>
           {/* THE ONE EXCEPTION to "every number is mono". This value is the
               emotional anchor of the page and is set in Fraunces at the hero
               optical size, like a headline, with the unit in mono beside it at
@@ -341,7 +282,7 @@ export function MarkerDetailPage() {
               with no status was never placed on one — the bar would be a guess
               in both cases, so it is simply not drawn. */}
           {detail.latest.value !== null && latestStatus !== null && (
-            <div className="mt-8">
+            <div className="mt-6">
               <RangeBar
                 value={detail.latest.value}
                 low={detail.latest.referenceLow}
@@ -352,12 +293,12 @@ export function MarkerDetailPage() {
               />
             </div>
           )}
-          {/* The history, filling what used to be a large empty area below the
-              bar. It is the same data the chart on the right plots, read as a
-              list rather than as a shape — which is the form somebody wants
+          {/* The history, directly beneath the range bar at ordinary section
+              spacing. It is the same data the chart on the right plots, read as
+              a list rather than as a shape — which is the form somebody wants
               when the question is "what was it last time" rather than "which
               way is it going". */}
-          <PreviousResults trend={detail.trend} className="mt-9" />
+          <PreviousResults trend={detail.trend} className="mt-6" />
         </Card>
 
         <Card className="lg:col-span-3">
@@ -377,7 +318,7 @@ export function MarkerDetailPage() {
       {detail.optimal && detail.optimal.within === false && latestStatus === 'IN_RANGE' && (
         <Card className="mt-8 max-w-3xl">
           <p className="max-w-measure text-sm leading-relaxed text-espresso/90">
-            This result is in range against the lab's reference range and outside the optimal range of{' '}
+            This result is in range against the lab’s reference range and outside the optimal range of{' '}
             <span className="numeric">
               {detail.optimal.low != null && detail.optimal.high != null
                 ? `${detail.optimal.low}–${detail.optimal.high} ${detail.optimal.unit}`
@@ -416,13 +357,13 @@ export function MarkerDetailPage() {
           <p className="max-w-measure text-lg leading-relaxed text-espresso">{detail.explanation.whatItIs}</p>
           {detail.explanation.highMeans && (
             <>
-              <p className="mt-8 font-medium text-espresso">If it's high</p>
+              <p className="mt-8 font-medium text-espresso">If it’s high</p>
               <p className="mt-2 max-w-measure text-reading leading-relaxed text-espresso/90">{detail.explanation.highMeans}</p>
             </>
           )}
           {detail.explanation.lowMeans && (
             <>
-              <p className="mt-8 font-medium text-espresso">If it's low</p>
+              <p className="mt-8 font-medium text-espresso">If it’s low</p>
               <p className="mt-2 max-w-measure text-reading leading-relaxed text-espresso/90">{detail.explanation.lowMeans}</p>
             </>
           )}
