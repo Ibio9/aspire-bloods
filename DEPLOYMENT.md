@@ -208,7 +208,8 @@ Everything in steps 1–9 is a Railway variable on the **API service** unless st
 | `RANDOX_ID_MAP_FILE` | `./config/randox/id-map.json` | Same. Database mappings take precedence. |
 | `RANDOX_HEALTH_CHECK_PANEL_REPORT` | `true` | Asks for the patient-facing scalebar PDF rather than the tabular lab one. |
 | `RANDOX_CV_SCORE_REQUIRED` | `false` | Needs measurements `CreatePendingOrder` cannot carry. Leave off. |
-| `RANDOX_REFERENCE_DATA_METHOD` | `auto` | `auto` sends the verb the spec declares and repeats as POST on a 404/405/501. Pin to `get` or `post` once you know which Randox actually accept. |
+| `RANDOX_REFERENCE_DATA_METHOD` | `get` | Settled by the OpenAPI spec: all eight reference endpoints are GET (takes a body → POST; takes nothing → GET). `auto` survives as an escape hatch — it sends the declared verb and repeats as POST on a 404/405/501. |
+| `RANDOX_BEARER_TOKEN_ENABLED` | `true` | Whether to send a B2C bearer alongside the subscription key. **Unconfirmed:** the spec declares only the subscription key and no bearer scheme at all; the auth PDFs describe B2C ROPC. Flip to `false` without a deploy if the first live call 401s with a valid key — the 401 log line names which combination was sent. The key itself always goes, in the header. |
 | `RANDOX_MAX_REQUESTS_PER_MINUTE` | `60` | Outbound pacing, per API. `0` disables it. A gateway `Retry-After` is obeyed regardless. |
 | `RANDOX_RETRY_MAX_ATTEMPTS` | `3` | Transient failures only (429, 5xx, timeout). Never applied to `CreatePendingOrder`. |
 | `RANDOX_RETRY_BASE_DELAY_MS` | `500` | Exponential with jitter from here, capped at 60s. |

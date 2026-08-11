@@ -326,6 +326,20 @@
     @apply font-eyebrow text-xs font-medium uppercase tracking-eyebrow text-espresso/80;
   }
 
+  /* Sidebar navigation labels, in both shells.
+     UI, not headings — IBM Plex Sans at the small step with a little more
+     tracking and a medium weight, which is a step down from the reading size
+     they used to take. A nav label set at reading size next to a page title in
+     Fraunces reads as a second heading competing with the first; at 14px with
+     0.01em it reads as chrome, which is what it is.
+     One class rather than five utilities at each of two call sites, for the
+     same reason .eyebrow is one class: the tracking is a system decision, and
+     a system decision improvised per call site drifts. */
+  .nav-label {
+    @apply font-body text-sm font-medium;
+    letter-spacing: 0.01em;
+  }
+
   /* The value half. Fraunces at the section optical size, so a
      RECENT TEST / 5 days ago pair reads as one object. */
   .stat-value {

@@ -54,7 +54,11 @@ const NAV_ITEMS: NavItem[] = [
     ? [{ to: '/book', label: 'Book a test', icon: BookTestIcon, alsoActiveOn: ['/appointments'] }]
     : []),
   { to: '/results', label: 'Results', icon: PanelsIcon, alsoActiveOn: ['/reports/', '/markers/'] },
-  { to: '/library', label: 'Understanding your results', icon: LibraryIcon },
+  // "Understanding your results" ran past the column and was truncated to
+  // "Understanding your r…". An ellipsis in navigation is a destination whose
+  // name you cannot read, so the label is shorter and the row wraps rather
+  // than clipping — see the label span below.
+  { to: '/library', label: 'Understanding results', icon: LibraryIcon },
   { to: '/documents', label: 'Documents', icon: DocumentsIcon },
   { to: '/account', label: 'Account & privacy', icon: AccountIcon },
 ];
@@ -70,30 +74,42 @@ function SidebarLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed
       onClick={onNavigate}
       className={({ isActive: routeActive }) => {
         const isActive = routeActive || ownsPath;
-        // py-1 rather than py-2: four pixels a row is what buys the eighth
-        // item its place at ~700px without touching the two-line pattern.
-        return `group relative flex items-start gap-3 rounded-input px-3 py-1 transition-colors duration-150 ease-out ${
+        // ACTIVE IS A BRONZE RULE AND A WHISPER OF WARM FILL, not a filled
+        // block. The filled bronze-50 pill was the heaviest thing in the
+        // sidebar and, now that the panel itself is transparent, it read as a
+        // solid tile pasted over the glow. The rule is the mark; the fill is
+        // there so the row still has a body behind the words.
+        return `group relative flex items-start gap-3 rounded-input px-3 py-1.5 transition-colors duration-150 ease-out ${
           collapsed ? 'justify-center' : ''
-        } ${isActive ? 'bg-bronze-50 text-bronze-700' : 'text-espresso/85 hover:bg-cream-200 hover:text-espresso'}`;
+        } ${
+          isActive
+            ? 'bg-bronze/[0.08] text-espresso'
+            : 'text-taupe-900 hover:bg-cream-200/60 hover:text-espresso'
+        }`;
       }}
     >
       {({ isActive: routeActive }) => {
         const isActive = routeActive || ownsPath;
         return (
         <>
-          {/* Active is carried by this bronze bar, the weight shift and the tinted
-              background together — never by colour alone (brief). */}
+          {/* Active is carried by this bronze bar, the weight shift and the
+              faint warm fill together — never by colour alone (brief). */}
           <span
             aria-hidden="true"
-            className={`absolute left-0 top-1/2 h-7 w-[3px] -translate-y-1/2 rounded-full bg-bronze transition-opacity duration-150 ${
+            className={`absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-full bg-bronze transition-opacity duration-150 ${
               isActive ? 'opacity-100' : 'opacity-0'
             }`}
           />
-          <Icon className="mt-0.5 shrink-0" />
+          {/* One size at the call site, so a glyph whose intrinsic box drifts
+              cannot make one row's icon larger than the rest. */}
+          <Icon className="mt-px h-[18px] w-[18px] shrink-0" />
           {!collapsed && (
             <span className="min-w-0 flex-1">
-              <span className={`block truncate text-reading ${isActive ? 'font-semibold' : 'font-medium'}`}>{item.label}</span>
-              {item.hint && <span className="mt-0.5 block text-xs leading-snug text-espresso/80">{item.hint}</span>}
+              {/* NOT `truncate`. A navigation label that has been cut off is a
+                  destination whose name you cannot read; if it does not fit on
+                  one line it takes two. */}
+              <span className={`nav-label block leading-snug ${isActive ? 'font-semibold' : ''}`}>{item.label}</span>
+              {item.hint && <span className="mt-0.5 block text-xs leading-snug text-taupe-900">{item.hint}</span>}
             </span>
           )}
           {collapsed && (
@@ -138,7 +154,7 @@ function StaffReturnLink({ collapsed, onNavigate }: { collapsed: boolean; onNavi
       to="/admin"
       onClick={onNavigate}
       aria-label={collapsed ? label : undefined}
-      className={`group relative mb-1 flex items-center gap-2.5 rounded-input py-2 text-sm font-medium text-bronze-700 transition-colors duration-150 ease-out hover:bg-cream-200 ${
+      className={`group relative mb-1 flex items-center gap-2.5 rounded-input py-2 text-sm font-medium text-bronze-700 transition-colors duration-150 ease-out hover:bg-cream-200/60 ${
         collapsed ? 'mx-auto h-10 w-10 justify-center px-0' : 'px-2.5'
       }`}
     >
@@ -175,13 +191,25 @@ function SidebarContents({
   }
 
   return (
-    // The panel is exactly one viewport tall and its four bands — mark,
-    // search, navigation, footer — are laid out to fit inside that, so at any
-    // ordinary window height nothing here scrolls at all. When something has
-    // to give (a genuinely short window, or the contact card opened on one)
-    // it is this column, scrolling as one piece. Never the nav, and never by
-    // squeezing a band below its own content, which spills rather than fits.
-    <div className="scroll-thin flex h-full min-h-0 flex-col overflow-y-auto">
+    // THE COLUMN ITSELF NEVER SCROLLS, and that is the change.
+    //
+    // It used to be one `overflow-y-auto` box: when the contact card opened on
+    // a short window the whole column grew a scrollbar, and the account row —
+    // the patient's own name and the way out of the product — went below the
+    // fold. A thing you have to scroll a navigation panel to reach is not
+    // pinned to the bottom of it.
+    //
+    // Now the giving is done in a fixed order, by the band that should give:
+    //   · mark and search  — shrink-0, always exactly their content
+    //   · nav              — flex-auto, min-h-0, scrolls when squeezed
+    //   · footer band      — flex-none so it is never squeezed, and capped at
+    //                        60% of the panel so it can never crowd the nav
+    //                        out; inside it the contact details are the one
+    //                        thing that scrolls, and the account row is
+    //                        shrink-0 and therefore always on screen.
+    // Verified at 900, 800 and 700px with the contact panel open and shut —
+    // see e2e/patient-sidebar.spec.ts.
+    <div className="flex h-full min-h-0 flex-col">
       <div className={`shrink-0 ${collapsed ? 'px-2 pt-4' : 'px-4 pt-4'}`}>
         {/* Same mark, same collapsed 'a', same accessible name shape as
             AdminShell — the two sidebars are one system, so they must not
@@ -207,7 +235,7 @@ function SidebarContents({
             type="button"
             onClick={onExpand}
             aria-label="Search your markers"
-            className="group relative mx-auto flex h-10 w-10 items-center justify-center rounded-input text-espresso/85 transition duration-150 ease-out hover:bg-cream-200 hover:text-espresso"
+            className="group relative mx-auto flex h-10 w-10 items-center justify-center rounded-input text-taupe-900 transition duration-150 ease-out hover:bg-cream-200/60 hover:text-espresso"
           >
             <SearchIcon />
             <span
@@ -223,43 +251,50 @@ function SidebarContents({
       </div>
 
       {/* Navigation is the sidebar's job, so it gets the room — the whole
-          room. flex-1 and nothing else, which is doing two things at once.
-          It grows to take everything left between the search field and the
-          footer, so the footer block sits on the bottom edge of the panel
-          rather than partway up it. And, because there is no min-h-0 here and
-          no overflow of its own, its automatic minimum size is its own content
-          height: it can hand back the space it *grew* into when the contact
-          card opens, but it can never be squeezed below the eight whole rows.
-          That floor is what stops it becoming a scrolling strip with a row
-          cut through the middle — and shrink-0 would have been the wrong way
-          to spell it, since it would also refuse to give back space it isn't
-          using, leaving the open card with nowhere to go. */}
+          room. `flex-auto` (grow AND shrink, from its own content height) so
+          it takes everything left between the search field and the footer, and
+          gives it back when the contact card opens. `min-h-0` plus its own
+          overflow is what lets it be squeezed on a genuinely short window
+          without spilling: it scrolls, which is the correct thing for a list
+          of destinations to do, and nothing below it moves. */}
       <nav
         aria-label="Patient portal"
-        className={`mt-3 flex flex-1 flex-col gap-0.5 pb-1 ${collapsed ? 'px-2' : 'px-4'}`}
+        className={`scroll-thin mt-3 flex min-h-0 flex-auto flex-col gap-0.5 overflow-y-auto pb-1 ${collapsed ? 'px-2' : 'px-4'}`}
       >
         {NAV_ITEMS.map((item) => (
           <SidebarLink key={item.to} item={item} collapsed={collapsed} onNavigate={onNavigate} />
         ))}
       </nav>
 
-      {/* Pinned to the bottom of the panel, and never squeezed.
-          It used to be `min-h-0` with no `shrink-0`, on the theory that this
-          band should be the one to give when the contact card is open. Flexbox
-          does not honour that theory: shrinking the band below its content
-          height does not shorten the content, it spills it — which is why
-          "Contact the clinic" and the account row rendered on top of each
-          other. Now the band is exactly as tall as what's in it, and the one
-          thing that gives on a genuinely short window is the column above,
-          which scrolls as one piece. */}
-      <div className={`flex shrink-0 flex-col border-t border-taupe ${collapsed ? 'px-2 py-2.5' : 'px-3 py-2'}`}>
+      {/* Pinned to the bottom of the panel, and never squeezed as a whole.
+          `flex-none` so flexbox cannot shrink it below its content and spill
+          it (which is what once painted "Contact the clinic" over the account
+          row). The 60% cap is what keeps that promise affordable: without it a
+          tall open contact card would simply be taller than the window and
+          take the account row off the bottom with it. Capped, the band's own
+          children sort it out — the details scroll, the name stays. The
+          percentage resolves against the panel, which is a definite height
+          (h-viewport on the aside, h-full on the drawer). */}
+      <div
+        // 45% RATHER THAN HALF, and the number is measured rather than chosen:
+        // the mark, the search field and the six nav rows come to ~331px, so
+        // 45% is the largest cap that still leaves every row standing at 700px
+        // with the contact card open. Above that the nav starts scrolling
+        // before the card does, which is the wrong one to give — a card of
+        // reference detail scrolls inside its own border without anybody
+        // minding, whereas a list of destinations with the last one cut
+        // through the middle looks like the bug it isn't.
+        className={`flex max-h-[45%] min-h-0 flex-none flex-col border-t border-taupe ${
+          collapsed ? 'px-2 py-2.5' : 'px-3 py-2'
+        }`}
+      >
         <StaffReturnLink collapsed={collapsed} onNavigate={onNavigate} />
         {collapsed ? (
           <button
             type="button"
             onClick={onExpand}
             aria-label="Contact the clinic"
-            className="group relative mx-auto flex h-10 w-10 items-center justify-center rounded-input text-bronze-700 transition duration-150 ease-out hover:bg-cream-200"
+            className="group relative mx-auto flex h-10 w-10 items-center justify-center rounded-input text-bronze-700 transition duration-150 ease-out hover:bg-cream-200/60"
           >
             <PhoneIcon />
             <span
@@ -273,14 +308,32 @@ function SidebarContents({
           <ClinicContactPanel />
         )}
 
+        {/* The account row. `shrink-0`, and the last thing in a band that is
+            never squeezed, so it is on screen whatever the contact card is
+            doing.
+
+            The name and avatar are a SECOND ROUTE into Account & privacy,
+            beside the nav item — a patient looking for their own details
+            reaches for their own name, and the row previously looked
+            interactive and did nothing. Sign out is a SIBLING of that link,
+            not a child of it: a button inside an anchor is invalid markup and
+            gives one control two behaviours, so a stray click signs someone
+            out when they meant to open their account. */}
         {user && !collapsed && (
-          <div className="mt-2 flex shrink-0 items-center gap-2.5 px-0.5">
-            <Avatar name={user.displayName} size="sm" />
-            <span className="min-w-0 flex-1 truncate text-sm font-medium text-espresso">{user.displayName}</span>
+          <div className="mt-2 flex shrink-0 items-center gap-1">
+            <Link
+              to="/account"
+              onClick={onNavigate}
+              className="flex min-w-0 flex-1 items-center gap-2.5 rounded-input px-1 py-1.5 transition-colors duration-150 ease-out hover:bg-cream-200/60"
+            >
+              <Avatar name={user.displayName} size="sm" />
+              <span className="min-w-0 flex-1 truncate text-sm font-medium text-espresso">{user.displayName}</span>
+              <span className="sr-only">Account and privacy</span>
+            </Link>
             <button
               type="button"
               onClick={() => void handleLogout()}
-              className="rounded-input px-2.5 py-1.5 text-xs font-medium text-espresso/80 transition duration-150 ease-out hover:bg-cream-200 hover:text-espresso"
+              className="shrink-0 rounded-input px-2.5 py-1.5 text-xs font-medium text-taupe-900 transition duration-150 ease-out hover:bg-cream-200/60 hover:text-espresso"
             >
               Sign out
             </button>
@@ -354,8 +407,16 @@ export function PatientShell({ children }: { children?: ReactNode }) {
       {/* Sticky and exactly one viewport tall, so the panel's background runs
           edge to edge however long the page behind it is (see .h-viewport —
           100dvh with a 100vh fallback). */}
+      {/* NO BACKGROUND. The panel is transparent, so the corner glow runs
+          under it and out to the left edge of the window as one continuous
+          field — a `bg-cream-50` here drew a 288px vertical slab across it and
+          put a hard seam down the side of every signed-in screen, which is the
+          one thing the glow cannot survive.
+          Separation from the content area is the hairline on the right and
+          nothing else, which is all it ever needed: the two regions differ by
+          what is in them, not by being two shades of the same warm neutral. */}
       <aside
-        className={`h-viewport sticky top-0 hidden shrink-0 flex-col border-r border-taupe bg-cream-50 transition-[width] duration-200 ease-out md:flex ${
+        className={`h-viewport sticky top-0 hidden shrink-0 flex-col border-r border-taupe transition-[width] duration-200 ease-out md:flex ${
           collapsed ? 'w-[84px]' : 'w-[288px]'
         }`}
       >
@@ -373,6 +434,10 @@ export function PatientShell({ children }: { children?: ReactNode }) {
       {drawerOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 bg-night/60 motion-safe:animate-fadeIn" onClick={() => setDrawerOpen(false)} aria-hidden="true" />
+          {/* The drawer KEEPS its surface, unlike the desktop panel. It is a
+              floating layer over the page rather than part of it, and the
+              scrimmed content behind it would otherwise read straight through
+              the navigation. */}
           <div
             ref={drawerRef}
             tabIndex={-1}

@@ -10,6 +10,7 @@ import type {
   RandoxPanel,
   RandoxTestItem,
   RandoxClinicDetails,
+  RandoxClinicStaffMember,
   RandoxServiceLocation,
   RandoxAvailabilitySlot,
   HoldAvailabilityBookingResponse,
@@ -46,6 +47,8 @@ export interface NexusLabClient {
   getTestingReasons(): Promise<RandoxLookupItem[]>;
   getCancellationReasons(): Promise<RandoxLookupItem[]>;
   getMyClinicDetails(): Promise<RandoxClinicDetails>;
+  /** GET /Clinic/GetClinicStaff — the eighth reference endpoint. */
+  getClinicStaff(): Promise<RandoxClinicStaffMember[]>;
 }
 
 /**

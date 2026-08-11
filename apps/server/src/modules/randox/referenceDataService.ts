@@ -8,9 +8,10 @@ import { isRandoxEnabled } from './config.js';
 /**
  * Randox's own reference data, fetched and cached rather than hardcoded.
  *
- * Nexus publishes seven self-serve endpoints — GetPanels, GetTests,
- * GetMyClinicDetails, GetBiologicalSex, GetEthnicity, GetTestingReasons,
- * GetCancellationReasons — and every one of them is the authority on values
+ * Nexus publishes EIGHT self-serve GET endpoints — GetPanels, GetTests,
+ * GetMyClinicDetails, GetClinicStaff, GetBiologicalSex, GetEthnicity,
+ * GetTestingReasons, GetCancellationReasons — and every one of them is the
+ * authority on values
  * our own config would otherwise have to guess at. Our marker and panel
  * catalogue was seeded from a pricing email, so divergence from what Randox
  * will actually accept is expected, not hypothetical.
@@ -149,6 +150,18 @@ export async function refreshReferenceData(actorUserId: string | null): Promise<
     return upsertKind('CLINIC_LOCATION', locations);
   });
 
+  await run('GetClinicStaff', async () =>
+    upsertKind(
+      'CLINIC_STAFF',
+      (await client.getClinicStaff()).map((m) => ({
+        randoxId: m.userId,
+        name: [m.firstName, m.lastName].filter(Boolean).join(' ') || m.userId,
+        code: m.role,
+        payload: m,
+      })),
+    ),
+  );
+
   await recordAuditLog({
     actorUserId,
     actorType: actorUserId ? 'USER' : 'SYSTEM',
@@ -158,10 +171,100 @@ export async function refreshReferenceData(actorUserId: string | null): Promise<
   });
 
   if (failures.length > 0) {
-    throw new Error(`Refreshed ${summaries.length} of 7 reference sets. Failed: ${failures.join('; ')}`);
+    throw new Error(`Refreshed ${summaries.length} of 8 reference sets. Failed: ${failures.join('; ')}`);
   }
 
   return summaries;
+}
+
+/**
+ * ---------------------------------------------------------------------------
+ * THE LOOKUPS THE ORDER PATH CANNOT WORK WITHOUT, AND WHAT AN EMPTY ONE MEANS.
+ * ---------------------------------------------------------------------------
+ *
+ * Four of these endpoints return ids we have to SEND BACK on an order:
+ * GetBiologicalSex, GetEthnicity, GetTestingReasons, GetCancellationReasons.
+ * A fifth, GetMyClinicDetails, is where the clinic id and the
+ * clinicTestLocations that TestClinicLocationId comes from live.
+ *
+ * NONE OF THOSE IDS IS EVER HARDCODED. What the code holds is a mapping from
+ * our own values (PatientProfile.sex, our cancellation reasons) to whatever
+ * Randox's ids currently are — our records keep our values, and the Randox id
+ * is a translation of them rather than a replacement for them.
+ *
+ * AN EMPTY LOOKUP IS A FAILURE, NOT A QUIET ZERO. A refresh that "succeeds"
+ * with no biological sexes in it leaves resolveBiologicalSexId falling back to
+ * the documented 1/2 default forever, and the first anyone hears of it is a
+ * 400 from Randox on a real patient's order — or worse, no 400 at all and an
+ * order placed under the wrong sex, which changes the reference ranges the
+ * laboratory applies. So the ones the order path depends on are named here and
+ * an empty one is thrown.
+ */
+const ORDER_CRITICAL_KINDS = [
+  { kind: 'BIOLOGICAL_SEX' as const, endpoint: 'GetBiologicalSex', why: 'CreatePendingOrder requires BiologicalSexId on every order' },
+  { kind: 'TESTING_REASON' as const, endpoint: 'GetTestingReasons', why: 'CreatePendingOrder requires a non-empty TestReasons array' },
+  { kind: 'CANCELLATION_REASON' as const, endpoint: 'GetCancellationReasons', why: 'CancelOrder takes a CancellationReasonId, not free text' },
+  { kind: 'CLINIC_LOCATION' as const, endpoint: 'GetMyClinicDetails', why: 'TestClinicLocationId comes from the clinic’s test locations' },
+];
+
+/**
+ * Every lookup the order path depends on, checked for emptiness.
+ *
+ * ETHNICITY IS DELIBERATELY NOT IN THE LIST. It is optional on
+ * CreatePendingOrder — it only appears on the full CreateOrder form — so an
+ * empty ethnicity list stops nothing, and treating it as fatal would refuse to
+ * boot over a field no order currently sends.
+ */
+export async function assertReferenceDataUsable(): Promise<void> {
+  const empty: string[] = [];
+  for (const { kind, endpoint, why } of ORDER_CRITICAL_KINDS) {
+    const count = await prisma.randoxCatalogueEntry.count({ where: { kind, isCurrent: true } });
+    if (count === 0) empty.push(`  - ${endpoint} returned nothing (${kind}). ${why}.`);
+  }
+  if (empty.length > 0) {
+    throw new Error(
+      `Randox reference data is unusable: ${empty.length} lookup(s) the order path depends on are empty.\n` +
+        empty.join('\n') +
+        '\nNo order can be placed correctly until these return values. Check the subscription key and the clinic’s ' +
+        'entitlements with Randox rather than falling back to hardcoded ids — a wrong BiologicalSexId changes which ' +
+        'reference ranges the laboratory applies.',
+    );
+  }
+}
+
+/**
+ * The sync, run on boot and on demand.
+ *
+ * ON BOOT it is best-effort and NEVER stops the server: results ingestion, the
+ * patient portal and every clinician screen work perfectly well against a
+ * stale or absent catalogue, and refusing to start the whole product because
+ * Randox were slow at 3am would be a self-inflicted outage. It logs loudly
+ * instead, and the order path refuses on its own when it finds a lookup it
+ * needs is empty (assertReferenceDataUsable).
+ *
+ * It is skipped when the data is still inside its TTL, so a restart loop does
+ * not become a call loop.
+ */
+export async function syncReferenceDataOnBoot(): Promise<void> {
+  if (!isRandoxEnabled()) return;
+  try {
+    if (!(await isReferenceDataStale())) {
+      console.log('[randox] reference data is inside its TTL; skipping the boot sync.');
+      return;
+    }
+    const summaries = await refreshReferenceData(null);
+    console.log(
+      `[randox] reference data synced on boot: ${summaries.map((s) => `${s.kind} ${s.fetched}`).join(', ')}.`,
+    );
+    await assertReferenceDataUsable();
+  } catch (e) {
+    // Loud, and not fatal. See the note above.
+    console.error(
+      `[randox] reference data sync failed on boot: ${e instanceof Error ? e.message : 'unknown error'}\n` +
+        '  The server is still running. Results ingestion is unaffected; ORDER PLACEMENT may not be, because the ' +
+        'ids an order carries come from these endpoints. Retry from the admin console (Randox → refresh reference data).',
+    );
+  }
 }
 
 /** True when the cache has never been populated or has gone stale. */

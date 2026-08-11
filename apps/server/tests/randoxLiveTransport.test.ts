@@ -14,7 +14,7 @@ import { createFakePrisma, seedCatalogue, seedPatient, seedOrder, type FakePrism
  * This file replaces `fetch` instead. What runs is the real
  * LiveNexusLabClient, the real RandoxHttpClient, the real B2C token client
  * and the real ingestion path — against bytes shaped like the ones in
- * specs/nexus-openapi.json. It is the only place that can answer questions
+ * specs/nexus-openapi3.json. It is the only place that can answer questions
  * about wire behaviour: which verb goes out, which headers, what happens on a
  * 429, and whether a voided result gets as far as a ReportResult row when
  * nothing in the chain is pretending.
@@ -42,6 +42,13 @@ const { LiveNexusLabClient } = await import('../src/modules/randox/clients/Nexus
 const { RandoxHttpClient, parseRetryAfter } = await import('../src/modules/randox/http/RandoxHttpClient.js');
 const { ingestOrderResults } = await import('../src/modules/randox/ingestionService.js');
 const { __setConfigCachesForTest } = await import('../src/modules/randox/config.js');
+const { env } = await import('../src/config/env.js');
+
+/** Undo hooks a single test registers, run after it. */
+let cleanups: (() => void)[] = [];
+function onCleanup(fn: () => void) {
+  cleanups.push(fn);
+}
 
 __setConfigCachesForTest(
   { 'HB-DIL': { kind: 'CAVEAT', description: 'Sample diluted before analysis.' } },
@@ -109,6 +116,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  for (const undo of cleanups.splice(0)) undo();
 });
 
 // ---------------------------------------------------------------------------
@@ -193,9 +201,20 @@ describe('the wire', () => {
   });
 
   it('falls back to POST when a reference endpoint refuses GET, and remembers', async () => {
+    // ONLY UNDER 'auto', WHICH IS NO LONGER THE DEFAULT.
+    //
+    // The spec settled this: all eight reference endpoints are GET, and
+    // RANDOX_REFERENCE_DATA_METHOD now defaults to 'get' rather than probing
+    // for it. The probe survives as an escape hatch for a sandbox that
+    // contradicts its own document, so it is still worth a test — but the test
+    // has to ask for it, which is the honest way round now that the ordinary
+    // path does not.
+    const previous = env.RANDOX_REFERENCE_DATA_METHOD;
+    (env as { RANDOX_REFERENCE_DATA_METHOD: string }).RANDOX_REFERENCE_DATA_METHOD = 'auto';
+    onCleanup(() => {
+      (env as { RANDOX_REFERENCE_DATA_METHOD: string }).RANDOX_REFERENCE_DATA_METHOD = previous;
+    });
     const client = new LiveNexusLabClient();
-    // The disagreement this exists for: the spec declares these GET, Randox
-    // say everything is POST. Being wrong is seven endpoints answering 405.
     queued = [() => new Response('', { status: 405 }), () => json({ items: [{ id: '1', name: 'Male' }] })];
     defaultResponder = () => json({ items: [{ id: '1', name: 'Male' }] });
 

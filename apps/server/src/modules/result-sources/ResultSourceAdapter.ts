@@ -53,7 +53,22 @@ export interface ParsedMarkerRow {
   // and its patient-facing name, both straight off the result.
   group?: string | null;
   displayName?: string | null;
+  // Blood or urine. Part of the analyte's IDENTITY, not decoration: Randox
+  // print the urinalysis pads bare ("Glucose", "Protein", "Bilirubin"), which
+  // are the same strings as three serum markers and are not the same tests.
   sampleType?: string | null;
+
+  // The marker this row resolves to, decided by the SOURCE rather than by the
+  // shared name matcher.
+  //
+  // Set only by a source that can identify its rows explicitly — today that is
+  // the Randox API path, through modules/randox/analyteMap.ts, whose two
+  // passes are exact-then-normalised and nothing else. When it is present
+  // materialiseReport uses it and does not run findBestMarkerMatch at all;
+  // when it is absent (the PDF extraction path) the name matcher runs as
+  // before. That difference is deliberate: the matcher's looser passes feed a
+  // table an admin corrects, and the API path has no admin in it.
+  markerKey?: string | null;
 
   // The reference bounds exactly as the lab sent them, before parsing.
   // Randox type these as strings and genuinely use "<5.0" / "≥60" / "" for
@@ -127,6 +142,24 @@ export interface ParsedExclusion {
   codeRecognised: boolean;
   /** Admin-facing reason. Never shown to a patient. */
   reason: string;
+  /**
+   * WHY there is no result, and the two answers are not the same kind of
+   * thing:
+   *
+   *   WITHHELD_BY_LAB   Randox declined to report it. Nothing on our side is
+   *                     wrong and nothing on our side can fix it — the report
+   *                     is complete as far as we are concerned.
+   *   UNMAPPED_ANALYTE  Randox reported it and we could not say which marker
+   *                     it is. Something IS wrong on our side, one line in
+   *                     modules/randox/analyteMap.ts fixes it, and the report
+   *                     is quietly missing a result until somebody does.
+   *
+   * The second must hold the report for an admin — a clinician being shown a
+   * report with a result silently absent from it is the failure this
+   * distinction exists to prevent. Defaults to WITHHELD_BY_LAB, which is what
+   * every existing caller means.
+   */
+  kind?: 'WITHHELD_BY_LAB' | 'UNMAPPED_ANALYTE';
 }
 
 /**

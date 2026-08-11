@@ -284,8 +284,13 @@ export function AdminShell({ children }: { children?: ReactNode }) {
       {/* Desktop persistent sidebar. `md:flex` rather than `md:block`: the
           panel is the flex column itself, so its bands measure against the
           panel's own height and the footer sits on its bottom edge. */}
+      {/* No background, for the same reason the patient panel has none: an
+          opaque 288px column down the left of the window cuts the corner glow
+          in half, and the two shells are one system — one of them painting a
+          slab over it and the other not would be worse than either. The
+          hairline on the right is the separation. */}
       <aside
-        className={`h-viewport sticky top-0 hidden shrink-0 flex-col border-r border-taupe bg-cream-50 transition-[width] duration-200 ease-out md:flex ${
+        className={`h-viewport sticky top-0 hidden shrink-0 flex-col border-r border-taupe transition-[width] duration-200 ease-out md:flex ${
           collapsed ? 'w-[76px]' : 'w-[272px]'
         }`}
       >

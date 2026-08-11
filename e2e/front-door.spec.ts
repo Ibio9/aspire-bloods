@@ -40,7 +40,13 @@ async function registerAndVerify(page: import('@playwright/test').Page, request:
   await page.goto('/verify-email');
   await page.getByLabel('Email address').fill(email);
   await page.getByRole('button', { name: 'Send me a code' }).click();
-  await expect(page.getByRole('heading', { name: 'Confirm your email' })).toBeVisible();
+  // `level: 2`, and the reason is a strict-mode flake this used to have.
+  // The auth split panel carries an h1 "Confirm your email." and the card
+  // an h2 "Confirm your email", so the name alone matches BOTH whenever the
+  // panel is in the accessibility tree — which depends on the viewport width
+  // the previous test happened to leave behind. The card's heading is the one
+  // this is waiting for. Same fix as self-signup.spec.ts already has.
+  await expect(page.getByRole('heading', { level: 2, name: 'Confirm your email' })).toBeVisible();
 
   const [verifyResponse] = await Promise.all([
     page.waitForResponse(

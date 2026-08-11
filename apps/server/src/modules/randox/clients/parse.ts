@@ -13,6 +13,8 @@
  * NexusLabClient/ClinicBookingClient and nothing above them changes.
  */
 
+import { z } from 'zod';
+
 type Json = Record<string, unknown>;
 
 export function asObject(value: unknown): Json {
@@ -127,6 +129,79 @@ export function pickArray(source: unknown, ...names: string[]): unknown[] {
     }
   }
   return [];
+}
+
+/**
+ * ---------------------------------------------------------------------------
+ * RANDOX TIMESTAMPS HAVE SEVEN FRACTIONAL DIGITS AND AN EXPLICIT OFFSET.
+ * ---------------------------------------------------------------------------
+ *
+ *   2024-08-01T08:45:10.0000000+00:00
+ *
+ * That is a .NET round-trip format and it is what every date example in the
+ * spec uses. Two things follow, one harmless and one not:
+ *
+ *  · `new Date()` and therefore `toUtcIso` below handle it correctly. Seven
+ *    digits of fraction and a written-out "+00:00" are both valid ISO 8601 and
+ *    the JavaScript parser accepts them. Nothing to do.
+ *
+ *  · `z.string().datetime()` REJECTS IT. Zod's default requires the zone to be
+ *    literal "Z"; an explicit numeric offset needs `{ offset: true }`. So a
+ *    Randox timestamp validated by a bare `.datetime()` fails with "invalid
+ *    datetime" on a value that is perfectly well-formed — which reads as a
+ *    Randox fault and is ours.
+ *
+ * `randoxDateTime` is the schema for anywhere a Randox timestamp is validated:
+ * it accepts the offset form, accepts any number of fractional digits, and
+ * normalises to the UTC ISO string the rest of the system uses, so nothing
+ * downstream has to know the wire format existed. Pinned, with that exact
+ * literal, by tests/randoxSpecContract.test.ts.
+ */
+export const RANDOX_DATETIME_EXAMPLE = '2024-08-01T08:45:10.0000000+00:00';
+
+export const randoxDateTime = z
+  .string()
+  .refine((v) => toUtcIso(v) !== null, {
+    message:
+      'Expected an ISO 8601 timestamp. Randox send the .NET round-trip form ' +
+      `(e.g. ${RANDOX_DATETIME_EXAMPLE}) — seven fractional digits and an explicit offset.`,
+  })
+  .transform((v) => toUtcIso(v)!);
+
+/**
+ * ---------------------------------------------------------------------------
+ * EVERY SCALAR IN THIS API IS EFFECTIVELY A STRING, INCLUDING THE INTEGERS.
+ * ---------------------------------------------------------------------------
+ *
+ * The spec is internally inconsistent about id types and it is not close:
+ *
+ *   TestReasons[].Id     integer in the CreatePendingOrder example,
+ *                        STRING in the CreateOrder example — the same field,
+ *                        two endpoints, two types.
+ *   BiologicalSex ids    strings   ({"id": "1", "name": "Male"})
+ *   Ethnicity ids        integers  ({"id": 1,   "name": "White"})
+ *   CancellationReasonId string    ("3")
+ *   statusCode           documented as an integer, returned as a string in
+ *                        every single example in the document.
+ *
+ * The rule that survives all of that: ACCEPT BOTH ON THE WAY IN, and SEND
+ * WHATEVER THAT ENDPOINT'S OWN EXAMPLE USES on the way out. `asRandoxInt` and
+ * `asRandoxIdString` are the two halves of it, so a call site states which
+ * form the endpoint wants rather than hoping the value already had it.
+ */
+
+/** A Randox id as an integer, from either a number or a numeric string. */
+export function asRandoxInt(value: string | number | null | undefined): number | null {
+  if (value === null || value === undefined) return null;
+  const parsed = typeof value === 'number' ? value : Number(String(value).trim());
+  return Number.isInteger(parsed) ? parsed : null;
+}
+
+/** A Randox id as the string form some endpoints' examples use. */
+export function asRandoxIdString(value: string | number | null | undefined): string | null {
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  return text === '' ? null : text;
 }
 
 /**

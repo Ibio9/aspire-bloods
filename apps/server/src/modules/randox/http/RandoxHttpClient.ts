@@ -3,6 +3,7 @@ import { RandoxApiError, RandoxWindowExpiredError, looksLikeWindowExpired } from
 import { env } from '../../../config/env.js';
 import type { RandoxApiConnection } from '../config.js';
 import { RequestRateLimiter, sleep } from './rateLimiter.js';
+import { SUBSCRIPTION_KEY_HEADER, parseRandoxErrorBody } from '../endpoints.js';
 
 export interface RandoxRequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -33,10 +34,10 @@ export interface RandoxRequestOptions {
 const RETRYABLE_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 /**
- * One HTTP client per Randox API. Adds the bearer token and the
- * Ocp-Apim-Subscription-Key to every request (both are required on every
- * call, on both APIs), paces outbound calls, and retries transient failures
- * with exponential backoff.
+ * One HTTP client per Randox API. Adds the Ocp-Apim-Subscription-Key to every
+ * request and, unless switched off, a B2C bearer as well — see `send()` for
+ * why those two are not the same kind of certainty. Paces outbound calls, and
+ * retries transient failures with exponential backoff.
  *
  * Three distinct recovery behaviours, deliberately separate:
  *
@@ -113,12 +114,34 @@ export class RandoxHttpClient {
       }
 
       if (res.status === 401) {
+        // WHAT WAS SENT, IN THE LOG, BEFORE ANYTHING IS RETRIED.
+        //
+        // The spec declares only a subscription key; the auth PDFs describe a
+        // B2C bearer. Which of those the gateway actually wants is unconfirmed
+        // until the first live call, and a 401 with no record of what was
+        // tried turns that call into a morning of guessing. So the combination
+        // is named, the 401's own message is read out of the body (which uses
+        // `status`, not `statusCode` — see parseRandoxErrorBody), and neither
+        // credential is ever printed.
+        const body = await res.clone().text().catch(() => '');
+        const parsed = parseRandoxErrorBody(body);
+        console.error(
+          `[randox] 401 from ${this.connection.label} ${method} ${path}. ` +
+            `Sent: subscription key ${this.connection.subscriptionKey ? 'YES' : 'MISSING'} (header ${SUBSCRIPTION_KEY_HEADER}), ` +
+            `bearer ${env.RANDOX_BEARER_TOKEN_ENABLED ? 'YES' : 'NO (RANDOX_BEARER_TOKEN_ENABLED=false)'}. ` +
+            `Randox said: ${parsed.message ?? '(no message)'}${parsed.code ? ` [${parsed.code}]` : ''}. ` +
+            'If the key is present and correct, try the other bearer setting before assuming the key is wrong.',
+        );
         // Token rejected — could be revoked, or expired earlier than its
         // stated lifetime. Drop it and try once with a new one. Outside the
-        // transient budget: see the class comment.
-        this.tokens.invalidate();
-        await this.limiter.acquire();
-        res = await this.send(url, method, options);
+        // transient budget: see the class comment. Pointless when the bearer
+        // is switched off, in which case the retry would send the identical
+        // request and get the identical answer.
+        if (env.RANDOX_BEARER_TOKEN_ENABLED) {
+          this.tokens.invalidate();
+          await this.limiter.acquire();
+          res = await this.send(url, method, options);
+        }
       }
 
       if (res.ok || !RETRYABLE_STATUSES.has(res.status) || attempt >= maxAttempts) {
@@ -168,8 +191,13 @@ export class RandoxHttpClient {
           `${this.connection.label} rejected ${options.windowedOperation.name} for order ${options.windowedOperation.orderNumber}: the window for this change has passed (HTTP ${res.status}).`,
         );
       }
+      // Randox's own message, where they sent one. Both body shapes are read:
+      // 400 and 500 use `statusCode`, the 401 uses `status`.
+      const parsed = parseRandoxErrorBody(text);
       throw new RandoxApiError(
-        `${this.connection.label} ${method} ${path} failed with HTTP ${res.status}`,
+        `${this.connection.label} ${method} ${path} failed with HTTP ${res.status}` +
+          (parsed.message ? `: ${parsed.message}` : '') +
+          (parsed.code && parsed.code !== String(res.status) ? ` [code ${parsed.code}]` : ''),
         res.status,
         path,
         text.slice(0, 2000),
@@ -211,8 +239,22 @@ export class RandoxHttpClient {
     return url.toString();
   }
 
+  /**
+   * THE SUBSCRIPTION KEY IS UNCONDITIONAL. THE BEARER IS NOT.
+   *
+   * The spec declares exactly one kind of credential — the subscription key,
+   * as a header or as a query parameter — and no OAuth or bearer scheme at
+   * all. The auth PDFs describe an Azure B2C ROPC grant, so a bearer is
+   * probably still wanted at the gateway, but the two documents disagree and
+   * only one of them is the spec. So the key always goes, and the bearer is
+   * switchable without a deploy (RANDOX_BEARER_TOKEN_ENABLED, default on).
+   *
+   * Header form, never the query form: `?subscription-key=` puts a live
+   * credential into every access log between here and Randox.
+   */
   private async send(url: string, method: string, options: RandoxRequestOptions): Promise<Response> {
-    const token = await this.tokens.getToken();
+    const withBearer = env.RANDOX_BEARER_TOKEN_ENABLED;
+    const token = withBearer ? await this.tokens.getToken() : null;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? RandoxHttpClient.DEFAULT_TIMEOUT_MS);
 
@@ -220,8 +262,8 @@ export class RandoxHttpClient {
       return await fetch(url, {
         method,
         headers: {
-          Authorization: `Bearer ${token}`,
-          'Ocp-Apim-Subscription-Key': this.connection.subscriptionKey,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          [SUBSCRIPTION_KEY_HEADER]: this.connection.subscriptionKey,
           Accept: 'application/json',
           ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
         },

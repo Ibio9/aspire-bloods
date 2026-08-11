@@ -229,13 +229,18 @@ export function ClinicContactPanel() {
     // genuinely short one the card scrolls inside its own border and the row
     // stays put — which is the right thing to give up, because the row is a
     // name and a sign-out and the card is four lines of reference detail.
-    <div className="flex min-h-0 flex-col">
+    // `min-h-0 flex-1`: this is the one thing in the footer band that gives.
+    // The band is capped (see PatientShell) and the account row under it is
+    // shrink-0, so when the open card would not fit, the space comes out of
+    // here and the details below scroll inside their own border — rather than
+    // the card pushing the patient's name off the bottom of the window.
+    <div className="flex min-h-0 flex-1 flex-col">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-controls="clinic-contact-details"
-        className="flex w-full shrink-0 items-center gap-2.5 rounded-input px-2.5 py-2 text-left text-sm font-medium text-espresso/85 transition-colors duration-150 ease-out hover:bg-cream-200 hover:text-espresso"
+        className="flex w-full shrink-0 items-center gap-2.5 rounded-input px-2.5 py-2 text-left text-sm font-medium text-taupe-900 transition-colors duration-150 ease-out hover:bg-cream-200/60 hover:text-espresso"
       >
         <PhoneIcon className="shrink-0 text-bronze-700" />
         <span className="min-w-0 flex-1 truncate">Contact the clinic</span>
@@ -245,7 +250,7 @@ export function ClinicContactPanel() {
       {open && (
         <div
           id="clinic-contact-details"
-          className="scroll-thin mt-2 min-h-0 overflow-y-auto rounded-card border border-taupe bg-cream-100 p-4 motion-safe:animate-riseIn"
+          className="scroll-thin mt-2 min-h-0 flex-1 overflow-y-auto rounded-card border border-taupe bg-cream-100 p-4 motion-safe:animate-riseIn"
         >
           <ClinicContactLines size="compact" />
         </div>

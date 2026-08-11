@@ -52,14 +52,27 @@ vendored rather than `@import`ed from the fontsource packages (preload needs
 stable, unhashed URLs). No Google Fonts request anywhere.
 
 **If the whole product suddenly renders in Times and system-ui, the fonts are
-not the problem.** `tailwind.config.ts` imports the tokens from
-`@aspire-bloods/shared`, whose package `main` points at `dist/`. Start Vite
-without building that package and jiti resolves the import to nothing,
-`Object.keys(typeScale)` throws inside PostCSS, and the app is served with NO
-STYLESHEET AT ALL — which looks exactly like a botched type migration and sends
-people hunting through the tokens. `npm run dev:web` and `dev:server` build
-shared first for this reason, and the config throws with a named message if it
-is ever reached unbuilt.
+not the problem — the STYLESHEET IS MISSING.** This has now cost three rounds of
+hunting through the type tokens, so: `tailwind.config.ts` used to import the
+tokens through `@aspire-bloods/shared`, whose package `main` points at `dist/`.
+Start Vite before that package is built and jiti resolves the import to nothing,
+`Object.keys(typeScale)` throws inside PostCSS, and the dev server answers EVERY
+request for the stylesheet with a 500 — so the app is served with no rules at
+all and every element falls back to the browser's own faces. Measured: the
+marker explanation card's body copy resolved to `"Times New Roman"`.
+
+**What made it worse than a first-run annoyance:** Tailwind loads its config
+ONCE per process and caches the result, so the failure is STICKY. Building the
+shared package afterwards does not clear it — the running dev server goes on
+serving 500s until it is restarted, which is why the symptom kept coming back
+after the "fix".
+
+Fixed at the root (Aug 2026): `tailwind.config.ts` now imports
+`../../packages/shared/src/tokens` DIRECTLY. tokens.ts has no imports of its
+own, so jiti transpiles it alone and the stylesheet has no dist dependency at
+all. `apps/web`'s own `dev` and `build` scripts also build shared first, so
+every way of starting it works. The guard and its named message stay, for any
+other way this could come back undefined.
 
 **Punctuation is part of the type system.** Curly apostrophes everywhere
 (`it’s`, not `it's`); an en dash joining two words becomes a hyphen
@@ -124,13 +137,37 @@ by colour, which is why high and low share a hue and both significants share one
 **Where it appears, and it must appear in all of them:**
 1. Result cards and rows — soft background wash (`bg-tint-*`).
 2. The range bar — green across the reference range, shading out through yellow
-   and orange to red, with the result plotted in its own state's colour.
+   and orange to red. **The MARK on it is NOT a status colour (Aug 2026).** It
+   is the `rangemark` token: pure white in dark, espresso in light, always
+   inside a ring of the opposite tone. A mark drawn in its own state's colour is
+   a mark drawn in the shade of the segment it is standing on — a green dot on
+   the green band, pale gold on the gold one — and the mark's job is POSITION.
+   The fill inverts between themes because it was measured: white against the
+   four track colours is 4.69–5.71:1 in dark and 1.73–2.72:1 in light, and the
+   pale green in-range track is 2.11:1, which is a white dot that vanishes.
+   Status is still carried four times over by the segment, the chevron, the
+   word and the card's own wash. Applies to both bars — the card-sized pointer
+   is an SVG triangle rather than a CSS border trick precisely so it can take
+   the same ring.
 3. Trend charts — the reference range as a soft green band, yellow immediately
    above and below, red beyond the significantly-out thresholds, orange as the
    transition. Bands sit behind the data at low weight. Points take their own
    state's colour. Band boundaries come from THAT result's reference range and
    THAT marker's severity threshold (sent as `severityThreshold` on the DTO,
    see `statusBands()` in packages/shared) — never a fixed scale.
+   **BANDS ARE DRAWN PER PERIOD, NOT PER POINT, AND NEVER AS A SLIVER (Aug
+   2026).** Consecutive results sharing a reference range are ONE period and get
+   ONE band set, so a series on one range spans the whole plot. Where the range
+   genuinely changes, the step goes MIDWAY between the two samples it happened
+   between — we know it changed between those draws and not when, and the
+   midpoint is also what guarantees every period is at least half a sampling gap
+   wide. Drawing a band from each point to the next put the LAST result's range
+   in the padding gutter: measured at 24px against a 510px plot on a marker
+   whose range changed on the most recent result. A change of range is also
+   SAID — a dashed rule at the step, an entry in the key, and a sentence naming
+   both ranges and their dates, because a silent change of reference range
+   between two results is exactly what misleads someone reading their own trend.
+   The key is a two-column grid, not two rows of wrapping flex items.
 4. Sparklines, the counts strip, the per-category summary bars.
 5. Tooltips and legends — the status word carries the colour.
 
@@ -271,6 +308,114 @@ route-console.spec.ts). See DEPLOYMENT.md → Feature flags for the full note.
   from Randox. In-house results carry NO source line at all (sourceLabel is
   empty for `aspire_inhouse`), so every render site guards it.
 
+# Randox Nexus — the OpenAPI spec is the source of truth (Aug 2026)
+
+`apps/server/src/modules/randox/specs/nexus-openapi3.json` (+ `.yaml`) is the
+real document from the developer portal: **GP Test Portal v1.0**, server
+`https://stes-gpto-appapi-001-apim.azure-api.net/api`, **17 endpoints**. IT
+OUTRANKS the flow and auth PDFs beside it, and it outranks anything anyone has
+said in an email. The client was built on four assumptions the spec contradicts
+and all four are now corrected.
+
+**EIGHT ENDPOINTS ARE GET, NINE ARE POST.** The rule is one sentence: *takes a
+body, POST; takes nothing, GET.* The table lives in `modules/randox/endpoints.ts`
+and nothing guesses a verb — `verbForPath()` throws on a path it has never read
+off the spec. The nine POSTs are all under `/Order` and DO include the Get* ones
+(GetOrderStatus, GetOrderResultDetail, GetOrderResultReports each take an order
+identifier in a body); the eight GETs are the reference-data endpoints and take
+nothing at all. `RANDOX_REFERENCE_DATA_METHOD` now defaults to `get` rather than
+probing; `auto` survives as an escape hatch, not as a hedge.
+
+**THE SPEC DECLARES ONLY A SUBSCRIPTION KEY. THE BEARER IS UNCONFIRMED.**
+`securitySchemes` has exactly two entries and both are the same key
+(`Ocp-Apim-Subscription-Key` as a header, `subscription-key` as a query
+parameter). There is no OAuth or bearer scheme anywhere in the document. The
+auth PDFs describe an Azure B2C ROPC grant, so the gateway probably does want
+one — "probably" being the honest word. So: the key always goes, in the HEADER
+(never the query form, which puts a credential in every access log), and the
+bearer is switchable by `RANDOX_BEARER_TOKEN_ENABLED` (default on). A 401 logs
+which combination was sent, so the first live call diagnoses itself.
+
+**THE 401 BODY USES A DIFFERENT KEY.** 200/400/500 return
+`{"statusCode": "...", "message": "..."}`; the 401 returns
+`{"status": "401", "message": "..."}`. Both are parsed (`parseRandoxErrorBody`).
+`statusCode` is documented as an integer and returned as a string in every
+example — treat EVERY scalar this API produces as a string and coerce at the
+boundary (`asRandoxInt` / `asRandoxIdString`).
+
+**THREE ORDER IDENTIFIERS, THREE COLUMNS, AND LINKING JOINS ON `orderId`.**
+Creation returns `{orderId, externalNumber}`; everything afterwards returns
+`orderNumber`; and the spec's own two examples spell them differently
+(`GC1123-00010300` vs `GP-THE-00000130`). "externalNumber is orderNumber under
+another name" is an UNVERIFIED HYPOTHESIS. `RandoxOrder` stores `randoxOrderId`,
+`externalNumber` and `orderNumber` separately and none overwrites another;
+automatic linking joins on **`randoxOrderId`**, the one identifier that provably
+appears on both sides. `reconcileOrderNumber()` logs loudly and audits the first
+time a real order shows the two differing. On the list for Randox.
+
+**RESULTS IDENTIFY A MARKER BY AN ANALYTE STRING, NOT A CODE.** Each row in
+`reportResults` is orderNumber, dateOfReceipt, dateOfReport, analyte, group,
+result, units, refLow, refHigh, lowHigh, sampleType, caveat, displayName — no
+marker id and no marker code. `modules/randox/analyteMap.ts` is the whole
+bridge: **exact match, then a normalised match (case, whitespace, punctuation),
+and nothing beyond.** No fuzzy matching, no similarity scoring, no substring
+fallback — the shared matcher in `reports/matchMarker.ts` has all of those and is
+right to, because it feeds a table an admin corrects; this path has no admin in
+it, and "Magnesium"/"RBC Magnesium" and "Testosterone"/"Free Testosterone" are
+each two different tests. An unmapped analyte does NOT vanish and is NOT invented
+into a marker: it becomes an `UNMAPPED_ANALYTE` exclusion carrying the raw
+analyte, group and display name, it is logged and audited with the exact
+spelling, and **it holds the report at PARSED** — a clinician must never be shown
+a panel with a result silently missing from it. `sampleType` is part of the
+IDENTITY: Randox print the urinalysis pads bare ("Glucose", "Protein",
+"Bilirubin"), which are the same strings as three serum markers and are not the
+same tests.
+
+**PRICES ARE STRIPPED AT THE TRANSPORT BOUNDARY.** GetPanels and GetTests both
+carry `cost` and `currency`. `stripPricing()` in `clients/NexusLabClient.ts`
+deletes them recursively on the way in, so they never reach the database and are
+never one `select` away from a patient's screen. `RandoxTestItem` has no field
+to put them in. `tests/randoxPricing.test.ts` asserts it at both levels.
+
+**ORDER CREATION.** `TestReasons` is REQUIRED and required non-empty by the
+spec's own schema — `placeOrder()` and `amendOrder()` refuse to build a request
+without one rather than finding out from a 400. `CreatePendingOrder` is the
+minimal form (no ethnicity, no measurements, no sample collection);
+`CreateOrder` is the full one, with a nested Patient and a SampleCollection
+block. The examples are internally inconsistent about types — `TestReasons[].Id`
+is an integer on CreatePendingOrder and a STRING on CreateOrder/UpdatePendingOrder,
+biological sex ids come back as strings, ethnicity ids as integers,
+CancellationReasonId as a string. Accept both in, send whatever THAT endpoint's
+example uses. Dates are the .NET round-trip form
+(`2024-08-01T08:45:10.0000000+00:00`): `toUtcIso` handles it, but
+`z.string().datetime()` REJECTS it (zod wants a literal `Z`), so a Randox
+timestamp is validated by `randoxDateTime` from `clients/parse.ts`.
+
+**REFERENCE DATA IS SYNCED, NEVER HARDCODED.** All eight GETs are pulled on boot
+(`syncReferenceDataOnBoot`, after `listen` and never fatal — the whole portal
+works without them) and on demand, cached to `RANDOX_REFERENCE_DATA_TTL_MINUTES`.
+`assertReferenceDataUsable()` throws on an empty lookup the order path depends
+on: a silent zero leaves `resolveBiologicalSexId` on its 1/2 default forever, and
+a wrong BiologicalSexId changes which ranges the laboratory applies. Our records
+keep OUR values; the Randox id is a mapping, not a replacement.
+
+**THE MOCK IS GENERATED FROM THE SPEC.** `mock/specServer.ts` reads every route,
+verb and 200 body out of the document and enforces the verb (a GET called with
+POST answers 405), the key (missing → the spec's own 401 body) and the body. It
+SERVES prices, because the spec does — the strip has to be provable in the
+client. `mock/scenarios.ts` adds the payloads the spec does not provide and
+production certainly will: a caveat, `"< 5.0"`, `"Not detected"`, an empty
+refLow, an unmapped analyte, a `lowHigh` that contradicts the range, and a urine
+analyte sharing a serum name. `tests/randoxSpecContract.test.ts` runs the real
+client over HTTP against it, so **a future spec update surfaces as a test failure
+rather than as a production 400.** Nothing real goes near the sandbox: no real
+names, no real dates of birth.
+
+**THE BOOT GUARD IS UNTOUCHED.** There is still no endpoint anywhere in the spec
+returning void or caveat codes, which confirms they come only from the Randox Web
+Developer team. Production still refuses to start with `RANDOX_TRANSPORT=live`
+while the code map is the checked-in placeholder. Do not weaken it.
+
 # Sessions
 - Patient idle timeout is **90 minutes**. Staff is **15** and is a separate
   constant — raising one must never raise the other, and idleSession.test.ts
@@ -278,6 +423,38 @@ route-console.spec.ts). See DEPLOYMENT.md → Feature flags for the full note.
   token (30d); those are security primitives and stay untouched.
 - The "stay signed in" warning lead is a share of the window, capped:
   5 minutes for a patient, 3 for staff (`idleWarningLeadMsForRole`).
+
+# The sidebar (Aug 2026)
+
+- **It has NO BACKGROUND, in both shells.** The corner glow runs under it and
+  out to the left edge of the window as one continuous field; a `bg-cream-50`
+  there drew a 288px vertical slab across it and put a hard seam down the side
+  of every signed-in screen. Separation from the content area is the hairline
+  on the right and nothing else. The MOBILE DRAWER keeps its surface — it is a
+  floating layer over scrimmed content, not part of the page.
+- **Nav labels are `.nav-label`** (globals.css): IBM Plex Sans at the small
+  step, medium, 0.01em of tracking. One step down from the reading size they
+  used to take, because a nav label set at reading size beside a Fraunces page
+  title reads as a second heading competing with the first. Inactive is
+  `text-taupe-900` (5.43:1 on the light page, 11.05:1 on the dark one); active
+  is `text-espresso`, which is cream in dark.
+- **Active is a bronze rule and a whisper of warm fill** (`bg-bronze/[0.08]`),
+  never the filled block it was — a solid tile pasted over the glow.
+- **No `truncate` on a nav label.** A navigation label that has been cut off is
+  a destination whose name you cannot read. "Understanding your results" became
+  "Understanding results" and the row wraps rather than clipping.
+- **One icon size and one stroke weight**: 20×20 viewBox at 1.4, rendered at
+  18px from the call site so a glyph cannot arrive at its row a different size
+  from its neighbours.
+- **THE ACCOUNT ROW IS ALWAYS ON SCREEN.** The column itself never scrolls.
+  What gives, in order: the contact details scroll inside their own border
+  first, then the nav, and the account row never. The footer band is capped at
+  45% of the panel — the largest cap that still leaves every nav row standing at
+  700px with the contact card open. Pinned at 900/800/700, open and shut, by
+  `e2e/patient-sidebar.spec.ts`.
+- **The name and avatar are a second route into Account & privacy**, beside the
+  nav item, with Sign out as a SIBLING and never a child: a button inside an
+  anchor is invalid markup and gives one control two behaviours.
 
 # Rules
 - Never colour alone for status — text label + icon shape carry it first
@@ -330,7 +507,14 @@ route-console.spec.ts). See DEPLOYMENT.md → Feature flags for the full note.
   never authored by a session.** A range comes from the result, then from the
   Randox documents in `modules/randox/specs/` (transcribed with a page reference
   in `scripts/auditReferenceRanges.ts`), and from nothing else — anything
-  unsourceable stays as it is and goes on the list. Explanation copy may be
+  unsourceable stays as it is and goes on the list. **`GetTests` does NOT return
+  reference ranges and there is no endpoint that does (confirmed against the
+  OpenAPI spec, Aug 2026).** It returns id, name, code, stabilityTime,
+  sampleTubes, cost and currency: no units, no refLow, no refHigh. Ranges arrive
+  per marker on the RESULT, in GetOrderResultDetail. So the fallbacks in
+  `markerCatalogue.ts` cannot be sourced from the API — they come from the
+  Pathology Services Catalogue PDFs, and nobody should go looking for an API
+  route to them again. Explanation copy may be
   corrected for punctuation and for the fixed non-diagnostic vocabulary table,
   and for nothing else: ~350 of them were written by an assistant and none has
   been read by a clinician, so replacing text that looks wrong with more

@@ -2,6 +2,17 @@
  * Patient-side sidebar glyphs — same 20x20 stroke language as ./icons.tsx
  * (which serves admin), drawn a touch rounder and lighter. currentColor
  * throughout so active/hover states need no per-icon handling.
+ *
+ * ONE VIEWBOX AND ONE STROKE WEIGHT for the six that appear in the nav
+ * (Overview, Panels, Library, Documents, Account, Book a test): 20×20 at 1.4.
+ * The account shield used to mix 1.4 with 1.3 inside a single glyph, so its row
+ * read lighter than the five beside it — the kind of difference nobody can name
+ * and everybody can see. Rendered size is set once at the call site
+ * (h-[18px] w-[18px] in PatientShell), never per icon, so a glyph cannot
+ * arrive at its row a different size from its neighbours either.
+ *
+ * The 16×16 detail glyphs below (phone, mail, pin, clock) are a separate set
+ * for the contact card and carry their own 1.3, which is right at that size.
  */
 
 export function OverviewIcon(props: React.SVGProps<SVGSVGElement>) {
@@ -75,8 +86,8 @@ export function AccountIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
       <path d="M10 2.5 4.5 4.6v4.7c0 3.5 2.2 6.1 5.5 7.2 3.3-1.1 5.5-3.7 5.5-7.2V4.6L10 2.5Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
-      <circle cx="10" cy="8.5" r="1.8" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M7 13.4c.6-1.2 1.7-1.8 3-1.8s2.4.6 3 1.8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <circle cx="10" cy="8.5" r="1.8" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M7 13.4c.6-1.2 1.7-1.8 3-1.8s2.4.6 3 1.8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
     </svg>
   );
 }

@@ -1,5 +1,9 @@
 import type { Config } from 'tailwindcss';
 import plugin from 'tailwindcss/plugin';
+// FROM SOURCE, NOT FROM THE PACKAGE ENTRY POINT — see the note above the guard
+// below. tokens.ts is a leaf module with no imports of its own, so jiti can
+// transpile it on its own and this config no longer depends on
+// packages/shared/dist existing.
 import {
   typeScale,
   typographyCssVars,
@@ -8,7 +12,7 @@ import {
   EYEBROW_TRACKING,
   MEASURE,
   type TypeStep,
-} from '@aspire-bloods/shared';
+} from '../../packages/shared/src/tokens';
 
 /**
  * Colour reaches Tailwind as a CSS custom property rather than a literal hex,
@@ -27,17 +31,28 @@ import {
 const v = (name: string) => `rgb(var(${name}) / <alpha-value>)`;
 
 /**
- * The one failure this config can have that looks like a design bug.
+ * The one failure this config can have that looks like a design bug — and the
+ * reason the import above reaches into `packages/shared/src` rather than at
+ * `@aspire-bloods/shared`.
  *
- * Everything below is imported from `@aspire-bloods/shared`, whose package
- * `main` points at `dist/`. Start the dev server without building that package
- * and jiti resolves the import to nothing: `typeScale` is `undefined`,
- * `Object.keys` throws inside PostCSS, and Vite serves the app with NO
- * STYLESHEET AT ALL. The page then renders in the browser's own faces, which
- * reads exactly like a botched font migration — body copy in Times, headings in
- * something else again — and sends whoever sees it hunting through the type
- * tokens for a bug that is not there. `npm run dev:web` builds shared first for
- * this reason; this is the message for anyone who starts Vite another way.
+ * The package `main` points at `dist/`. While the tokens were imported through
+ * it, starting Vite before that package was built made jiti resolve the import
+ * to nothing: `typeScale` came back `undefined`, `Object.keys` threw inside
+ * PostCSS, and the dev server answered every request for the stylesheet with a
+ * 500 — so the app was served with NO STYLESHEET AT ALL and rendered in the
+ * browser's own faces. That reads exactly like a botched font migration (body
+ * copy in Times, headings in something else again) and sends whoever sees it
+ * hunting through the type tokens for a bug that is not there.
+ *
+ * What made it worse than a first-run annoyance: Tailwind loads this config
+ * ONCE per process and caches the result, so the failure is sticky. Building
+ * the shared package afterwards does not clear it — the running dev server goes
+ * on serving 500s until it is restarted, which is why the symptom kept coming
+ * back after the "fix".
+ *
+ * tokens.ts has no imports of its own, so reading it straight from source costs
+ * nothing and removes the dist dependency from the stylesheet entirely. The
+ * guard stays as the message for any other way this could come back undefined.
  */
 if (!typeScale || typeof typeScale !== 'object') {
   throw new Error(
@@ -196,6 +211,16 @@ export default {
           'low-edge': v('--c-tint-low-edge'),
           'significantHigh-edge': v('--c-tint-significant-high-edge'),
           'significantLow-edge': v('--c-tint-significant-low-edge'),
+        },
+        // The result mark on a range bar, and the ring around it. Deliberately
+        // NOT one of the status colours: the mark says where the result sits,
+        // and it sits on a track made of the status colour, so a mark in that
+        // colour is a mark drawn in the shade it is standing on. See the note
+        // beside --c-rangemark in tokens.ts for the measured reason the fill
+        // inverts between the two themes.
+        rangemark: {
+          DEFAULT: v('--c-rangemark'),
+          ring: v('--c-rangemark-ring'),
         },
         // Per-hue, which is the only way to reach orange — the transition
         // between yellow and red, used in the range-bar gradient and the

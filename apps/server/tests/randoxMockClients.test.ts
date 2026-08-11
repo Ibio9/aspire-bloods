@@ -10,7 +10,7 @@ import {
 } from '../src/modules/randox/mock/fixtures.js';
 
 /**
- * These exercise the contracts as declared in specs/nexus-openapi.json.
+ * These exercise the contracts as declared in specs/nexus-openapi3.json.
  * They are written against the contract, not against our own ingestion
  * code, so they stay meaningful when the live client replaces the mock.
  */

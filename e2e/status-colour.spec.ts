@@ -228,7 +228,21 @@ test.describe('traffic-light status', () => {
     });
   }
 
-  test('the range bar plots the result in its own state colour', async ({ browser }) => {
+  /**
+   * The mark on the range bar is NO LONGER the status colour, and this test's
+   * name used to say it was.
+   *
+   * It is the rangemark token now — white in dark, espresso in light, always
+   * inside the opposite ring — because a mark drawn in its own state's colour
+   * is a mark drawn in the shade of the segment it is standing on: a green dot
+   * on the green band, pale gold on the gold one. Its job is POSITION.
+   *
+   * Nothing about the status layer is weakened by that, which is what this
+   * checks: the status is still stated in words on the bar's own accessible
+   * label, and the segment, the chevron and the card's wash still carry it
+   * three more times over.
+   */
+  test('the range bar states the value, the range and the status in words', async ({ browser }) => {
     const ctx = await browser.newContext();
     await loginAsDemoPatient(ctx.request);
     const page = await ctx.newPage();

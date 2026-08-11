@@ -20,6 +20,7 @@ import { nexusLabClient } from './clients/index.js';
 import { loadIdMap } from './config.js';
 import { assessCodes, recordUnknownCode } from './codes.js';
 import { parseRandoxValue, parseReferenceRange, normaliseLabIndicator, labStatusDisagrees } from './clients/parseResult.js';
+import { resolveAnalyte } from './analyteMap.js';
 import { mappedKeyFor } from './referenceDataService.js';
 import type { GetOrderResultDetailResponse, RandoxReportResultRow, OrderRef } from './types.js';
 
@@ -99,6 +100,19 @@ interface NormalisedPayload {
   parsed: ParsedReport;
   /** Rows the lab is still processing. Not failures — just not here yet. */
   pendingCount: number;
+  /**
+   * Analytes Randox sent that no catalogue marker claims, with the exact
+   * strings they used. This is the working list for filling in
+   * analyteMap.ts — a mapping added from a real spelling is worth ten added
+   * from a guess at one.
+   */
+  unmappedAnalytes: {
+    analyte: string | null;
+    group: string | null;
+    displayName: string | null;
+    sampleType: string | null;
+    reason: string;
+  }[];
 }
 
 /**
@@ -113,6 +127,14 @@ export async function normaliseResultDetail(
 ): Promise<NormalisedPayload> {
   const rows: ParsedMarkerRow[] = [];
   const exclusions: ParsedExclusion[] = [];
+  /** Analytes with no mapping, reported so the map can be filled in from real spellings. */
+  const unmappedAnalytes: {
+    analyte: string | null;
+    group: string | null;
+    displayName: string | null;
+    sampleType: string | null;
+    reason: string;
+  }[] = [];
   let pendingCount = 0;
 
   const markers = await prisma.marker.findMany({ where: { isActive: true }, select: { id: true, key: true, name: true, severityMultiplier: true, severityAbsoluteDelta: true } });
@@ -155,11 +177,53 @@ export async function normaliseResultDetail(
 
     const indicator = normaliseLabIndicator(raw.lowHigh);
 
+    // WHICH MARKER THIS IS. Exact, then normalised, and nothing beyond — see
+    // analyteMap.ts. A row that does not resolve is NOT dropped and is NOT
+    // guessed at: it becomes an exclusion carrying the raw analyte, the group
+    // and the display name, which is what puts it in front of a human with
+    // the exact spelling they need to add one line to the map.
+    const resolution = resolveAnalyte({
+      analyte: raw.analyte,
+      displayName: raw.displayName,
+      group: raw.group,
+      sampleType: raw.sampleType,
+    });
+    if (resolution.status !== 'MAPPED') {
+      unmappedAnalytes.push({
+        analyte: raw.analyte,
+        group: raw.group,
+        displayName: raw.displayName,
+        sampleType: raw.sampleType,
+        reason: resolution.reason,
+      });
+      exclusions.push({
+        rawName: name,
+        code: null,
+        codeRecognised: false,
+        // NOT withheld by the laboratory — they reported it and we could not
+        // say what it was. materialiseReport holds the report for an admin on
+        // the strength of this, which a lab-withheld exclusion does not do.
+        kind: 'UNMAPPED_ANALYTE',
+        reason:
+          `This result could not be filed against a marker in our catalogue. ` +
+          `Randox sent analyte "${raw.analyte ?? ''}"` +
+          (raw.displayName && raw.displayName !== raw.analyte ? ` (shown as "${raw.displayName}")` : '') +
+          (raw.group ? ` in group "${raw.group}"` : '') +
+          (raw.sampleType ? `, sample type "${raw.sampleType}"` : '') +
+          `. ${resolution.reason}`,
+      });
+      continue;
+    }
+
     // A disagreement can only be computed where we have both a number and a
-    // two-sided range to compute our own status from.
+    // two-sided range to compute our own status from. The marker is the one
+    // the analyte map resolved — not a name-shaped guess at a catalogue key,
+    // which is what this used to do and which silently fell back to the
+    // default severity multiplier for every marker whose key was not simply
+    // its lowercased name with the punctuation taken out.
     let disagrees = false;
     if (value.kind === 'numeric' && value.value !== null && range.low !== null && range.high !== null) {
-      const marker = markers.find((m) => m.key.toLowerCase() === name.toLowerCase().replace(/[^a-z0-9]/gi, ''));
+      const marker = markers.find((m) => m.key === resolution.markerKey);
       const ourStatus = computeMarkerStatus(
         value.value,
         range.low,
@@ -183,6 +247,9 @@ export async function normaliseResultDetail(
 
     rows.push({
       rawName: name,
+      // Decided here, explicitly, so materialiseReport files it rather than
+      // matching on the name again with looser rules.
+      markerKey: resolution.markerKey,
       // Non-null ONLY for a plain number. "< 5.0" never becomes 5.0.
       value: value.kind === 'numeric' ? value.value : null,
       unit: raw.units,
@@ -216,6 +283,7 @@ export async function normaliseResultDetail(
 
   return {
     pendingCount,
+    unmappedAnalytes,
     parsed: {
       // Documented UTC on the payload. dateOfReceipt/dateOfReport on the
       // rows are Europe/London and are already converted by the client.
@@ -348,7 +416,7 @@ export async function ingestOrderResults(ref: OrderRef): Promise<IngestResult> {
 
   const labIdentity = payloadIdentity(detail);
 
-  const { parsed, pendingCount } = await normaliseResultDetail(detail, {
+  const { parsed, pendingCount, unmappedAnalytes } = await normaliseResultDetail(detail, {
     patientRef: order?.patientId ?? null,
     // What the LAB said, in preference to what we already believe — a queue
     // row that restates our own record back at the admin is no evidence at
@@ -433,7 +501,13 @@ export async function ingestOrderResults(ref: OrderRef): Promise<IngestResult> {
   // Every reportable analyte was voided. Randox move the order to status 5
   // themselves in this case. Creating an empty report would put a report in
   // the patient's list with nothing in it.
-  if (parsed.rows.length === 0 && pendingCount === 0 && (parsed.exclusions?.length ?? 0) > 0) {
+  // Every reportable analyte was VOIDED BY THE LABORATORY — which is a
+  // different thing from every analyte being unmappable by us, and only the
+  // first means there is genuinely nothing to report. An all-unmapped delivery
+  // falls through to materialiseReport, which refuses it with a sentence
+  // naming the real problem.
+  const withheldByLab = (parsed.exclusions ?? []).filter((x) => x.kind !== 'UNMAPPED_ANALYTE');
+  if (parsed.rows.length === 0 && pendingCount === 0 && withheldByLab.length > 0 && withheldByLab.length === (parsed.exclusions?.length ?? 0)) {
     const excluded = parsed.exclusions!.length;
     const message = `Every result on order ${orderNumber} was withheld by the laboratory, so no report was created. ${excluded} test(s) could not be reported.`;
     await logAttempt({
@@ -495,6 +569,27 @@ export async function ingestOrderResults(ref: OrderRef): Promise<IngestResult> {
     identity,
     claimed: labIdentity.dob || labIdentity.lastName ? labIdentity : orderSnapshot,
   });
+
+  // Said out loud, with the exact strings on it. An unmapped analyte is not a
+  // fault in the delivery — it is a line missing from analyteMap.ts — and the
+  // only thing that makes it fixable is knowing precisely what Randox called
+  // it. This is the reason nothing here guesses.
+  if (unmappedAnalytes.length > 0) {
+    console.warn(
+      `[randox] order ${orderNumber}: ${unmappedAnalytes.length} analyte(s) have no mapping to a catalogue marker. ` +
+        'They are excluded from the report and listed here so ANALYTE_OVERRIDES can be filled in from the real spelling:\n' +
+        unmappedAnalytes
+          .map((a) => `  - analyte "${a.analyte ?? ''}" | display "${a.displayName ?? ''}" | group "${a.group ?? ''}" | sampleType "${a.sampleType ?? ''}" — ${a.reason}`)
+          .join('\n'),
+    );
+    await recordAuditLog({
+      actorType: 'SYSTEM',
+      action: 'RANDOX_ANALYTE_UNMAPPED',
+      targetType: 'Report',
+      targetId: outcome.reportId,
+      metadata: { orderNumber, unmappedAnalytes: unmappedAnalytes as unknown as Prisma.InputJsonValue },
+    });
+  }
 
   const isPartial = pendingCount > 0;
   const parts = [`${outcome.markerCount} marker(s) ingested`];

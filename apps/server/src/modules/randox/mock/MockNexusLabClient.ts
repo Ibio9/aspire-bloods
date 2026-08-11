@@ -49,7 +49,7 @@ export type IdentityEcho = 'none' | 'matching' | 'mismatched-dob' | 'mismatched-
 
 /**
  * In-memory Nexus Lab implementing the documented contracts from
- * specs/nexus-openapi.json. This is what the integration runs against until
+ * specs/nexus-openapi3.json. This is what the integration runs against until
  * the subscription keys arrive; swapping to real is RANDOX_TRANSPORT=live.
  *
  * It enforces the parts of the contract our code has to survive rather than
@@ -210,6 +210,16 @@ export class MockNexusLabClient implements NexusLabClient {
   }
 
   // --- Reference data ------------------------------------------------------
+  //
+  // NO cost AND NO currency ANYWHERE BELOW, and their absence is the point.
+  // The wire carries both on GetPanels and GetTests; the live client deletes
+  // them at the transport boundary (stripPricing in clients/NexusLabClient.ts)
+  // so they never reach the database or an API response. This client stands in
+  // for the transport, so it stands in for that too — a mock that returned
+  // prices would make the pricing test pass against Randox and fail against
+  // the fixtures, which is the wrong way round. The mock HTTP SERVER in
+  // mock/specServer.ts DOES serve them, because it is serving the spec's own
+  // examples verbatim, and the real client strips them there.
 
   async getPanels(): Promise<RandoxPanel[]> {
     return [
@@ -222,8 +232,6 @@ export class MockNexusLabClient implements NexusLabClient {
         fastingRequired: true,
         sampleStabilityTime: 1,
         stabilityTime: 1,
-        cost: 50,
-        currency: 'Pounds',
         sampleTubes: [{ id: '1', name: 'SST Gel Separator Vacutainer (8ml Gold)', quantityRequired: 1 }],
         testItems: [
           { id: '632', name: '01 LIPIDS' },
@@ -241,8 +249,6 @@ export class MockNexusLabClient implements NexusLabClient {
         code: 'LIPIDS',
         stabilityTime: 1,
         sampleTubes: [{ id: '1', name: 'SST Gel Separator Vacutainer (8ml Gold)', quantityRequired: 1 }],
-        cost: 0,
-        currency: null,
       },
       {
         id: '640',
@@ -250,9 +256,14 @@ export class MockNexusLabClient implements NexusLabClient {
         code: 'FBC',
         stabilityTime: 1,
         sampleTubes: [{ id: '2', name: 'EDTA (Purple)', quantityRequired: 1 }],
-        cost: 0,
-        currency: null,
       },
+    ];
+  }
+
+  async getClinicStaff() {
+    return [
+      { userId: 'ce02dec0-9a46-4cfa-90c5-32gsdw52y223', firstName: 'Fixture', lastName: 'Laboratory', active: true, role: 'Laboratory' },
+      { userId: 'ce02dec0-9a46-4cfa-90c5-32gsdw52y224', firstName: 'Fixture', lastName: 'Management', active: true, role: 'Management' },
     ];
   }
 

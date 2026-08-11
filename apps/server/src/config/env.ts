@@ -146,17 +146,39 @@ const envSchema = z.object({
   // How long cached Randox reference data is trusted before being refetched.
   RANDOX_REFERENCE_DATA_TTL_MINUTES: z.coerce.number().default(720),
 
-  // Which HTTP verb the seven reference-data endpoints take.
+  // Which HTTP verb the eight reference-data endpoints take.
   //
-  // The checked-in OpenAPI document declares them GET and declares every
-  // /Order/* endpoint POST (including the Get* ones). Randox's own
-  // integration guidance has been given verbally as "everything is POST".
-  // Rather than bet on either, 'auto' sends the verb the spec declares and,
-  // if the gateway answers 404/405/501 — the three ways an API says "not
-  // that verb" — repeats the call as POST with an empty body and remembers
-  // which one worked for the life of the process. 'get' and 'post' pin it
-  // explicitly once we know, with no code change.
-  RANDOX_REFERENCE_DATA_METHOD: z.enum(['auto', 'get', 'post']).default('auto'),
+  // SETTLED, and the default now says so. The OpenAPI document in
+  // modules/randox/specs/ is the source of truth and declares all eight of
+  // them GET with no parameters and no body; the "everything is POST"
+  // guidance was verbal and applies only to the nine /Order endpoints, which
+  // are POST because they take a body. The rule is in
+  // modules/randox/endpoints.ts and is one sentence: takes a body, POST;
+  // takes nothing, GET.
+  //
+  // 'auto' is kept as an escape hatch and no longer as a hedge: it sends the
+  // declared verb and, on a 404/405/501 — the three ways an API says "not
+  // that verb" — repeats once as POST with an empty body and remembers which
+  // answered, for the life of the process. Set it if the sandbox turns out to
+  // contradict its own spec; 'post' pins that outcome without a deploy.
+  RANDOX_REFERENCE_DATA_METHOD: z.enum(['auto', 'get', 'post']).default('get'),
+
+  // Whether to send an Azure B2C bearer alongside the subscription key.
+  //
+  // UNCONFIRMED, WHICH IS WHY IT IS A SWITCH. The spec's securitySchemes
+  // contains exactly two entries and both are the same subscription key
+  // (header or query); there is no OAuth or bearer scheme in the document at
+  // all. The auth PDFs describe a B2C ROPC password grant, so the gateway
+  // probably does want one — "probably" being the honest word. Default on,
+  // because that is the more likely of the two and the one the credentials
+  // were requested for; flip it to false without a deploy if the first live
+  // call 401s with a valid key. The subscription key is NOT switchable and
+  // always goes, in the header — never the query form, which would put a
+  // credential in every access log.
+  RANDOX_BEARER_TOKEN_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
 
   // Client-side pacing on outbound Randox calls, per API. A poll sweep makes
   // two or three calls per order in a tight loop; spacing them is what keeps

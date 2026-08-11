@@ -228,8 +228,19 @@ export async function placeOrder(input: PlaceOrderInput) {
 
   const order = await prisma.randoxOrder.create({
     data: {
-      // externalNumber IS the order number — see types.ts.
+      // THREE IDENTIFIERS, AND ONLY TWO OF THEM EXIST YET.
+      //
+      // Creation returns orderId and externalNumber. It does NOT return
+      // orderNumber — that name first appears on GetOrderStatus, and the
+      // spec's two examples spell the two values differently
+      // (GC1123-00010300 vs GP-THE-00000130). So externalNumber is stored as
+      // itself, orderNumber is SEEDED from it because it is the only string
+      // available now and a great deal is keyed on it, and the row is marked
+      // unconfirmed until Randox state one. reconcileOrderNumber() below does
+      // the stating, and shouts if the two turn out to differ.
       orderNumber: response.externalNumber,
+      externalNumber: response.externalNumber,
+      orderNumberConfirmed: false,
       randoxOrderId: response.orderId,
       clinicId,
       patientId: input.patientId,
@@ -268,6 +279,81 @@ export async function placeOrder(input: PlaceOrderInput) {
   });
 
   return order;
+}
+
+/**
+ * ---------------------------------------------------------------------------
+ * THE ONE ASSERTION THAT SETTLES THE externalNumber / orderNumber QUESTION.
+ * ---------------------------------------------------------------------------
+ *
+ * Creation gives us `externalNumber`; every later endpoint gives us
+ * `orderNumber`. They are widely assumed to be the same string, and they may
+ * well be — but the spec's own two examples spell them differently
+ * ("GC1123-00010300" from CreateOrder, "GP-THE-00000130" from GetOrderStatus),
+ * and nothing in the document says one is the other. So it is a HYPOTHESIS,
+ * and this is where it gets tested against reality.
+ *
+ * Called with whatever GetOrderStatus (or a result payload) says the order
+ * number is. If it agrees with what we stored, the row is marked confirmed and
+ * nothing else happens. If it DISAGREES, the first real order to prove that is
+ * worth a great deal:
+ *
+ *   · it is logged loudly, with both values, and audited;
+ *   · the stored orderNumber is replaced with what Randox actually use, since
+ *     that is the value every subsequent request and every result row carries;
+ *   · externalNumber is left exactly as it was, because it is the value
+ *     CreateRandoxBooking has to send as GPExternalNumber.
+ *
+ * Automatic linking does not depend on the answer either way — it joins on
+ * randoxOrderId, the one identifier that provably appears on both sides — so
+ * this can be wrong without a result reaching the wrong patient. It is
+ * measurement, not a load-bearing guess. Add it to the list of things to
+ * confirm with Randox.
+ */
+export async function reconcileOrderNumber(
+  order: { id: string; orderNumber: string; externalNumber: string | null; orderNumberConfirmed: boolean; randoxOrderId: number | null },
+  observed: string | null,
+): Promise<string> {
+  if (!observed || observed.trim() === '') return order.orderNumber;
+  const stated = observed.trim();
+
+  if (stated === order.orderNumber) {
+    if (!order.orderNumberConfirmed) {
+      await prisma.randoxOrder.update({ where: { id: order.id }, data: { orderNumberConfirmed: true } });
+    }
+    return order.orderNumber;
+  }
+
+  console.error(
+    `[randox] ORDER NUMBER MISMATCH on Randox order id ${order.randoxOrderId ?? '(unknown)'}: ` +
+      `we stored orderNumber "${order.orderNumber}" (seeded from the creation response's externalNumber ` +
+      `"${order.externalNumber ?? '(none)'}"), and Randox have stated orderNumber "${stated}". ` +
+      'This is the first evidence that externalNumber and orderNumber are NOT the same value. ' +
+      'The stored orderNumber has been replaced with theirs; externalNumber is untouched because ' +
+      'CreateRandoxBooking sends it as GPExternalNumber. Linking is unaffected — it joins on orderId. ' +
+      'Confirm the relationship between the two with Randox.',
+  );
+
+  await prisma.randoxOrder.update({
+    where: { id: order.id },
+    data: { orderNumber: stated, orderNumberConfirmed: true },
+  });
+
+  await recordAuditLog({
+    actorType: 'SYSTEM',
+    action: 'RANDOX_ORDER_NUMBER_RECONCILED',
+    targetType: 'RandoxOrder',
+    targetId: order.id,
+    metadata: {
+      randoxOrderId: order.randoxOrderId,
+      storedOrderNumber: order.orderNumber,
+      externalNumber: order.externalNumber,
+      randoxOrderNumber: stated,
+      note: 'externalNumber and orderNumber are not the same value on this order.',
+    },
+  });
+
+  return stated;
 }
 
 /**

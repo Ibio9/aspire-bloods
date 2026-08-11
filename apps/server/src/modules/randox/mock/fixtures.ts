@@ -2,7 +2,7 @@ import type { GetOrderResultDetailResponse, RandoxReportResultRow } from '../typ
 
 /**
  * Fixtures written against the REAL Nexus payload shape
- * (specs/nexus-openapi.json GetOrderResultDetail example) and the real
+ * (specs/nexus-openapi3.json GetOrderResultDetail example) and the real
  * example patient report in the same directory.
  *
  * Two things they exist to exercise that a hand-waved fixture would miss:

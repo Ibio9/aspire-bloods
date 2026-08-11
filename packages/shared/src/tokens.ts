@@ -594,6 +594,33 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
   out['--c-chart-cursor'] = dark ? darkScales.taupe[700] : scales.taupe[600];
   out['--c-chart-surface'] = dark ? darkScales.cream[50] : mix(brand.white, brand.cream, 0.35);
 
+  /**
+   * THE RESULT MARK ON A RANGE BAR — the dot on the full bar and the pointer on
+   * the card-sized one — and the ring around it.
+   *
+   * It used to be filled with its own status hue. On a track made of that same
+   * hue that is a mark drawn in the colour it is standing on: the dot on an
+   * in-range result was a green dot on a green segment, and the one on a high
+   * result was pale yellow on gold. The mark's job is POSITION — "your result is
+   * here" — and the status is already said by the segment it lands on, by the
+   * chevron, by the word and by the card's own wash. So the mark stops carrying
+   * colour and starts being visible.
+   *
+   * THE FILL IS NOT THE SAME IN BOTH THEMES, and it is measured rather than
+   * chosen. Against the four track colours, pure white gives 4.69–5.71:1 in
+   * dark and only 1.73–2.72:1 in light — the pale green in-range track is
+   * 2.11:1, which is a white dot that vanishes. So dark gets the white that was
+   * asked for and light gets espresso, which is 4.00–6.29:1 on the same four.
+   * The ring inverts with it, so there is always a dark mark inside a light ring
+   * or a light mark inside a dark one, whichever way round the theme is.
+   *
+   * `#ffffff` and not `cream`: cream in dark mode is #f0ede7, which against a
+   * gold track reads as a slightly dirty version of the track. This is the one
+   * pure white in the product and it is a 14px dot.
+   */
+  out['--c-rangemark'] = dark ? '#ffffff' : brand.espresso;
+  out['--c-rangemark-ring'] = dark ? mix(brand.espresso, '#000000', 0.72) : brand.white;
+
   // Shadow colour, derived from espresso in BOTH themes — nothing in this
   // system is ever a neutral grey, shadows least of all.
   //

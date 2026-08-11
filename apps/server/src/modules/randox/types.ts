@@ -1,7 +1,7 @@
 /**
  * Wire contracts for the two Randox APIs.
  *
- * NEXUS LAB: verified against specs/nexus-openapi.json ("GP Test Portal",
+ * NEXUS LAB: verified against specs/nexus-openapi3.json ("GP Test Portal",
  * v1.0) plus the four Randox flow/auth PDFs in the same directory. Every
  * shape below is taken from a request/response example in that spec. There
  * are no guesses left on the Nexus side; where the spec itself is silent
@@ -87,8 +87,71 @@ export interface CreatePendingOrderRequest {
    * produce no score; we default it false and leave it configurable.
    */
   IsCvScoreRequired: boolean;
-  /** From GET /TestReason/GetTestingReasons. Required, and required non-empty by the flow. */
+  /**
+   * From GET /TestReason/GetTestingReasons. REQUIRED, and required non-empty
+   * by the spec's own schema — it is one of the seven entries in
+   * CreatePendingOrderRequest.required. Every order needs at least one reason,
+   * which is why placeOrder() and amendOrder() both refuse to build a request
+   * without one rather than sending an empty array and finding out from a 400.
+   *
+   * INTEGER HERE, STRING ON CreateOrder. The spec's own two examples type this
+   * same field differently — `"Id": 1` in the CreatePendingOrder example and
+   * `"Id": "1"` in the CreateOrder one. Each request type therefore carries
+   * the form ITS OWN example uses, and asRandoxInt / asRandoxIdString in
+   * clients/parse.ts convert between them, so neither is a guess.
+   */
   TestReasons: { Id: number; Details: string }[];
+}
+
+/**
+ * POST /Order/CreateOrder — the FULL form, where CreatePendingOrder is the
+ * minimal one.
+ *
+ * The difference is not a detail: CreatePendingOrder takes a flat patient with
+ * no ethnicity, no measurements and no sample collection; CreateOrder nests
+ * the patient and adds Height, Weight, Waist, Hip, Pulse, the two blood
+ * pressures, Diabetic, Smoker, KnownVascularDisease, OnMedForHypertension and
+ * EthnicityId, plus a SampleCollection block.
+ *
+ * NOTE THE TYPE FLIP on TestReasons[].Id — a string here, an integer on
+ * CreatePendingOrder, in Randox's own examples. Sent as the endpoint's own
+ * example types it.
+ */
+export interface CreateOrderRequest {
+  Patient: {
+    FirstName: string;
+    LastName: string;
+    /** "2001-01-01" — date only. */
+    DateOfBirth: string;
+    BiologicalSexId: number;
+    TestClinicLocationId: number;
+    IsHealthCheckPanelReport: boolean;
+    IsCvScoreRequired: boolean;
+    /** From GET /Ethnicity/GetEthnicity, whose ids come back as INTEGERS. */
+    EthnicityId?: number;
+    Height?: number;
+    Weight?: number;
+    Waist?: number;
+    Hip?: number;
+    Pulse?: number;
+    SystolicBloodPressure?: number;
+    DiastolicBloodPressure?: number;
+    Diabetic?: boolean;
+    Smoker?: boolean;
+    KnownVascularDisease?: boolean;
+    OnMedForHypertension?: boolean;
+  };
+  PanelIds: number[];
+  TestIds: number[];
+  /** Id as a STRING on this endpoint. See the note on CreatePendingOrderRequest. */
+  TestReasons: { Id: string; Details: string }[];
+  SampleCollection?: {
+    /** The .NET round-trip form, e.g. "2025-04-19T03:20:00.0000000+00:00". */
+    SampleCollectionDate: string;
+    SampleCollectionComment?: string;
+    SampleLaboratoryId: number;
+    SampleTubes: { Id: number; QuantityRequired: number }[];
+  };
 }
 
 /**
@@ -96,6 +159,10 @@ export interface CreatePendingOrderRequest {
  * identifiers. Anything omitted is treated as a removal (stated explicitly
  * for UpdateOrder; assumed to hold here too, so we always send the
  * complete set).
+ *
+ * The spec's example types TestReasons[].Id as a STRING here, unlike
+ * CreatePendingOrder. Inherited as a number and converted at the call site —
+ * see clients/NexusLabClient.ts.
  */
 export interface UpdatePendingOrderRequest extends CreatePendingOrderRequest {
   OrderId: number;
@@ -303,14 +370,29 @@ export interface RandoxLookupItem {
   name: string;
 }
 
+/**
+ * GET /TestItem/GetTests — id, name, code, stabilityTime, sampleTubes.
+ *
+ * TWO ABSENCES WORTH STATING, because both have been assumed present before:
+ *
+ *  · NO REFERENCE RANGES. There are no units, refLow or refHigh fields on
+ *    this endpoint and there never have been. A marker's range arrives on the
+ *    RESULT, per row, in GetOrderResultDetail — which is what product rule 2
+ *    ("reference ranges live on the result, not the marker") already says.
+ *    The fallback ranges in markerCatalogue.ts cannot be sourced from this
+ *    API and come from the Pathology Services Catalogue PDFs.
+ *
+ *  · NO COST OR CURRENCY. The wire carries both; this type does not, because
+ *    clients/NexusLabClient.ts strips them at the transport boundary. This
+ *    product shows a patient no prices, and a field that is not in the type
+ *    cannot be rendered by accident.
+ */
 export interface RandoxTestItem {
   id: string;
   name: string;
   code: string | null;
   stabilityTime: number | null;
   sampleTubes: { id: string; name: string; quantityRequired: number | null }[];
-  cost: number | null;
-  currency: string | null;
 }
 
 export interface RandoxPanel extends RandoxTestItem {
@@ -331,6 +413,22 @@ export interface RandoxClinicLocation {
   townCity: string | null;
   county: string | null;
   postalCode: string | null;
+}
+
+/**
+ * GET /Clinic/GetClinicStaff — the eighth GET endpoint in the spec.
+ *
+ * `active` is documented as a boolean and one of the spec's own two examples
+ * returns the string "Kent" for it, which is the clearest single illustration
+ * of the rule that every scalar this API produces should be read as a string
+ * and coerced. Read tolerantly; nothing on the order path depends on it.
+ */
+export interface RandoxClinicStaffMember {
+  userId: string;
+  firstName: string | null;
+  lastName: string | null;
+  active: boolean;
+  role: string | null;
 }
 
 /** GET /Clinic/GetMyClinicDetails — our clinic, plus its test locations. */

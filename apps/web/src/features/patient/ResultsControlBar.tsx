@@ -230,8 +230,13 @@ export function ResultsControlBar({
     <>
       {/* The bar's own top margin. It used to be carried by a one-pixel
           sentinel div that an IntersectionObserver watched; nothing observes
-          the bar's position any more, so the margin is simply the bar's. */}
-      <div aria-hidden="true" className="mt-12 h-px" />
+          the bar's position any more, so the margin is simply the bar's.
+          mt-8, down from mt-12: with the page header's own pb-2 under it the
+          heading and the bar sat 57px apart, which on a page whose header is
+          two lines read as a gap rather than as space. Trimmed, not stripped —
+          the air above the title is untouched, because that is the part doing
+          the work. */}
+      <div aria-hidden="true" className="mt-8 h-px" />
 
       {/* Full-bleed: the negative margins are exactly the shell's own gutters,
           so the band reaches the sidebar on one side and the window on the

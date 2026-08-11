@@ -5,7 +5,7 @@ import { nexusLabClient } from './clients/index.js';
 import { isRandoxEnabled } from './config.js';
 import { orderStatusFromCode } from './types.js';
 import { ingestOrderResults } from './ingestionService.js';
-import { orderRefOf } from './orderService.js';
+import { orderRefOf, reconcileOrderNumber } from './orderService.js';
 
 /**
  * Randox ask for one poll per outstanding order per hour, staggered by
@@ -74,7 +74,10 @@ export interface OrderUpdateResult {
  * Safe to call repeatedly for the same order: ingestion is idempotent on
  * the Order Number.
  */
-export async function onOrderStatusChanged(orderNumber: string): Promise<OrderUpdateResult> {
+export async function onOrderStatusChanged(inputOrderNumber: string): Promise<OrderUpdateResult> {
+  // Reassigned once Randox state an order number of their own — see the call
+  // to reconcileOrderNumber below. Everything after that point uses theirs.
+  let orderNumber = inputOrderNumber;
   const order = await prisma.randoxOrder.findUnique({ where: { orderNumber } });
   if (!order) {
     return { orderNumber, statusCode: null, ingested: false, message: `No local record of order ${orderNumber}.` };
@@ -99,6 +102,14 @@ export async function onOrderStatusChanged(orderNumber: string): Promise<OrderUp
   }
 
   const status = await nexusLabClient().getOrderStatus({ orderId: order.randoxOrderId, orderNumber });
+
+  // The first place Randox ever state an orderNumber of their own. Everything
+  // before this point has been using the creation response's externalNumber as
+  // a stand-in. If the two differ, this is where we find out and say so — see
+  // reconcileOrderNumber. The rest of this sweep then uses whichever Randox
+  // gave, since that is the value their own endpoints will answer to.
+  orderNumber = await reconcileOrderNumber(order, status.orderNumber);
+
   const statusName = orderStatusFromCode(status.statusId);
 
   if (!statusName) {
@@ -175,7 +186,7 @@ export async function onOrderStatusChanged(orderNumber: string): Promise<OrderUp
     };
   }
 
-  const result = await ingestOrderResults(orderRefOf(order));
+  const result = await ingestOrderResults(orderRefOf({ ...order, orderNumber }));
 
   // A partial delivery keeps polling: more markers are still coming. A
   // complete one stops. An unmatched patient keeps polling too — the

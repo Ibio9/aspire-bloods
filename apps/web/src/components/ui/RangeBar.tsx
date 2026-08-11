@@ -5,7 +5,6 @@ import {
   hueTint,
   NO_STATUS_PAINT,
   statusBands,
-  statusPaint,
   severityThresholdFor,
   formatOptimalRange,
   type MarkerStatusInput,
@@ -104,8 +103,6 @@ export function RangeBar({ value, low, high, status, severityThreshold = null, o
   const optimalRight = optimal ? clamp(pct(optimal.high ?? Math.min(domainMax, Math.max(high, value)))) : 0;
   const optimalWidth = Math.max(0, optimalRight - optimalLeft);
 
-  const paint = statusPaint(status);
-
   // Sweeps in from the middle of the band to its true position once, on mount — a two-step
   // render (start position, then true position after a frame) so the browser has something to
   // transition between. motion-safe: strips the transition entirely under reduced-motion, so it
@@ -172,11 +169,17 @@ export function RangeBar({ value, low, high, status, severityThreshold = null, o
           />
         ))}
       </div>
-        {/* The result itself, in its own state's colour, ringed so it stays
-            legible on any segment it lands on. */}
+        {/* The result itself. NOT in its own state's colour any more: the mark
+            sits on a track made of that colour, so a green dot on the green
+            segment and a pale gold one on the gold segment were marks drawn in
+            the shade they were standing on. It is the rangemark token instead —
+            white on dark, espresso on light, always inside the opposite ring —
+            and its job is position. Status is still carried four times over by
+            the segment it lands on, the chevron, the word and the card's wash.
+            See tokens.ts for the measured contrast behind the theme split. */}
         <div
-          className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow motion-safe:transition-[left] motion-safe:duration-500 motion-safe:ease-out"
-          style={{ left: `${displayLeft}%`, backgroundColor: paint.mark }}
+          className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-rangemark-ring bg-rangemark shadow motion-safe:transition-[left] motion-safe:duration-500 motion-safe:ease-out"
+          style={{ left: `${displayLeft}%` }}
         />
       </div>
       {/* The two bounds ARE the data — a bare number with no words around it —
@@ -270,8 +273,6 @@ export function MiniRangeBar({
     })
     .filter((s) => s.width > 0);
 
-  const paint = statusPaint(status);
-
   return (
     <div
       className="w-full"
@@ -279,12 +280,26 @@ export function MiniRangeBar({
       aria-label={`Result ${value}, reference range ${low} to ${high}, status: ${statusLabel(status)}`}
     >
       {/* The pointer's own row, so the triangle has somewhere to live without
-          overlapping the track or being clipped by it. */}
+          overlapping the track or being clipped by it.
+
+          AN SVG TRIANGLE RATHER THAN A CSS BORDER TRICK, and the reason is the
+          ring. The full bar's dot takes the rangemark fill inside the opposite
+          ring, and this mark has to be the same instrument at a smaller size —
+          but a triangle made of borders has no stroke to be a ring with. Drawn
+          as a path it takes the same two tokens, so both bars mark the result
+          the same way: a light mark in a dark ring on the dark theme, the
+          reverse on the light one, and neither of them coloured by status. */}
       <div className="relative h-2" aria-hidden="true">
-        <div
-          className="absolute top-0 h-0 w-0 -translate-x-1/2 border-x-[5px] border-t-[6px] border-x-transparent"
-          style={{ left: `${pointLeft}%`, borderTopColor: paint.mark }}
-        />
+        <svg
+          className="absolute top-0 -translate-x-1/2 fill-rangemark stroke-rangemark-ring"
+          style={{ left: `${pointLeft}%` }}
+          width="12"
+          height="8"
+          viewBox="0 0 12 8"
+          aria-hidden="true"
+        >
+          <path d="M6 7 1 1.2h10L6 7Z" strokeWidth="1.2" strokeLinejoin="round" />
+        </svg>
       </div>
       <div className="relative h-2 overflow-hidden rounded-full bg-cream-300" aria-hidden="true">
         {segments.map((s) => (

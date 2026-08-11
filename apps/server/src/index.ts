@@ -12,6 +12,7 @@ import { runRetentionReviewJob } from './jobs/retentionReview.js';
 import { runErasurePurgeJob } from './jobs/erasurePurge.js';
 import { runRandoxPollingJob } from './modules/randox/pollingJob.js';
 import { assertRandoxConfigured } from './modules/randox/config.js';
+import { syncReferenceDataOnBoot } from './modules/randox/referenceDataService.js';
 import { purgeExpiredRateLimitHits } from './lib/postgresRateLimitStore.js';
 import { securityHeaders } from './middleware/securityHeaders.js';
 import { authRouter } from './modules/auth/router.js';
@@ -115,6 +116,19 @@ if (env.RANDOX_ENABLED) {
 
 app.listen(env.PORT, () => {
   console.log(`Aspire Bloods server listening on port ${env.PORT} (${env.NODE_ENV})`);
+
+  // Randox reference data — the ids an order has to carry (biological sex,
+  // testing reason, cancellation reason, test clinic location) come from
+  // Randox's own lookup endpoints and are never hardcoded, so they are pulled
+  // on boot and cached to a TTL.
+  //
+  // AFTER listen, and never fatal. It makes up to eight outbound calls to a
+  // third party, and the entire patient portal — results, trends, downloads,
+  // clinician review — works perfectly well without any of them. Refusing to
+  // start the product because Randox were slow would be an outage we chose.
+  // It logs loudly on failure and the order path refuses on its own when it
+  // finds a lookup it needs is empty. See referenceDataService.ts.
+  void syncReferenceDataOnBoot();
 
   // Demo data, only after the server is up. This used to run inside the
   // container start command, before listen — where a platform healthcheck

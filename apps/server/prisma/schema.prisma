@@ -1025,19 +1025,50 @@ enum RandoxAppointmentStatus {
 // results) is keyed on — and the idempotency key for result delivery.
 model RandoxOrder {
   id          String            @id @default(uuid())
+  // ---------------------------------------------------------------------
+  // THREE IDENTIFIERS, THREE COLUMNS. NONE OF THEM OVERWRITES ANOTHER.
+  //
+  // Randox hand back different identifiers on different endpoints, and the
+  // integration was built believing two of them were one thing under two
+  // names. The spec does not support that:
+  //
+  //   CreateOrder / CreatePendingOrder  →  {orderId: 10300, externalNumber: "GC1123-00010300"}
+  //   GetOrderStatus                    →  {orderNumber: "GP-THE-00000130", orderId: 130}
+  //   GetOrderResultDetail              →  orderNumber, and an orderNumber on every result row
+  //
+  // So creation gives you `externalNumber` and everything afterwards gives
+  // you `orderNumber`, and THE SPEC'S OWN TWO EXAMPLES USE DIFFERENT
+  // PREFIXES. "externalNumber is orderNumber under another name" is a
+  // hypothesis, not a fact, and storing one in the other's column would
+  // destroy the evidence needed to test it.
+  //
+  //   randoxOrderId   the integer `orderId`, from creation and echoed by
+  //                   every later endpoint. THE ONE IDENTIFIER THAT
+  //                   PROVABLY APPEARS ON BOTH SIDES, and therefore the
+  //                   key automatic linking joins on.
+  //   externalNumber  the string returned by CreatePendingOrder/CreateOrder,
+  //                   and what CreateRandoxBooking carries as
+  //                   GPExternalNumber. Written once, at creation.
+  //   orderNumber     the string Randox use on every subsequent endpoint.
+  //                   Seeded from externalNumber at creation because it is
+  //                   the best guess available then, and REPLACED by the
+  //                   real value the first time GetOrderStatus states one.
+  //                   The replacement is logged loudly when the two differ —
+  //                   see orderService.reconcileOrderNumber().
+  //
+  // orderNumber keeps its unique index because Report.externalId and the
+  // unmatched-result queue are both keyed on it.
+  // ---------------------------------------------------------------------
   orderNumber String            @unique
-  // Randox issue TWO identifiers per order and several endpoints want both
-  // plus the clinic id together (GetOrderResultDetail, GetOrderResultReports,
-  // CancelOrder). Both are stored rather than one being derived.
-  //
-  // orderNumber is the string reference the flow documentation calls "the
-  // main reference id", and is what CreateRandoxBooking carries as
-  // GPExternalNumber. Note CreatePendingOrder returns it under the name
-  // `externalNumber`, NOT `orderNumber` — see clients/NexusLabClient.ts.
-  //
-  // randoxOrderId is the integer CreatePendingOrder returns as `orderId`.
-  // Nullable only because rows created before it was captured may exist;
-  // an order without it cannot be polled and is stalled explicitly.
+  /// The string CreatePendingOrder/CreateOrder returned as `externalNumber`,
+  /// exactly as received. Never rewritten by a later endpoint's orderNumber.
+  /// Nullable for rows created before the two were told apart.
+  externalNumber String?
+  /// True once GetOrderStatus has stated an orderNumber, so a row whose
+  /// orderNumber is still the creation-time guess is distinguishable from one
+  /// Randox have confirmed. An unconfirmed row is not evidence either way
+  /// about the externalNumber/orderNumber question.
+  orderNumberConfirmed Boolean @default(false)
   randoxOrderId Int?            @unique
   // The clinic this order belongs to, captured at order time rather than
   // read from config at call time: config can change, and a request about
@@ -1279,4 +1310,8 @@ enum RandoxCatalogueKind {
   TESTING_REASON
   CANCELLATION_REASON
   CLINIC_LOCATION
+  // The eighth GET endpoint in the spec (Clinic/GetClinicStaff). Synced for
+  // completeness and for the audit trail; nothing on the order path depends
+  // on it, which is why it is not in ORDER_CRITICAL_KINDS.
+  CLINIC_STAFF
 }

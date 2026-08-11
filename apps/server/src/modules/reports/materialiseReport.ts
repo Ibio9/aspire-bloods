@@ -103,9 +103,30 @@ export async function materialiseParsedReport(input: {
   }[] = [];
 
   for (const row of parsed.rows) {
-    const marker = findBestMarkerMatch(row.rawName, measuredMarkers);
+    // AN EXPLICIT KEY WINS OUTRIGHT, AND SUPPRESSES THE NAME MATCHER.
+    //
+    // A source that can identify its own rows says so on the row (`markerKey`)
+    // and this loop looks that key up and nothing else. The Randox API path
+    // does exactly that, through modules/randox/analyteMap.ts — two passes,
+    // exact then normalised, no fuzzy anything — because nobody reviews an
+    // automatic ingestion before it is filed. The PDF path sets no key and
+    // still goes through findBestMarkerMatch, whose looser passes are
+    // appropriate there because an admin confirms every one of them in the
+    // verify table.
+    //
+    // A key that names a marker we do not have is a mapping failure, not a
+    // reason to fall back to the name matcher: falling back would quietly
+    // reintroduce exactly the guessing the explicit key exists to avoid.
+    const marker = row.markerKey
+      ? measuredMarkers.find((m) => m.key === row.markerKey) ?? null
+      : findBestMarkerMatch(row.rawName, measuredMarkers);
     if (!marker) {
-      mappingFailures.push({ markerName: row.rawName, reason: 'No matching marker in the catalogue' });
+      mappingFailures.push({
+        markerName: row.rawName,
+        reason: row.markerKey
+          ? `The source resolved this to marker key "${row.markerKey}", which is not an active measured marker in the catalogue.`
+          : 'No matching marker in the catalogue',
+      });
       continue;
     }
     if (row.value == null) {
@@ -163,9 +184,14 @@ export async function materialiseParsedReport(input: {
   if (matchedRows.length === 0 && exclusions.length === 0) {
     throw new MaterialiseError('None of the markers in this delivery could be mapped to our catalogue.', mappingFailures);
   }
+  const unmappedExclusions = exclusions.filter((x) => x.kind === 'UNMAPPED_ANALYTE');
   if (matchedRows.length === 0) {
+    // Two different sentences, because they are two different problems: one
+    // is the laboratory's decision and the other is a gap in our own map.
     throw new MaterialiseError(
-      `Every result in this delivery was withheld by the laboratory (${exclusions.length} test(s)), so no report was created.`,
+      unmappedExclusions.length === exclusions.length
+        ? `None of the ${exclusions.length} result(s) in this delivery could be matched to a marker in our catalogue, so no report was created.`
+        : `Every result in this delivery was withheld by the laboratory (${exclusions.length} test(s)), so no report was created.`,
       mappingFailures,
     );
   }
@@ -184,6 +210,16 @@ export async function materialiseParsedReport(input: {
   // ---------------------------------------------------------------------
   const disagreementCount = matchedRows.filter((r) => r.labStatusDisagrees).length;
   const holdReasons: string[] = [];
+  // AN ANALYTE WE COULD NOT IDENTIFY HOLDS THE REPORT. It is recorded as an
+  // exclusion so nothing is lost, but a report that advanced on its own with a
+  // result silently missing from it would put a clinician in front of an
+  // incomplete panel with nothing saying so. Withheld-by-the-lab exclusions do
+  // NOT hold it: that report is complete as far as anyone here can make it.
+  if (unmappedExclusions.length > 0) {
+    holdReasons.push(
+      `${unmappedExclusions.length} result(s) could not be matched to a marker in our catalogue (${[...new Set(unmappedExclusions.map((x) => x.rawName))].slice(0, 5).join(', ')}${unmappedExclusions.length > 5 ? ', …' : ''})`,
+    );
+  }
   if (mappingFailures.length > 0) {
     holdReasons.push(
       `${mappingFailures.length} result(s) could not be filed automatically (${[...new Set(mappingFailures.map((f) => f.markerName))].slice(0, 5).join(', ')}${mappingFailures.length > 5 ? ', …' : ''})`,

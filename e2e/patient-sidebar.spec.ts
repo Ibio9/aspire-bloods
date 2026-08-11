@@ -1,20 +1,26 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * The patient sidebar's job is navigation, and it has to be able to do it.
+ * The patient sidebar's job is navigation, and it has to be able to do it —
+ * without ever taking the patient's own name off the bottom of the window.
  *
- * The contact block used to sit permanently expanded at the bottom and took
- * roughly half the column at a normal window height, which pushed the whole
- * nav into a short scrolling strip that cut rows in half. Trimming the
- * contact block back to one row bought the space; the nav then kept a scroll
- * container of its own, which put a scrollbar down the side of the panel and
- * still clipped rows once the window dipped under ~750px.
+ * WHAT CHANGED, AND WHY THE ASSERTIONS DID. The whole column used to be one
+ * `overflow-y-auto` box. On a short window with the contact card open, that
+ * column grew a scrollbar and the account row — the name, and the way out of
+ * the product — went below the fold. A thing you have to scroll a navigation
+ * panel to reach is not pinned to the bottom of it.
  *
- * So the nav has no scroll container at all now, and this pins what replaced
- * it: a panel exactly one viewport tall with the footer flush to its bottom,
- * every nav item whole at 700px, and — when a window is genuinely shorter
- * than the sidebar's content — the whole column scrolling as one piece rather
- * than the nav scrolling inside a fixed box.
+ * So the giving is now done in a fixed order, by the band that should give:
+ *
+ *   account row      never. shrink-0, in a band that is never squeezed.
+ *   nav rows         only after the contact card has given everything it can.
+ *   contact details  first, and internally, inside their own border.
+ *
+ * The footer band is capped at 45% of the panel, which is the largest cap that
+ * still leaves every nav row standing at 700px with the card open — see the
+ * note in components/nav/PatientShell.tsx. This file measures that promise at
+ * 900, 800 and 700px, open and shut, because "is the sign-out button on
+ * screen" is a fact you measure rather than something you notice.
  *
  * Requires EXPOSE_DEV_OTP_CODE=true in the server's env (see README).
  */
@@ -37,7 +43,13 @@ async function registerAndSignIn(page: import('@playwright/test').Page, request:
   await page.goto('/verify-email');
   await page.getByLabel('Email address').fill(email);
   await page.getByRole('button', { name: 'Send me a code' }).click();
-  await expect(page.getByRole('heading', { name: 'Confirm your email' })).toBeVisible();
+  // `level: 2`, and the reason is a strict-mode flake this used to have.
+  // The auth split panel carries an h1 "Confirm your email." and the card
+  // an h2 "Confirm your email", so the name alone matches BOTH whenever the
+  // panel is in the accessibility tree — which depends on the viewport width
+  // the previous test happened to leave behind. The card's heading is the one
+  // this is waiting for. Same fix as self-signup.spec.ts already has.
+  await expect(page.getByRole('heading', { level: 2, name: 'Confirm your email' })).toBeVisible();
 
   const [verifyResponse] = await Promise.all([
     page.waitForResponse(
@@ -54,18 +66,23 @@ async function registerAndSignIn(page: import('@playwright/test').Page, request:
 // One registration for all three checks. Each of these is a layout question
 // about the same signed-in sidebar, and registering three times in a row trips
 // the signup and OTP rate limiters — which are process-wide on purpose.
-/** Every nav row whole, and none of them inside a scroll container. */
+/**
+ * Every nav row whole and inside the box.
+ *
+ * The nav MAY own a scrollbar now — it is the last thing to give, after the
+ * contact card has scrolled internally — but it must not be USING one at an
+ * ordinary window height, and a row must never be cut through the middle,
+ * which is what a reader sees as a bug.
+ */
 async function expectNavFitsWhole(page: import('@playwright/test').Page, at: string) {
   const nav = page.getByRole('navigation', { name: 'Patient portal' });
   await expect(nav).toBeVisible();
 
-  // The nav owns no scrollbar of its own at any height. scrollHeight only
-  // exceeds clientHeight once there is something out of view.
   const { scrollHeight, clientHeight } = await nav.evaluate((el) => ({
     scrollHeight: el.scrollHeight,
     clientHeight: el.clientHeight,
   }));
-  expect(scrollHeight, `the nav must never scroll (${at})`).toBeLessThanOrEqual(clientHeight + 1);
+  expect(scrollHeight, `the nav should not need to scroll here (${at})`).toBeLessThanOrEqual(clientHeight + 1);
 
   // And every row is inside the box, not merely in the DOM: a half-clipped
   // item is what this is really guarding against.
@@ -173,32 +190,96 @@ test('the patient sidebar gives navigation the room, and keeps contact one row a
   await page.reload();
   await expect(page.getByRole('button', { name: 'Contact the clinic' })).toHaveAttribute('aria-expanded', 'false');
 
-  // --- A window genuinely too short scrolls the column, never the nav ---
+  // --- THE ACCOUNT ROW IS ON SCREEN AT EVERY HEIGHT, OPEN OR SHUT ---
   //
-  // 380px, not 460px, and before that not 560px. The number is a property of
-  // the panel's own content height, so it moves every time that does: first
-  // when six of the eight rows lost their sublabel, and now again because My
-  // results, All markers and Trends became one Results row. Whenever this
-  // stops being "too short" the assertion below says so rather than passing
-  // while proving nothing.
-  await page.setViewportSize({ width: 1280, height: 380 });
+  // The failure this replaces: expanding the contact panel pushed the name and
+  // Sign out off the bottom of the window. Six measurements, because the two
+  // states behave differently and the interesting one is the taller one.
+  for (const height of [900, 800, 700]) {
+    for (const open of [false, true]) {
+      await page.setViewportSize({ width: 1280, height });
+      const disclosure = page.getByRole('button', { name: 'Contact the clinic' });
+      const isOpen = (await disclosure.getAttribute('aria-expanded')) === 'true';
+      if (isOpen !== open) await disclosure.click();
+      await page.waitForTimeout(250);
 
-  // The nav is still not a scrolling box and still has no clipped rows — the
-  // difference at this height is only that the panel as a whole outgrows the
-  // viewport, so the column above the nav takes the scroll instead.
-  await expectNavFitsWhole(page, '460px');
+      const at = `${height}px, contact ${open ? 'open' : 'shut'}`;
+      const signOutRow = page.getByRole('button', { name: 'Sign out' });
+      const box = (await signOutRow.boundingBox())!;
+      expect(box.y + box.height, `the account row is inside the window (${at})`).toBeLessThanOrEqual(height + 1);
+      expect(box.y, `the account row is not above the window (${at})`).toBeGreaterThanOrEqual(0);
 
-  const column = page.locator('aside').first().locator('> div').first();
-  const short = await column.evaluate((el) => ({ scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }));
-  expect(short.scrollHeight, 'this height is meant to be too short — otherwise the check proves nothing').toBeGreaterThan(
-    short.clientHeight,
-  );
+      // The column itself never scrolls — that is what put the row out of
+      // reach. If something has to give it is the contact card, inside its own
+      // border, and then the nav.
+      const column = page.locator('aside').first().locator('> div').first();
+      const columnScroll = await column.evaluate((el) => ({
+        scrollHeight: el.scrollHeight,
+        clientHeight: el.clientHeight,
+      }));
+      expect(columnScroll.scrollHeight, `the sidebar column must not scroll (${at})`).toBeLessThanOrEqual(
+        columnScroll.clientHeight + 1,
+      );
 
-  // Nothing is stranded: scrolling the column brings the last row, and the
-  // account footer under it, back inside the panel.
-  await column.evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
-  const panelBox = (await page.locator('aside').first().boundingBox())!;
-  const lastBox = (await page.getByRole('navigation', { name: 'Patient portal' }).getByRole('link').last().boundingBox())!;
-  expect(lastBox.y + lastBox.height).toBeLessThanOrEqual(panelBox.y + panelBox.height + 1);
-  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+      // Every destination still readable and whole.
+      await expectNavFitsWhole(page, at);
+    }
+  }
+
+  // --- A window genuinely too short: the CARD gives, and nothing else ---
+  await page.setViewportSize({ width: 1280, height: 520 });
+  const disclosure = page.getByRole('button', { name: 'Contact the clinic' });
+  if ((await disclosure.getAttribute('aria-expanded')) !== 'true') await disclosure.click();
+  await page.waitForTimeout(250);
+
+  const details = page.locator('#clinic-contact-details');
+  const detailScroll = await details.evaluate((el) => ({ scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }));
+  expect(
+    detailScroll.scrollHeight,
+    'this height is meant to be too short for the open card — otherwise the check proves nothing',
+  ).toBeGreaterThan(detailScroll.clientHeight);
+
+  // And the row is still there, which is the whole point.
+  const finalBox = (await page.getByRole('button', { name: 'Sign out' }).boundingBox())!;
+  expect(finalBox.y + finalBox.height).toBeLessThanOrEqual(521);
+});
+
+/**
+ * The name is a SECOND ROUTE into Account & privacy, beside the nav item.
+ *
+ * A patient looking for their own details reaches for their own name, and the
+ * row previously looked interactive and did nothing. Sign out is a SIBLING of
+ * that link and not a child of it: a button inside an anchor is invalid markup
+ * and gives one control two behaviours, so a stray click signs someone out
+ * when they meant to open their account.
+ */
+test('the profile row opens Account and privacy, and Sign out stays separate', async ({ page, request }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await registerAndSignIn(page, request);
+
+  const aside = page.locator('aside').first();
+  const profileLink = aside.locator('a[href="/account"]').last();
+  await expect(profileLink).toBeVisible();
+
+  // Not nested. The sign-out button must not be inside the link.
+  const nested = await page.evaluate(() => {
+    const button = [...document.querySelectorAll('aside button')].find((b) => b.textContent?.trim() === 'Sign out');
+    return Boolean(button?.closest('a'));
+  });
+  expect(nested, 'Sign out must be a sibling of the profile link, never a child').toBe(false);
+
+  // It reads as interactive.
+  const before = await profileLink.evaluate((el) => getComputedStyle(el).backgroundColor);
+  await profileLink.hover();
+  await page.waitForTimeout(300);
+  const after = await profileLink.evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(after, 'the profile row needs a hover state').not.toBe(before);
+
+  // And both routes land on the same page, with no redirect chain.
+  await profileLink.click();
+  await expect(page).toHaveURL(/\/account$/);
+
+  await page.goto('/overview');
+  await page.getByRole('navigation', { name: 'Patient portal' }).getByRole('link', { name: /Account/ }).click();
+  await expect(page).toHaveURL(/\/account$/);
 });

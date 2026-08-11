@@ -303,7 +303,7 @@ export function MarkerListView({
             activeStatus={statusFilter}
             onSelectStatus={onSelectStatus}
             action={<DownloadMarkersButton />}
-            className="mb-14"
+            className="mb-10"
           />
 
           {/* The live count and the way out of an over-narrow filter. Every

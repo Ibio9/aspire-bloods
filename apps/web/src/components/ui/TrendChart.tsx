@@ -310,7 +310,11 @@ export function TrendChart({
    *
    * Plotted against real time, the gaps are the gaps.
    */
-  const rows = data.map((d) => ({ ...d, t: epochOf(d.sampleDate) }));
+  // Sorted, because everything below reads the series as a sequence in time:
+  // the band periods, the step boundaries between them, and the line itself.
+  // The server sends it in order today; a chart that silently draws a zigzag
+  // if it ever stops is not worth the two comparisons saved.
+  const rows = data.map((d) => ({ ...d, t: epochOf(d.sampleDate) })).sort((a, b) => a.t - b.t);
   const times = rows.map((r) => r.t);
   const tFirst = Math.min(...times);
   const tLast = Math.max(...times);
@@ -349,36 +353,98 @@ export function TrendChart({
   const domainMin = nonNegative ? Math.max(0, rawMin) : rawMin;
   const domainMax = Math.max(...allHighs, ...values) + domainPad;
 
-  // Phase 2 §2.4: stepped/segmented bands — each point's own range is drawn
-  // from its position up to the next point, so a range change between sources
-  // is visible as a step, never smoothed into one region that would
-  // misrepresent which range actually applied when. The five status bands are
-  // built per segment for the same reason: they are derived from that point's
-  // range, so they step with it.
-  const bandSegments = rows.map((point, i) => {
+  /**
+   * THE BANDS ARE DRAWN PER PERIOD, NOT PER POINT — and that distinction is
+   * the whole of what was wrong here.
+   *
+   * A band was previously drawn for every row, running from that row's own x
+   * to the next row's. Two consequences, both bad:
+   *
+   *  - A series on ONE reference range was drawn as N abutting copies of the
+   *    same band. Harmless to look at, but it is N times the geometry for one
+   *    fact, and it is what hid the second consequence.
+   *  - The LAST row's band ran from its own x to tMax — which is the padding
+   *    gutter, ~6% of the plot. So a marker whose range changed on the most
+   *    recent result had that new range drawn as a 24px vertical sliver
+   *    against a 510px plot, stacked beside the final point. Measured, on
+   *    Fasting Insulin (2–25, 2–25, then 2–10): segment widths 235, 187, 24.
+   *    Nothing on screen said the range had changed, so the sliver read as a
+   *    rendering fault rather than as the fact it was standing for.
+   *
+   * Now: consecutive results sharing a reference range are ONE period, and a
+   * period gets ONE band set. One range across the series therefore means one
+   * segment spanning the whole plot, which is what "no step" should look like.
+   *
+   * WHERE THE STEP GOES. Midway between the last sample on the old range and
+   * the first on the new one. We know the range changed between those two
+   * draws and not when, so the midpoint is the only honest x for it — and it
+   * also guarantees every period is at least half a sampling gap wide, which
+   * is what makes a sliver impossible even when the change lands on the final
+   * result. Anchoring the step ON the new point is what produced the gutter.
+   */
+  const periods: {
+    rows: typeof rows;
+    low: number;
+    high: number;
+    threshold: number;
+  }[] = [];
+  for (const point of rows) {
     const threshold = severityThresholdFor(point.referenceLow, point.referenceHigh, point.severityThreshold);
-    return {
-      // Each point's range is shaded from that point up to the next one. The
-      // first and last segments run out to the axis edges so the padding
-      // gutters aren't bare — the range that applied at the first sample is
-      // the range that applied just before it, and likewise at the end.
-      x1: i === 0 ? tMin : point.t,
-      x2: i === rows.length - 1 ? tMax : rows[i + 1].t,
-      low: point.referenceLow,
-      high: point.referenceHigh,
-      threshold,
-      bands: statusBands(point.referenceLow, point.referenceHigh, point.severityThreshold),
-      // The boundaries that need a visible line: the reference bounds first
-      // (heavier — this is the band the whole chart is about), then the two
-      // points where out-of-range becomes significantly out.
-      edges: [
-        { y: point.referenceLow, weight: 'reference' as const },
-        { y: point.referenceHigh, weight: 'reference' as const },
-        { y: point.referenceLow - threshold, weight: 'severity' as const },
-        { y: point.referenceHigh + threshold, weight: 'severity' as const },
-      ],
-    };
-  });
+    const open = periods[periods.length - 1];
+    if (open && open.low === point.referenceLow && open.high === point.referenceHigh && open.threshold === threshold) {
+      open.rows.push(point);
+    } else {
+      periods.push({ rows: [point], low: point.referenceLow, high: point.referenceHigh, threshold });
+    }
+  }
+
+  /** One x per change of range, midway between the two samples it happened between. */
+  const stepBoundaries = periods
+    .slice(1)
+    .map((next, i) => (periods[i].rows[periods[i].rows.length - 1].t + next.rows[0].t) / 2);
+
+  const bandSegments = periods.map((period, i) => ({
+    // The outer periods run out to the axis edges so the padding gutters
+    // aren't bare — the range that applied at the first sample is the range
+    // that applied just before it, and likewise at the end.
+    x1: i === 0 ? tMin : stepBoundaries[i - 1],
+    x2: i === periods.length - 1 ? tMax : stepBoundaries[i],
+    low: period.low,
+    high: period.high,
+    threshold: period.threshold,
+    bands: statusBands(period.low, period.high, period.rows[0].severityThreshold),
+    // The boundaries that need a visible line: the reference bounds first
+    // (heavier — this is the band the whole chart is about), then the two
+    // points where out-of-range becomes significantly out.
+    edges: [
+      { y: period.low, weight: 'reference' as const },
+      { y: period.high, weight: 'reference' as const },
+      { y: period.low - period.threshold, weight: 'severity' as const },
+      { y: period.high + period.threshold, weight: 'severity' as const },
+    ],
+  }));
+
+  /**
+   * A reference range that changes partway through a series has to be SAID,
+   * not just drawn.
+   *
+   * Two results measured against different ranges are two different questions
+   * answered, and a reader comparing "in range" to "above range" across that
+   * boundary is comparing the wrong things without knowing it. That is exactly
+   * the sort of silent change that misleads someone reading their own trend,
+   * so it gets a sentence as well as a step. Positional wording only: which
+   * range applied from when, and nothing about what the change means.
+   */
+  const rangeChangeNote =
+    periods.length < 2
+      ? null
+      : periods
+          .map((p, i) => {
+            const unit = p.rows[0].unit ? ` ${p.rows[0].unit}` : '';
+            const from = formatDate(p.rows[0].sampleDate);
+            return i === 0 ? `${p.low}–${p.high}${unit} up to ${formatDate(p.rows[p.rows.length - 1].sampleDate)}` : `${p.low}–${p.high}${unit} from ${from}`;
+          })
+          .join(', then ');
 
   // A one-sided optimal band ("below 5.0 mmol/L") has to end somewhere on
   // screen. Running it to the edge of the plot would shade impossible
@@ -582,6 +648,23 @@ export function TrendChart({
               <ReferenceLine y={optimal.high} stroke={chartTokens.optimalEdge} strokeDasharray="4 3" strokeWidth={1.2} />
             )}
 
+            {/* The step itself, drawn. The bands already change height here,
+                but a horizontal edge that jumps is easy to read as noise; a
+                vertical rule at the same x says the jump is the point. Paired
+                with the sentence under the chart and its own entry in the key,
+                so the change is stated three ways and carried by none of them
+                alone. */}
+            {stepBoundaries.map((x) => (
+              <ReferenceLine
+                key={`step-${x}`}
+                x={x}
+                stroke={chartTokens.referenceEdge}
+                strokeDasharray="3 3"
+                strokeWidth={1.2}
+                strokeOpacity={0.9}
+              />
+            ))}
+
             <Tooltip
               content={<ChartTooltip optimal={optimal} />}
               cursor={{ stroke: chartTokens.cursor, strokeWidth: 1 }}
@@ -603,11 +686,19 @@ export function TrendChart({
         </ResponsiveContainer>
       </div>
 
+      {rangeChangeNote && (
+        <p className="mt-3 text-xs leading-relaxed text-espresso/85">
+          The lab’s reference range changed during this period: <span className="numeric">{rangeChangeNote}</span>. Each
+          result is shown against the range that applied to it, and the dashed rule marks where the range changed.
+        </p>
+      )}
+
       <ChartKey
         optimal={optimal}
         statuses={[...new Set(data.map((d) => d.status))]}
         bands={bandsShown}
         unjoined={!connected && !singlePoint}
+        stepped={stepBoundaries.length > 0}
       />
     </div>
   );
@@ -631,6 +722,7 @@ function ChartKey({
   statuses,
   bands,
   unjoined,
+  stepped,
 }: {
   optimal: OptimalRangeDTO | null;
   statuses: MarkerStatusInput[];
@@ -644,49 +736,92 @@ function ChartKey({
    * point has nothing to be unjoined from.
    */
   unjoined: boolean;
+  /** The reference range changed partway through, so the dashed rule needs naming. */
+  stepped: boolean;
 }) {
-  return (
-    <div className="mt-4 border-t border-taupe pt-3 text-xs text-espresso/80">
-      <ul className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-x-6">
-        {statuses.map((s) => (
-          <li key={s} className="flex items-center gap-2">
-            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" className="shrink-0">
-              <StatusMark cx={7} cy={7} status={s} size={0.95} />
-            </svg>
-            {statusLabel(s)}
-          </li>
-        ))}
-      </ul>
-      <ul className="mt-2.5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-x-6">
-        {bands.map((s) => (
-          <li key={s} className="flex items-center gap-2">
-            <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true" className="shrink-0">
-              <rect x="0" y="2" width="18" height="8" fill={statusPaint(s).band} />
-              <line x1="0" y1="2" x2="18" y2="2" stroke={chartTokens.referenceEdge} strokeWidth="1" strokeOpacity="0.85" />
-            </svg>
-            {bandLabel(s)}
-          </li>
-        ))}
-        {optimal && (
-          <li className="flex items-center gap-2">
+  /**
+   * TWO COLUMNS, ONE LIST.
+   *
+   * The key was two stacked rows of wrapping flex items — fine at three
+   * entries, and the band vocabulary is five. On the marker page's 60%-width
+   * card each entry took a line of its own, so the key ran to eight lines
+   * under a chart it is subordinate to.
+   *
+   * A grid pairs them instead: same entries, same wording, half the height,
+   * and the columns line up rather than ragging the way wrapped flex items do.
+   * Nothing is dropped and nothing is abbreviated — an entry that is not worth
+   * the room is an entry that should not have been drawn on the chart.
+   */
+  const marks = statuses.map((s) => (
+    <li key={`mark-${s}`} className="flex items-center gap-2">
+      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" className="shrink-0">
+        <StatusMark cx={7} cy={7} status={s} size={0.95} />
+      </svg>
+      <span className="min-w-0">{statusLabel(s)}</span>
+    </li>
+  ));
+
+  const regions = [
+    ...bands.map((s) => (
+      <li key={`band-${s}`} className="flex items-center gap-2">
+        <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true" className="shrink-0">
+          <rect x="0" y="2" width="18" height="8" fill={statusPaint(s).band} />
+          <line x1="0" y1="2" x2="18" y2="2" stroke={chartTokens.referenceEdge} strokeWidth="1" strokeOpacity="0.85" />
+        </svg>
+        <span className="min-w-0">{bandLabel(s)}</span>
+      </li>
+    )),
+    ...(optimal
+      ? [
+          <li key="optimal" className="flex items-center gap-2">
             <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true" className="shrink-0">
               <rect x="0" y="2" width="18" height="8" fill={chartTokens.optimalBand} fillOpacity={chartTokens.optimalBandOpacity} />
               <path d="M2 10 L6 2 M7 10 L11 2 M12 10 L16 2" stroke={chartTokens.optimalEdge} strokeWidth="1.2" strokeOpacity="0.6" />
             </svg>
-            Optimal range (hatched)
-          </li>
-        )}
-        {unjoined && (
-          <li className="flex items-center gap-2">
+            <span className="min-w-0">Optimal range (hatched)</span>
+          </li>,
+        ]
+      : []),
+    ...(stepped
+      ? [
+          <li key="stepped" className="flex items-center gap-2">
             <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true" className="shrink-0">
-              <circle cx="3" cy="6" r="2" fill={chartTokens.point} />
-              <circle cx="9" cy="6" r="2" fill={chartTokens.point} />
-              <circle cx="15" cy="6" r="2" fill={chartTokens.point} />
+              <line
+                x1="9"
+                y1="0"
+                x2="9"
+                y2="12"
+                stroke={chartTokens.referenceEdge}
+                strokeWidth="1.2"
+                strokeDasharray="3 3"
+                strokeOpacity="0.9"
+              />
             </svg>
-            Separate points, not joined: these came from sources that aren’t comparable for this marker
-          </li>
-        )}
+            <span className="min-w-0">Where the reference range changed</span>
+          </li>,
+        ]
+      : []),
+  ];
+
+  return (
+    <div className="mt-4 border-t border-taupe pt-3 text-xs text-espresso/80">
+      <ul className="grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2">
+        {marks}
+        {regions}
       </ul>
+      {/* Full width rather than in a column: it is a sentence, not a label, and
+          a sentence in a half-width column wraps to four lines and undoes the
+          saving the grid just made. */}
+      {unjoined && (
+        <p className="mt-2 flex items-start gap-2">
+          <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true" className="mt-0.5 shrink-0">
+            <circle cx="3" cy="6" r="2" fill={chartTokens.point} />
+            <circle cx="9" cy="6" r="2" fill={chartTokens.point} />
+            <circle cx="15" cy="6" r="2" fill={chartTokens.point} />
+          </svg>
+          <span>Separate points, not joined: these came from sources that aren’t comparable for this marker</span>
+        </p>
+      )}
     </div>
   );
 }

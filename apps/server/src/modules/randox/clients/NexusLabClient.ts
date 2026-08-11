@@ -1,8 +1,9 @@
 import { RandoxHttpClient } from '../http/RandoxHttpClient.js';
 import { nexusConnection } from '../config.js';
+import { NEXUS_ENDPOINTS, verbForPath } from '../endpoints.js';
 import { env } from '../../../config/env.js';
 import type { NexusLabClient } from './types.js';
-import { asObject, pickArray, pickBoolean, pickNumber, pickString, requireNumber, requireString, toUtcIso, fromEuropeLondon } from './parse.js';
+import { asObject, asRandoxIdString, pickArray, pickBoolean, pickNumber, pickString, requireNumber, requireString, toUtcIso, fromEuropeLondon } from './parse.js';
 import type {
   CreatePendingOrderRequest,
   UpdatePendingOrderRequest,
@@ -17,27 +18,42 @@ import type {
   RandoxTestItem,
   RandoxClinicDetails,
   RandoxClinicLocation,
+  RandoxClinicStaffMember,
 } from '../types.js';
 
 /**
- * Nexus Lab API — verified against specs/nexus-openapi.json.
+ * Nexus Lab API — reconciled against specs/nexus-openapi3.json, which is the
+ * source of truth ahead of the flow and auth PDFs beside it.
  *
- * Two things about this API that are easy to get wrong and are therefore
+ * Four things about this API that are easy to get wrong and are therefore
  * stated here rather than left to be rediscovered:
  *
- *  1. Every /Order/* endpoint is POST, INCLUDING the Get* ones —
- *     GetOrderStatus, GetOrderResultDetail and GetOrderResultReports all
- *     take a JSON body. The reference-data endpoints, by contrast, are
- *     plain GET with no body at all. Both are as the spec declares them.
+ *  1. EIGHT ENDPOINTS ARE GET AND NINE ARE POST, by one rule: takes a body,
+ *     POST; takes nothing, GET. The nine POSTs are all under /Order and
+ *     include the Get* ones — GetOrderStatus, GetOrderResultDetail and
+ *     GetOrderResultReports each take an order identifier in a body. The
+ *     eight GETs are the reference-data endpoints and take nothing at all.
+ *     The table is in ../endpoints.ts and nothing here guesses a verb.
  *
  *  2. The order-creating endpoints return the string order reference as
  *     `externalNumber`, not `orderNumber`. Reading `orderNumber` off a
- *     CreatePendingOrder response gets undefined.
+ *     CreatePendingOrder response gets undefined. Whether that string is the
+ *     SAME string GetOrderStatus later calls `orderNumber` is UNCONFIRMED —
+ *     the spec's own two examples use different prefixes (GC1123-00010300 vs
+ *     GP-THE-00000130). See readCreateResponse and modules/randox/orderService.
  *
- * The reference-data endpoints are the one place the documentation and the
- * verbal guidance disagree (spec says GET, Randox say "everything is POST"),
- * so the verb is configuration with an auto-detecting default — see
- * referenceRequest() below and RANDOX_REFERENCE_DATA_METHOD.
+ *  3. GETTESTS DOES NOT RETURN REFERENCE RANGES, and never will. It returns
+ *     id, name, code, stabilityTime, sampleTubes, cost and currency — no
+ *     units, no refLow, no refHigh. Ranges arrive per marker on the RESULT,
+ *     in GetOrderResultDetail, which is what product rule 2 already says.
+ *     Fallback ranges in markerCatalogue.ts therefore cannot come from this
+ *     API and have to come from the Pathology Services Catalogue PDFs.
+ *
+ *  4. PRICES ARE STRIPPED HERE, at the transport boundary — see
+ *     stripPricing(). GetPanels and GetTests both carry cost and currency,
+ *     and this product shows a patient no prices anywhere. Removing them at
+ *     the edge rather than hiding them in the UI means they are never in the
+ *     database and never on a response the web client could read.
  */
 export class LiveNexusLabClient implements NexusLabClient {
   private readonly http = new RandoxHttpClient(nexusConnection());
@@ -52,8 +68,8 @@ export class LiveNexusLabClient implements NexusLabClient {
   // --- Orders (POST) -------------------------------------------------------
 
   async createPendingOrder(request: CreatePendingOrderRequest): Promise<CreateOrderResponse> {
-    const body = await this.http.request<unknown>('Order/CreatePendingOrder', {
-      method: 'POST',
+    const body = await this.http.request<unknown>(NEXUS_ENDPOINTS.createPendingOrder.path, {
+      method: NEXUS_ENDPOINTS.createPendingOrder.verb,
       body: request,
       // The one call in the integration that must never be repeated
       // automatically: a 502 says nothing about whether the order reached
@@ -64,25 +80,33 @@ export class LiveNexusLabClient implements NexusLabClient {
   }
 
   async updatePendingOrder(request: UpdatePendingOrderRequest): Promise<CreateOrderResponse> {
-    const body = await this.http.request<unknown>('Order/UpdatePendingOrder', {
-      method: 'POST',
-      body: request,
+    const body = await this.http.request<unknown>(NEXUS_ENDPOINTS.updatePendingOrder.path, {
+      method: NEXUS_ENDPOINTS.updatePendingOrder.verb,
+      // TestReasons[].Id AS A STRING on this endpoint, and as an integer on
+      // CreatePendingOrder. That is not a transcription slip on our part: the
+      // spec's own two examples type the same field differently, and each is
+      // sent as its own example types it. asRandoxIdString does the flip so
+      // the request type upstream stays one shape.
+      body: {
+        ...request,
+        TestReasons: request.TestReasons.map((r) => ({ Id: asRandoxIdString(r.Id) ?? String(r.Id), Details: r.Details })),
+      },
       windowedOperation: { name: 'UpdatePendingOrder', orderNumber: request.OrderNumber },
     });
     return this.readCreateResponse(body, 'UpdatePendingOrder');
   }
 
   async cancelOrder(request: CancelOrderRequest): Promise<void> {
-    await this.http.request<unknown>('Order/CancelOrder', {
-      method: 'POST',
+    await this.http.request<unknown>(NEXUS_ENDPOINTS.cancelOrder.path, {
+      method: NEXUS_ENDPOINTS.cancelOrder.verb,
       body: request,
       windowedOperation: { name: 'CancelOrder', orderNumber: request.OrderNumber },
     });
   }
 
   async getOrderStatus(ref: Pick<OrderRef, 'orderId' | 'orderNumber'>): Promise<GetOrderStatusResponse> {
-    const body = await this.http.request<unknown>('Order/GetOrderStatus', {
-      method: 'POST',
+    const body = await this.http.request<unknown>(NEXUS_ENDPOINTS.getOrderStatus.path, {
+      method: NEXUS_ENDPOINTS.getOrderStatus.verb,
       body: { OrderNumber: ref.orderNumber, OrderId: ref.orderId },
     });
 
@@ -103,8 +127,8 @@ export class LiveNexusLabClient implements NexusLabClient {
   }
 
   async getOrderResultDetail(ref: OrderRef): Promise<GetOrderResultDetailResponse> {
-    const body = await this.http.request<unknown>('Order/GetOrderResultDetail', {
-      method: 'POST',
+    const body = await this.http.request<unknown>(NEXUS_ENDPOINTS.getOrderResultDetail.path, {
+      method: NEXUS_ENDPOINTS.getOrderResultDetail.verb,
       body: { orderId: ref.orderId, orderNumber: ref.orderNumber, clinicId: ref.clinicId },
     });
     const root = asObject(body);
@@ -173,8 +197,8 @@ export class LiveNexusLabClient implements NexusLabClient {
    * different type from the identically-named array on the result detail.
    */
   async getOrderResultReports(ref: OrderRef): Promise<string | null> {
-    const body = await this.http.request<unknown>('Order/GetOrderResultReports', {
-      method: 'POST',
+    const body = await this.http.request<unknown>(NEXUS_ENDPOINTS.getOrderResultReports.path, {
+      method: NEXUS_ENDPOINTS.getOrderResultReports.verb,
       body: { orderId: ref.orderId, orderNumber: ref.orderNumber, clinicId: ref.clinicId },
     });
     const value = pickString(body, 'reportResults', 'ReportResults');
@@ -184,22 +208,25 @@ export class LiveNexusLabClient implements NexusLabClient {
   // --- Reference data ------------------------------------------------------
 
   /**
-   * A reference-data call, on whichever verb this API actually answers.
+   * A reference-data call. GET, because the spec says GET.
    *
-   * The spec declares these seven GET. Randox's verbal guidance is that
-   * every endpoint is POST. Both cannot be true of the same gateway, and
-   * being wrong is not a subtle failure — it is seven endpoints returning
-   * 404 or 405, which presents as "the catalogue refresh does nothing".
+   * All eight of these take no parameters and no body, which by the rule in
+   * ../endpoints.ts makes them GET, and the default of
+   * RANDOX_REFERENCE_DATA_METHOD is now 'get' rather than 'auto' to say so.
+   * The probe below is kept as an escape hatch rather than as a hedge: if the
+   * sandbox ever contradicts its own spec, 'auto' sends the declared verb and
+   * a 404/405/501 — the three ways an HTTP API says "not with that verb" —
+   * causes exactly one repeat as POST with an empty JSON body, remembered for
+   * the life of the process. Any other status is a real error and is thrown
+   * as one; this fallback must not turn a 500 into a second request.
    *
-   * So under the default 'auto' the declared verb is tried first and a
-   * 404/405/501 — the three ways an HTTP API says "not with that verb" —
-   * causes exactly one repeat as POST with an empty JSON body. Whichever
-   * answers is remembered for the process. Any other status is a real error
-   * and is thrown as one; this fallback must not turn a 500 into a second
-   * request. Pinning RANDOX_REFERENCE_DATA_METHOD to get or post skips the
-   * probe entirely once we know which it is.
+   * The path is checked against the endpoint table on the way through, so a
+   * typo is an error here rather than a 404 from Azure.
    */
   private async referenceRequest<T>(path: string): Promise<T> {
+    if (verbForPath(path) !== 'GET') {
+      throw new Error(`${path} is declared POST in the spec; it must not be called through referenceRequest().`);
+    }
     const configured = env.RANDOX_REFERENCE_DATA_METHOD;
     if (configured === 'get') return this.http.request<T>(path, { method: 'GET' });
     if (configured === 'post') return this.http.request<T>(path, { method: 'POST', body: {} });
@@ -222,47 +249,70 @@ export class LiveNexusLabClient implements NexusLabClient {
   }
 
   async getPanels(): Promise<RandoxPanel[]> {
-    const body = await this.referenceRequest<unknown>('TestPanel/GetPanels');
-    return pickArray(body, 'panels', 'Panels').map((raw) => ({
-      ...mapTestItem(raw),
-      panelType: pickString(raw, 'panelType', 'PanelType'),
-      specialInstructions: pickString(raw, 'specialInstructions', 'SpecialInstructions'),
-      fastingRequired: pickBoolean(raw, 'fastingRequired', 'FastingRequired'),
-      sampleStabilityTime: pickNumber(raw, 'sampleStabilityTime', 'SampleStabilityTime'),
-      testItems: pickArray(raw, 'testItems', 'TestItems').map((t) => ({
-        id: pickString(t, 'id', 'Id') ?? '',
-        name: pickString(t, 'name', 'Name') ?? '',
-      })),
-    }));
+    const body = await this.referenceRequest<unknown>(NEXUS_ENDPOINTS.getPanels.path);
+    return pickArray(body, 'panels', 'Panels').map((raw) =>
+      // stripPricing as well as mapTestItem's own: the panel adds fields of
+      // its own after the spread, and a strip that only ran on the inner
+      // object would be one refactor away from letting `cost` back in.
+      stripPricing({
+        ...mapTestItem(raw),
+        panelType: pickString(raw, 'panelType', 'PanelType'),
+        specialInstructions: pickString(raw, 'specialInstructions', 'SpecialInstructions'),
+        fastingRequired: pickBoolean(raw, 'fastingRequired', 'FastingRequired'),
+        sampleStabilityTime: pickNumber(raw, 'sampleStabilityTime', 'SampleStabilityTime'),
+        // {id, name} only — no codes. Same identity problem as the result
+        // rows: a panel's members can only be matched to our catalogue by
+        // name, which is why the analyte map in ../analyteMap.ts is explicit
+        // and reviewable rather than fuzzy.
+        testItems: pickArray(raw, 'testItems', 'TestItems').map((t) => ({
+          id: pickString(t, 'id', 'Id') ?? '',
+          name: pickString(t, 'name', 'Name') ?? '',
+        })),
+      }),
+    );
   }
 
   async getTests(): Promise<RandoxTestItem[]> {
-    const body = await this.referenceRequest<unknown>('TestItem/GetTests');
+    const body = await this.referenceRequest<unknown>(NEXUS_ENDPOINTS.getTests.path);
     return pickArray(body, 'tests', 'Tests', 'testItems').map(mapTestItem);
   }
 
   async getBiologicalSexes(): Promise<RandoxLookupItem[]> {
-    return mapLookups(await this.referenceRequest<unknown>('BiologicalSex/GetBiologicalSex'));
+    return mapLookups(await this.referenceRequest<unknown>(NEXUS_ENDPOINTS.getBiologicalSex.path));
   }
 
   async getEthnicities(): Promise<RandoxLookupItem[]> {
-    return mapLookups(await this.referenceRequest<unknown>('Ethnicity/GetEthnicity'));
+    return mapLookups(await this.referenceRequest<unknown>(NEXUS_ENDPOINTS.getEthnicity.path));
   }
 
   async getTestingReasons(): Promise<RandoxLookupItem[]> {
-    return mapLookups(await this.referenceRequest<unknown>('TestReason/GetTestingReasons'));
+    return mapLookups(await this.referenceRequest<unknown>(NEXUS_ENDPOINTS.getTestingReasons.path));
   }
 
   async getCancellationReasons(): Promise<RandoxLookupItem[]> {
-    return mapLookups(await this.referenceRequest<unknown>('CancellationReason/GetCancellationReasons'));
+    return mapLookups(await this.referenceRequest<unknown>(NEXUS_ENDPOINTS.getCancellationReasons.path));
   }
 
   async getMyClinicDetails(): Promise<RandoxClinicDetails> {
-    const body = await this.referenceRequest<unknown>('Clinic/GetMyClinicDetails');
+    const body = await this.referenceRequest<unknown>(NEXUS_ENDPOINTS.getMyClinicDetails.path);
     return {
       ...mapClinicLocation(body),
       clinicTestLocations: pickArray(body, 'clinicTestLocations', 'ClinicTestLocations').map(mapClinicLocation),
     };
+  }
+
+  async getClinicStaff(): Promise<RandoxClinicStaffMember[]> {
+    const body = await this.referenceRequest<unknown>(NEXUS_ENDPOINTS.getClinicStaff.path);
+    return pickArray(body, 'staff', 'Staff').map((raw) => ({
+      userId: pickString(raw, 'userId', 'UserId') ?? '',
+      firstName: pickString(raw, 'firstName', 'FirstName'),
+      lastName: pickString(raw, 'lastName', 'LastName'),
+      // pickBoolean, not a cast: one of the spec's own examples returns the
+      // string "Kent" in this boolean field. Anything unrecognised reads
+      // false, which is the safe direction for "is this person active".
+      active: pickBoolean(raw, 'active', 'Active'),
+      role: pickString(raw, 'role', 'Role'),
+    }));
   }
 
   // --- helpers -------------------------------------------------------------
@@ -309,8 +359,25 @@ function mapResultRow(raw: unknown): RandoxReportResultRow {
   };
 }
 
+/**
+ * WHAT A TEST IS, MINUS WHAT IT COSTS.
+ *
+ * GetTests returns `cost` and `currency` on every item and GetPanels returns
+ * them on every panel. Product rule 4 says no prices anywhere in the
+ * patient-facing product, and the way to keep a rule like that is to make it
+ * impossible to break rather than to remember it at each render site: the two
+ * fields are dropped HERE, at the transport boundary, so they never reach the
+ * catalogue table, never reach an API response, and are never one `select`
+ * away from a patient's screen. See stripPricing() and the assertion in
+ * tests/randoxPricing.test.ts.
+ *
+ * NOTE WHAT IS ALSO NOT HERE: units, refLow and refHigh. GetTests does not
+ * return reference ranges — it never has and, per the spec, it does not have
+ * fields for them. Ranges live on the result, per marker, and the fallbacks in
+ * markerCatalogue.ts come from the Pathology Services Catalogue PDFs.
+ */
 function mapTestItem(raw: unknown): RandoxTestItem {
-  return {
+  return stripPricing({
     id: pickString(raw, 'id', 'Id') ?? '',
     name: pickString(raw, 'name', 'Name') ?? '',
     code: pickString(raw, 'code', 'Code'),
@@ -320,9 +387,39 @@ function mapTestItem(raw: unknown): RandoxTestItem {
       name: pickString(t, 'name', 'Name') ?? '',
       quantityRequired: pickNumber(t, 'quantityRequired', 'QuantityRequired'),
     })),
-    cost: pickNumber(raw, 'cost', 'Cost'),
-    currency: pickString(raw, 'currency', 'Currency'),
-  };
+  });
+}
+
+/**
+ * The named price fields, in the casings the API uses and the two it might.
+ * A list rather than a regex: a regex over key names would also eat
+ * `sampleStabilityTime` the day somebody adds `costingCode`, and a silent
+ * over-strip is as much a bug as a leak.
+ */
+const PRICE_FIELDS = ['cost', 'Cost', 'currency', 'Currency', 'price', 'Price'] as const;
+
+/**
+ * Deletes every price field from an object, recursively, and returns it.
+ *
+ * Recursive because a panel carries `testItems`, and a nested price is still a
+ * price. Applied at the edge of the client so that "no prices in this product"
+ * is a property of the data rather than a discipline in the UI.
+ *
+ * Exported for the test that asserts it, and for the mock client, which serves
+ * the spec's own examples and therefore serves prices unless they are taken
+ * off the same way.
+ */
+export function stripPricing<T>(value: T): T {
+  if (Array.isArray(value)) {
+    for (const item of value) stripPricing(item);
+    return value;
+  }
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    for (const field of PRICE_FIELDS) delete record[field];
+    for (const nested of Object.values(record)) stripPricing(nested);
+  }
+  return value;
 }
 
 function mapClinicLocation(raw: unknown): RandoxClinicLocation {

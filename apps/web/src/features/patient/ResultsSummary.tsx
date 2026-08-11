@@ -117,7 +117,7 @@ export function CountsStrip({
 
   return (
     <div className={`flex flex-col items-center ${className}`}>
-      <p className="eyebrow mb-4 text-center">{title}</p>
+      <p className="eyebrow mb-3 text-center">{title}</p>
       {/* The border, the radius and the shadow live HERE and nowhere inside —
           that is the whole construction. overflow-hidden is what lets the
           segments' tinted fills reach the rounded corners without each one
@@ -139,7 +139,14 @@ export function CountsStrip({
                 // Shorter stacked than side by side: five segments at the
                 // desktop height is most of a phone screen spent on a summary
                 // of the markers it is delaying.
-                className={`flex w-full flex-col items-center justify-center gap-2.5 px-5 py-5 text-center transition duration-150 ease-out sm:py-7 ${statusTintClass(status)} ${
+                //
+                // py-4 / sm:py-5, down from py-5 / sm:py-7. A segment was 147px
+                // tall to hold a two-line number-and-label pair about 44px
+                // high, so two thirds of each box was empty and the five of
+                // them read as a large hollow object rather than a dense one.
+                // The unit still has generous space AROUND it — that is where
+                // the room belongs, and it is untouched.
+                className={`flex w-full flex-col items-center justify-center gap-2 px-4 py-4 text-center transition duration-150 ease-out sm:py-5 ${statusTintClass(status)} ${
                   // Selection is a bronze inset ring, not a border: a border
                   // would push the segment's contents by a pixel and shunt the
                   // whole row. Bronze rather than the status hue, so the ring
@@ -165,7 +172,7 @@ export function CountsStrip({
           );
         })}
       </ul>
-      {action && <div className="mt-6">{action}</div>}
+      {action && <div className="mt-5">{action}</div>}
     </div>
   );
 }

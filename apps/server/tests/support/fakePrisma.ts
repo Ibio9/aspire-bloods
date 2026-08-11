@@ -208,19 +208,28 @@ export function createFakePrisma(): FakePrisma {
 
 export function seedCatalogue(db: FakePrisma): void {
   db.source.rows.push({ id: 'src-randox', key: 'randox_api', name: 'Randox Nexus' });
+  // NAME AND KEY BOTH TAKEN FROM THE REAL CATALOGUE, exactly as
+  // resolveCatalogueMarkers() emits them. That matters now that the Randox
+  // path resolves an analyte to a KEY (modules/randox/analyteMap.ts) and
+  // materialiseReport looks that key up: a test catalogue holding
+  // "platelet-count" where the real one holds "platelets" made a clean
+  // delivery fail to file, and the failure looked like a bug in the mapper
+  // rather than a stale fixture.
   const markers: [string, string, string][] = [
     ['Haemoglobin', 'haemoglobin', 'g/L'],
     ['Ferritin', 'ferritin', 'ug/L'],
     ['Total Cholesterol', 'total-cholesterol', 'mmol/L'],
-    ['HDL Cholesterol', 'hdl-cholesterol', 'mmol/L'],
+    ['HDL Cholesterol', 'hdl', 'mmol/L'],
     ['Vitamin D', 'vitamin-d', 'nmol/L'],
     ['Alanine Aminotransferase (ALT)', 'alt', 'U/L'],
     // The three the mock's "normal, complete order" fixture reports. Present
     // so a lifecycle test can assert a genuinely clean parse rather than
     // asserting on a report held for an admin because the test catalogue was
     // short of a marker.
-    ['Platelet Count', 'platelet-count', '10⁹/L'],
+    ['Platelet Count', 'platelets', '10⁹/L'],
     ['Creatinine', 'creatinine', 'µmol/L'],
+    ['Potassium', 'potassium', 'mmol/L'],
+    ['Alkaline Phosphatase (ALP)', 'alp', 'U/L'],
   ];
   for (const [name, key, unit] of markers) {
     db.marker.rows.push({

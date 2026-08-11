@@ -5,7 +5,7 @@ existing normalised store — and no way past the clinician release gate.
 
 ## What is verified and what is not
 
-**Nexus Lab: verified.** Built against `specs/nexus-openapi.json` ("GP Test
+**Nexus Lab: verified.** Built against `specs/nexus-openapi3.json` ("GP Test
 Portal" v1.0) plus the four Randox flow and auth PDFs in `specs/`. Every
 request and response shape in `types.ts` comes from an example in that spec.
 There are no remaining guesses on the Nexus side.

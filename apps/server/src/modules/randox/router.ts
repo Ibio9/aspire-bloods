@@ -9,6 +9,7 @@ import { recordAuditLog } from '../../lib/auditLog.js';
 import { RandoxOrderError, placeOrder, amendOrder, cancelOrder } from './orderService.js';
 import { listServiceLocations, listAvailability, holdSlot, confirmBooking, cancelBooking, rescheduleBooking } from './bookingService.js';
 import { onOrderStatusChanged } from './pollingJob.js';
+import { randoxDateTime } from './clients/parse.js';
 import { randoxConfigSummary, enabledCollectionMethods, RandoxConfigError } from './config.js';
 import {
   refreshReferenceData,
@@ -359,7 +360,10 @@ const holdSchema = z.object({
   serviceLocationId: z.string().min(1),
   serviceLocationName: z.string().optional(),
   slotReference: z.string().min(1),
-  startUtc: z.string().datetime(),
+  // randoxDateTime, not z.string().datetime(): a Randox timestamp carries an
+  // explicit numeric offset and seven fractional digits, which zod's default
+  // datetime() rejects. See clients/parse.ts.
+  startUtc: randoxDateTime,
 });
 
 randoxRouter.post(
@@ -408,7 +412,10 @@ randoxRouter.post(
 
 const rescheduleSchema = z.object({
   slotReference: z.string().min(1),
-  startUtc: z.string().datetime(),
+  // randoxDateTime, not z.string().datetime(): a Randox timestamp carries an
+  // explicit numeric offset and seven fractional digits, which zod's default
+  // datetime() rejects. See clients/parse.ts.
+  startUtc: randoxDateTime,
 });
 
 randoxRouter.post(
