@@ -1,6 +1,6 @@
 /**
  * Seeds the real Randox catalogue: three panels, 43 health areas, and every
- * analyte across all four result types.
+ * analyte across all five result types.
  *
  * The data lives in @aspire-bloods/shared (markerCatalogue.ts) because the web
  * app needs the same category names and the same result-type rules to render a
@@ -51,8 +51,29 @@ export interface CatalogueSeedReport {
   withoutRandoxCode: string[];
   categoriesCreated: number;
   membershipsCreated: number;
-  panels: { key: string; markerCount: number; includes: string[]; confirmed: boolean }[];
+  panels: {
+    key: string;
+    markerCount: number;
+    includes: string[];
+    confirmed: boolean;
+    byResultType: Record<string, number>;
+  }[];
   measuredWithoutUnit: string[];
+  /**
+   * THE SET DIFF, both ways, per panel — the assertion this import was missing.
+   *
+   * `unresolvedOnPanel` is a key `markerKeysForPanel` produced that no marker
+   * in the catalogue answers to. Every one of those was being SILENTLY SKIPPED
+   * by the `if (!markerId) continue` in the panel loop, so a panel could quietly
+   * seed fewer markers than it claims and the report would still say the larger
+   * number. `notOnAnyPanel` is the other direction: a marker in the catalogue
+   * that no panel sells.
+   *
+   * Both are reported for every panel rather than the first, and an unresolved
+   * key is FATAL — see the throw at the foot of seedRandoxCatalogue.
+   */
+  unresolvedOnPanel: { panel: string; key: string }[];
+  notOnAnyPanel: string[];
 }
 
 /**
@@ -79,7 +100,7 @@ export async function seedRandoxCatalogue(): Promise<CatalogueSeedReport> {
   const codes = loadRandoxTestCodes();
 
   const report: CatalogueSeedReport = {
-    created: { MEASURED: 0, GENETIC: 0, SENSITIVITY: 0, COMPOSITION: 0 },
+    created: { MEASURED: 0, GENETIC: 0, SENSITIVITY: 0, COMPOSITION: 0, QUALITATIVE: 0 },
     updated: 0,
     matchedByKey: 0,
     merged: [],
@@ -90,6 +111,8 @@ export async function seedRandoxCatalogue(): Promise<CatalogueSeedReport> {
     membershipsCreated: 0,
     panels: [],
     measuredWithoutUnit: [],
+    unresolvedOnPanel: [],
+    notOnAnyPanel: [],
   };
 
   // The catalogue as it stood BEFORE this run. Matching against a snapshot
@@ -201,6 +224,10 @@ export async function seedRandoxCatalogue(): Promise<CatalogueSeedReport> {
 
   // --- Panels --------------------------------------------------------------
 
+  const catalogueByKey = new Map(catalogue.map((m) => [m.key, m]));
+  /** Every catalogue key some panel actually sells, for the reverse set diff. */
+  const onSomePanel = new Set<string>();
+
   for (const p of CATALOGUE_PANELS) {
     const panel = await prisma.panel.upsert({
       where: { key: p.key },
@@ -228,9 +255,20 @@ export async function seedRandoxCatalogue(): Promise<CatalogueSeedReport> {
     });
 
     const keys = markerKeysForPanel(p);
+    const byResultType: Record<string, number> = {
+      MEASURED: 0, GENETIC: 0, SENSITIVITY: 0, COMPOSITION: 0, QUALITATIVE: 0,
+    };
     for (const [i, key] of keys.entries()) {
       const markerId = resolvedId.get(key);
-      if (!markerId) continue;
+      if (!markerId) {
+        // NOT `continue` on its own any more. Skipping silently is how a panel
+        // seeds fewer markers than it says it has, with the report printing the
+        // number it meant rather than the number it wrote.
+        report.unresolvedOnPanel.push({ panel: p.key, key });
+        continue;
+      }
+      onSomePanel.add(key);
+      byResultType[catalogueByKey.get(key)?.resultType ?? 'MEASURED'] += 1;
       await prisma.panelMarker.upsert({
         where: { panelId_markerId: { panelId: panel.id, markerId } },
         update: { sortOrder: i },
@@ -243,7 +281,21 @@ export async function seedRandoxCatalogue(): Promise<CatalogueSeedReport> {
       markerCount: keys.length,
       includes: [...p.includes],
       confirmed: p.compositionConfirmed,
+      byResultType,
     });
+  }
+
+  report.notOnAnyPanel = catalogue.filter((m) => !onSomePanel.has(m.key)).map((m) => m.key).sort();
+
+  // A key a panel claims and the catalogue cannot answer is a data defect that
+  // costs a patient a test they paid for, and it is invisible from the outside:
+  // the panel simply comes out short. Fatal, so a seed cannot complete on it.
+  if (report.unresolvedOnPanel.length > 0) {
+    throw new Error(
+      `${report.unresolvedOnPanel.length} panel marker key(s) resolve to no marker in the catalogue: ` +
+        report.unresolvedOnPanel.map((u) => `${u.panel} → ${u.key}`).join(', ') +
+        '. Fix markerCatalogue.ts rather than letting the panel seed short.',
+    );
   }
 
   return report;
@@ -289,7 +341,21 @@ export function formatCatalogueReport(r: CatalogueSeedReport): string {
   for (const p of r.panels) {
     const nesting = p.includes.length ? ` (includes ${p.includes.join(' ← ')})` : '';
     lines.push(`  ${p.key.padEnd(14)} ${String(p.markerCount).padStart(3)} markers${nesting}${p.confirmed ? '' : '  [composition UNCONFIRMED]'}`);
+    lines.push(
+      `  ${' '.repeat(14)}     ` +
+        Object.entries(p.byResultType)
+          .filter(([, n]) => n > 0)
+          .map(([type, n]) => `${type} ${n}`)
+          .join('  ·  '),
+    );
   }
+  lines.push('');
+  lines.push(
+    `Panel set diff: ${r.unresolvedOnPanel.length} panel key(s) resolve to no marker` +
+      `${r.unresolvedOnPanel.length ? ` (${r.unresolvedOnPanel.map((u) => `${u.panel}→${u.key}`).join(', ')})` : ''}` +
+      `, ${r.notOnAnyPanel.length} catalogue marker(s) on no panel` +
+      `${r.notOnAnyPanel.length ? `: ${r.notOnAnyPanel.join(', ')}` : ''}.`,
+  );
   lines.push('');
   lines.push('Advanced GP3 nesting, innermost first:');
   for (const t of GP3_NESTING) {

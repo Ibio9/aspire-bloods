@@ -125,7 +125,7 @@ export interface MarkerCardDTO {
    */
   status: MarkerStatus | null;
   /**
-   * MEASURED / GENETIC / SENSITIVITY / COMPOSITION. Decides which section this
+   * MEASURED / GENETIC / SENSITIVITY / COMPOSITION / QUALITATIVE. Decides which section this
    * result renders in, whether it counts toward the counts strip and the
    * category bars, whether it gets a status tint, and whether it can be
    * plotted. Optional on the DTO so a client reading an older payload treats

@@ -347,6 +347,14 @@ test.describe('Results', () => {
       // Closed on load, and the disclosure is there to open it — at the top of
       // the page as much as anywhere else.
       await expect(disclosure).toBeVisible();
+      // THE UNFILTERED COUNT, READ RATHER THAN WRITTEN DOWN. It used to be the
+      // literal "187 markers", which is a number that changes whenever the
+      // catalogue does — it broke the moment 22 entries moved out of MEASURED
+      // into QUALITATIVE, on a test that has nothing to do with result types.
+      // What this test is actually asserting is that clearing a filter puts
+      // the count BACK, so it captures the count first and compares to itself.
+      const unfilteredCount = (await page.getByText(/^\d+ markers?$/).first().textContent())?.trim() ?? '';
+      expect(unfilteredCount).toMatch(/^\d+ markers?$/);
       await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
       await expect(panel).toHaveCount(0);
       const grid = await gridTop();
@@ -404,7 +412,7 @@ test.describe('Results', () => {
       // And clearing from there clears it.
       await applied.getByRole('button', { name: 'Clear all filters' }).click();
       await expect(applied).toHaveCount(0);
-      await expect(page.getByText('187 markers')).toBeVisible();
+      await expect(page.getByText(unfilteredCount)).toBeVisible();
 
       // Changing arrangement closes the panel — the four pickers mean
       // different things per view, and a panel that survives the switch is

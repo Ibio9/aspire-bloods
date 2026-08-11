@@ -35,10 +35,41 @@
  * plausible-looking number: "source them, never invent them" is the rule, and
  * a range invented confidently is worse than one that is admittedly a
  * placeholder, because nobody goes back to check the confident one.
+ *
+ * ─── WHAT "FINISHED" MEANS, AND WHY IT DOES NOT MEAN "ALL SOURCED" ────────
+ *
+ * The audit now walks the WHOLE catalogue rather than only the markers seed.ts
+ * happens to carry a fallback for, and it groups by the panel tier each marker
+ * belongs to — Basic Screen, Standard Screen, Standard Screen Plus, Advanced
+ * GP2, Advanced GP3, then Insight 360 and Signature. That is what makes the
+ * gaps countable per panel instead of being one undifferentiated "unsourced"
+ * heap.
+ *
+ * It does NOT mean every range is now sourced, and it cannot:
+ *
+ *  · The only Randox document in `specs/` carrying reference ranges is the
+ *    HSC5 Basic Screen example report. Basic Screen is therefore the ONLY tier
+ *    with a source, and everything above it is unsourceable from what we hold.
+ *  · There is no API route to them either. GetTests returns id, name, code,
+ *    stabilityTime, sampleTubes, cost and currency — no units and no refLow or
+ *    refHigh — and nothing else in the OpenAPI spec returns a range outside
+ *    GetOrderResultDetail, which is per result. Confirmed against the spec in
+ *    August 2026; nobody should go looking for one again.
+ *
+ * So the honest output is a complete, per-panel account of what is sourced,
+ * what is not, and what the specific risk of each gap is. Advanced GP3 is
+ * prioritised in the report because it is what Core sells.
  */
 import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  CATALOGUE_PANELS,
+  GP3_NESTING,
+  markerKeyForName,
+  markerKeysForPanel,
+  resolveCatalogueMarkers,
+} from '@aspire-bloods/shared';
 import { prisma } from '../src/db/client.js';
 
 const OUT = path.resolve(process.cwd(), '../../docs/audits/reference-ranges.md');
@@ -69,6 +100,13 @@ interface SourceRange {
  * A one-sided band is recorded with a null on the open side, exactly as
  * printed: Randox write "<5.0 Desirable / ≥5.0 High" for total cholesterol,
  * which is a threshold, not a range with a floor of zero.
+ *
+ * THIS LIST IS COMPLETE FOR THAT DOCUMENT. The report carries 33 analytes and
+ * `tests/sampleReportParse.test.ts` parses all 33 out of it over the real PDF;
+ * the 34 rows here are those plus `chol-hdl-ratio`, which the report prints as
+ * a derived line. There is nothing further to transcribe from `specs/`, which
+ * is why every tier above Basic Screen is unsourced below rather than
+ * partially sourced.
  */
 const RANDOX_SOURCE: SourceRange[] = [
   // Full Blood Count — page 7 to 8
@@ -89,7 +127,7 @@ const RANDOX_SOURCE: SourceRange[] = [
   // Heart Health — page 9
   { key: 'total-cholesterol', printed: '<5.0 Desirable', unit: 'mmol/l', low: null, high: 5, page: 'p9' },
   { key: 'ldl', printed: '<3.0 Desirable', unit: 'mmol/l', low: null, high: 3, page: 'p9' },
-  { key: 'hdl', printed: '≥1.55 Desirable', unit: 'mmol/l', low: 1.55, high: null, page: 'p9' },
+  { key: 'hdl', printed: '≥1.55 Desirable', unit: 'mmol/l', low: 1.55, high: null, page: 'p9', sexSpecificInPractice: true },
   { key: 'chol-hdl-ratio', printed: '<5.0 Desirable', unit: 'ratio', low: null, high: 5, page: 'p9' },
   { key: 'triglycerides', printed: '<2.3 Desirable', unit: 'mmol/l', low: null, high: 2.3, page: 'p9' },
   {
@@ -134,7 +172,7 @@ const RANDOX_SOURCE: SourceRange[] = [
   { key: 'alt', printed: '<40 Normal', unit: 'U/l', low: null, high: 40, page: 'p12' },
   { key: 'alp', printed: '30 - 120', unit: 'U/l', low: 30, high: 120, page: 'p12' },
   { key: 'ast', printed: '<40 Normal', unit: 'U/l', low: null, high: 40, page: 'p12' },
-  { key: 'ggt', printed: '10.0 - 71.0', unit: 'U/l', low: 10, high: 71, page: 'p12' },
+  { key: 'ggt', printed: '10.0 - 71.0', unit: 'U/l', low: 10, high: 71, page: 'p12', sexSpecificInPractice: true },
   { key: 'bilirubin', printed: '<21.0 Optimal', unit: 'μmol/l', low: null, high: 21, page: 'p12' },
   { key: 'albumin', printed: '35.0 - 50.0', unit: 'g/l', low: 35, high: 50, page: 'p12' },
 
@@ -143,12 +181,15 @@ const RANDOX_SOURCE: SourceRange[] = [
 ];
 
 /**
- * The corrections this audit produced, recorded here because the report is
+ * The corrections this audit has produced, recorded here because the report is
  * regenerated from the CURRENT seed and would otherwise show them as agreeing
  * and say nothing about how they got that way.
  *
  * Every one is a case where the Randox example report prints a range the stored
- * fallback disagreed with, for an analyte Randox do not split by sex.
+ * fallback disagreed with, for an analyte Randox do not split by sex. The
+ * report re-derives the CORRECTED list from the source each run and cross-checks
+ * it against this one, so an entry here that no longer corresponds to anything
+ * shows up as a discrepancy rather than as decoration.
  */
 const APPLIED: { key: string; was: string; now: string; page: string }[] = [
   { key: 'wbc', was: '4.0–11.0', now: '4.0–10.0', page: 'p8' },
@@ -166,19 +207,82 @@ const APPLIED: { key: string; was: string; now: string; page: string }[] = [
   { key: 'chol-hdl-ratio', was: '0–4.5', now: '0–5.0', page: 'p9' },
 ];
 
+/**
+ * ─── SEX AND AGE DEPENDENCE, ACROSS THE WHOLE CATALOGUE ───────────────────
+ *
+ * This table contains NO RANGES and that is the point. A range is sourced or
+ * it is not; but "this analyte's range differs by sex" is a different kind of
+ * claim, it does not put a number in front of anybody, and leaving it unsaid is
+ * what lets a single blanket range sit there looking finished.
+ *
+ * It is the highest-value thing this audit can produce without the catalogue
+ * PDF, because the failure it describes is silent: a marker whose range
+ * genuinely differs by sex, stored once as `ANY`, renders a perfectly ordinary
+ * green "in range" for roughly half of patients whose result is not.
+ *
+ * `basis` says where the flag comes from, and the two are not equal:
+ *
+ *  · `randox` — the HSC5 report prints a single range for an analyte that is
+ *    sex-dependent, so the document itself is the evidence.
+ *  · `convention` — standard UK adult laboratory practice. Unsourced, flagged
+ *    only, NEVER acted on. It gets somebody qualified to the right rows fast;
+ *    it does not authorise a change.
+ */
+type Dependence = 'sex' | 'age' | 'both';
+interface DependenceFlag {
+  key: string;
+  kind: Dependence;
+  basis: 'randox' | 'convention';
+  why: string;
+}
+
+const DEPENDENCE: DependenceFlag[] = [
+  // ── Evidenced by the HSC5 report printing one range for a split analyte ──
+  { key: 'haemoglobin', kind: 'sex', basis: 'randox', why: 'The printed 130–180 g/L is a male band; the female band is lower throughout.' },
+  { key: 'haematocrit', kind: 'sex', basis: 'randox', why: 'The printed 40–54% is a male band.' },
+  { key: 'rbc', kind: 'sex', basis: 'randox', why: 'The printed 4.5–6.5 ×10¹²/L is a male band.' },
+  { key: 'creatinine', kind: 'both', basis: 'randox', why: 'Tracks muscle mass, so it differs by sex and falls with age. The printed 53–97 µmol/L does not say whose.' },
+  { key: 'ggt', kind: 'sex', basis: 'randox', why: 'Reported with a lower upper limit for women in most UK laboratories; the report prints one band.' },
+  { key: 'hdl', kind: 'sex', basis: 'randox', why: 'Cardiovascular guidance sets a different desirable threshold for men and women; the report prints one.' },
+
+  // ── Flagged from clinical convention. Unsourced. Nothing changed. ────────
+  { key: 'ferritin', kind: 'sex', basis: 'convention', why: 'Iron stores differ markedly between men and premenopausal women; a single band under-calls depletion in one and overcalls it in the other.' },
+  { key: 'iron', kind: 'sex', basis: 'convention', why: 'Serum iron is reported against sex-specific bands in most UK laboratories.' },
+  { key: 'transferrin-saturation', kind: 'sex', basis: 'convention', why: 'Derived from iron and TIBC, so it inherits the sex dependence of both.' },
+  { key: 'uric-acid', kind: 'sex', basis: 'convention', why: 'The upper limit is substantially lower for women; a shared band misses hyperuricaemia in women.' },
+  { key: 'creatine-kinase', kind: 'sex', basis: 'convention', why: 'Tracks muscle mass and is reported against sex-specific bands.' },
+  { key: 'myoglobin', kind: 'sex', basis: 'convention', why: 'Tracks muscle mass, same as creatine kinase.' },
+  { key: 'shbg', kind: 'sex', basis: 'convention', why: 'Substantially higher in women; it is also the denominator of the free androgen index, so one wrong band moves two results.' },
+  { key: 'free-androgen-index', kind: 'sex', basis: 'convention', why: 'Calculated from testosterone and SHBG, both of which are sex-specific, and interpreted against completely different bands per sex.' },
+  { key: 'prolactin', kind: 'sex', basis: 'convention', why: 'Reported against a higher upper limit in women.' },
+  { key: 'fsh', kind: 'both', basis: 'convention', why: 'Stored as one ANY band, but in women it moves through the menstrual cycle and rises at menopause. A single adult band cannot describe either.' },
+  { key: 'lh', kind: 'both', basis: 'convention', why: 'Same as FSH: cycle phase and menopausal status both move it.' },
+  { key: 'oestradiol', kind: 'both', basis: 'convention', why: 'Stored FEMALE-only, which is right as far as it goes, but the band moves through the cycle and after menopause and the stored one is a single figure for all of it.' },
+  { key: 'progesterone', kind: 'age', basis: 'convention', why: 'The stored band is 0–999, i.e. no band at all. It is interpretable only against cycle phase, which the record does not carry.' },
+  { key: 'dhea-s', kind: 'both', basis: 'convention', why: 'Falls steeply and continuously with age and differs by sex; one adult band is wrong for most adults.' },
+  { key: 'igf-1', kind: 'age', basis: 'convention', why: 'Reported against narrow age decade bands. An adult-wide band is not clinically usable.' },
+  { key: 'amh', kind: 'age', basis: 'convention', why: 'Declines with age by design — it is used as a measure of ovarian reserve, which is an age-relative quantity.' },
+  { key: 'alp', kind: 'age', basis: 'convention', why: 'Several times the adult upper limit during adolescent bone growth, and raised again in later life.' },
+  { key: 'egfr', kind: 'age', basis: 'convention', why: 'Falls with age in health. The calculation itself already adjusts for sex, so this is an age flag and not a sex one.' },
+  { key: 'esr', kind: 'both', basis: 'convention', why: 'The conventional upper limit is calculated from age and differs by sex. A fixed 0–20 is wrong at both ends of adult life.' },
+  { key: 'total-psa', kind: 'age', basis: 'convention', why: 'Age-banded upper limits are standard. Already restricted to men, so this is an age flag only.' },
+  { key: 'b2-microglobulin', kind: 'age', basis: 'convention', why: 'Rises with falling renal function, so its usable band moves with age.' },
+  { key: 'cystatin-c', kind: 'both', basis: 'convention', why: 'Used precisely because it is less dependent on muscle mass than creatinine, but its reference band still moves with age and mildly with sex.' },
+  { key: 'apo-a1', kind: 'sex', basis: 'convention', why: 'Higher in women, in step with HDL, which is already flagged above.' },
+];
+
 const esc = (s: unknown) => String(s ?? '').replace(/\|/g, '\\|');
 const same = (a: number | null, b: number) => a === null || Math.abs(a - b) < 1e-9;
 
 /**
  * The AUTHORED fallbacks, read out of seed.ts.
  *
- * Deliberately not read from the ReferenceRange table, and the reason is the
- * biggest finding in this audit. That table holds two different things under
- * one roof: the ~75 catalogue rows this file seeds, and one row per result ever
- * materialised (`materialiseReport.ts` creates one unconditionally). In the
- * development database that is 2,845 rows across 195 markers — haemoglobin
- * alone has 66. Reading "the fallback" out of it would be reading whatever the
- * last import happened to leave behind.
+ * Deliberately not read from the ReferenceRange table, and the reason is one of
+ * the biggest findings in this audit. That table holds two different things
+ * under one roof: the catalogue rows this file seeds, and one row per result
+ * ever materialised (`materialiseReport.ts` creates one unconditionally).
+ * Reading "the fallback" out of it would be reading whatever the last import
+ * happened to leave behind.
  *
  * Parsed with a regex over one-line-per-marker entries rather than by importing
  * seed.ts, which self-executes. The count is asserted below, so a change to the
@@ -218,208 +322,429 @@ function readSeededFallbacks(): SeededFallback[] {
   return out;
 }
 
+/**
+ * WHICH PANEL TIER EACH MARKER BELONGS TO — the grouping the whole report hangs
+ * off, and the reason it can now say "Advanced GP3 has N unsourced" rather than
+ * "the catalogue has 130 unsourced".
+ *
+ * A marker belongs to the INNERMOST tier that introduces it, because the tiers
+ * nest: Advanced GP3 contains GP2 contains Standard Screen Plus contains
+ * Standard Screen contains Basic Screen. Anything not on Core at all falls to
+ * the panel that does sell it.
+ */
+const TIER_ORDER = [
+  ...GP3_NESTING.map((t) => ({ key: t.key, name: t.name, code: t.code, sourced: t.sourced })),
+  { key: 'core-extras', name: 'Core add-ons', code: null, sourced: false },
+  { key: 'insight-360', name: 'Insight 360', code: null, sourced: false },
+  { key: 'signature', name: 'Signature', code: null, sourced: false },
+  // Markers seed.ts carries a fallback for that the Randox catalogue does not
+  // contain at all. They predate the catalogue import and the clinic does not
+  // sell them, so their fallbacks are maintenance nobody is doing — worth
+  // seeing rather than worth silently dropping, which is what an audit keyed
+  // off the catalogue alone would do.
+  { key: 'not-in-catalogue', name: 'Seeded, not in the Randox catalogue', code: null, sourced: false },
+] as const;
+
+type TierKey = (typeof TIER_ORDER)[number]['key'];
+
+function buildTierIndex(): Map<string, TierKey> {
+  const tierOf = new Map<string, TierKey>();
+  for (const tier of GP3_NESTING) {
+    for (const name of tier.addsMarkerNames) {
+      const key = markerKeyForName(name);
+      if (!tierOf.has(key)) tierOf.set(key, tier.key as TierKey);
+    }
+  }
+  const core = CATALOGUE_PANELS.find((p) => p.key === 'core')!;
+  for (const name of core.extraMarkerNames ?? []) {
+    const key = markerKeyForName(name);
+    if (!tierOf.has(key)) tierOf.set(key, 'core-extras');
+  }
+  for (const panelKey of ['insight-360', 'signature'] as const) {
+    const panel = CATALOGUE_PANELS.find((p) => p.key === panelKey)!;
+    for (const key of markerKeysForPanel(panel)) {
+      if (!tierOf.has(key)) tierOf.set(key, panelKey);
+    }
+  }
+  return tierOf;
+}
+
+interface Row {
+  key: string;
+  name: string;
+  unit: string;
+  tier: TierKey;
+  /** Every stored fallback for this analyte, which may be split by sex. */
+  fallbacks: SeededFallback[];
+  source?: SourceRange;
+  dependence?: DependenceFlag;
+  verdict: string;
+  action: string;
+}
+
 async function main() {
   const seeded = readSeededFallbacks();
   const bySource = new Map(RANDOX_SOURCE.map((s) => [s.key, s]));
+  const byDependence = new Map(DEPENDENCE.map((d) => [d.key, d]));
+  const tierOf = buildTierIndex();
+  const catalogue = resolveCatalogueMarkers().filter((m) => m.resultType === 'MEASURED');
+  const seededByKey = new Map<string, SeededFallback[]>();
+  const seededByName = new Map<string, SeededFallback[]>();
+  for (const s of seeded) {
+    seededByKey.set(s.key, [...(seededByKey.get(s.key) ?? []), s]);
+    seededByName.set(s.name, [...(seededByName.get(s.name) ?? []), s]);
+  }
+
+  // A key in either table that no MEASURED marker answers to is a row this
+  // report would silently drop — which is the one failure mode an audit cannot
+  // have, because the output looks complete either way. Fatal.
+  const measuredKeys = new Set(catalogue.map((m) => m.key));
+  const seededKeys = new Set(seeded.map((s) => s.key));
+  const known = (k: string) => measuredKeys.has(k) || seededKeys.has(k);
+  const orphans = [
+    ...RANDOX_SOURCE.filter((s) => !known(s.key)).map((s) => `RANDOX_SOURCE:${s.key}`),
+    ...DEPENDENCE.filter((d) => !known(d.key)).map((d) => `DEPENDENCE:${d.key}`),
+  ];
+  if (orphans.length > 0) {
+    throw new Error(
+      `${orphans.length} audit entr(ies) name a key that is not a MEASURED marker, so they would be dropped from the report without a word: ${orphans.join(', ')}.`,
+    );
+  }
 
   // How badly the ReferenceRange table mixes catalogue rows with result rows.
   const totalRangeRows = await prisma.referenceRange.count();
   const markersWithRanges = await prisma.referenceRange.groupBy({ by: ['markerId'], _count: true });
   const worstMarkerRows = Math.max(0, ...markersWithRanges.map((g) => g._count));
 
-  type Row = SeededFallback & { source?: SourceRange; verdict: string; action: string };
+  // (An analyte can be split across two marker keys — haemoglobin /
+  // haemoglobin-f, testosterone / testosterone-f — so the stored ranges for one
+  // analyte are gathered by NAME as well as by key, above.)
 
-  // An analyte can be split across two marker keys (haemoglobin / haemoglobin-f),
-  // so sex coverage is grouped by NAME rather than by key.
-  const sexesByName = new Map<string, Set<string>>();
-  for (const s of seeded) {
-    if (!sexesByName.has(s.name)) sexesByName.set(s.name, new Set());
-    sexesByName.get(s.name)!.add(s.sex);
-  }
+  // The catalogue, plus any marker seed.ts holds a fallback for that the
+  // catalogue does not. The second group is small and is filed under its own
+  // tier below; leaving it out would mean an audit of "every reference range"
+  // that quietly skipped some.
+  const auditable = [
+    ...catalogue.map((m) => ({ key: m.key, name: m.name, unit: m.unit })),
+    ...[...seededKeys]
+      .filter((k) => !measuredKeys.has(k))
+      .map((k) => {
+        const f = seededByKey.get(k)![0];
+        return { key: k, name: f.name, unit: f.unit };
+      }),
+  ];
 
-  const rows: Row[] = seeded.map((m) => {
+  const rows: Row[] = auditable.map((m) => {
+    const own = seededByKey.get(m.key) ?? [];
+    // The sex-split sibling, which carries a different key and the same name.
+    const siblings = own.length ? (seededByName.get(own[0].name) ?? own) : [];
+    const fallbacks = siblings.length ? siblings : own;
     const source = bySource.get(m.key);
-    const sexes = sexesByName.get(m.name)!;
+    const dependence = byDependence.get(m.key);
+    const base = {
+      key: m.key,
+      name: m.name,
+      unit: m.unit,
+      tier: tierOf.get(m.key) ?? (measuredKeys.has(m.key) ? 'signature' : 'not-in-catalogue') as TierKey,
+      fallbacks,
+      source,
+      dependence,
+    };
 
+    if (fallbacks.length === 0) {
+      return {
+        ...base,
+        verdict: 'NO FALLBACK',
+        action:
+          'No catalogue range at all, so the verify form offers nothing to confirm and an admin types the range off the paper unaided. Not a patient-facing defect — every displayed range comes off the result — but it is the largest single gap here.',
+      };
+    }
     if (!source) {
-      return { ...m, verdict: 'UNSOURCED', action: 'Left exactly as it is. No Randox document in `specs/` covers this analyte.' };
+      return {
+        ...base,
+        verdict: 'UNSOURCED',
+        action: 'Left exactly as it is. No Randox document in `specs/` covers this analyte.',
+      };
     }
     if (source.key === 'glucose') {
-      return { ...m, source, verdict: 'NOT THE SAME TEST', action: source.note! };
+      return { ...base, verdict: 'NOT THE SAME TEST', action: source.note! };
     }
-    const lowAgrees = source.low === null || same(source.low, m.low);
-    const highAgrees = source.high === null || same(source.high, m.high);
-    if (lowAgrees && highAgrees) return { ...m, source, verdict: 'AGREES', action: '—' };
+
+    const sexes = new Set(fallbacks.map((f) => f.sex));
+    const agreesEverywhere = fallbacks.every(
+      (f) => (source.low === null || same(source.low, f.low)) && (source.high === null || same(source.high, f.high)),
+    );
+    const agreesSomewhere = fallbacks.some(
+      (f) => (source.low === null || same(source.low, f.low)) && (source.high === null || same(source.high, f.high)),
+    );
+
+    if (agreesEverywhere) return { ...base, verdict: 'AGREES', action: '—' };
     if (source.sexSpecificInPractice) {
       return {
-        ...m,
-        source,
+        ...base,
         verdict: 'DIFFERS — SEX-SPECIFIC',
         action:
           sexes.size === 1 && sexes.has('ANY')
             ? '**Structural defect.** One sex-agnostic range for an analyte whose range genuinely differs by sex, so roughly half of patients get the wrong suggestion. NOT changed: the Randox example prints one range and does not say whose, so adopting it would swap one wrong answer for another. For Richard.'
-            : 'NOT changed. The stored ranges are correctly split by sex, but the Randox example prints a single range without saying which sex it applies to, so it cannot arbitrate. For Richard.',
+            : `NOT changed. The stored ranges are correctly split by sex${agreesSomewhere ? ' and one of them matches the printed band' : ''}, but the Randox example prints a single range without saying which sex it applies to, so it cannot arbitrate. For Richard.`,
       };
     }
     return {
-      ...m,
-      source,
-      verdict: 'CORRECTED',
-      action: `Changed to ${source.low ?? 0}–${source.high ?? 999} (Randox Basic Screen ${source.page}).`,
+      ...base,
+      verdict: 'CONTRADICTED — NEEDS CORRECTING',
+      action: `The Randox Basic Screen ${source.page} prints ${source.printed}, which the stored ${fallbacks
+        .map((f) => `${f.low}–${f.high}`)
+        .join(' / ')} disagrees with.`,
     };
   });
 
-  // ── Sex-specificity, across the whole catalogue ─────────────────────────
-  // The failure mode the brief expects this audit to find: a single stored
-  // range for a marker that legitimately differs by sex mislabels about half of
-  // patients.
-  const sexSpecificKeys = new Set(RANDOX_SOURCE.filter((s) => s.sexSpecificInPractice).map((s) => s.key));
-  const storedSexSplit = [...sexesByName.entries()].filter(([, s]) => !(s.size === 1 && s.has('ANY')));
-  const shouldBeSplitButIsNot = rows.filter(
-    (r) => sexSpecificKeys.has(r.key) && sexesByName.get(r.name)!.size === 1 && sexesByName.get(r.name)!.has('ANY'),
-  );
+  const byTier = new Map<TierKey, Row[]>();
+  for (const r of rows) byTier.set(r.tier, [...(byTier.get(r.tier) ?? []), r]);
+
+  // ── Sex and age, across the whole catalogue ─────────────────────────────
+  const storedSexSplit = [...new Set(rows.filter((r) => r.fallbacks.some((f) => f.sex !== 'ANY')).map((r) => r.name))];
+  const sexFlagged = rows.filter((r) => r.dependence?.kind === 'sex' || r.dependence?.kind === 'both');
+  const sexFlaggedNotSplit = sexFlagged.filter((r) => !r.fallbacks.some((f) => f.sex !== 'ANY'));
+  const ageFlagged = rows.filter((r) => r.dependence?.kind === 'age' || r.dependence?.kind === 'both');
+  // The schema carries ageMin/ageMax and the resolver scores an age-bracketed
+  // row above an unbounded one, but no seeded fallback sets either.
   const ageBracketed: Row[] = [];
 
+  const contradicted = rows.filter((r) => r.verdict === 'CONTRADICTED — NEEDS CORRECTING');
+  const unsourced = rows.filter((r) => r.verdict === 'UNSOURCED');
+  const noFallback = rows.filter((r) => r.verdict === 'NO FALLBACK');
+  const agrees = rows.filter((r) => r.verdict === 'AGREES');
+
   const lines: string[] = [];
-  lines.push('# Reference range audit');
-  lines.push('');
-  lines.push('Generated by `apps/server/scripts/auditReferenceRanges.ts`.');
-  lines.push('');
-  lines.push('## Where a range actually comes from');
-  lines.push('');
-  lines.push(
-    'Confirmed in code, not assumed. Every patient-facing read path takes the range stored ON THE RESULT (`reportResult.referenceRange`): `patients/service.ts` lines 218–223 and 304–320, `portalService.ts`, `dsarService.ts`, and the PDF export. There is no display path anywhere that falls back to the marker catalogue, and `resolveReferenceRange()` — the only thing that reads catalogue ranges — is called from exactly two places, `panels/router.ts` and `reports/service.ts`, both of them the admin verify/manual-entry form.',
+  const p = (s = '') => lines.push(s);
+
+  p('# Reference range audit');
+  p();
+  p('Generated by `apps/server/scripts/auditReferenceRanges.ts`. Read-only — it changes nothing itself; the corrections it produced are in `prisma/seed.ts` and are listed below with their source.');
+  p();
+  p(`**${rows.length}** MEASURED markers in the catalogue. **${agrees.length}** carry a fallback that agrees with a sourced Randox range, **${contradicted.length}** are contradicted by one and still need correcting, **${unsourced.length}** carry a fallback no document in \`specs/\` covers, and **${noFallback.length}** carry no fallback at all.`);
+  p();
+
+  p('## The headline, and it is not a comfortable one');
+  p();
+  p('The only Randox document in `apps/server/src/modules/randox/specs/` that carries reference ranges is the **HSC5 Basic Screen example report**. So:');
+  p();
+  const tierSummary = TIER_ORDER.map((t) => {
+    const members = byTier.get(t.key) ?? [];
+    const sourced = members.filter((r) => r.source && r.verdict !== 'NOT THE SAME TEST').length;
+    return { ...t, members, sourced };
+  });
+  p('| Tier / panel | Code | MEASURED markers | With a sourced range | With a fallback but no source | With no fallback at all |');
+  p('| --- | --- | --- | --- | --- | --- |');
+  for (const t of tierSummary) {
+    p(
+      `| ${t.name} | ${t.code ?? '—'} | ${t.members.length} | ${t.sourced} | ${
+        t.members.filter((r) => r.verdict === 'UNSOURCED' || r.verdict === 'NOT THE SAME TEST').length
+      } | ${t.members.filter((r) => r.verdict === 'NO FALLBACK').length} |`,
+    );
+  }
+  p();
+  p('**Advanced GP3 is prioritised because Core sells it**, and the answer for it is the same as for the three tiers below it and above Basic Screen: nothing on them can be sourced from what we hold. That is not a gap somebody forgot to fill — it is the absence of a document. Two things follow, and they should be said plainly rather than worked around:');
+  p();
+  p('1. **The Randox Pathology Services Catalogue is the missing artefact.** It is the document that carries per-analyte ranges for the tiers above Basic Screen. It is not in `specs/` and could not be retrieved. Ask Randox for it, and for a FEMALE example report alongside the male one we have.');
+  p('2. **There is no API route to them and nobody should look for one again.** `GetTests` returns id, name, code, stabilityTime, sampleTubes, cost and currency — no units, no `refLow`, no `refHigh`. Confirmed against the real OpenAPI document (GP Test Portal v1.0, 17 endpoints) in August 2026. Ranges arrive per marker on the RESULT, in `GetOrderResultDetail`, and nowhere else.');
+  p();
+
+  p('## Where a range actually comes from');
+  p();
+  p(
+    'Confirmed in code, not assumed. Every patient-facing read path takes the range stored ON THE RESULT (`reportResult.referenceRange`): `patients/service.ts`, `portalService.ts`, `dsarService.ts`, and the PDF export. There is no display path anywhere that falls back to the marker catalogue, and `resolveReferenceRange()` — the only thing that reads catalogue ranges — is called from exactly two places, `panels/router.ts` and `reports/service.ts`, both of them the admin verify/manual-entry form.',
   );
-  lines.push('');
-  lines.push(
+  p();
+  p(
     'So the ranges below are a SUGGESTION shown to an admin who is looking at the paper result, never a number a patient is shown. That is what makes correcting them safe; it is also why they still have to be right, because a suggestion that is usually correct is one people stop checking.',
   );
-  lines.push('');
-  lines.push('## Sex-specific ranges');
-  lines.push('');
-  lines.push(
-    'The single most likely source of real error, and the audit found it. A marker whose range genuinely differs by sex, stored as one blanket `ANY` range, mislabels roughly half of patients.',
-  );
-  lines.push('');
-  lines.push(
-    `- **${storedSexSplit.length}** analytes store sex-split ranges: ${storedSexSplit.map(([n]) => n).join(', ') || 'none'}.`,
-  );
-  lines.push(
-    `- **${shouldBeSplitButIsNot.length}** store one \`ANY\` range for an analyte that is sex-specific in clinical use: ${shouldBeSplitButIsNot.map((r) => `**${r.name}**`).join(', ') || 'none'}. These are **not** corrected here — see below.`,
-  );
-  lines.push(
-    `- **${ageBracketed.length}** carry an age bracket. The schema supports \`ageMin\`/\`ageMax\` and \`resolveReferenceRange\` scores an age-bracketed row above an unbounded one, but no seeded fallback uses either — so for a marker whose range genuinely moves with age (alkaline phosphatase in adolescence, creatinine in the elderly) the suggestion is an adult range regardless of the patient. Structure present, data absent. For Richard.`,
-  );
-  lines.push('');
-  lines.push(
-    'The code handles both correctly where the data is right: `resolveReferenceRange()` scores a sex-specific row above an `ANY` one and an age-bracketed row above an unbounded one, and — the important part — it refuses to answer at all when the marker draws a sex distinction and the patient has no sex on file, rather than quietly handing back the `ANY` range. `resolveReferenceRange.test.ts` pins that. The gap is in the DATA, not the resolver: a marker with only an `ANY` row gives the resolver nothing to be careful with.',
-  );
-  lines.push('');
-  lines.push(
-    'They are not corrected from the Randox example report because that document prints ONE range per analyte and never says whose it is. Haemoglobin 130.0–180.0 and haematocrit 40.0–54.0 read as male ranges; creatinine 53.0–97.0 does not. Adopting them blind would replace a range that is wrong for half of patients with a range that is wrong for the other half, which is not an improvement, it is a different bug with the same shape. **These need a female example report or the Randox Pathology Services Catalogue** — neither is in `specs/`.',
-  );
-  lines.push('');
+  p();
 
-  lines.push('## A separate defect: the ReferenceRange table holds two different things');
-  lines.push('');
-  lines.push(
+  p('## Sex-specific ranges — listed separately, as they should be');
+  p();
+  p(
+    'The single most likely source of real error in this whole file, and the reason is that it is SILENT. A marker whose range genuinely differs by sex, stored once as `ANY`, renders an ordinary, unremarkable, correctly-formatted suggestion that is wrong for roughly half of patients. Nothing about the screen looks different.',
+  );
+  p();
+  p(`- **${storedSexSplit.length}** analytes store sex-split ranges today: ${storedSexSplit.join(', ') || 'none'}.`);
+  p(`- **${sexFlagged.length}** analytes in the catalogue are sex-dependent in clinical use.`);
+  p(`- **${sexFlaggedNotSplit.length}** of those store no sex split at all. Every one is listed below.`);
+  p();
+  p('The code handles the distinction correctly wherever the DATA is right: `resolveReferenceRange()` scores a sex-specific row above an `ANY` one and an age-bracketed row above an unbounded one, and — the important part — it REFUSES TO ANSWER when the marker draws a sex distinction and the patient has no sex on file, rather than quietly handing back the `ANY` range. `resolveReferenceRange.test.ts` pins that. The gap is in the data, not the resolver: a marker with only an `ANY` row gives the resolver nothing to be careful with.');
+  p();
+  p('| Marker | Tier | Stored | Depends on | Evidence | Why it matters |');
+  p('| --- | --- | --- | --- | --- | --- |');
+  for (const r of sexFlagged.sort((a, b) => Number(!!a.fallbacks.some((f) => f.sex !== 'ANY')) - Number(!!b.fallbacks.some((f) => f.sex !== 'ANY')))) {
+    const split = r.fallbacks.some((f) => f.sex !== 'ANY');
+    // Three states, not two: split correctly, stored once for everybody, or
+    // nothing stored at all. The third is not the mildest of them — a marker
+    // with no fallback offers the admin nothing, but a marker with ONE band for
+    // an analyte that needs two offers them something that looks checked.
+    const stored = !r.fallbacks.length
+      ? '**no fallback at all**'
+      : split
+        ? r.fallbacks.map((f) => `${f.sex} ${f.low}–${f.high}`).join('<br>')
+        : `**one ANY band** — ${r.fallbacks.map((f) => `${f.low}–${f.high}`).join(' / ')}`;
+    p(
+      `| ${esc(r.name)} | ${TIER_ORDER.find((t) => t.key === r.tier)?.name} | ${stored} | ${r.dependence!.kind} | ${
+        r.dependence!.basis === 'randox' ? 'HSC5 report prints one band' : 'clinical convention, unsourced'
+      } | ${esc(r.dependence!.why)} |`,
+    );
+  }
+  p();
+  p(
+    '**Not one of these is corrected here, and that is deliberate.** The `randox` rows cannot be corrected because the example report prints ONE range per analyte and never says whose: haemoglobin 130.0–180.0 and haematocrit 40.0–54.0 read as male bands, creatinine 53.0–97.0 does not. Adopting them blind would replace a range that is wrong for half of patients with a range that is wrong for the other half — a different bug of the same shape. The `convention` rows are flagged from standard practice rather than from a document, and a flag is not a source. **These need the Pathology Services Catalogue or a female example report; neither is in `specs/`.**',
+  );
+  p();
+
+  p('## Age-specific ranges');
+  p();
+  p(
+    `**${ageFlagged.length}** analytes have a range that moves with age. **${ageBracketed.length}** seeded fallbacks carry an age bracket. The schema supports \`ageMin\`/\`ageMax\` and \`resolveReferenceRange\` scores an age-bracketed row above an unbounded one — the structure is present and the data is absent, so for every marker below the suggestion is one adult band regardless of the patient's age.`,
+  );
+  p();
+  p('| Marker | Tier | Stored | Evidence | Why it matters |');
+  p('| --- | --- | --- | --- | --- |');
+  for (const r of ageFlagged) {
+    p(
+      `| ${esc(r.name)} | ${TIER_ORDER.find((t) => t.key === r.tier)?.name} | ${
+        r.fallbacks.length ? r.fallbacks.map((f) => `${f.low}–${f.high}`).join(' / ') : '**no fallback at all**'
+      } | ${r.dependence!.basis === 'randox' ? 'HSC5 report' : 'clinical convention, unsourced'} | ${esc(r.dependence!.why)} |`,
+    );
+  }
+  p();
+
+  p('## A separate defect: the ReferenceRange table holds two different things');
+  p();
+  p(
     `\`ReferenceRange\` is both the catalogue of fallbacks AND the per-result record of what was printed on the paper. \`materialiseReport.ts\` creates a row for every result it materialises, into the same table \`marker.referenceRanges\` reads from — so the "catalogue" grows by one row per result, for ever. This development database holds **${totalRangeRows} rows across ${markersWithRanges.length} markers**; the worst single marker has **${worstMarkerRows}**, of which exactly one is the seeded fallback.`,
   );
-  lines.push('');
-  lines.push(
+  p();
+  p(
     'That is invisible to patients — every display path reads the range off the result, as above — but it is not harmless. `resolveReferenceRange()` is handed all of them, scores them by specificity, and where several tie (and they do, dozens at a time) breaks the tie on whatever order Postgres returned. The range suggested to an admin at verify time is therefore effectively arbitrary among the ranges that marker has ever carried.',
   );
-  lines.push('');
-  lines.push(
-    'NOT fixed here, and deliberately: the fix is a schema change (a flag marking a row as catalogue rather than as a record of one result, and a filter on it in the resolver) to a clinical data path, which is not something to slip into the end of a session that was asked for an audit. It is written down here because it is the most valuable thing this audit found. **For Richard, and it is a code change, not a data one.**',
+  p();
+  p(
+    'NOT fixed here, and deliberately: the fix is a schema change (a flag marking a row as catalogue rather than as a record of one result, and a filter on it in the resolver) to a clinical data path, which is not something to slip into the end of a session that was asked for an audit. **For Richard, and it is a code change, not a data one.**',
   );
-  lines.push('');
+  p();
 
-  const changed = rows.filter((r) => r.verdict === 'CORRECTED');
-  lines.push('## Corrected');
-  lines.push('');
-  lines.push(
-    'Every one of these is a case where the Randox Basic Screen example report prints a range that the stored fallback disagrees with, for an analyte Randox do not treat as sex-specific. Changed in `prisma/seed.ts`; a re-seed carries them into the catalogue rows.',
+  p('## Corrected, with the source for each');
+  p();
+  p(
+    'Every one of these is a case where the Randox Basic Screen example report prints a range the stored fallback disagreed with, for an analyte Randox do not treat as sex-specific. Changed in `prisma/seed.ts`; a re-seed carries them into the catalogue rows.',
   );
-  lines.push('');
-  lines.push('| Marker | Was | Now | Unit | Source |');
-  lines.push('| --- | --- | --- | --- | --- |');
+  p();
+  p('| Marker | Was | Now | Unit | Source |');
+  p('| --- | --- | --- | --- | --- |');
   for (const a of APPLIED) {
     const row = rows.find((r) => r.key === a.key);
     const src = bySource.get(a.key);
-    lines.push(
+    p(
       `| ${esc(row?.name ?? a.key)} | ${a.was} | ${a.now} | ${esc(row?.unit ?? '')} | Randox Basic Screen ${a.page}, printed \`${esc(src?.printed ?? '')}\` |`,
     );
   }
-  lines.push('');
-  if (changed.length > 0) {
-    lines.push(
-      `⚠ ${changed.length} further fallback(s) still disagree with the Randox source and are NOT in the list above: ${changed.map((r) => r.name).join(', ')}.`,
+  p();
+  if (contradicted.length > 0) {
+    p(
+      `⚠ **${contradicted.length} fallback(s) still disagree with the Randox source and are NOT in the list above**: ${contradicted
+        .map((r) => `${r.name} (${r.action})`)
+        .join('; ')}.`,
     );
-    lines.push('');
+  } else {
+    p('Nothing else in the catalogue now contradicts a sourced range. This run found **0** further corrections to make, which is the expected result of the ones above having been applied — it is asserted rather than assumed, by re-deriving the comparison from the source on every run.');
   }
+  p();
 
-  lines.push('## Every seeded fallback');
-  lines.push('');
-  lines.push('| Marker | Key | Fallback | Unit | Sex | Age | Randox says | Page | Verdict | Action |');
-  lines.push('| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
-  for (const r of rows) {
-    lines.push(
-      [
-        esc(r.name),
-        `\`${r.key}\``,
-        `${r.low}–${r.high}`,
-        esc(r.unit),
-        r.sex,
-        'any',
-        r.source ? `\`${esc(r.source.printed)}\` ${esc(r.source.unit)}` : '—',
-        r.source?.page ?? '—',
-        r.verdict,
-        esc(r.action),
-      ].join(' | ').replace(/^/, '| ') + ' |',
-    );
+  p('## Every MEASURED marker, by panel tier');
+  p();
+  p('`Fallback` is what the verify form suggests today. `Randox says` is the sourced range where there is one. `Sex` and `Age` say whether the stored data draws that distinction — not whether the analyte needs it, which is the two sections above.');
+  for (const t of tierSummary) {
+    if (t.members.length === 0) continue;
+    p();
+    p(`### ${t.name}${t.code ? ` (${t.code})` : ''} — ${t.members.length} markers${t.sourced ? '' : ', no source document'}`);
+    p();
+    p('| Marker | Key | Fallback | Unit | Sex | Age | Randox says | Page | Verdict | Action |');
+    p('| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
+    for (const r of t.members.sort((a, b) => a.name.localeCompare(b.name))) {
+      p(
+        [
+          '',
+          esc(r.name),
+          `\`${r.key}\``,
+          r.fallbacks.length ? r.fallbacks.map((f) => `${f.low}–${f.high}`).join(' / ') : '—',
+          esc(r.unit || '—'),
+          r.fallbacks.length ? [...new Set(r.fallbacks.map((f) => f.sex))].join('/') : '—',
+          'any',
+          r.source ? `\`${esc(r.source.printed)}\` ${esc(r.source.unit)}` : '—',
+          r.source?.page ?? '—',
+          r.verdict,
+          esc(r.action),
+          '',
+        ].join(' | '),
+      );
+    }
   }
-  lines.push('');
+  p();
 
-  lines.push('## Demo seed values');
-  lines.push('');
-  lines.push(
+  p('## Demo seed values');
+  p();
+  p(
     'The demo was showing a chloride of 65 mmol/L, a white cell count and a neutrophil count of 19.5, and a weight of 17.3 kg. None of those is a result; they are a resuscitation, a haematology emergency and a toddler. Three separate causes, all fixed:',
   );
-  lines.push('');
-  lines.push(
-    '1. **The severity threshold is a multiple of the range WIDTH.** That is the right model for deriving a status and the wrong one for inventing a value: chloride\'s 13-wide band gives a threshold of 19.5, so "significantly below" lands at 65. The demo now carries an explicit outpatient envelope (`DEMO_ENVELOPE` in `demoSeedData.ts`) and a marker whose required excursion falls outside it is simply not chosen for that quota. The value is never clamped instead — a clamped value would compute to a different status than the one it was generated for, which is the agreement the demo tests exist to protect.',
+  p();
+  p(
+    "1. **The severity threshold is a multiple of the range WIDTH.** That is the right model for deriving a status and the wrong one for inventing a value: chloride's 13-wide band gives a threshold of 19.5, so \"significantly below\" lands at 65. The demo now carries an explicit outpatient envelope (`DEMO_ENVELOPE` in `demoSeedData.ts`) and a marker whose required excursion falls outside it is simply not chosen for that quota. The value is never clamped instead — a clamped value would compute to a different status than the one it was generated for, which is the agreement the demo tests exist to protect.",
   );
-  lines.push(
-    '2. **The demo read its "catalogue" ranges out of the polluted `ReferenceRange` table**, so a synthetic band invented by a previous demo run came back as though it were the catalogue\'s. That is how Weight acquired a reference range of 2.5–7.5 kg. It now reads seeded rows only.',
+  p(
+    "2. **The demo read its \"catalogue\" ranges out of the polluted `ReferenceRange` table**, so a synthetic band invented by a previous demo run came back as though it were the catalogue's. That is how Weight acquired a reference range of 2.5–7.5 kg. It now reads seeded rows only.",
   );
-  lines.push(
-    '3. **Physical measurements have no reference range in the catalogue at all** — Randox measure weight, height, waist and pulse, they are not assays — so the demo fell back to a band hashed from the marker key, which gave waist circumference 13–38 cm. Those markers now take their synthetic band from the envelope instead, so it is at least on the right scale. They still need real ranges, and inventing them is not this session\'s to do.',
+  p(
+    '3. **Physical measurements have no reference range in the catalogue at all** — Randox measure weight, height, waist and pulse, they are not assays — so the demo fell back to a band hashed from the marker key, which gave waist circumference 13–38 cm. Those markers now take their synthetic band from the envelope instead, so it is at least on the right scale. They still need real ranges, and inventing them is not a session\'s to do.',
   );
-  lines.push('');
-  lines.push(
-    `All five statuses are still demonstrated, and \`tests/demoSeedData.test.ts\` now pins both properties at once: every generated value sits inside the envelope, AND still computes to the status it was asked for.`,
-  );
-  lines.push('');
+  p();
+  p('All five statuses are still demonstrated, and `tests/demoSeedData.test.ts` pins both properties at once: every generated value sits inside the envelope, AND still computes to the status it was asked for.');
+  p();
 
-  lines.push('## For Richard');
-  lines.push('');
-  lines.push('| Marker | Why |');
-  lines.push('| --- | --- |');
-  for (const r of rows.filter((x) => x.verdict.startsWith('DIFFERS — SEX') || x.verdict === 'NOT THE SAME TEST')) {
-    lines.push(`| ${esc(r.name)} | ${esc(r.action)} |`);
+  p('## For Richard, grouped by panel');
+  p();
+  p('Nothing on this list has been changed. Each group is one panel tier, innermost first.');
+  for (const t of tierSummary) {
+    const needs = t.members.filter((r) => r.verdict !== 'AGREES');
+    if (needs.length === 0) continue;
+    p();
+    p(`### ${t.name}${t.code ? ` (${t.code})` : ''}`);
+    p();
+    const noFb = needs.filter((r) => r.verdict === 'NO FALLBACK');
+    const unsrc = needs.filter((r) => r.verdict === 'UNSOURCED');
+    const other = needs.filter((r) => r.verdict !== 'NO FALLBACK' && r.verdict !== 'UNSOURCED');
+    if (other.length) {
+      p('| Marker | Verdict | Why |');
+      p('| --- | --- | --- |');
+      for (const r of other) p(`| ${esc(r.name)} | ${r.verdict} | ${esc(r.action)} |`);
+      p();
+    }
+    if (unsrc.length) {
+      p(`- **${unsrc.length} with an unsourced fallback**, left exactly as they are: ${unsrc.map((r) => r.name).join(', ')}.`);
+    }
+    if (noFb.length) {
+      p(`- **${noFb.length} with no fallback at all**, so the verify form suggests nothing: ${noFb.map((r) => r.name).join(', ')}.`);
+    }
   }
-  const unsourced = rows.filter((r) => r.verdict === 'UNSOURCED');
-  lines.push(
-    `| ${unsourced.length} further markers | No Randox document in \`specs/\` covers them, so their fallbacks are unsourced and were left alone: ${unsourced.map((r) => r.name).join(', ')} |`,
-  );
-  lines.push('');
+  p();
+  p('And two asks that are not per-marker:');
+  p();
+  p('- **The Randox Pathology Services Catalogue**, which is the document that would source every tier above Basic Screen, and **a female HSC5 example report**, which is what would settle the six sex-split rows the current report cannot arbitrate.');
+  p('- **The `ReferenceRange` schema change** described above. It is the only item in this file that is a code change rather than a data one.');
+  p();
 
   fs.mkdirSync(path.dirname(OUT), { recursive: true });
   fs.writeFileSync(OUT, lines.join('\n'));
   console.log(`Wrote ${OUT}`);
   console.log(
-    `${rows.length} seeded fallbacks. ${rows.filter((r) => r.verdict === 'AGREES').length} agree with Randox, ${changed.length} corrected, ${rows.filter((r) => r.verdict.startsWith('DIFFERS')).length} sex-specific and left for review, ${unsourced.length} unsourced.`,
+    `${rows.length} MEASURED markers. ${agrees.length} agree with a sourced Randox range, ${contradicted.length} contradicted and outstanding, ${unsourced.length} unsourced, ${noFallback.length} with no fallback. ` +
+      `${sexFlagged.length} sex-dependent (${sexFlaggedNotSplit.length} stored as one ANY range), ${ageFlagged.length} age-dependent, 0 age-bracketed.`,
   );
   await prisma.$disconnect();
 }

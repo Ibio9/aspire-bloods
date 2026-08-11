@@ -11,6 +11,7 @@ import {
   staticTokens,
   EYEBROW_TRACKING,
   MEASURE,
+  PANEL_WASH_ALPHA,
   type TypeStep,
 } from '../../packages/shared/src/tokens';
 
@@ -165,6 +166,15 @@ export default {
         // Text on a filled accent (bronze button, selected option, avatar).
         // Theme-aware, because bronze itself flips from dark to light.
         onaccent: v('--c-onaccent'),
+        // The sidebar panel. `panel` is the wash COLOUR only — the alpha is
+        // `--panel-wash` below and the two are combined by `.panel-wash` in
+        // globals.css, because the alpha differs per theme and a Tailwind
+        // opacity modifier is a build-time literal. `panel-edge` is its
+        // hairline and is an ordinary colour.
+        panel: {
+          DEFAULT: v('--c-panel'),
+          edge: v('--c-panel-edge'),
+        },
         // Retained under its original name so nothing that already referenced
         // the deep warm near-black has to change; `night` is the same scale
         // with a name that says what it is for.
@@ -368,12 +378,19 @@ export default {
           // as a soft warm shadow on cream disappears entirely on near-black.
           '--shadow-tight': '0.06',
           '--shadow-diffuse': '0.08',
+          // How much of `--c-panel` survives on the sidebar. Per theme for the
+          // same reason the shadow alphas are: the wash DIMS a cream page and
+          // LIFTS a near-black one, and the two directions do not need the same
+          // amount of it. From the token package rather than written here, so
+          // tokenContrast.test.ts measures the number the stylesheet uses.
+          '--panel-wash': String(PANEL_WASH_ALPHA.light),
           'color-scheme': 'light',
         },
         '.dark': {
           ...asBaseVars('dark'),
           '--shadow-tight': '0.3',
           '--shadow-diffuse': '0.36',
+          '--panel-wash': String(PANEL_WASH_ALPHA.dark),
           'color-scheme': 'dark',
         },
       });

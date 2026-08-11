@@ -80,10 +80,10 @@ test('every marker in the library has real copy, and none of it is a placeholder
   const placeheld = entries.filter((e) => e.explanation.whatItIs.includes('being finalised'));
   expect(placeheld.map((e) => e.name)).toEqual([]);
 
-  // All four result types are represented, so this is not passing because the
-  // library quietly stopped listing the food and genetic items.
+  // All five result types are represented, so this is not passing because the
+  // library quietly stopped listing the food, genetic or qualitative items.
   const types = new Set(entries.map((e) => e.resultType ?? 'MEASURED'));
-  expect([...types].sort()).toEqual(['COMPOSITION', 'GENETIC', 'MEASURED', 'SENSITIVITY']);
+  expect([...types].sort()).toEqual(['COMPOSITION', 'GENETIC', 'MEASURED', 'QUALITATIVE', 'SENSITIVITY']);
 
   // And nothing internal rides along on the payload.
   expect(JSON.stringify(entries)).not.toContain('reviewStatus');

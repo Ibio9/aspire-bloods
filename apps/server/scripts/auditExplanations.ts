@@ -45,7 +45,7 @@ import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
 import { prisma } from '../src/db/client.js';
-import { VOCABULARY_CORRECTIONS } from '../src/lib/houseStyle.js';
+import { applyHouseStyle, applyVocabularyRule, VOCABULARY_CORRECTIONS } from '../src/lib/houseStyle.js';
 
 const OUT = path.resolve(process.cwd(), '../../docs/audits/marker-explanations.md');
 
@@ -110,6 +110,13 @@ const esc = (s: string | null | undefined) => (s ?? '').replace(/\|/g, '\\|').re
 
 async function main() {
   const rows = await prisma.markerExplanation.findMany({
+    // ACTIVE MARKERS ONLY. A deactivated marker is on nobody's screen, so its
+    // copy is not a risk and listing it is noise that makes the real list look
+    // longer than it is. Three sit in this database — Oxidised LDL and MPO
+    // (Randox cannot supply them) and the `test-marker` fixture — and Oxidised
+    // LDL was appearing in the wrong-analyte section for copy no patient can
+    // reach.
+    where: { marker: { isActive: true } },
     include: {
       marker: {
         include: {
@@ -126,7 +133,12 @@ async function main() {
   const reviewers = reviewerIds.length
     ? await prisma.user.findMany({
         where: { id: { in: reviewerIds } },
-        select: { id: true, email: true, staffProfile: { select: { firstName: true, lastName: true } } },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          staffProfile: { select: { firstName: true, lastName: true, roleTitle: true } },
+        },
       })
     : [];
   const reviewerName = new Map(
@@ -135,6 +147,7 @@ async function main() {
       u.staffProfile ? `${u.staffProfile.firstName} ${u.staffProfile.lastName}` : u.email,
     ]),
   );
+  const reviewerRole = new Map(reviewers.map((u) => [u.id, u.role]));
 
   const markerNames = rows.map((r) => ({ id: r.markerId, name: r.marker.name, norm: norm(r.marker.name) }));
 
@@ -183,7 +196,17 @@ async function main() {
     const key = e.stripped!;
     families.set(key, [...(families.get(key) ?? []), e]);
   }
-  const templateFamilies = [...families.entries()].filter(([, m]) => m.length > 2);
+  // TWO IS ENOUGH when the stripped bodies are IDENTICAL and the originals are
+  // not. That combination means one sentence with each marker's own name
+  // substituted into it — a template, by definition — and the threshold of
+  // three was mis-filing the smallest and commonest case of it as a duplicate.
+  // Trimethoprim Resistance and Vancomycin Resistance were reported as "two
+  // different analytes sharing one description" when the only thing their
+  // descriptions share is the sentence around the drug name, which is the
+  // marker name, which is what `withoutOwnName` removes.
+  const templateFamilies = [...families.entries()].filter(
+    ([, m]) => m.length > 2 || (m.length === 2 && m[0].normBody !== m[1].normBody),
+  );
   const inTemplate = new Set(templateFamilies.flatMap(([, m]) => m.map((x) => x.id)));
   for (const [, members] of templateFamilies) for (const m of members) m.flags.push('TEMPLATE-FAMILY');
 
@@ -251,13 +274,147 @@ async function main() {
   const flagged = entries.filter((e) => e.flags.length);
   const reviewed = entries.filter((e) => e.reviewStatus !== 'DRAFT');
 
-  // A review attributed to a seeded demo account is not a review. That
-  // distinction is the single most important line in this report.
+  /**
+   * WHAT COUNTS AS A REVIEW, and the answer is stricter than it was.
+   *
+   * The previous version of this report said "3 have been read and signed off
+   * by a real clinician", which it worked out as "not DRAFT and not attributed
+   * to the seeded demo account". Reading the three showed that none of them is
+   * a clinician review either:
+   *
+   *  · 2 carry a review status and NO `reviewedById` at all. There is nobody to
+   *    ask what was checked, so it is a status without a reviewer, which is not
+   *    a review — it is a row somebody clicked.
+   *  · 1 is attributed to Ada Admin, whose role is ADMIN and whose title is
+   *    Practice Administrator. An administrator approving clinical wording is
+   *    a process step, not a clinical sign-off.
+   *
+   * So the honest figure is ZERO, and the report says zero. Overstating it by
+   * three is worse than it sounds: three is enough to read as "somebody has
+   * started", and nobody has.
+   */
   const SEEDED_REVIEWERS = ['Chloe Clinician'];
-  const seededReviews = reviewed.filter((e) =>
-    SEEDED_REVIEWERS.includes(reviewerName.get(e.reviewedById ?? '') ?? ''),
-  );
-  const realReviews = reviewed.length - seededReviews.length;
+  const CLINICAL_ROLES = ['CLINICIAN'];
+  function reviewQuality(e: (typeof entries)[number]): 'draft' | 'seeded' | 'unattributed' | 'non-clinical' | 'genuine' {
+    if (e.reviewStatus === 'DRAFT') return 'draft';
+    if (!e.reviewedById) return 'unattributed';
+    if (SEEDED_REVIEWERS.includes(reviewerName.get(e.reviewedById) ?? '')) return 'seeded';
+    if (!CLINICAL_ROLES.includes(reviewerRole.get(e.reviewedById) ?? '')) return 'non-clinical';
+    return 'genuine';
+  }
+  const seededReviews = reviewed.filter((e) => reviewQuality(e) === 'seeded');
+  const realReviews = entries.filter((e) => reviewQuality(e) === 'genuine').length;
+
+  // ── The punctuation and vocabulary sweep, measured rather than claimed ──
+  //
+  // The report used to SAY that punctuation was fixed. This counts it, per
+  // defect class, over every field of every stored row — so "0" is a fact
+  // about the database this ran against rather than a statement about
+  // somebody's intentions. The checks are deliberately wider than the sweep
+  // that fixes things: several of them (a straight quotation mark, a double
+  // space) are conditions `applyHouseStyle` does not address, and a check that
+  // only asks what the fixer already fixes can only ever report success.
+  const FIELDS = ['whatItIs', 'highMeans', 'lowMeans', 'lifestyleContext'] as const;
+  const SWEEP: { name: string; fixed: boolean; test: (v: string) => boolean }[] = [
+    { name: 'Straight apostrophe between two letters', fixed: true, test: (v) => /\p{L}'\p{L}/u.test(v) },
+    { name: 'Spaced em dash', fixed: true, test: (v) => /\s—\s/.test(v) },
+    { name: 'Em dash of any kind', fixed: false, test: (v) => /—/.test(v) },
+    { name: 'En dash joining two lowercase words', fixed: true, test: (v) => /\p{Ll}–\p{Ll}/u.test(v) },
+    { name: 'Straight double quotation mark', fixed: true, test: (v) => /"/.test(v) },
+    { name: 'Double space', fixed: false, test: (v) => / {2}/.test(v) },
+    { name: 'Leading or trailing whitespace', fixed: false, test: (v) => v !== v.trim() },
+    { name: 'Sentence starting lowercase', fixed: false, test: (v) => /^[a-z]/.test(v.trim()) },
+    { name: 'No terminal full stop', fixed: false, test: (v) => v.trim().length > 0 && !/[.!?]$/.test(v.trim()) },
+    { name: 'The house-style sweep would still change it', fixed: true, test: (v) => applyHouseStyle(v) !== v },
+    { name: 'The vocabulary table would still change it', fixed: true, test: (v) => applyVocabularyRule(v) !== v },
+  ];
+  const sweep = SWEEP.map((c) => {
+    const hits: string[] = [];
+    for (const e of entries) {
+      for (const f of FIELDS) {
+        const v = e[f];
+        if (typeof v === 'string' && v.length > 0 && c.test(v)) hits.push(`${e.marker.name} (${f})`);
+      }
+    }
+    return { ...c, hits };
+  });
+
+  // Every appearance of a banned word, not only the ones next to a result
+  // noun. The narrow regex above is what decides a BREACH; this is the wider
+  // net, printed so a reader can see the legitimate uses for themselves rather
+  // than taking "we checked" on trust.
+  const bannedSightings: { marker: string; field: string; word: string; excerpt: string }[] = [];
+  for (const e of entries) {
+    for (const f of FIELDS) {
+      const v = e[f];
+      if (typeof v !== 'string' || !v) continue;
+      for (const w of BANNED) {
+        const m = v.match(new RegExp(String.raw`[^.]{0,55}\b${w}\b[^.]{0,55}`, 'i'));
+        if (m) bannedSightings.push({ marker: e.marker.name, field: f, word: w, excerpt: m[0].trim() });
+      }
+    }
+  }
+
+  const REVIEW_STATE_LABEL: Record<ReturnType<typeof reviewQuality>, string> = {
+    draft: 'DRAFT — never reviewed',
+    seeded: 'Marked reviewed by the seeded demo account (Chloe Clinician) — NOT a review',
+    unattributed: 'Marked reviewed with no reviewer recorded — NOT a review, there is nobody to ask',
+    'non-clinical': 'Marked reviewed by a non-clinical account (Ada Admin, Practice Administrator) — NOT a clinical sign-off',
+    genuine: 'Reviewed by a clinician',
+  };
+  const byReviewState = new Map<string, number>();
+  for (const e of entries) {
+    const label = `${REVIEW_STATE_LABEL[reviewQuality(e)]}${
+      e.reviewStatus === 'DRAFT' ? '' : ` (stored status: ${e.reviewStatus})`
+    }`;
+    byReviewState.set(label, (byReviewState.get(label) ?? 0) + 1);
+  }
+  const byTypeReviewed = new Map<string, { total: number; real: number }>();
+  for (const e of entries) {
+    const cur = byTypeReviewed.get(e.marker.resultType) ?? { total: 0, real: 0 };
+    byTypeReviewed.set(e.marker.resultType, {
+      total: cur.total + 1,
+      real: cur.real + (reviewQuality(e) === 'genuine' ? 1 : 0),
+    });
+  }
+
+  /**
+   * WHAT A NEAR-DUPLICATE GROUP ACTUALLY IS, decided once and used in both
+   * places it is reported.
+   *
+   * Three outcomes, and the middle one is the one the first version of this
+   * report got wrong. `Trimethoprim Resistance` and `Vancomycin Resistance`
+   * were listed as "two different analytes sharing one description" — and they
+   * are not. Each names its own drug, in its own sentence; what they share is
+   * the sentence AROUND the drug name, which is exactly what
+   * `withoutOwnName()` strips before comparing. That is a shared pattern, and
+   * telling somebody to review it wastes the one thing this report is for.
+   *
+   *  · SAME ANALYTE — one marker's name contains the other's (Haemoglobin and
+   *    Haemoglobin, split male/female). Identical copy is correct.
+   *  · EACH NAMES ITS OWN — every member's body mentions its own marker. The
+   *    copy does distinguish them; the similarity is in the frame.
+   *  · NEEDS REVIEW — anything else. Two different analytes and neither
+   *    description says which one it is about.
+   */
+  const NEEDS_REVIEW = '**REVIEW** — different analytes sharing one description, so neither is described';
+  function duplicateVerdict(members: Entry[]): string {
+    const names = members.map((m) => m.marker.name);
+    const sameAnalyte = names.some(
+      (n, i) => i > 0 && (norm(n).includes(norm(names[0])) || norm(names[0]).includes(norm(n))),
+    );
+    if (sameAnalyte) return 'Same analyte under two names — leave as it is';
+    const eachNamesItsOwn = members.every((m) =>
+      norm(m.marker.name)
+        .split(' ')
+        .filter((w) => w.length > 3)
+        .some((w) => m.normBody.includes(w)),
+    );
+    if (eachNamesItsOwn) {
+      return 'Each names its own analyte — a shared sentence pattern, not a duplicate';
+    }
+    return NEEDS_REVIEW;
+  }
 
   const lines: string[] = [];
   lines.push('# Marker explanation audit');
@@ -270,16 +427,14 @@ async function main() {
   lines.push('');
   lines.push(`- **${entries.length}** markers carry an explanation.`);
   lines.push(
-    `- **${realReviews}** have been read and signed off by a real clinician.` +
-      (seededReviews.length
-        ? ` ${reviewed.length} rows carry a review record, but ${seededReviews.length} of them name **${SEEDED_REVIEWERS.join(', ')}** — the fictional staff account \`prisma/seed.ts\` creates for the demo. A review attributed to a seeded account is not a review, and those ${seededReviews.length} markers should be treated exactly like the DRAFT ones.`
-        : ''),
+    `- **${realReviews}** have been read and signed off by a clinician. ${reviewed.length} rows carry a review RECORD, and not one of them survives being looked at: ${seededReviews.length} name the seeded demo account, and the rest are either unattributed or approved by a non-clinical account. See the next section — the arithmetic is set out there rather than asserted here.`,
   );
   lines.push(
     `- **${templateFamilies.length}** template families (one sentence reused across many markers with the marker's own name substituted in), covering ${[...inTemplate].length} markers. This is a pattern, not a defect.`,
   );
+  const needReview = [...groups.values()].filter((m) => duplicateVerdict(m) === NEEDS_REVIEW);
   lines.push(
-    `- **${groups.size}** genuine duplicate groups — copy still near-identical after each marker's own name is removed, so nothing in it distinguishes the two markers.`,
+    `- **${groups.size}** near-duplicate groups — copy still similar after each marker's own name is removed. **${needReview.length}** of them are genuine duplicates where neither marker is described; the rest are the same analyte under two names, or one sentence pattern with each analyte named inside it.`,
   );
   lines.push(`- **${flagged.length}** entries carry at least one flag.`);
   lines.push('');
@@ -297,6 +452,62 @@ async function main() {
   );
   lines.push('');
 
+  lines.push('## Review status, which is the number that matters');
+  lines.push('');
+  lines.push(
+    'Everything else in this report is a copy question. This is the clinical one: **how much of what a patient reads has been read by a clinician first.**',
+  );
+  lines.push('');
+  lines.push('| State | Entries |');
+  lines.push('| --- | --- |');
+  for (const [state, n] of [...byReviewState.entries()].sort((a, b) => b[1] - a[1])) {
+    lines.push(`| ${esc(state)} | ${n} |`);
+  }
+  lines.push('');
+  lines.push('| Result type | Entries | Genuinely clinician-reviewed |');
+  lines.push('| --- | --- | --- |');
+  for (const [type, v] of [...byTypeReviewed.entries()].sort((a, b) => b[1].total - a[1].total)) {
+    lines.push(`| ${type} | ${v.total} | ${v.real} |`);
+  }
+  lines.push('');
+  lines.push(
+    `A row marked PUBLISHED by \`${SEEDED_REVIEWERS.join(', ')}\` is worse than a DRAFT one, not better: the product reports it as checked, so nobody goes back to it. Those ${seededReviews.length} rows should be treated exactly as the DRAFT ones are.`,
+  );
+  lines.push('');
+
+  lines.push('## Punctuation and vocabulary: what the sweep actually found');
+  lines.push('');
+  lines.push(
+    'Counted over every field of every stored row in the database this ran against, not asserted. `Fixed automatically` says whether the house-style sweep (`src/lib/houseStyle.ts`) addresses that class at all — several of these are checks it does not perform, and a report that only measured what the fixer fixes could not tell you anything.',
+  );
+  lines.push('');
+  lines.push('| Condition | Fixed automatically | Rows still carrying it |');
+  lines.push('| --- | --- | --- |');
+  for (const c of sweep) {
+    lines.push(
+      `| ${esc(c.name)} | ${c.fixed ? 'yes' : 'no — reported only'} | ${c.hits.length}${
+        c.hits.length ? ` — ${esc(c.hits.slice(0, 6).join(', '))}${c.hits.length > 6 ? ', …' : ''}` : ''
+      } |`,
+    );
+  }
+  lines.push('');
+  lines.push(
+    'Every appearance of a word on the banned list, including the legitimate ones, so the judgement is visible rather than taken on trust. The rule forbids calling a RESULT good, bad, healthy or normal; it does not forbid the words, and a food can be a good source of zinc.',
+  );
+  lines.push('');
+  lines.push('| Marker | Field | Word | In context | Breach? |');
+  lines.push('| --- | --- | --- | --- | --- |');
+  for (const b of bannedSightings) {
+    const breach = new RegExp(
+      `\b${b.word}\s+${ABOUT_A_RESULT}\b|\b${ABOUT_A_RESULT}\s+(are|is|were|was)\s+${b.word}\b`,
+      'i',
+    ).test(b.excerpt);
+    lines.push(
+      `| ${esc(b.marker)} | ${b.field} | ${b.word} | …${esc(b.excerpt)}… | ${breach ? '**YES — for review**' : 'no'} |`,
+    );
+  }
+  lines.push('');
+
   lines.push('## Genuine duplicates');
   lines.push('');
   if (groups.size === 0) {
@@ -309,12 +520,8 @@ async function main() {
     lines.push('| Group | Markers | Verdict | Text |');
     lines.push('| --- | --- | --- | --- |');
     for (const [g, members] of [...groups.entries()].sort((a, b) => b[1].length - a[1].length)) {
-      const names = members.map((m) => m.marker.name);
-      const sameAnalyte = names.some(
-        (n, i) => i > 0 && (norm(n).includes(norm(names[0])) || norm(names[0]).includes(norm(n))),
-      );
       lines.push(
-        `| ${g} | ${names.map((n) => `\`${n}\``).join(', ')} | ${sameAnalyte ? 'Same analyte under two names — leave as it is' : '**REVIEW** — different analytes sharing one description'} | ${esc(members[0].body).slice(0, 200)}… |`,
+        `| ${g} | ${members.map((m) => `\`${m.marker.name}\``).join(', ')} | ${duplicateVerdict(members)} | ${esc(members[0].body).slice(0, 200)}… |`,
       );
     }
   }
@@ -372,6 +579,49 @@ async function main() {
   }
   lines.push('');
 
+  lines.push('## Wrong-analyte candidates, every one of them');
+  lines.push('');
+  lines.push(
+    'The heuristic is crude on purpose: an entry is listed when its copy names a DIFFERENT catalogue marker and never names its own. That produces false positives by design — ferritin is best explained by mentioning iron, and repeating a marker’s own name inside its own description is worse copy, not better — and false positives are much cheaper here than a miss. Every candidate is listed rather than a sample, with enough text to decide from.',
+  );
+  lines.push('');
+  const crossRefs = entries.filter((e) => e.flags.some((f) => f.startsWith('CROSS-REFERENCES')));
+  if (crossRefs.length === 0) {
+    lines.push('None.');
+  } else {
+    // NO "does it name itself?" COLUMN. By construction none of these does —
+    // that is the condition that put it on the list — so a column saying so
+    // for every row would be a tautology dressed as a finding. The question a
+    // reader has to answer is the one no heuristic can: does the text in the
+    // last column actually describe the marker in the first?
+    lines.push('| Marker | Type | Names instead | Text |');
+    lines.push('| --- | --- | --- | --- |');
+    for (const e of crossRefs) {
+      const named = e.flags.find((f) => f.startsWith('CROSS-REFERENCES'))!.slice('CROSS-REFERENCES('.length, -1);
+      lines.push(`| ${esc(e.marker.name)} | ${e.marker.resultType} | ${esc(named)} | ${esc(e.body).slice(0, 220)}… |`);
+    }
+  }
+  lines.push('');
+
+  lines.push('## Templated and thin');
+  lines.push('');
+  const templated = entries.filter((e) => e.flags.includes('TEMPLATED') && !e.flags.includes('TEMPLATE-FAMILY'));
+  const short = entries.filter((e) => e.flags.includes('SHORT'));
+  lines.push(
+    `**${templated.length}** entries share their opening six words with more than three others without being part of a template family, and **${short.length}** are under 90 characters. Neither is wrong on its own — a section of copy written in one sitting shares an opening because the analytes genuinely are the same kind of thing — but together they are what a filled-in template looks like, so they are the first place to look for copy that says nothing.`,
+  );
+  lines.push('');
+  if (templated.length + short.length > 0) {
+    lines.push('| Marker | Type | Flags | Chars | Opening |');
+    lines.push('| --- | --- | --- | --- | --- |');
+    for (const e of [...new Set([...templated, ...short])]) {
+      lines.push(
+        `| ${esc(e.marker.name)} | ${e.marker.resultType} | ${esc(e.flags.join(', '))} | ${e.chars} | ${esc(e.body).slice(0, 140)}… |`,
+      );
+    }
+    lines.push('');
+  }
+
   lines.push('## Fixed without review');
   lines.push('');
   lines.push(
@@ -398,6 +648,12 @@ async function main() {
   const needsClinician = (f: string) =>
     f.startsWith('VOCABULARY(') || f === 'UNITS-IN-PROSE' || f === 'SHORT';
   const forRichard = flagged.filter((e) => e.flags.some(needsClinician));
+  if (forRichard.length === 0 && needReview.length === 0) {
+    lines.push(
+      '**Nothing per-marker is outstanding.** Every vocabulary breach, unit stated in prose and thin entry this audit knows how to detect has been cleared, and both near-duplicate groups resolved to something legitimate on inspection. That is not the same as the copy being right — see the line at the foot of this section, which is the real ask.',
+    );
+    lines.push('');
+  }
   lines.push('| Marker | Why | Current text |');
   lines.push('| --- | --- | --- |');
   for (const e of forRichard) {
@@ -406,13 +662,9 @@ async function main() {
     );
   }
   for (const [g, members] of groups.entries()) {
-    const names = members.map((m) => m.marker.name);
-    const sameAnalyte = names.some(
-      (n, i) => i > 0 && (norm(n).includes(norm(names[0])) || norm(names[0]).includes(norm(n))),
-    );
-    if (sameAnalyte) continue;
+    if (duplicateVerdict(members) !== NEEDS_REVIEW) continue;
     lines.push(
-      `| ${names.map((n) => esc(n)).join(' + ')} | Duplicate group ${g}: two different analytes share one description, so neither is described | ${esc(members[0].body).slice(0, 220)} |`,
+      `| ${members.map((m) => esc(m.marker.name)).join(' + ')} | Duplicate group ${g}: two different analytes share one description, so neither is described | ${esc(members[0].body).slice(0, 220)} |`,
     );
   }
   lines.push('');

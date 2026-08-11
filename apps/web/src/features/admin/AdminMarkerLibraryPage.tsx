@@ -39,7 +39,7 @@ interface MarkerRow {
   key: string;
   name: string;
   defaultUnit: string;
-  resultType: 'MEASURED' | 'GENETIC' | 'SENSITIVITY' | 'COMPOSITION';
+  resultType: 'MEASURED' | 'GENETIC' | 'SENSITIVITY' | 'COMPOSITION' | 'QUALITATIVE';
   severityMultiplier: number;
   crossSourceComparable: boolean;
   isActive: boolean;
@@ -67,6 +67,7 @@ const RESULT_TYPE_LABEL: Record<MarkerRow['resultType'], string> = {
   GENETIC: 'Genetic',
   SENSITIVITY: 'Sensitivity',
   COMPOSITION: 'Body composition',
+  QUALITATIVE: 'Qualitative result',
 };
 
 function MarkersTab() {

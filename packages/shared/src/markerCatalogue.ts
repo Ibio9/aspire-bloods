@@ -17,7 +17,9 @@
  * would swamp it, and — far worse — they would appear to carry the same
  * clinical weight as a potassium. So every marker declares what KIND of result
  * it is, and only MEASURED ones reach the main results grid, the counts strip,
- * the category bars and Trends.
+ * the category bars and Trends. There are five: the fourth and fifth are the
+ * gut microbiome and, since Aug 2026, QUALITATIVE — the entries that report a
+ * finding rather than an amount. See RESULT_TYPE_RULES below.
  *
  * ─── Provenance ───────────────────────────────────────────────────────────
  *
@@ -46,7 +48,7 @@
 
 import type { Sex } from './types.js';
 
-export type ResultType = 'MEASURED' | 'GENETIC' | 'SENSITIVITY' | 'COMPOSITION';
+export type ResultType = 'MEASURED' | 'GENETIC' | 'SENSITIVITY' | 'COMPOSITION' | 'QUALITATIVE';
 
 /**
  * What each result type means for rendering. Kept beside the data because
@@ -103,6 +105,38 @@ export const RESULT_TYPE_RULES: Record<
     canHaveOptimalRange: false,
     framing:
       'These describe the make-up of your gut microbiome as proportions of the whole, not absolute amounts. They have no reference range and are not comparable with a blood measurement.',
+  },
+  /**
+   * The fifth type, added Aug 2026, and the reason it had to exist.
+   *
+   * Twenty-two entries in the catalogue were MEASURED and carried no unit —
+   * not because their unit was missing but because there is no quantity to put
+   * a unit on. A resting ECG is a trace somebody reads. A body composition
+   * analyser is a device you stand on. A prostate cancer risk score is a
+   * calculation. The nineteen UTI panel entries answer "detected" or "not
+   * detected". None of them is an analyte, none has a reference range, and all
+   * of them were sitting in the main results grid next to a potassium looking
+   * exactly as clinical as one.
+   *
+   * COMPOSITION was the obvious place to put the bacteria and it is the wrong
+   * one: its framing says gut microbiome, as proportions of the whole, and a
+   * urine PCR panel is neither. Reusing it would have meant either the wrong
+   * words over the UTI results or weaker words over the microbiome ones.
+   *
+   * What all twenty-two share is exactly this: the result is a FINDING rather
+   * than an amount. That is the type.
+   *
+   * NOT the urinalysis dipstick pads, which stay MEASURED — see the note on
+   * UNITS below for why.
+   */
+  QUALITATIVE: {
+    label: 'Qualitative result',
+    inMainGrid: false,
+    hasReferenceRange: false,
+    trendable: false,
+    canHaveOptimalRange: false,
+    framing:
+      'These are reported as a finding rather than as an amount: whether something was detected, or a reading taken and interpreted at your appointment. They have no reference range and no numeric scale, so there is nothing to compare them against and nothing to plot over time.',
   },
 };
 
@@ -388,6 +422,31 @@ export function markerKeyForName(name: string): string {
 // anything else. An invented unit is worse than no unit: the optimal-range
 // resolver refuses to show a band whose units disagree with the value beside
 // it, and a wrong unit would defeat exactly that guard.
+//
+// ─── THE NINE MEASURED MARKERS THAT STILL HAVE NO UNIT (Aug 2026) ──────────
+//
+// Thirty-one had none. Twenty-two of those were not analytes at all and are
+// now QUALITATIVE (see RESULT_TYPE_RULES.QUALITATIVE). Nine remain MEASURED
+// with an empty unit ON PURPOSE, and it is worth writing down which and why,
+// because "MEASURED with no unit" otherwise reads as an unfinished job:
+//
+//  · `h-pylori` — a serum antibody assay. It is a laboratory measurement of a
+//    substance in blood, which is the definition of MEASURED; UK laboratories
+//    report it positive / negative / equivocal rather than as a number, so
+//    there is no unit to give it and none is invented.
+//  · The EIGHT urinalysis dipstick pads — bilirubin, glucose, ketones,
+//    protein, red blood cells, urobilinogen, white blood cells, nitrite. These
+//    ARE measurements, read off a strip against a printed colour scale, with a
+//    normal reading and abnormal ones. A patient expects them beside their
+//    other results and they belong there. (`ph-urine` is the ninth pad and is
+//    genuinely numeric, so it has a unit and is not in this list.)
+//
+// A pad renders correctly without a numeric range because the whole read path
+// already handles a result that has a value and no comparison: it arrives as
+// `valueText` with `status: null`, so it shows its reading, takes no tint, no
+// chevron and no range bar, is labelled "Not compared to a range", and is
+// excluded from every tally by `countable()` in resultPresence.ts. Nothing
+// about the at-a-glance strip depends on the resultType alone.
 // ---------------------------------------------------------------------------
 
 const UNITS: Record<string, string> = {
@@ -584,10 +643,30 @@ const SIGNATURE_CATEGORY_ADDITIONS: Record<string, readonly string[]> = {
   'digestive-bowel-health': ['Genetic Coeliac Disease', 'Genetic Lactose Intolerance', 'tTg-IgA'],
 };
 
-/** Markers inside an otherwise-MEASURED category that are a different result type. */
+/**
+ * Markers inside an otherwise-MEASURED category that are a different result
+ * type.
+ *
+ * The two genetic ones are Signature filing genetic indicators inside the
+ * bowel health area. The three QUALITATIVE ones sit inside health areas full
+ * of real analytes and are not analytes themselves — see the note on
+ * RESULT_TYPE_RULES.QUALITATIVE. Each carries its own one-line reason, because
+ * "this is not a blood test" is a judgement and the next person should be able
+ * to disagree with the specific claim rather than the whole list.
+ */
 const RESULT_TYPE_OVERRIDES: Record<string, ResultType> = {
   'genetic-coeliac-disease': 'GENETIC',
   'genetic-lactose-intolerance': 'GENETIC',
+  // A trace read and written up, not a quantity. Its own explanation copy
+  // already says so: "reported as a written interpretation rather than as a
+  // number".
+  ecg: 'QUALITATIVE',
+  // A device you stand on at your appointment, reporting several estimates at
+  // once. There is no single value and no reference range for the session.
+  'body-composition-analyser': 'QUALITATIVE',
+  // A calculation over other results. It expresses likelihood across groups of
+  // people, which is not a quantity a laboratory range can be drawn around.
+  'prostate-cancer-risk-score': 'QUALITATIVE',
 };
 
 const SIGNATURE_ONLY_CATEGORIES: CatalogueCategory[] = [
@@ -620,7 +699,12 @@ const SIGNATURE_ONLY_CATEGORIES: CatalogueCategory[] = [
     markerNames: ['Caffeine Metabolism', 'Familial Hypercholesterolaemia Risk', 'Genetic Obesity Risk', 'Genetic Type II Diabetes Risk', 'High Cholesterol and Cardiovascular Disease Risk', 'Hypertension Risk', 'Mental Health', 'Sleep'],
   },
   {
-    key: 'uti', name: 'UTI', randoxId: null, resultType: 'MEASURED',
+    // QUALITATIVE, not MEASURED: sixteen organisms answered "detected" or "not
+    // detected" and three antibiotic-resistance markers, which describe a
+    // property of the bacteria in the sample rather than anything about the
+    // person. Not COMPOSITION either — that framing says gut microbiome as a
+    // proportion of the whole, and this is a urine PCR panel.
+    key: 'uti', name: 'UTI', randoxId: null, resultType: 'QUALITATIVE',
     markerNames: ['Acinetobacter baumannii', 'Enterobacter cloacae', 'Enterococcus faecalis', 'Enterococcus faecium', 'Escherichia coli', 'Klebsiella aerogenes', 'Klebsiella oxytoca', 'Klebsiella pneumoniae', 'Methicillin Resistance', 'Morganella morganii', 'Proteus spp.', 'Providencia stuartii', 'Pseudomonas aeruginosa', 'Staphylococcus aureus', 'Staphylococcus epidermidis', 'Staphylococcus saprophyticus', 'Streptococcus agalactiae (GBS)', 'Trimethoprim Resistance', 'Vancomycin Resistance'],
     note: 'Reported as detected or not detected, from a urine sample.',
   },
@@ -704,6 +788,25 @@ export interface CataloguePanel {
    */
   includes: readonly string[];
   categoryKeys: readonly string[];
+  /**
+   * WHICH DEFINITION OF ITS CATEGORIES THIS PANEL GETS, and it is not
+   * decoration — it was a real defect.
+   *
+   * A category is not one list. Signature's Heart Health is Insight's plus an
+   * ECG and two troponins; its Autoimmune is Insight's plus four antibodies;
+   * its Digestive & Bowel Health is Insight's plus two genetic indicators and
+   * a tTg-IgA. `categoriesFor(level)` is what expresses that.
+   *
+   * `markerKeysForPanel` used to resolve every panel's category keys against
+   * ALL_CATEGORIES, which IS `categoriesFor('signature')` — so Insight 360 was
+   * seeded with ten markers it does not include, an ECG among them. A panel
+   * that lists a test the patient did not buy is a panel that will eventually
+   * have a result filed against it.
+   *
+   * Absent means the panel reaches no categories at all (Core, which is a
+   * flattened GP3 marker list), so nothing to resolve.
+   */
+  categoryLevel?: 'insight-360' | 'signature';
   /** Extra markers not reached through a category (Core's named add-ons). */
   extraMarkerNames?: readonly string[];
   turnaroundWorkingDays: number;
@@ -780,6 +883,7 @@ export const CATALOGUE_PANELS: CataloguePanel[] = [
       'RanChip Insight 360: around 250 data points across roughly 150 conditions, spanning blood, urine and measurements taken at the clinic, with an at-home bowel health kit returned separately.',
     includes: [],
     categoryKeys: INSIGHT_CATEGORIES.map((c) => c.key),
+    categoryLevel: 'insight-360',
     turnaroundWorkingDays: 10,
     // §4E: Randox's own pages disagree with themselves about this. Their
     // structured service data says 10 working days from receipt at the lab;
@@ -802,6 +906,7 @@ export const CATALOGUE_PANELS: CataloguePanel[] = [
       ...SIGNATURE_ONLY_CATEGORIES.map((c) => c.key),
       ...FOOD_SENSITIVITY_CATEGORIES.map((c) => c.key),
     ],
+    categoryLevel: 'signature',
     turnaroundWorkingDays: 4,
     repeatIntervalMonths: 6,
     compositionConfirmed: true,
@@ -905,10 +1010,18 @@ export function resolveCatalogueMarkers(): CatalogueMarker[] {
   return [...byKey.values()];
 }
 
-/** Marker keys on a given panel, flattened through categories and extras alike. */
+/**
+ * Marker keys on a given panel, flattened through categories and extras alike.
+ *
+ * Resolved at THIS PANEL'S OWN LEVEL — see `CataloguePanel.categoryLevel`. A
+ * category resolved at the wrong level puts markers on a panel that does not
+ * sell them.
+ */
 export function markerKeysForPanel(panel: CataloguePanel): string[] {
   const keys = new Set<string>();
-  const categoryByKey = new Map(ALL_CATEGORIES.map((c) => [c.key, c]));
+  const categoryByKey = new Map(
+    (panel.categoryLevel ? categoriesFor(panel.categoryLevel) : ALL_CATEGORIES).map((c) => [c.key, c]),
+  );
   for (const ck of panel.categoryKeys) {
     for (const n of categoryByKey.get(ck)?.markerNames ?? []) keys.add(markerKeyForName(n));
   }
@@ -921,7 +1034,7 @@ export function catalogueSummary() {
   const markers = resolveCatalogueMarkers();
   const byType = markers.reduce<Record<ResultType, number>>(
     (acc, m) => ({ ...acc, [m.resultType]: acc[m.resultType] + 1 }),
-    { MEASURED: 0, GENETIC: 0, SENSITIVITY: 0, COMPOSITION: 0 },
+    { MEASURED: 0, GENETIC: 0, SENSITIVITY: 0, COMPOSITION: 0, QUALITATIVE: 0 },
   );
   return {
     markerCount: markers.length,

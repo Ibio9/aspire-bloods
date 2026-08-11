@@ -55,6 +55,44 @@ export function curlyApostrophes(text: string): string {
 }
 
 /**
+ * A BALANCED PAIR of straight double quotes, curled: `"good"` → `“good”`.
+ *
+ * The note above says a quotation mark is left alone because it is a pair and
+ * curling one half of a pair is worse than curling neither. That is still the
+ * rule; this is the case it excludes. When the marks come in an even number,
+ * both halves are known, so both can be curled and the objection does not
+ * apply.
+ *
+ * The three rows this was written for are the ones the product could least
+ * afford to have wrong, because they are on the lipid panel and a patient
+ * reads all three together: HDL's `"good" cholesterol`, LDL's and ApoB's
+ * `"bad" cholesterol`. The straight marks were the only straight quotation
+ * marks left in any stored copy, sitting two lines from curled apostrophes on
+ * the same card.
+ *
+ * ODD COUNT, NOTHING HAPPENS. An unbalanced mark is more likely to be an inch
+ * or a foot, or a sentence somebody truncated, than half a quotation — and
+ * guessing which half it is is exactly the failure the original note is about.
+ *
+ * The WORDS are untouched, which is the only reason this may run over copy
+ * nobody here reviewed. In particular it does NOT touch what is inside the
+ * quotes: `"good"` and `"bad"` are the colloquial names for HDL and LDL, they
+ * are in quotation marks precisely to mark them as somebody else's words, and
+ * replacing terms a patient recognises is a clinical wording decision rather
+ * than a style correction.
+ */
+export function curlyQuotes(text: string): string {
+  const count = (text.match(/"/g) ?? []).length;
+  if (count === 0 || count % 2 !== 0) return text;
+  let open = true;
+  return text.replace(/"/g, () => {
+    const mark = open ? '“' : '”';
+    open = !open;
+    return mark;
+  });
+}
+
+/**
  * An en dash inside a WORD, replaced with a hyphen: `acid–base` → `acid-base`.
  *
  * Deliberately not every en dash. Between two numbers it is a range —
@@ -72,11 +110,20 @@ export function plainCompoundDashes(text: string): string {
  * The whole house style, in the order it must run.
  *
  * PUNCTUATION ONLY — not one word is added, removed or reordered by any of the
- * three, which is what makes it safe to run over clinical copy nobody in this
+ * four, which is what makes it safe to run over clinical copy nobody in this
  * repository wrote.
+ *
+ * `curlyQuotes` runs AFTER `removeEmDashes`, and the order is load-bearing:
+ * removeEmDashes decides between a full stop and a comma by looking at the
+ * character following the dash, and it treats a straight `"` as a character
+ * that cannot take a capital. Curling first would hand it a `“` it has no case
+ * for. It runs BEFORE `curlyApostrophes` for no reason at all — the two touch
+ * different characters and cannot interfere — but a fixed order is still worth
+ * having, because "it happens not to matter" is a fact somebody has to
+ * re-derive.
  */
 export function applyHouseStyle(text: string): string {
-  return plainCompoundDashes(curlyApostrophes(removeEmDashes(text)));
+  return plainCompoundDashes(curlyApostrophes(curlyQuotes(removeEmDashes(text))));
 }
 
 /**

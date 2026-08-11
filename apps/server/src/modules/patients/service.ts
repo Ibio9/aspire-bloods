@@ -226,7 +226,7 @@ export async function getReleasedReportForPatient(patientId: string, reportId: s
         // with the reason in words instead of a status, a tint or a mark.
         status: r.status,
         // What KIND of result this is. Only MEASURED reaches the main grid, the
-        // counts strip, the category bars and Trends; the other three types get
+        // counts strip, the category bars and Trends; the other four types get
         // their own sections with their own framing, because a genetic risk
         // category and a potassium are not the same kind of statement about a
         // person and must not be laid out as though they were.

@@ -8,6 +8,7 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Table, TableHead, TableBody, TableRow, TableHeaderCell, TableCell } from '../../components/ui/Table';
 import { apiFetch } from '../../lib/api';
+import { AnalyteMappingPanel } from './AnalyteMappingPanel';
 
 interface IngestionLogRow {
   id: string;
@@ -226,6 +227,11 @@ export function IngestionLogPage() {
       )}
 
       <UnknownCodesPanel />
+      {/* The other half of "what did not arrive". An unrecognised CODE withheld
+          a result the lab reported; an unmapped ANALYTE is a result the lab
+          reported that we could not file. Both belong on the page an admin
+          comes to when something is missing, and neither had a home before. */}
+      <AnalyteMappingPanel />
     </>
   );
 }

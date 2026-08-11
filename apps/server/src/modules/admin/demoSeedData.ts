@@ -30,9 +30,9 @@
  *     "Not detected" on the qualitative markers that genuinely have no unit.
  *   · Markers with a published optimal range and markers with none, so both
  *     presentations appear.
- *   · All four result types — MEASURED, GENETIC, SENSITIVITY, COMPOSITION —
- *     with food sensitivity spanning all nine food groups, so the separated
- *     non-measured sections are populated rather than absent.
+ *   · All five result types — MEASURED, GENETIC, SENSITIVITY, COMPOSITION and
+ *     QUALITATIVE — with food sensitivity spanning all nine food groups, so
+ *     the separated non-measured sections are populated rather than absent.
  *
  * DETERMINISM. Every value comes from a hash of (marker key, report index), so
  * two runs against the same catalogue produce the same numbers. That is what
@@ -439,8 +439,28 @@ const SENSITIVITY_CLASSES = [
   'Elevated',
 ] as const;
 
-/** Qualitative MEASURED markers — the catalogue gives these no unit on purpose. */
+/**
+ * Word-shaped outcomes, for the two kinds of marker that report one: the
+ * QUALITATIVE type, and the nine MEASURED markers the catalogue gives no unit
+ * (the H. pylori serology and the eight urinalysis pads).
+ */
 const QUALITATIVE_OUTCOMES = ['Not detected', 'Not detected', 'Not detected', 'Negative', 'Normal'] as const;
+
+/**
+ * The three QUALITATIVE entries that are a reading taken at the appointment
+ * rather than a detection, and the words such a reading can actually carry.
+ *
+ * Deliberately neutral and deliberately non-diagnostic, same as every other
+ * string this file generates: nothing here calls a reading good, normal,
+ * healthy or concerning. "Sinus rhythm" is a description of a trace, not a
+ * verdict on it, and the risk score reports the band it fell in without
+ * telling anybody what to do about it.
+ */
+const APPOINTMENT_READING_OUTCOMES: Record<string, readonly string[]> = {
+  ecg: ['Sinus rhythm', 'Sinus rhythm', 'Sinus bradycardia'],
+  'body-composition-analyser': ['Recorded at your appointment', 'Recorded at your appointment'],
+  'prostate-cancer-risk-score': ['Low risk band', 'Low risk band', 'Intermediate risk band'],
+};
 
 function nonMeasuredValue(marker: MarkerRow, reportIndex: number): string {
   const r = mulberry32(hash32(`${marker.key}:${reportIndex}:nm`));
@@ -449,6 +469,19 @@ function nonMeasuredValue(marker: MarkerRow, reportIndex: number): string {
   }
   if (marker.resultType === 'SENSITIVITY') {
     return SENSITIVITY_CLASSES[Math.floor(r() * SENSITIVITY_CLASSES.length)];
+  }
+  // QUALITATIVE — a finding rather than an amount. Explicit rather than left to
+  // the fall-through below, which would have handed a UTI organism a
+  // percentage and printed "Escherichia coli 12.4%" on a demo report.
+  if (marker.resultType === 'QUALITATIVE') {
+    // NOT ONE VOCABULARY FOR ALL TWENTY-TWO. "Not detected" is right for an
+    // organism and absurd for an electrocardiogram — the demo showed "ECG: Not
+    // detected" and "Body Composition Analyser: Negative", which is the kind of
+    // value a clinician would stop reading the page at. The three that are a
+    // reading taken at the appointment get words a reading can actually have.
+    const appointment = APPOINTMENT_READING_OUTCOMES[marker.key];
+    if (appointment) return appointment[Math.floor(r() * appointment.length)];
+    return QUALITATIVE_OUTCOMES[Math.floor(r() * QUALITATIVE_OUTCOMES.length)];
   }
   // COMPOSITION — a proportion of the whole, which is what makes it not
   // comparable with a blood measurement (see RESULT_TYPE_RULES.COMPOSITION).
@@ -749,7 +782,7 @@ export async function buildDemoReports(opts: {
   const syntheticRangeMarkers = new Set<string>();
   const catalogueRangeMarkers = new Set<string>();
   let nonNumericResults = 0;
-  const byResultType: Record<ResultType, number> = { MEASURED: 0, GENETIC: 0, SENSITIVITY: 0, COMPOSITION: 0 };
+  const byResultType: Record<ResultType, number> = { MEASURED: 0, GENETIC: 0, SENSITIVITY: 0, COMPOSITION: 0, QUALITATIVE: 0 };
   const byIntendedStatus: Record<MarkerStatus, number> = {
     IN_RANGE: 0,
     HIGH: 0,

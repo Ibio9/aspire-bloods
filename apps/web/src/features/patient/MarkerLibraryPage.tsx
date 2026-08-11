@@ -39,7 +39,7 @@ const FILTERS: { value: LibraryFilter; label: string }[] = [
  * the foods bury everything else, which is the same reason the report itself
  * gives each non-measured type its own section and its own filters.
  */
-type KindFilter = 'ALL' | 'MEASURED' | 'GENETIC' | 'SENSITIVITY' | 'COMPOSITION';
+type KindFilter = 'ALL' | 'MEASURED' | 'GENETIC' | 'SENSITIVITY' | 'COMPOSITION' | 'QUALITATIVE';
 
 const KINDS: { value: KindFilter; label: string }[] = [
   { value: 'ALL', label: 'Everything' },
@@ -47,6 +47,7 @@ const KINDS: { value: KindFilter; label: string }[] = [
   { value: 'GENETIC', label: 'Genetic indicators' },
   { value: 'SENSITIVITY', label: 'Food sensitivity' },
   { value: 'COMPOSITION', label: 'Gut microbiome' },
+  { value: 'QUALITATIVE', label: 'Findings and readings' },
 ];
 
 /**
@@ -60,6 +61,7 @@ function kindLabel(entry: LibraryEntry): string {
   if (type === 'GENETIC') return 'Genetic indicator';
   if (type === 'SENSITIVITY') return 'Food sensitivity';
   if (type === 'COMPOSITION') return 'Microbiome composition';
+  if (type === 'QUALITATIVE') return 'Qualitative result';
   return entry.unit ? `Measured in ${entry.unit}` : 'Measured at the clinic';
 }
 

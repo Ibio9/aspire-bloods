@@ -407,16 +407,20 @@ export function PatientShell({ children }: { children?: ReactNode }) {
       {/* Sticky and exactly one viewport tall, so the panel's background runs
           edge to edge however long the page behind it is (see .h-viewport —
           100dvh with a 100vh fallback). */}
-      {/* NO BACKGROUND. The panel is transparent, so the corner glow runs
-          under it and out to the left edge of the window as one continuous
-          field — a `bg-cream-50` here drew a 288px vertical slab across it and
-          put a hard seam down the side of every signed-in screen, which is the
-          one thing the glow cannot survive.
-          Separation from the content area is the hairline on the right and
-          nothing else, which is all it ever needed: the two regions differ by
-          what is in them, not by being two shades of the same warm neutral. */}
+      {/* A TRANSLUCENT WASH, not an opaque surface and no longer nothing at
+          all. `bg-cream-50` here drew a 288px vertical slab across the corner
+          glow and put a hard seam down the side of every signed-in screen;
+          removing it entirely fixed the seam by removing the panel, and the
+          column then read as the same tone as the page with a title floating
+          in it. `.panel-wash` is the middle answer — a panel in FRONT of the
+          light source, which knocks it back without blocking it. See the note
+          on --c-panel in tokens.ts for the measurements, and the one in
+          globals.css for why there is no backdrop blur.
+          The hairline is `panel-edge` rather than `taupe`, one step stronger,
+          because it is the whole of the separation wherever the glow does not
+          reach — which on a wide window is most of this column. */}
       <aside
-        className={`h-viewport sticky top-0 hidden shrink-0 flex-col border-r border-taupe transition-[width] duration-200 ease-out md:flex ${
+        className={`panel-wash h-viewport sticky top-0 hidden shrink-0 flex-col border-r border-panel-edge transition-[width] duration-200 ease-out md:flex ${
           collapsed ? 'w-[84px]' : 'w-[288px]'
         }`}
       >

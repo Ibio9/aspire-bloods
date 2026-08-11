@@ -522,6 +522,53 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
   out['--c-page'] = surface;
 
   /**
+   * THE SIDEBAR PANEL — a translucent warm wash, not a surface colour.
+   *
+   * Both shells' sidebars went fully transparent so the corner glow could run
+   * under them as one continuous field, and that solved the seam by removing
+   * the panel: the column ended up the same tone as the page, so a signed-in
+   * screen read as one undifferentiated dark field with a page title floating
+   * in it. What is wanted is the middle answer — a panel in FRONT of a light
+   * source. It knocks the light back without blocking it.
+   *
+   * So this is a colour plus an alpha (`--panel-wash`, emitted per theme by
+   * tailwind.config.ts) applied over whatever happens to be behind, and the
+   * colour is brand espresso in BOTH themes rather than a per-theme surface.
+   * That one choice is what makes it work in both directions:
+   *
+   *  · In light, espresso is far darker than the cream page, so the wash dims
+   *    the column a little. 6% → 1.10:1 against the page.
+   *  · In dark, espresso is far LIGHTER than the #110F0D page, so the same
+   *    construction lifts the column instead. 38% → 1.17:1 against the page,
+   *    which sits it between the page and a card (1.44:1) — page, then panel,
+   *    then card, which is the hierarchy that was missing.
+   *
+   * Lifting in dark rather than dimming is not a stylistic preference, it is
+   * the only direction available: the page is already near-black, so a darker
+   * wash measures 1.02–1.04:1 against it however far it is pushed. Exactly the
+   * trap recorded on `darkWhite` above — there is no further down to go.
+   *
+   * And lifting still DIMS the glow, because the wash colour sits below the
+   * glow's core and above the page. Over the bright corner the wash knocks the
+   * core back to 1.10:1 of itself while the lit part of the panel stays 1.78:1
+   * brighter than the unlit part — the light is visibly still there, still
+   * continuous across the seam, just dimmer on the panel's side of it.
+   */
+  out['--c-panel'] = brand.espresso;
+  // The alpha itself is PANEL_WASH_ALPHA below rather than a variable here,
+  // because it is an opacity and not a colour: everything in this map is a hex
+  // that themeCssVars turns into channels.
+
+  /**
+   * The sidebar's right-hand hairline, one step stronger than the `taupe`
+   * border it used to take: 1.88:1 against the light page (was 1.40) and
+   * 3.40:1 against the dark one (was 2.17). It is the only thing separating
+   * the panel from the content area where the glow does not reach, and at
+   * `taupe` it was doing that job at a contrast the wash could not back up.
+   */
+  out['--c-panel-edge'] = dark ? darkScales.taupe[600] : scales.taupe[600];
+
+  /**
    * Text and icons on a FILLED accent — a bronze button, a selected option, an
    * avatar, the current step of a progress bar.
    *
@@ -668,6 +715,20 @@ export const themeTokens = {
   light: buildThemeTokens('light'),
   dark: buildThemeTokens('dark'),
 } as const;
+
+/**
+ * How much of `--c-panel` survives on the sidebar, per theme. Emitted as
+ * `--panel-wash` by tailwind.config.ts and consumed by `.panel-wash` in
+ * globals.css.
+ *
+ * Two different numbers for one wash because it works in two directions: the
+ * same espresso dims a cream page and lifts a near-black one, and 6% of it is
+ * as much as a light page will take before the column stops being a wash and
+ * starts being a surface, while a near-black page needs 38% to move at all.
+ * Measured against the page at 1.10:1 and 1.17:1 respectively — see the note
+ * beside `--c-panel`, and tokenContrast.test.ts, which holds both ends.
+ */
+export const PANEL_WASH_ALPHA = { light: 0.06, dark: 0.38 } as const;
 
 /** `#8a5e45` → `138 94 69`, the channel triplet Tailwind's `<alpha-value>` syntax needs. */
 export function hexToRgbChannels(hex: string): string {

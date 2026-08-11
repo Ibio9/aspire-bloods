@@ -46,7 +46,38 @@ import { resolveCatalogueMarkers } from '@aspire-bloods/shared';
  * and no sample type is refused rather than guessed at.
  */
 
-export type AnalyteMatchVia = 'override' | 'sample-type' | 'exact' | 'normalised';
+export type AnalyteMatchVia = 'override' | 'learned' | 'sample-type' | 'exact' | 'normalised';
+
+/**
+ * Mappings a human has accepted from the exception queue, keyed by
+ * `analyteIdentity()`.
+ *
+ * PASSED IN, NEVER CACHED. This is the one part of the map that lives in the
+ * database rather than in this file, and a stale copy of it in a module-level
+ * variable would file a result against whatever an admin USED to think the
+ * analyte was. The ingestion path already queries per delivery
+ * (`normaliseResultDetail`), so it reads these in the same breath and hands
+ * them over; every other caller passes nothing and gets the code-only map,
+ * which is what a test wants.
+ */
+export type LearnedAnalyteMappings = ReadonlyMap<string, string>;
+
+/**
+ * THE IDENTITY OF AN ANALYTE STRING: its normalised form plus its sample type.
+ *
+ * Both halves, always, because Randox print the nine urinalysis pads bare —
+ * "Glucose", "Protein", "Bilirubin" — and those are the same strings as three
+ * serum markers. A learned mapping keyed on the name alone would file a urine
+ * dipstick glucose against a fasting plasma glucose the first time somebody
+ * accepted the wrong one, and would do it silently ever after.
+ *
+ * A row with no sample type gets the literal `-` rather than an empty segment,
+ * so "Glucose" with no sample type and "Glucose" with sample type "" are one
+ * identity rather than two.
+ */
+export function analyteIdentity(analyte: string, sampleType?: string | null): string {
+  return `${normaliseAnalyte(analyte)}::${(sampleType ?? '').trim().toLowerCase() || '-'}`;
+}
 
 export type AnalyteResolution =
   | { status: 'MAPPED'; markerKey: string; via: AnalyteMatchVia; matchedOn: string }
@@ -206,7 +237,7 @@ export function __resetAnalyteIndexForTest(): void {
  * Randox's health area, it is recorded on the row, and using it to
  * disambiguate would be inference dressed as a lookup.
  */
-export function resolveAnalyte(row: AnalyteRowIdentity): AnalyteResolution {
+export function resolveAnalyte(row: AnalyteRowIdentity, learned?: LearnedAnalyteMappings): AnalyteResolution {
   const analyte = row.analyte?.trim() ?? '';
   const displayName = row.displayName?.trim() ?? '';
   if (!analyte && !displayName) {
@@ -228,6 +259,30 @@ export function resolveAnalyte(row: AnalyteRowIdentity): AnalyteResolution {
         };
       }
       return { status: 'MAPPED', markerKey: overridden, via: 'override', matchedOn: candidate };
+    }
+  }
+
+  // 1b. A mapping a human accepted from the exception queue. Same precedence
+  //     reasoning as the overrides above and immediately after them: both are
+  //     a person's decision about this exact spelling, and a person's decision
+  //     outranks a lookup. The code table wins over the learned one where they
+  //     disagree, because the code table is sourced from Randox's own
+  //     documented spellings and is reviewable in a diff.
+  if (learned && learned.size > 0) {
+    for (const candidate of [analyte, displayName]) {
+      if (!candidate) continue;
+      const key = learned.get(analyteIdentity(candidate, row.sampleType));
+      if (!key) continue;
+      if (!keys.has(key)) {
+        // The catalogue moved under an accepted mapping — a marker renamed or
+        // retired since somebody accepted it. Refused rather than guessed at,
+        // and it lands back in the queue with this sentence on it.
+        return {
+          status: 'UNMAPPED',
+          reason: `An accepted mapping sends "${candidate}" to marker "${key}", which is no longer in the catalogue. Accept it again against a current marker.`,
+        };
+      }
+      return { status: 'MAPPED', markerKey: key, via: 'learned', matchedOn: candidate };
     }
   }
 
@@ -295,6 +350,18 @@ export function resolveAnalyte(row: AnalyteRowIdentity): AnalyteResolution {
  */
 export function analyteMappingCoverage(): {
   total: number;
+  /**
+   * The CLINICAL population — MEASURED plus QUALITATIVE.
+   *
+   * It was MEASURED alone, and that stopped being right the day twenty-two
+   * entries were reclassified out of MEASURED into QUALITATIVE: the nineteen
+   * UTI organisms, the resting ECG, the body composition analyser and the
+   * prostate cancer risk score. Every one of those still arrives in a Randox
+   * payload and still has to be filed against a marker — what changed is how
+   * they RENDER, not whether they need mapping. Leaving them out would have
+   * quietly dropped this denominator by 22 and made the map look better for a
+   * reason that has nothing to do with the map.
+   */
   measured: number;
   /** Resolves from its own catalogue name. Self-consistency, NOT confirmation. */
   resolvesFromOwnName: number;
@@ -302,6 +369,8 @@ export function analyteMappingCoverage(): {
   withAlternativeSpelling: number;
   /** Resolvable on exactly ONE string. These are where a spelling difference costs a result. */
   singleSpellingOnly: { key: string; name: string }[];
+  /** The same question asked of the WHOLE catalogue, per result type. */
+  byResultType: Record<string, { total: number; singleSpelling: number }>;
   /** Markers reachable through an explicit, sourced override of Randox's own spelling. */
   overrides: number;
   /**
@@ -313,46 +382,74 @@ export function analyteMappingCoverage(): {
   unmapped: { key: string; name: string }[];
 } {
   const markers = resolveCatalogueMarkers();
-  const measured = markers.filter((m) => (m.resultType ?? 'MEASURED') === 'MEASURED');
+  // Everything a clinician acts on, plus everything that carries a finding.
+  // See the note on `measured` above for why QUALITATIVE is in here.
+  const clinical = markers.filter((m) => {
+    const t = m.resultType ?? 'MEASURED';
+    return t === 'MEASURED' || t === 'QUALITATIVE';
+  });
   const ambiguous: { key: string; name: string; candidates: string[] }[] = [];
   const unmapped: { key: string; name: string }[] = [];
   const singleSpellingOnly: { key: string; name: string }[] = [];
   const overrideTargets = new Set(Object.values(ANALYTE_OVERRIDES));
+  const byResultType: Record<string, { total: number; singleSpelling: number }> = {};
   let resolvesFromOwnName = 0;
   let withAlternativeSpelling = 0;
 
-  for (const marker of measured) {
+  /** Distinct spellings this marker answers to, deduplicated after normalisation. */
+  const spellingsFor = (marker: (typeof markers)[number]) => {
+    const spellings = new Set([marker.name, ...marker.aliases].map(normaliseAnalyte));
+    for (const [randoxName, key] of Object.entries(ANALYTE_OVERRIDES)) {
+      if (key === marker.key) spellings.add(normaliseAnalyte(randoxName));
+    }
+    return spellings;
+  };
+
+  // The whole catalogue, per type. The food-sensitivity and DNA sections are
+  // not exempt from this question just because they render in their own
+  // sections: a result Randox send for one of them still has to be filed, and
+  // 207 food items that each answer to exactly one spelling is a fact worth
+  // having in front of somebody rather than one hidden by a filter.
+  for (const marker of markers) {
+    const type = marker.resultType ?? 'MEASURED';
+    const bucket = (byResultType[type] ??= { total: 0, singleSpelling: 0 });
+    bucket.total += 1;
+    if (spellingsFor(marker).size <= 1) bucket.singleSpelling += 1;
+  }
+
+  for (const marker of clinical) {
     const resolution = resolveAnalyte({ analyte: marker.name });
     if (resolution.status === 'MAPPED' && resolution.markerKey === marker.key) resolvesFromOwnName += 1;
     else if (resolution.status === 'AMBIGUOUS') ambiguous.push({ key: marker.key, name: marker.name, candidates: resolution.candidates });
     else unmapped.push({ key: marker.key, name: marker.name });
 
-    // Distinct spellings this marker answers to: its name, its aliases, and
-    // any override pointing at it, deduplicated after normalisation.
-    const spellings = new Set([marker.name, ...marker.aliases].map(normaliseAnalyte));
-    for (const [randoxName, key] of Object.entries(ANALYTE_OVERRIDES)) {
-      if (key === marker.key) spellings.add(normaliseAnalyte(randoxName));
-    }
-    if (spellings.size > 1) withAlternativeSpelling += 1;
+    if (spellingsFor(marker).size > 1) withAlternativeSpelling += 1;
     else singleSpellingOnly.push({ key: marker.key, name: marker.name });
   }
 
   return {
     total: markers.length,
-    measured: measured.length,
+    measured: clinical.length,
     resolvesFromOwnName,
     withAlternativeSpelling,
     singleSpellingOnly,
+    byResultType,
     overrides: overrideTargets.size,
-    // Deliberately hardcoded, and deliberately zero. Nothing here has met a
-    // real Randox payload, and a coverage figure that implied otherwise would
-    // be the padding this function's own comment forbids. It becomes a real
-    // count when the first sandbox result lands and its analyte strings are
-    // recorded against the markers they were filed under.
+    // Deliberately hardcoded, and deliberately zero. Nothing IN THIS FILE has
+    // met a real Randox payload, and a coverage figure that implied otherwise
+    // would be the padding this function's own comment forbids.
+    //
+    // It does NOT become a computed number here when the first result lands.
+    // What a delivery has actually confirmed is counted from
+    // `RandoxAnalyteObservation` by `mappingConfidence()` in
+    // analyteObservations.ts, from recorded sightings, and the two are
+    // reported side by side rather than merged. This one answers "what does
+    // the code claim on its own evidence", and that answer is nothing.
     confirmedAgainstRealPayload: 0,
     ambiguous,
     unmapped,
   };
+
 }
 
 /**

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   applyHouseStyle,
   curlyApostrophes,
+  curlyQuotes,
   plainCompoundDashes,
   removeEmDashes,
   sameWords,
@@ -91,6 +92,34 @@ describe('curlyApostrophes', () => {
   });
 });
 
+describe('curlyQuotes', () => {
+  it('curls a balanced pair', () => {
+    expect(curlyQuotes('Often called "good" cholesterol.')).toBe('Often called “good” cholesterol.');
+  });
+
+  it('opens and closes alternately across several pairs', () => {
+    expect(curlyQuotes('"good" and "bad" cholesterol')).toBe('“good” and “bad” cholesterol');
+  });
+
+  /**
+   * The whole reason `curlyApostrophes` refuses to touch quotation marks: half
+   * a pair cannot be curled, because there is no way to know which half it is.
+   * An odd count is left exactly as it is rather than guessed at.
+   */
+  it('leaves an odd number of marks completely alone', () => {
+    expect(curlyQuotes('a 5" sample tube')).toBe('a 5" sample tube');
+    expect(curlyQuotes('he said "we will see')).toBe('he said "we will see');
+  });
+
+  it('leaves copy with no quotation marks alone', () => {
+    expect(curlyQuotes('Nothing to change here.')).toBe('Nothing to change here.');
+  });
+
+  it('leaves already-curled quotes alone', () => {
+    expect(curlyQuotes('Often called “good” cholesterol.')).toBe('Often called “good” cholesterol.');
+  });
+});
+
 describe('plainCompoundDashes', () => {
   it('hyphenates an en dash joining two words', () => {
     expect(plainCompoundDashes('the blood’s acid–base balance')).toBe('the blood’s acid-base balance');
@@ -119,6 +148,9 @@ describe('applyHouseStyle', () => {
     'An electrolyte that maintains the blood\'s acid–base balance.',
     'Levels vary through the day — highest in the morning — so timing matters.',
     'Reference range 3.9–5.1 mmol/L. Nothing to change here.',
+    'Often called "good" cholesterol — helps remove excess cholesterol.',
+    'A protein found on the particles that carry "bad" cholesterol.',
+    'a 5" sample tube and one unmatched mark',
   ];
 
   it('changes punctuation and never a word', () => {

@@ -89,6 +89,13 @@ enum ResultType {
   // Gut microbiome measures: relative abundance rather than an absolute value.
   // Own section, own presentation.
   COMPOSITION
+  // A finding rather than an amount: detected / not detected, or a reading
+  // taken and interpreted at the appointment. The UTI panel's organisms and
+  // resistance markers, the resting ECG, the body composition analyser and the
+  // prostate cancer risk score. No units, no reference range, no trend — see
+  // RESULT_TYPE_RULES.QUALITATIVE in shared/markerCatalogue.ts for why these
+  // could not simply be COMPOSITION.
+  QUALITATIVE
 }
 
 enum EscalationSeverity {
@@ -184,6 +191,8 @@ model User {
 
   randoxOrders       RandoxOrder[] @relation("PatientRandoxOrders")
   randoxOrdersPlaced RandoxOrder[] @relation("RandoxOrderPlacedByStaff")
+
+  analyteMappingsAccepted RandoxAnalyteObservation[] @relation("AnalyteMappingAcceptedBy")
 }
 
 model PatientProfile {
@@ -446,6 +455,7 @@ model Marker {
   referenceRanges        ReferenceRange[]
   explanation            MarkerExplanation?
   results                ReportResult[]
+  analyteObservations    RandoxAnalyteObservation[]
   createdAt              DateTime           @default(now())
   updatedAt              DateTime           @updatedAt
 
@@ -1210,6 +1220,80 @@ model RandoxUnknownCode {
   sampleMarkerName  String?
 
   @@index([lastSeenAt])
+}
+
+// Every analyte STRING Randox has actually sent us, and what became of it.
+//
+// WHY THIS EXISTS. The analyte map (modules/randox/analyteMap.ts) resolves a
+// result row to a marker by matching Randox's `analyte` string against our
+// catalogue's own names and aliases. 186 markers resolved from their own
+// catalogue names and ZERO had ever been checked against a real Randox
+// payload — which is self-consistency, not confirmation. 86 of them answered
+// to exactly one spelling, so a single difference in how Randox print any of
+// those loses a result to the exception queue.
+//
+// Refusing to invent plausible Randox spellings was the right call and is not
+// revisited. What was wrong was that the uncertainty lived in a report nobody
+// opens. This table is the correction: it turns "we assume" into "we have seen
+// N of them", from evidence rather than from optimism.
+//
+// TWO KINDS OF ROW, one table, because they are the same fact at different
+// stages:
+//   · RESOLVED   — this exact string arrived and the map answered. `via` says
+//                  which pass answered it, and 'ADMIN' means a person did.
+//   · UNMAPPED   — this exact string arrived and nothing in the catalogue
+//                  matched. It is the exception queue.
+//
+// A row with via = ADMIN is also the LEARNED MAPPING. `normaliseResultDetail`
+// loads them and passes them into resolveAnalyte, so an accepted mapping is
+// used on the next delivery. It is deliberately not a cache: it is read fresh
+// per ingestion, because a stale mapping in a clinical path is worse than a
+// query.
+model RandoxAnalyteObservation {
+  id String @id @default(uuid())
+
+  // Exactly as Randox sent it, and the normalised form the map matches on.
+  // The pair is the identity: `sampleType` is part of it because Randox print
+  // the urinalysis pads bare, and "Glucose" from a urine sample and "Glucose"
+  // from serum are two different tests.
+  analyte    String
+  normalised String
+  sampleType String?
+  // The key the unique index is on. sampleType is nullable and Postgres treats
+  // NULLs as distinct in a unique index, so an unqualified analyte would get a
+  // new row on every delivery. A composite string has no such hole.
+  identity   String  @unique
+
+  // Context, last seen. Never used to resolve — `group` is Randox's health
+  // area and resolving by it would be inference dressed as a lookup.
+  group             String?
+  displayName       String?
+  sampleOrderNumber String?
+
+  status RandoxAnalyteStatus
+  // Which pass answered, or ADMIN where a person accepted a suggestion.
+  via    String?
+
+  markerId String?
+  marker   Marker? @relation(fields: [markerId], references: [id])
+
+  acceptedById String?
+  acceptedBy   User?   @relation("AnalyteMappingAcceptedBy", fields: [acceptedById], references: [id])
+  acceptedAt   DateTime?
+
+  sightings   Int      @default(1)
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  @@index([status, lastSeenAt])
+  @@index([markerId])
+}
+
+enum RandoxAnalyteStatus {
+  // The map answered. Confirmation that this spelling works, from a real payload.
+  RESOLVED
+  // Nothing matched. Holds its report at PARSED and appears in the queue.
+  UNMAPPED
 }
 
 // Patient measurements Randox return alongside results

@@ -641,7 +641,8 @@ export async function runDemoSeed(opts: { trigger: DemoSeedTrigger; allowProduct
     const detail =
       `${generated.length} released reports spanning ~${spanMonths} months, ${usedMarkerIds.size} distinct markers, ` +
       `${resultsWritten} results (${d.byResultType.MEASURED} measured, ${d.byResultType.GENETIC} genetic, ` +
-      `${d.byResultType.SENSITIVITY} sensitivity, ${d.byResultType.COMPOSITION} composition). ` +
+      `${d.byResultType.SENSITIVITY} sensitivity, ${d.byResultType.COMPOSITION} composition, ` +
+      `${d.byResultType.QUALITATIVE} qualitative). ` +
       `${d.measuredCategoriesCovered}/${d.measuredCategoriesTotal} health areas covered. ` +
       `Markers per report: ${perReport}.`;
 

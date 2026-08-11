@@ -9,6 +9,7 @@ import {
   hueTint,
   chart,
   NO_STATUS_PAINT,
+  PANEL_WASH_ALPHA,
   type StatusKey,
 } from '@aspire-bloods/shared';
 
@@ -275,3 +276,85 @@ function blend(hex: string, bg: string, alpha: number): string {
 function kebab(s: string): string {
   return s.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
 }
+
+/**
+ * THE SIDEBAR PANEL, in both shells.
+ *
+ * It is a translucent wash rather than a surface, so none of it is a token you
+ * can read straight out of the map: what lands on screen is `--c-panel` at
+ * `PANEL_WASH_ALPHA` over whatever happens to be behind, and "whatever happens
+ * to be behind" is the page in most of the column and the corner glow in the
+ * top-right of it. So each pair is composited here first and then measured.
+ *
+ * Three properties, and the panel is wrong if any one of them goes:
+ *
+ *  1. It reads as a panel against the plain page — the far corner, where there
+ *     is no glow at all and the wash is the only thing distinguishing the two
+ *     regions.
+ *  2. It still lets the light through — the near corner, where the panel must
+ *     be visibly brighter than its own unlit part rather than a flat lid over
+ *     the glow.
+ *  3. Every label on it still clears AA, on the darkest part of the panel AND
+ *     on the brightest. A wash that lifts the surface eats the contrast of the
+ *     text standing on it, and the inactive nav label is the tightest of them.
+ */
+describe.each(MODES)('%s sidebar panel', (mode) => {
+  const page = tone(mode, '--c-cream');
+  const card = tone(mode, '--c-cream-50');
+  const wash = tone(mode, '--c-panel');
+  const alpha = PANEL_WASH_ALPHA[mode];
+
+  // THE GLOW IS DARK-ONLY. The token is emitted in both themes so nothing has
+  // to branch, but the rule that paints it is `.dark body::before` — so in
+  // light there is no near corner and no far corner, there is only the page,
+  // and measuring a light-mode panel against a glow that is never drawn would
+  // be measuring a fiction. The backdrop in light is the page, twice.
+  const glowCore = mode === 'dark' ? blend(tone(mode, '--c-glow'), page, 0.4) : page;
+
+  const panelOnPage = blend(wash, page, alpha);
+  const panelOnGlow = blend(wash, glowCore, alpha);
+
+  it('separates from the page without becoming a card', () => {
+    const fromPage = contrastRatio(panelOnPage, page);
+    const cardFromPage = contrastRatio(card, page);
+    expect(fromPage, `panel against the page is ${fromPage.toFixed(2)}:1`).toBeGreaterThanOrEqual(1.08);
+    // Page, then panel, then card. A panel that has climbed past the card is a
+    // surface again, and the whole point of a wash is that it is not one.
+    expect(fromPage, `panel ${fromPage.toFixed(2)}:1 vs card ${cardFromPage.toFixed(2)}:1`).toBeLessThan(cardFromPage);
+  });
+
+  it.runIf(mode === 'dark')('dims the light without blocking it', () => {
+    // Dimmer than the unwashed glow beside it...
+    const dimmed = contrastRatio(glowCore, panelOnGlow);
+    expect(dimmed, `the glow is only ${dimmed.toFixed(2)}:1 dimmer under the panel`).toBeGreaterThan(1.03);
+    // ...and still plainly there, rather than a flat lid.
+    const stillLit = contrastRatio(panelOnGlow, panelOnPage);
+    expect(stillLit, `the lit part of the panel is only ${stillLit.toFixed(2)}:1 above the unlit part`).toBeGreaterThan(
+      1.15,
+    );
+  });
+
+  it('keeps every label on it at AA, lit and unlit', () => {
+    const labels = {
+      // The inactive nav label — the tightest pair in the panel.
+      'nav label': tone(mode, '--c-taupe-900'),
+      'active nav label': tone(mode, '--c-espresso'),
+      'staff return link': tone(mode, '--c-bronze-700'),
+    };
+    for (const [name, colour] of Object.entries(labels)) {
+      for (const [where, bg] of [['unlit', panelOnPage], ['lit', panelOnGlow]] as const) {
+        const ratio = contrastRatio(colour, bg);
+        expect(ratio, `${name} on the ${where} panel is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(WCAG_AA_TEXT);
+      }
+    }
+  });
+
+  it('draws the hairline stronger than the border it replaced', () => {
+    const edge = contrastRatio(tone(mode, '--c-panel-edge'), page);
+    const taupe = contrastRatio(tone(mode, '--c-taupe'), page);
+    expect(edge, `panel edge ${edge.toFixed(2)}:1 vs taupe ${taupe.toFixed(2)}:1`).toBeGreaterThan(taupe);
+    // Legible on its own where the wash is faintest, but never a line of light.
+    expect(edge).toBeGreaterThanOrEqual(1.6);
+    expect(edge).toBeLessThan(WCAG_AA_TEXT);
+  });
+});

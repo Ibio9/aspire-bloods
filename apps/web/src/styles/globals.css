@@ -340,6 +340,32 @@
     letter-spacing: 0.01em;
   }
 
+  /* ── The sidebar panel, in both shells ─────────────────────────────────
+     A TRANSLUCENT WARM WASH, not a surface. The panel is in front of the
+     corner glow rather than on top of it: the light still comes through,
+     dimmer on this side of the seam and continuous across it.
+
+     One colour and one alpha, both tokens (see --c-panel in tokens.ts and
+     --panel-wash in tailwind.config.ts). It cannot be a Tailwind
+     `bg-panel/[…]` because the alpha differs per theme and an opacity
+     modifier is a build-time literal.
+
+     NO BACKDROP FILTER, and that is a decision rather than an omission. The
+     only thing behind this element is the page colour on `html` and the one
+     fixed radial in `.dark body::before` — no content, no texture, nothing
+     that moves. Blurring a smooth radial gradient returns the same gradient,
+     so `backdrop-filter` here buys a compositing layer on a sticky element
+     and no visible difference whatsoever. The place it would earn itself is
+     the MOBILE DRAWER, which genuinely has scrimmed content behind it — and
+     that keeps its opaque surface instead, because navigation read through
+     the page it navigates is worse than either.
+
+     Nothing depends on it: turn the wash off and the hairline still separates
+     the two regions, exactly as the glow's own rule requires. */
+  .panel-wash {
+    background-color: rgb(var(--c-panel) / var(--panel-wash));
+  }
+
   /* The value half. Fraunces at the section optical size, so a
      RECENT TEST / 5 days ago pair reads as one object. */
   .stat-value {

@@ -6,6 +6,7 @@ import {
   MEASURED_EXPLANATIONS,
   GENETIC_EXPLANATIONS,
   COMPOSITION_EXPLANATIONS,
+  QUALITATIVE_EXPLANATIONS,
   explanationFor,
   foodNameFromMarkerName,
 } from '../prisma/markerExplanations.js';
@@ -37,6 +38,7 @@ function allCopy(): { key: string; text: string }[] {
   for (const [key, v] of Object.entries(MEASURED_EXPLANATIONS)) out.push({ key, text: v.whatItIs });
   for (const [key, v] of Object.entries(GENETIC_EXPLANATIONS)) out.push({ key, text: v.whatItIs });
   for (const [key, v] of Object.entries(COMPOSITION_EXPLANATIONS)) out.push({ key, text: v.whatItIs });
+  for (const [key, v] of Object.entries(QUALITATIVE_EXPLANATIONS)) out.push({ key, text: v.whatItIs });
   // One representative of the food panel: every one of the 207 is the same
   // sentence with a different noun in it, so testing one tests all of them.
   out.push({ key: 'cod-igg', text: explanationFor({ key: 'cod-igg', name: 'Cod (IgG)', resultType: 'SENSITIVITY' })!.whatItIs });
@@ -55,14 +57,14 @@ describe('marker explanation coverage', () => {
     expect(uncovered).toEqual([]);
   });
 
-  it('covers all four result types', () => {
+  it('covers all five result types', () => {
     const byType = catalogue.reduce<Record<string, number>>((acc, m) => {
       const covered =
         seeded.has(m.key) || explanationFor({ key: m.key, name: m.name, resultType: m.resultType }) !== null;
       if (covered) acc[m.resultType] = (acc[m.resultType] ?? 0) + 1;
       return acc;
     }, {});
-    expect(byType).toEqual({ MEASURED: 186, GENETIC: 32, SENSITIVITY: 207, COMPOSITION: 10 });
+    expect(byType).toEqual({ MEASURED: 164, GENETIC: 32, SENSITIVITY: 207, COMPOSITION: 10, QUALITATIVE: 22 });
   });
 
   it('has no key that no catalogue marker uses', () => {
@@ -71,6 +73,7 @@ describe('marker explanation coverage', () => {
       ...Object.keys(MEASURED_EXPLANATIONS),
       ...Object.keys(GENETIC_EXPLANATIONS),
       ...Object.keys(COMPOSITION_EXPLANATIONS),
+      ...Object.keys(QUALITATIVE_EXPLANATIONS),
     ].filter((k) => !live.has(k));
     expect(dead).toEqual([]);
   });
@@ -162,6 +165,7 @@ describe('house style and clinical restraint', () => {
       ...Object.values(MEASURED_EXPLANATIONS),
       ...Object.values(GENETIC_EXPLANATIONS),
       ...Object.values(COMPOSITION_EXPLANATIONS),
+      ...Object.values(QUALITATIVE_EXPLANATIONS),
     ]) {
       expect(Object.keys(v)).toEqual(['whatItIs']);
     }
@@ -202,6 +206,21 @@ describe('microbiome copy', () => {
     for (const [key, v] of Object.entries(COMPOSITION_EXPLANATIONS)) {
       expect(v.whatItIs, `${key} states neither its uncertainty nor its limits`).toMatch(
         /\b(no agreed|no established|no reference range|unsettled|open question|inconsistent|least well understood|has not supported|is not (the same|a test|a measurement)|rather than as a measurement)\b/i,
+      );
+    }
+  });
+});
+
+describe('qualitative copy', () => {
+  it('says in its own words that the result is not a number', () => {
+    // The same property the microbiome block asserts, for the same reason: a
+    // bare description of an organism or a device reading sits in a results
+    // portal looking exactly like an assay, and this copy has to say it is not
+    // one. Every entry either reports a detection, describes a property of the
+    // sample, or names itself as an interpretation or a calculation.
+    for (const [key, v] of Object.entries(QUALITATIVE_EXPLANATIONS)) {
+      expect(v.whatItIs, `${key} never says it is a finding rather than an amount`).toMatch(
+        /\b(whether (it|they) (was|were) detected|property of bacteria|written interpretation|a reading taken|calculated score)\b/i,
       );
     }
   });

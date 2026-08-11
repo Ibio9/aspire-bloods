@@ -17,6 +17,13 @@ import {
   listCatalogue,
   setCatalogueMapping,
 } from './referenceDataService.js';
+import {
+  AnalyteMappingError,
+  acceptMapping,
+  mappingConfidence,
+  markersForMapping,
+  unmappedQueue,
+} from './analyteObservations.js';
 
 /**
  * Staff-facing Randox routes. Ordering, booking and forcing a status check
@@ -69,6 +76,77 @@ randoxRouter.get(
   asyncHandler(async (_req, res) => {
     const codes = await prisma.randoxUnknownCode.findMany({ orderBy: { lastSeenAt: 'desc' }, take: 200 });
     res.json(codes);
+  }),
+);
+
+// --- The analyte map: how much of it a real payload has confirmed ---------
+
+/**
+ * THE CONFIDENCE INDICATOR, and it exists because the honest answer was buried
+ * in an audit report nobody opens.
+ *
+ * The analyte map resolves 186 markers from their own catalogue names and had
+ * been checked against zero real Randox payloads. That is self-consistency, not
+ * confirmation, and 86 of those markers answer to exactly one spelling — so a
+ * single difference in how Randox print any of them loses a result to the
+ * queue below. This endpoint reports both numbers, from two different sources,
+ * and never adds them together: what the code claims, and what a delivery has
+ * actually proved.
+ */
+randoxRouter.get(
+  '/analytes/confidence',
+  roleGuard('ADMIN'),
+  asyncHandler(async (_req, res) => {
+    res.json(await mappingConfidence());
+  }),
+);
+
+/**
+ * The exception queue: analyte strings that arrived and matched nothing.
+ *
+ * Each carries the closest catalogue candidates. They are SUGGESTIONS — from
+ * the fuzzy matcher the analyte map itself refuses to use, which is correct
+ * here and only here, because an admin is looking at the answer before
+ * anything is written. Nothing is pre-selected and nothing is applied.
+ */
+randoxRouter.get(
+  '/analytes/unmapped',
+  roleGuard('ADMIN'),
+  asyncHandler(async (_req, res) => {
+    const [queue, markers] = await Promise.all([unmappedQueue(), markersForMapping()]);
+    res.json({ queue, markers });
+  }),
+);
+
+/**
+ * A person accepting one. Audited, because it decides which marker a real
+ * patient's result is filed against from here on — and because the whole point
+ * of the queue is that nothing gets there automatically.
+ */
+randoxRouter.post(
+  '/analytes/:id/accept',
+  roleGuard('ADMIN'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const body = z.object({ markerKey: z.string().min(1) }).parse(req.body);
+    try {
+      const queue = await acceptMapping(req.params.id, body.markerKey, req.user!.id);
+      await recordAuditLog({
+        actorType: 'USER',
+        actorUserId: req.user!.id,
+        action: 'RANDOX_ANALYTE_MAPPING_ACCEPTED',
+        targetType: 'RandoxAnalyteObservation',
+        targetId: req.params.id,
+        metadata: { markerKey: body.markerKey },
+      });
+      res.json({ queue });
+    } catch (e) {
+      if (e instanceof AnalyteMappingError) {
+        res.status(e.status).json({ error: e.message });
+        return;
+      }
+      throw e;
+    }
   }),
 );
 

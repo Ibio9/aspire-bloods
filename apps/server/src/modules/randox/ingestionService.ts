@@ -21,6 +21,12 @@ import { loadIdMap } from './config.js';
 import { assessCodes, recordUnknownCode } from './codes.js';
 import { parseRandoxValue, parseReferenceRange, normaliseLabIndicator, labStatusDisagrees } from './clients/parseResult.js';
 import { resolveAnalyte } from './analyteMap.js';
+import {
+  loadLearnedMappings,
+  recordAnalyteSightings,
+  type AnalyteSighting,
+  type SightingOutcome,
+} from './analyteObservations.js';
 import { mappedKeyFor } from './referenceDataService.js';
 import type { GetOrderResultDetailResponse, RandoxReportResultRow, OrderRef } from './types.js';
 
@@ -136,8 +142,14 @@ export async function normaliseResultDetail(
     reason: string;
   }[] = [];
   let pendingCount = 0;
+  /** What we saw and how it went, for the mapping-confidence record. */
+  const sightings: (AnalyteSighting & { outcome: SightingOutcome })[] = [];
 
   const markers = await prisma.marker.findMany({ where: { isActive: true }, select: { id: true, key: true, name: true, severityMultiplier: true, severityAbsoluteDelta: true } });
+  // Mappings a human accepted from the exception queue. Read per delivery
+  // rather than cached — see LearnedAnalyteMappings. Before the first accept
+  // this is empty and the map behaves exactly as it did.
+  const learned = await loadLearnedMappings();
 
   for (const raw of detail.reportResults) {
     const name = raw.displayName?.trim() || raw.analyte?.trim() || '(unnamed test)';
@@ -182,11 +194,29 @@ export async function normaliseResultDetail(
     // guessed at: it becomes an exclusion carrying the raw analyte, the group
     // and the display name, which is what puts it in front of a human with
     // the exact spelling they need to add one line to the map.
-    const resolution = resolveAnalyte({
+    const resolution = resolveAnalyte(
+      {
+        analyte: raw.analyte,
+        displayName: raw.displayName,
+        group: raw.group,
+        sampleType: raw.sampleType,
+      },
+      learned,
+    );
+    // Recorded whichever way it went. A resolution that WORKED is the evidence
+    // the mapping-confidence figure is built from, and it was previously
+    // thrown away — only the failures were reported, so the product could say
+    // what it could not read and never what it could.
+    sightings.push({
       analyte: raw.analyte,
       displayName: raw.displayName,
       group: raw.group,
       sampleType: raw.sampleType,
+      orderNumber: detail.orderNumber ?? null,
+      outcome:
+        resolution.status === 'MAPPED'
+          ? { status: 'RESOLVED', markerKey: resolution.markerKey, via: resolution.via }
+          : { status: 'UNMAPPED' },
     });
     if (resolution.status !== 'MAPPED') {
       unmappedAnalytes.push({
@@ -280,6 +310,12 @@ export async function normaliseResultDetail(
   }
 
   const panelKey = await resolvePanelKey(detail);
+
+  // WHAT WE HAVE SEEN RANDOX SEND, recorded before this returns. It never
+  // throws — see recordAnalyteSightings — because a result that arrived and
+  // resolved has to reach the patient's report whether or not we managed to
+  // write down that we had seen its spelling before.
+  await recordAnalyteSightings(sightings);
 
   return {
     pendingCount,

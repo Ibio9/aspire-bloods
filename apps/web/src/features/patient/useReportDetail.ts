@@ -19,7 +19,7 @@ import type { SummaryCategory } from './ResultsSummary';
 
 export interface MarkerCard extends MarkerCardResult {
   /**
-   * MEASURED / GENETIC / SENSITIVITY / COMPOSITION. Absent on a payload from
+   * MEASURED / GENETIC / SENSITIVITY / COMPOSITION / QUALITATIVE. Absent on a payload from
    * before result types existed, which is treated as MEASURED — that is what
    * everything was.
    */
@@ -63,6 +63,8 @@ export interface ReportDetailData {
     genetic: MarkerCard[];
     sensitivity: MarkerCard[];
     composition: MarkerCard[];
+    /** UTI organisms, the ECG, the body composition analyser, the prostate risk score. */
+    qualitative: MarkerCard[];
   };
   /**
    * Undefined until the report has landed. A picker that says "Above range (0)"
@@ -112,7 +114,7 @@ export function useReportDetail(reportId: string | undefined): ReportDetailData 
   }, [reportId]);
 
   // Split by result type once. Only MEASURED reaches the grid, the counts strip
-  // and the group headings; the other three get their own sections below.
+  // and the group headings; the other four get their own sections below.
   const byType = useMemo(() => {
     // A marker with no result renders nowhere — never a placeholder, never an
     // empty row. The server no longer sends one; this is the second lock on
@@ -124,6 +126,7 @@ export function useReportDetail(reportId: string | undefined): ReportDetailData 
       genetic: all.filter((m) => resultTypeOf(m) === 'GENETIC'),
       sensitivity: all.filter((m) => resultTypeOf(m) === 'SENSITIVITY'),
       composition: all.filter((m) => resultTypeOf(m) === 'COMPOSITION'),
+      qualitative: all.filter((m) => resultTypeOf(m) === 'QUALITATIVE'),
     };
   }, [report]);
 

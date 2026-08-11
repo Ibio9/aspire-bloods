@@ -178,13 +178,50 @@ export function CompositionSection({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Qualitative results
+// ---------------------------------------------------------------------------
+
 /**
- * Genetic indicators and microbiome composition, which are the same shape: a
- * list of named results grouped by health area, with no status, no reference
- * range, no tint and no trend — because none of the four means anything for
- * either of them.
+ * The UTI panel, the resting ECG, the body composition analyser and the
+ * prostate cancer risk score — results that are a finding rather than an
+ * amount. Same shape as the two above and for the same reason: no status, no
+ * range, no tint, no trend, because none of the four means anything here.
  *
- * One component rather than two near-identical ones, since the only real
+ * The UTI panel has a health area of its own and groups under it. The other
+ * three sit inside health areas full of real analytes (heart health, personal
+ * measurements, prostate health), which stay MEASURED — so those three fall
+ * into the section's ungrouped bucket, which is exactly what it is for.
+ */
+export function QualitativeSection({
+  markers,
+  categories,
+}: {
+  markers: NonMeasuredMarker[];
+  categories: SummaryCategory[];
+}) {
+  return (
+    <CategorisedSection
+      markers={markers}
+      categories={categories}
+      resultType="QUALITATIVE"
+      idPrefix="qualitative"
+      title="Findings and readings"
+      framing={RESULT_TYPE_RULES.QUALITATIVE.framing}
+      otherHeading="Other findings and readings"
+      noun="result"
+      placeholder="E. coli, ECG…"
+    />
+  );
+}
+
+/**
+ * Genetic indicators, microbiome composition and qualitative findings, which
+ * are the same shape: a list of named results grouped by health area, with no
+ * status, no reference range, no tint and no trend — because none of the four
+ * means anything for any of them.
+ *
+ * One component rather than three near-identical ones, since the only real
  * differences are the words.
  */
 function CategorisedSection({

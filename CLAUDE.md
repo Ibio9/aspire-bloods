@@ -371,6 +371,43 @@ IDENTITY: Randox print the urinalysis pads bare ("Glucose", "Protein",
 "Bilirubin"), which are the same strings as three serum markers and are not the
 same tests.
 
+**THE MAP IS UNVERIFIED, AND THAT IS NOW ON A SCREEN (Aug 2026).** 186 clinical
+markers resolve from their own catalogue names, 0 have been confirmed against a
+real Randox payload, and **86 answer to exactly one spelling** — so one
+difference in how Randox print any of those loses a result. That is
+self-consistency, not confirmation. Inventing plausible Randox spellings to
+close it is still refused and is not to be revisited: the exception queue
+catches an ABSENT mapping and nothing catches a wrong one.
+
+What changed is that the uncertainty is visible rather than buried:
+
+- **`RandoxAnalyteObservation`** records every analyte STRING that arrives and
+  what became of it — RESOLVED with the pass that answered, or UNMAPPED. The
+  confirmed figure is counted from deliveries, which is evidence, and it is
+  shown BESIDE the code's own claim rather than merged into it.
+- **`analyteMappingCoverage().confirmedAgainstRealPayload` STAYS HARDCODED AT
+  ZERO.** It answers "what does the code claim on its own evidence" and the
+  honest answer is nothing. It must never become computed — every computation
+  available to it counts assumptions. `analyteObservations.ts` answers the other
+  question from the other source. `tests/analyteObservations.test.ts` pins the
+  zero.
+- **The exception queue is on the ingestion log screen**, with the closest
+  catalogue candidates as SUGGESTIONS — from `matchMarker.ts`, the fuzzy matcher
+  the map itself refuses, which is right here and only here because an admin
+  looks at the answer before anything is written. Nothing is pre-selected: a
+  pre-filled picker on a fuzzy suggestion is an auto-apply with an extra click
+  in front of it.
+- **An accepted mapping is a learned override**, stamped `via = 'ADMIN'`, read
+  per delivery by `normaliseResultDetail` and PASSED INTO `resolveAnalyte` —
+  never cached, because a stale mapping in a clinical path is worse than a
+  query. It loses to the sourced override table where the two disagree, and it
+  is keyed by `analyteIdentity()` (normalised name PLUS sample type), so
+  accepting a urine "Glucose" cannot file a serum one.
+- `npm run audit:analytes` writes `docs/audits/analyte-mapping.md`, which names
+  all 86 as the check-first list. It also names the largest single risk: our
+  catalogue holds every food item as `Cod (IgG)` and that suffix is OURS, so if
+  Randox print the food name bare, all 207 land in the queue at once.
+
 **PRICES ARE STRIPPED AT THE TRANSPORT BOUNDARY.** GetPanels and GetTests both
 carry `cost` and `currency`. `stripPricing()` in `clients/NexusLabClient.ts`
 deletes them recursively on the way in, so they never reach the database and are
@@ -426,12 +463,39 @@ while the code map is the checked-in placeholder. Do not weaken it.
 
 # The sidebar (Aug 2026)
 
-- **It has NO BACKGROUND, in both shells.** The corner glow runs under it and
-  out to the left edge of the window as one continuous field; a `bg-cream-50`
-  there drew a 288px vertical slab across it and put a hard seam down the side
-  of every signed-in screen. Separation from the content area is the hairline
-  on the right and nothing else. The MOBILE DRAWER keeps its surface — it is a
-  floating layer over scrimmed content, not part of the page.
+- **It is a TRANSLUCENT WASH, in both shells (changed Aug 2026).** It went
+  `bg-cream-50` → nothing → `.panel-wash`, and the middle state is the one
+  worth remembering: an opaque fill drew a 288px vertical slab across the
+  corner glow, and removing it entirely fixed the seam by removing the panel —
+  the column became the same tone as the page, so a signed-in screen read as
+  one undifferentiated dark field with a title floating in it. `.panel-wash`
+  (globals.css) is a panel in FRONT of the light rather than on top of it.
+  One colour and one alpha, both tokens: `--c-panel` is BRAND ESPRESSO IN BOTH
+  THEMES and `--panel-wash` is `PANEL_WASH_ALPHA` (6% light, 38% dark). The
+  single colour is what makes it work in both directions — espresso dims a
+  cream page and LIFTS a #110F0D one, which is the only direction available in
+  dark, because a darker wash on a near-black page measures 1.02:1 however far
+  it is pushed (the same trap recorded on `darkWhite`). Measured: 1.10:1 and
+  1.17:1 against the page, which sits it between the page and a card (1.44:1) —
+  page, panel, card. Over the glow it knocks the core back to 1.10:1 of itself
+  while the lit part of the panel stays 1.78:1 above the unlit part, so the
+  light is visibly still there and continuous across the seam.
+- **The hairline is `border-panel-edge`, not `border-taupe`.** One step
+  stronger: 1.88:1 against the light page (was 1.40) and 3.40:1 against the
+  dark one (was 2.17). It is the whole of the separation wherever the glow does
+  not reach — which on a wide window is most of the column, since the glow's
+  ellipse ends well before x=288px at 1440.
+- **NO BACKDROP BLUR, and that is a decision.** The only thing behind the panel
+  is the page colour on `html` and one fixed radial. Blurring a smooth gradient
+  returns the same gradient, so `backdrop-filter` buys a compositing layer on a
+  sticky element and no visible difference at all. The place it would earn
+  itself is the MOBILE DRAWER, which has scrimmed content behind it — and that
+  keeps its opaque surface instead, because navigation read through the page it
+  navigates is worse than either.
+- `apps/server/tests/tokenContrast.test.ts` holds all of it: separation from
+  the page, that it stays below a card, that it dims the light without blocking
+  it, that every label on it clears AA lit AND unlit, and that the hairline
+  beats the border it replaced.
 - **Nav labels are `.nav-label`** (globals.css): IBM Plex Sans at the small
   step, medium, 0.01em of tracking. One step down from the reading size they
   used to take, because a nav label set at reading size beside a Fraunces page
@@ -478,10 +542,30 @@ while the code map is the checked-in placeholder. Do not weaken it.
 - Non-measured sections (food sensitivity, genetic, microbiome) carry their own
   search and group filter, scoped to the section — 197 food items are unusable
   without one, and the page-level status filter can never apply to them.
-- Markers declare a resultType: MEASURED / GENETIC / SENSITIVITY / COMPOSITION.
-  Only MEASURED reaches the results grid, the counts strip, the category bars and
-  Trends. The other three get their own sections and their own framing, and never
-  a status, a tint, a reference range or an optimal band.
+- Markers declare a resultType: MEASURED / GENETIC / SENSITIVITY / COMPOSITION
+  / **QUALITATIVE** (added Aug 2026). Only MEASURED reaches the results grid,
+  the counts strip, the category bars and Trends. The other four get their own
+  sections and their own framing, and never a status, a tint, a reference range
+  or an optimal band.
+  **QUALITATIVE is a finding rather than an amount** — the nineteen UTI
+  organisms and resistance markers, the resting ECG, the body composition
+  analyser and the prostate cancer risk score. Twenty-two entries that were
+  MEASURED with no unit, not because a unit was missing but because there is no
+  quantity to put one on, sitting in the grid next to a potassium looking
+  exactly as clinical. COMPOSITION was the obvious home for the bacteria and is
+  the wrong one: its framing says gut microbiome as a proportion of the whole,
+  and a urine PCR panel is neither. See `RESULT_TYPE_RULES.QUALITATIVE`.
+- **NINE MEASURED markers keep an empty unit ON PURPOSE**, and the list is
+  closed: `h-pylori` (a serum antibody assay reported positive/negative) and the
+  EIGHT urinalysis dipstick pads (`ph-urine` is the ninth pad and is genuinely
+  numeric, so it has one). A pad IS a measurement, read off a strip against a
+  printed scale, and a patient expects it beside their other results. It renders
+  correctly with no numeric range because the read path already handles a value
+  with no comparison: `valueText` with `status: null` shows the reading, takes
+  no tint, no chevron and no range bar, is labelled "Not compared to a range",
+  and is excluded from every tally by `countable()` in resultPresence.ts.
+  Nothing about the at-a-glance strip depends on the resultType alone. Never
+  invent a unit to clear that list.
 - Markers group by health area (MarkerCategory), many-to-many — one Albumin record
   in four areas, never four Albumin records
 - Auth cards never scroll internally at any viewport. If a step doesn't fit,
@@ -518,9 +602,20 @@ while the code map is the checked-in placeholder. Do not weaken it.
   corrected for punctuation and for the fixed non-diagnostic vocabulary table,
   and for nothing else: ~350 of them were written by an assistant and none has
   been read by a clinician, so replacing text that looks wrong with more
-  unreviewed text relabels the risk rather than reducing it. Both audits
-  regenerate into `docs/audits/` (`npm run audit:explanations` /
-  `audit:ranges` in apps/server) and both are read-only.
+  unreviewed text relabels the risk rather than reducing it. All THREE audits
+  regenerate into `docs/audits/` (`npm run audit:explanations` / `audit:ranges`
+  / `audit:analytes` in apps/server) and all three are read-only.
+  **What the finished range audit found, so nobody re-derives it (Aug 2026):**
+  the HSC5 Basic Screen example report is the ONLY document in `specs/` that
+  carries ranges, so Basic Screen (34 markers, 33 sourced) is the only sourced
+  tier and Standard Screen, Standard Screen Plus, Advanced GP2 and Advanced GP3
+  cannot be sourced from anything we hold. That is the absence of a document,
+  not a gap somebody forgot — **ask Randox for the Pathology Services Catalogue
+  and for a FEMALE example report.** 22 analytes are sex-dependent and 20 of
+  them store one blanket `ANY` range, which is silent: it renders an ordinary,
+  correctly-formatted suggestion that is wrong for half of patients. None is
+  corrected, because the example report prints ONE range and never says whose —
+  adopting it blind swaps a bug for the same bug facing the other way.
 - Demo values must be ones a clinician would not find absurd. The severity
   threshold is a multiple of the range WIDTH, which invents a chloride of 65 and
   a neutrophil count of 19.5 — so the demo carries an outpatient envelope

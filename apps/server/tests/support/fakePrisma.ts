@@ -68,6 +68,10 @@ const DEFAULTS: Record<string, Record<string, unknown>> = {
   ingestionLogEntry: { markerCount: 0 },
   auditLogEntry: { actorType: 'USER' },
   randoxOrder: { pollAttempts: 0, consecutiveFailures: 0, status: 'INCOMPLETE' },
+  // The sighting counter and its two timestamps are @default in the schema and
+  // are read back by the queue and the confidence figure, so an undefined one
+  // here would be the fake under test rather than the code.
+  randoxAnalyteObservation: { sightings: 1, firstSeenAt: new Date(), lastSeenAt: new Date(), via: null, markerId: null },
 };
 
 class Table {
@@ -184,6 +188,11 @@ const TABLES = [
   'randoxOrder',
   'randoxCatalogueEntry',
   'randoxUnknownCode',
+  // What we have seen Randox actually send, per analyte string. The ingestion
+  // path writes one row per distinct spelling per delivery and reads back the
+  // mappings an admin accepted, so the double needs it or every ingestion test
+  // dies on `undefined.findMany`.
+  'randoxAnalyteObservation',
 ] as const;
 
 export type FakePrisma = Record<(typeof TABLES)[number], Table> & {

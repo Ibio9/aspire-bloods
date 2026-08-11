@@ -18,7 +18,7 @@ import {
 } from '../../lib/markerCopy';
 import { AreaGroupHeading } from './ResultsSummary';
 import { MARKER_GRID_CLASS, MarkerResultCard } from './MarkerResultCard';
-import { CompositionSection, GeneticSection, SensitivitySection } from './NonMeasuredSections';
+import { CompositionSection, GeneticSection, QualitativeSection, SensitivitySection } from './NonMeasuredSections';
 import type { ResultsArrangement, ResultsFilters } from './resultsView';
 import type { MarkerCard, ReportDetailData } from './useReportDetail';
 
@@ -234,6 +234,7 @@ export function ReportDetailView({
       />
       <GeneticSection markers={byType.genetic} categories={report.categories ?? []} />
       <CompositionSection markers={byType.composition} categories={report.categories ?? []} />
+      <QualitativeSection markers={byType.qualitative} categories={report.categories ?? []} />
       <SensitivitySection markers={byType.sensitivity} />
     </>
   );

@@ -188,10 +188,6 @@ export const MEASURED_EXPLANATIONS: Record<string, ExplanationSeed> = {
     whatItIs:
       'The form of creatine kinase found in relatively high concentration in heart muscle. It was long used in the assessment of heart muscle injury, a role that troponin has now largely taken over.',
   },
-  ecg: {
-    whatItIs:
-      'An electrocardiogram, a recording of the heart’s electrical activity taken through electrodes placed on the skin. It is reported as a written interpretation rather than as a number.',
-  },
   myoglobin: {
     whatItIs:
       'A protein that stores oxygen inside muscle cells and passes into the blood when muscle is damaged. It rises and clears quickly, and it does not distinguish heart muscle from the muscles of the limbs.',
@@ -356,10 +352,6 @@ export const MEASURED_EXPLANATIONS: Record<string, ExplanationSeed> = {
   },
 
   // --- Prostate ---
-  'prostate-cancer-risk-score': {
-    whatItIs:
-      'A calculated score combining PSA measurements with other details to express prostate cancer risk. Scores of this kind describe likelihood across groups of people, and they are neither a diagnosis nor a substitute for specialist assessment.',
-  },
   'total-psa': {
     whatItIs:
       'Prostate specific antigen, a protein made by the prostate gland and present in small amounts in blood. It is affected by prostate size, age, recent ejaculation, cycling and urinary infection as well as by prostate disease.',
@@ -450,10 +442,6 @@ export const MEASURED_EXPLANATIONS: Record<string, ExplanationSeed> = {
     whatItIs:
       'Waist circumference divided by hip circumference. It describes where body fat is distributed rather than how much of it there is.',
   },
-  'body-composition-analyser': {
-    whatItIs:
-      'A reading taken at your appointment from a body composition device, which passes a small electrical current through the body to estimate the proportions of fat, muscle and water. Readings from these devices vary with hydration and with the time of day.',
-  },
 
   // --- Urinalysis. A dipstick grade, read from a urine sample. ---
   'bilirubin-urine': {
@@ -491,6 +479,37 @@ export const MEASURED_EXPLANATIONS: Record<string, ExplanationSeed> = {
   'nitrite-urine': {
     whatItIs:
       'A urine dipstick reading for nitrite. Several urinary bacteria convert nitrate in urine into nitrite, so the square is an indirect screen for infection, and bacteria that do not make that conversion will not show on it.',
+  },
+};
+
+
+// ---------------------------------------------------------------------------
+// QUALITATIVE — a finding rather than an amount.
+//
+// Twenty-two entries, and every word below was written while they were still
+// MEASURED: this section is a MOVE, not a rewrite. Nothing here is new clinical
+// wording, which is the rule — see the note at the head of this file. The
+// reclassification is what changed (see RESULT_TYPE_RULES.QUALITATIVE in
+// shared/markerCatalogue.ts); the sentences are the ones that were already
+// there, and each of them was already saying, in its own words, that this is
+// not a number: "reported as a written interpretation rather than as a number",
+// "the panel reports whether it was detected", "a property of bacteria in the
+// sample rather than a measurement of the person".
+// ---------------------------------------------------------------------------
+
+export const QUALITATIVE_EXPLANATIONS: Record<string, ExplanationSeed> = {
+  // --- Read and interpreted at the appointment, rather than assayed ---
+  ecg: {
+    whatItIs:
+      'An electrocardiogram, a recording of the heart’s electrical activity taken through electrodes placed on the skin. It is reported as a written interpretation rather than as a number.',
+  },
+  'body-composition-analyser': {
+    whatItIs:
+      'A reading taken at your appointment from a body composition device, which passes a small electrical current through the body to estimate the proportions of fat, muscle and water. Readings from these devices vary with hydration and with the time of day.',
+  },
+  'prostate-cancer-risk-score': {
+    whatItIs:
+      'A calculated score combining PSA measurements with other details to express prostate cancer risk. Scores of this kind describe likelihood across groups of people, and they are neither a diagnosis nor a substitute for specialist assessment.',
   },
 
   // --- UTI panel. Reported as detected or not detected, from a urine sample.
@@ -825,6 +844,7 @@ export function explanationFor(
     MEASURED: MEASURED_EXPLANATIONS,
     GENETIC: GENETIC_EXPLANATIONS,
     COMPOSITION: COMPOSITION_EXPLANATIONS,
+    QUALITATIVE: QUALITATIVE_EXPLANATIONS,
   };
   return byType[marker.resultType]?.[marker.key] ?? null;
 }
@@ -834,4 +854,5 @@ export const AUTHORED_KEYS_BY_TYPE = {
   MEASURED: Object.keys(MEASURED_EXPLANATIONS),
   GENETIC: Object.keys(GENETIC_EXPLANATIONS),
   COMPOSITION: Object.keys(COMPOSITION_EXPLANATIONS),
+  QUALITATIVE: Object.keys(QUALITATIVE_EXPLANATIONS),
 } as const;

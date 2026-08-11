@@ -81,8 +81,9 @@ export async function materialiseParsedReport(input: {
 
   const allMarkers = await prisma.marker.findMany({ where: { isActive: true } });
   // A numeric result carries a status and a reference range, and only a
-  // MEASURED marker is allowed to. GENETIC / SENSITIVITY / COMPOSITION markers
-  // are a different kind of result with no range and no status (CLAUDE.md), so
+  // MEASURED marker is allowed to. GENETIC / SENSITIVITY / COMPOSITION /
+  // QUALITATIVE markers are a different kind of result with no range and no
+  // status (CLAUDE.md), so
   // a numeric row must never be filed against one — even if a name happened to
   // collide. The admin verify/manual-entry path can't reach a non-measured
   // marker at all (the UI only offers measured ones); this is the same

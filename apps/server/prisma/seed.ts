@@ -76,11 +76,11 @@ const markers: MarkerSeed[] = [
 
   // --- Lipids ---
   { key: 'total-cholesterol', name: 'Total Cholesterol', unit: 'mmol/L', low: 0, high: 5.0, whatItIs: 'The combined measure of all cholesterol carried in your blood.', highMeans: 'Higher levels are linked to increased cardiovascular risk over time.', lifestyleContext: 'Diet, exercise, and not smoking all support cholesterol levels in the usual range.' },
-  { key: 'hdl', name: 'HDL Cholesterol', unit: 'mmol/L', low: 1.55, high: 999, whatItIs: 'Often called "good" cholesterol. It helps remove excess cholesterol from your bloodstream.', lowMeans: 'Lower levels are linked to increased cardiovascular risk.', lifestyleContext: 'Regular exercise is one of the most effective ways to raise HDL.' },
-  { key: 'ldl', name: 'LDL Cholesterol', unit: 'mmol/L', low: 0, high: 3.0, whatItIs: 'Often called "bad" cholesterol. It can build up in artery walls over time.', highMeans: 'Higher levels are linked to increased cardiovascular risk.', lifestyleContext: 'Diet lower in saturated fat and regular activity both help.' },
+  { key: 'hdl', name: 'HDL Cholesterol', unit: 'mmol/L', low: 1.55, high: 999, whatItIs: 'Often called “good” cholesterol. It helps remove excess cholesterol from your bloodstream.', lowMeans: 'Lower levels are linked to increased cardiovascular risk.', lifestyleContext: 'Regular exercise is one of the most effective ways to raise HDL.' },
+  { key: 'ldl', name: 'LDL Cholesterol', unit: 'mmol/L', low: 0, high: 3.0, whatItIs: 'Often called “bad” cholesterol. It can build up in artery walls over time.', highMeans: 'Higher levels are linked to increased cardiovascular risk.', lifestyleContext: 'Diet lower in saturated fat and regular activity both help.' },
   { key: 'triglycerides', name: 'Triglycerides', unit: 'mmol/L', low: 0, high: 2.3, whatItIs: 'A type of fat in your blood, largely influenced by diet.', highMeans: 'Can reflect diet, alcohol intake, or metabolic factors.', lifestyleContext: 'Reducing refined sugar and alcohol intake often has a quick effect.' },
   { key: 'chol-hdl-ratio', name: 'Total Cholesterol / HDL Ratio', unit: 'ratio', low: 0, high: 5.0, whatItIs: 'A calculated ratio that helps put your total cholesterol into context.', highMeans: 'A higher ratio is linked to increased cardiovascular risk.', lifestyleContext: 'Improves with the same lifestyle changes that improve cholesterol overall.' },
-  { key: 'apob', name: 'ApoB (Apolipoprotein B)', unit: 'g/L', low: 0, high: 1.0, whatItIs: 'A protein found on the particles that carry "bad" cholesterol. It reflects how many of those particles you have.', highMeans: 'Considered a strong marker of cardiovascular risk, sometimes more precise than LDL alone.', lifestyleContext: 'Responds to the same diet and lifestyle changes as LDL cholesterol.' },
+  { key: 'apob', name: 'ApoB (Apolipoprotein B)', unit: 'g/L', low: 0, high: 1.0, whatItIs: 'A protein found on the particles that carry “bad” cholesterol. It reflects how many of those particles you have.', highMeans: 'Considered a strong marker of cardiovascular risk, sometimes more precise than LDL alone.', lifestyleContext: 'Responds to the same diet and lifestyle changes as LDL cholesterol.' },
   // Oxidised LDL and MPO are deliberately NOT seeded — Randox cannot supply
   // either under Aspire's current agreement. See EXCLUDED_MARKER_KEYS below,
   // which also detaches/deactivates them if they exist from an older seed.
@@ -178,6 +178,26 @@ const crossPanelAddOnMarkerKeys = ['omega-3-index', 'amh', 'free-testosterone', 
 // seeded, and detached/deactivated below if left over from an older seed
 // run (never hard-deleted, in case a historical report already used one).
 const EXCLUDED_MARKER_KEYS = ['oxidised-ldl', 'mpo'];
+
+/**
+ * Markers that were never part of the product and got into a real database
+ * anyway.
+ *
+ * `test-marker` ("Test Marker", mmol/L) is a fixture key from
+ * tests/demoSeedData.test.ts that reached the development database on 5 August
+ * 2026. It is in no panel, no health area and no report, it has no explanation
+ * copy, and the seed's own output was reporting it every run as "1 marker has
+ * NO copy in markerExplanations.ts" — an alarm about a marker that should not
+ * exist.
+ *
+ * DEACTIVATED, NOT DELETED, and by the same loop as the list above, for the
+ * same reason: no hard deletes anywhere. It costs one inactive row and it
+ * cannot orphan anything if some record somewhere does turn out to reference
+ * it. It is a separate constant because the reason is a separate reason —
+ * "Randox cannot supply this" and "this is a test fixture" should not be one
+ * undifferentiated list of keys nobody can explain later.
+ */
+const STRAY_MARKER_KEYS = ['test-marker'];
 
 const sourceDefinitions = [
   { key: 'randox_portal', name: 'Randox Portal' },
@@ -403,7 +423,7 @@ async function writeMissingExplanations() {
     return;
   }
 
-  const written: Record<string, number> = { MEASURED: 0, GENETIC: 0, SENSITIVITY: 0, COMPOSITION: 0 };
+  const written: Record<string, number> = { MEASURED: 0, GENETIC: 0, SENSITIVITY: 0, COMPOSITION: 0, QUALITATIVE: 0 };
   const unwritten: string[] = [];
 
   for (const marker of markers) {
@@ -449,13 +469,17 @@ async function writeMissingExplanations() {
 }
 
 async function main() {
-  console.log('Removing excluded markers (Randox cannot supply)...');
-  for (const key of EXCLUDED_MARKER_KEYS) {
+  console.log('Removing excluded markers (Randox cannot supply) and stray fixtures...');
+  for (const [key, why] of [
+    ...EXCLUDED_MARKER_KEYS.map((k) => [k, 'Randox cannot supply'] as const),
+    ...STRAY_MARKER_KEYS.map((k) => [k, 'test fixture, never part of the product'] as const),
+  ]) {
     const existing = await prisma.marker.findUnique({ where: { key } });
-    if (!existing) continue;
+    if (!existing || !existing.isActive) continue;
     await prisma.panelMarker.deleteMany({ where: { markerId: existing.id } });
+    await prisma.markerCategoryMembership.deleteMany({ where: { markerId: existing.id } });
     await prisma.marker.update({ where: { id: existing.id }, data: { isActive: false } });
-    console.log(`  - deactivated and detached leftover marker: ${key}`);
+    console.log(`  - deactivated and detached: ${key} (${why})`);
   }
 
   console.log('Seeding sources...');

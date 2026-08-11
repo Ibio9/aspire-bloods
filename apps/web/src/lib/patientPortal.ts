@@ -110,9 +110,9 @@ export interface MarkerRow {
   /** Health areas this marker belongs to. A marker can be in several. */
   categoryKeys?: string[];
   /**
-   * MEASURED / GENETIC / SENSITIVITY / COMPOSITION. Absent on an older payload,
+   * MEASURED / GENETIC / SENSITIVITY / COMPOSITION / QUALITATIVE. Absent on an older payload,
    * which is treated as MEASURED. Only MEASURED markers appear on All markers,
-   * in Trends or in any count — the other three have no reference range and so
+   * in Trends or in any count — the other four have no reference range and so
    * no status, no direction of travel and nothing to plot.
    */
   resultType?: string;
@@ -170,7 +170,7 @@ export interface LibraryEntry {
   name: string;
   /** Empty for everything that is not a measured blood analyte, and for qualitative ones. */
   unit: string;
-  /** MEASURED / GENETIC / SENSITIVITY / COMPOSITION. Absent on an older payload. */
+  /** MEASURED / GENETIC / SENSITIVITY / COMPOSITION / QUALITATIVE. Absent on an older payload. */
   resultType?: string;
   hasResults: boolean;
   panels: string[];
