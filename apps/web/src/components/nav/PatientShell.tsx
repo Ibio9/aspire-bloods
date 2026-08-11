@@ -480,7 +480,7 @@ export function PatientShell({ children }: { children?: ReactNode }) {
           </Link>
         </div>
 
-        <main className="flex-1 px-5 py-10 sm:px-8 md:px-14 md:pt-10 md:pb-16 lg:px-20">
+        <main className="flex-1 px-5 py-10 sm:px-8 md:px-14 md:pt-12 md:pb-16 lg:px-20">
           <div className="mx-auto max-w-5xl">
             <PageTransition>{children ?? <Outlet />}</PageTransition>
           </div>
