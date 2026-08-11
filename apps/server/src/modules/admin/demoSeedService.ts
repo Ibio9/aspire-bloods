@@ -88,7 +88,7 @@ const DEMO_ADMIN_EMAIL = 'demo.admin@aspireshield.dev';
 const DEMO_CLINICIAN_EMAIL = 'demo.clinician@aspireshield.dev';
 
 /**
- * Legacy handle: older seed versions tagged their ReferenceRange rows with
+ * Legacy handle: older seed versions tagged their per-result range rows with
  * this.
  *
  * It used to be swept with an UNSCOPED `deleteMany({ source: { startsWith } })`
@@ -246,7 +246,10 @@ async function deleteDemoReports(demoPatientId: string, reportIds: string[]): Pr
       );
       const deletable = rangeIds.filter((id) => !stillReferenced.has(id));
       if (deletable.length > 0) {
-        await tx.referenceRange.deleteMany({ where: { id: { in: deletable } } });
+        // ResultReferenceRange, never ReferenceRange: these are the demo's own
+        // per-result records. The catalogue is a different table and this
+        // teardown has no business in it.
+        await tx.resultReferenceRange.deleteMany({ where: { id: { in: deletable } } });
       }
     }
 
@@ -266,7 +269,7 @@ async function deleteDemoReports(demoPatientId: string, reportIds: string[]): Pr
  * everything else, instead of the unscoped deleteMany that used to run here.
  */
 async function legacyTaggedRangeIds(tx: Prisma.TransactionClient): Promise<string[]> {
-  const rows = await tx.referenceRange.findMany({
+  const rows = await tx.resultReferenceRange.findMany({
     where: { source: { startsWith: DEMO_RANGE_TAG } },
     select: { id: true },
   });

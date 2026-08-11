@@ -452,7 +452,11 @@ model Marker {
   panels                 PanelMarker[]
   categories             MarkerCategoryMembership[]
   exclusions             ReportResultExclusion[]
+  // THE CATALOGUE ONLY. One row per sex/age band that this marker's verify
+  // form may suggest — never a record of what a laboratory printed on one
+  // patient's paper, which lives in ResultReferenceRange below.
   referenceRanges        ReferenceRange[]
+  resultRanges           ResultReferenceRange[]
   explanation            MarkerExplanation?
   results                ReportResult[]
   analyteObservations    RandoxAnalyteObservation[]
@@ -563,6 +567,31 @@ enum RangeProvenance {
   UNSOURCED
 }
 
+/// THE CATALOGUE, AND NOTHING ELSE (split out August 2026).
+///
+/// This table used to hold two different things under one roof: the catalogue
+/// of fallbacks an admin is offered at verify time, and one row per result ever
+/// materialised recording what that patient's laboratory printed. They are read
+/// by different code for different purposes and they were sharing a row space,
+/// which is not a tidiness complaint — it caused data loss. A `findFirst` on
+/// marker-and-sex lands on a RESULT record far more often than on the catalogue
+/// row (3,080 against 89 in the development database at the time of the split),
+/// so a seeder correcting a fallback rewrote patients' history to say their
+/// laboratory printed a range it did not. Ten rows went that way in one run;
+/// four are still carrying the sentence that records it.
+///
+/// A per-result record now lives in ResultReferenceRange and there is NO
+/// relation from here to ReportResult, so the mistake is no longer expressible:
+/// `prisma.referenceRange` cannot reach a result's record, and
+/// `prisma.resultReferenceRange` cannot reach the catalogue. The `results:
+/// { none: {} }` guard that used to stand in for this is gone from every query,
+/// because it was never sound either — verifyReport deletes and re-creates
+/// results on re-verify, which orphans the old records, and an orphaned result
+/// record satisfies `results: { none: {} }` exactly as a catalogue row does.
+/// 152 of them were sitting in this table that way.
+///
+/// Everything that WRITES here goes through lib/catalogueRanges.ts, which
+/// asserts the row it is about to touch is a catalogue row before touching it.
 model ReferenceRange {
   id        String   @id @default(uuid())
   markerId  String
@@ -587,7 +616,52 @@ model ReferenceRange {
   sourceDate      String?
   sourceUrl       String?
   createdAt DateTime @default(now())
-  results   ReportResult[]
+
+  @@index([markerId])
+  /// The resolver reads by marker and filters by sex, and its tie-break is
+  /// (specificity, provenance, createdAt, id) — the ordering is in the query as
+  /// well as in the comparator, so neither depends on Postgres row order.
+  @@index([markerId, sex])
+}
+
+/// WHAT THE LABORATORY PRINTED, for exactly one result.
+///
+/// The other half of the split above. One row per ReportResult — enforced, not
+/// merely intended: `ReportResult.referenceRangeId` is UNIQUE, so a record
+/// cannot be shared between two results and a range corrected on one patient's
+/// report can never move another's. ("verifyReport creates one per result and
+/// never shares them" was true of the code and true of the data, and it was an
+/// invariant of today's implementation rather than a fact about the database.)
+///
+/// Rows here are historical records of a clinical document. They are written
+/// once by the path that materialises or verifies the result and are never
+/// swept, corrected in bulk, or reconciled against the catalogue. A row left
+/// behind by a re-verify keeps its place: it is still the record of what was
+/// printed for the result that existed then.
+///
+/// No citation columns, deliberately. The authority behind these numbers is
+/// "the laboratory printed this, on this report, on this date" and it is
+/// written out in `source`. `provenance` survives the split because four rows
+/// carry a repair note and are marked UNSOURCED on purpose — that marking is
+/// the record of the incident and must not be dropped by tidying.
+model ResultReferenceRange {
+  id        String   @id @default(uuid())
+  markerId  String
+  marker    Marker   @relation(fields: [markerId], references: [id])
+  /// The sex the applied range was for, as recorded at verify/ingest time.
+  sex       Sex      @default(ANY)
+  ageMin    Int?
+  ageMax    Int?
+  unit      String
+  low       Float
+  high      Float
+  /// Which delivery or verification produced this record, as a sentence.
+  source    String?
+  provenance RangeProvenance @default(UNSOURCED)
+  createdAt DateTime @default(now())
+  /// Optional because a re-verify replaces a result's record and leaves the
+  /// old one standing — nothing is deleted here.
+  result    ReportResult?
 
   @@index([markerId])
 }
@@ -687,8 +761,13 @@ model ReportResult {
   marker           Marker         @relation(fields: [markerId], references: [id])
   valueEncrypted   String
   unit             String
-  referenceRangeId String
-  referenceRange   ReferenceRange @relation(fields: [referenceRangeId], references: [id])
+  // THE RESULT'S OWN RANGE, and never the catalogue's. UNIQUE, so one record
+  // belongs to one result and a correction to it cannot reach another patient.
+  // Every patient-facing read path (patients/service.ts, portalService.ts,
+  // dsarService.ts, the PDF) reads the range through here, which is what makes
+  // "reference ranges live on the result, not the marker" true.
+  referenceRangeId String               @unique
+  referenceRange   ResultReferenceRange @relation(fields: [referenceRangeId], references: [id])
   // NULLABLE, and that is the point. A result that cannot be placed against
   // its reference range — a qualitative outcome ("Not detected"), a detection
   // limit that straddles the range — has no status, and used to be written as

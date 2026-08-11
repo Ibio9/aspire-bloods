@@ -457,10 +457,12 @@ async function main() {
     );
   }
 
-  // How badly the ReferenceRange table mixes catalogue rows with result rows.
+  // The two tables, counted apart. They were one, and the mixing is what this
+  // audit used to have to report as an open defect.
   const totalRangeRows = await prisma.referenceRange.count();
   const markersWithRanges = await prisma.referenceRange.groupBy({ by: ['markerId'], _count: true });
   const worstMarkerRows = Math.max(0, ...markersWithRanges.map((g) => g._count));
+  const resultRecordRows = await prisma.resultReferenceRange.count();
 
   // (An analyte can be split across two marker keys — haemoglobin /
   // haemoglobin-f, testosterone / testosterone-f — so the stored ranges for one
@@ -732,18 +734,22 @@ async function main() {
   }
   p();
 
-  p('## A separate defect: the ReferenceRange table holds two different things');
+  p('## Fixed since the last run: the ReferenceRange table held two different things');
   p();
   p(
-    `\`ReferenceRange\` is both the catalogue of fallbacks AND the per-result record of what was printed on the paper. \`materialiseReport.ts\` creates a row for every result it materialises, into the same table \`marker.referenceRanges\` reads from — so the "catalogue" grows by one row per result, for ever. This development database holds **${totalRangeRows} rows across ${markersWithRanges.length} markers**; the worst single marker has **${worstMarkerRows}**, of which exactly one is the seeded fallback.`,
+    '`ReferenceRange` used to be both the catalogue of fallbacks AND the per-result record of what was printed on the paper — `materialiseReport.ts` created a row for every result it materialised, into the same table `marker.referenceRanges` read from, so the "catalogue" grew by one row per result for ever. That is not a tidiness complaint. A `findFirst` on marker-and-sex landed on a result record far more often than on the catalogue row, and updating one rewrote a patient\'s history to say their laboratory printed a range it did not. Ten rows went that way in a single seed run; four still carry the sentence recording it, because what was printed is not recoverable.',
   );
   p();
   p(
-    'That is invisible to patients — every display path reads the range off the result, as above — but it is not harmless. `resolveReferenceRange()` is handed all of them, scores them by specificity, and where several tie (and they do, dozens at a time) breaks the tie on whatever order Postgres returned. The range suggested to an admin at verify time is therefore effectively arbitrary among the ranges that marker has ever carried.',
+    `They are two tables as of August 2026: \`ReferenceRange\` is the catalogue and nothing else, and \`ResultReferenceRange\` holds one row per result. Nothing was deleted — every row was relocated into whichever table owns it, keeping its id and its timestamp. This development database now holds **${totalRangeRows} catalogue rows across ${markersWithRanges.length} markers** (the largest number any one marker carries is **${worstMarkerRows}**) and **${resultRecordRows} per-result records**.`,
   );
   p();
   p(
-    'NOT fixed here, and deliberately: the fix is a schema change (a flag marking a row as catalogue rather than as a record of one result, and a filter on it in the resolver) to a clinical data path, which is not something to slip into the end of a session that was asked for an audit. **For Richard, and it is a code change, not a data one.**',
+    'Three consequences worth naming. A Marker has no relation to the per-result records at all, so `resolveReferenceRange()` cannot be handed one — the mistake is no longer expressible rather than merely avoided. `ReportResult.referenceRangeId` is UNIQUE, so a record belongs to one result and a correction to it can never reach another patient. And the `results: { none: {} }` guard the seed used to carry is gone, because it was never sound either: a re-verify orphans the record it replaces, and an orphaned result record satisfies that guard exactly as a catalogue row does. 152 of them were sitting in the catalogue that way.',
+  );
+  p();
+  p(
+    'The tie-break is a total order now as well — specificity, then provenance, then `createdAt`, then `id` — in the query and in the comparator. Where two catalogue rows tie, the answer is fixed rather than being whatever Postgres returned first.',
   );
   p();
 
@@ -851,10 +857,13 @@ async function main() {
     }
   }
   p();
-  p('And two asks that are not per-marker:');
+  p('And one ask that is not per-marker:');
   p();
   p('- **The Randox Pathology Services Catalogue**, which is the document that would source every tier above Basic Screen, and **a female HSC5 example report**, which is what would settle the six sex-split rows the current report cannot arbitrate.');
-  p('- **The `ReferenceRange` schema change** described above. It is the only item in this file that is a code change rather than a data one.');
+  p();
+  p(
+    'The `ReferenceRange` schema change that used to sit here is done — see the section above. Everything left on this list needs a document, not code.',
+  );
   p();
 
   fs.mkdirSync(path.dirname(OUT), { recursive: true });

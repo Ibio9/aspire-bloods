@@ -51,6 +51,7 @@ import type { MarkerStatus, ResultType } from '@aspire-bloods/shared';
 import { FOOD_SENSITIVITY_GROUPS } from '@aspire-bloods/shared';
 import { computeMarkerStatus } from '../../lib/markerStatus.js';
 import { prisma } from '../../db/client.js';
+import { CATALOGUE_RANGE_ORDER } from '../../lib/catalogueRanges.js';
 
 /** The three panels the clinic sells. Report 4 deliberately has no panel. */
 const PANEL_KEYS = { core: 'core', insight: 'insight-360', signature: 'signature' } as const;
@@ -736,20 +737,20 @@ export async function buildDemoReports(opts: {
 
   // Catalogue ranges for every marker in play, sex-preferred for this patient.
   const allMarkerIds = [...new Set(panels.flatMap((p) => p.markers.map((pm) => pm.markerId)))];
-  // SEEDED ROWS ONLY, and that filter is load-bearing. `ReferenceRange` holds
-  // both the authored catalogue fallbacks and one row per result ever
-  // materialised (materialiseReport.ts creates one unconditionally), so without
-  // it this query reads back the SYNTHETIC bands a previous demo run invented
-  // and treats them as catalogue truth — a feedback loop in which the demo's
-  // own guesses harden into "the range". That is how Weight acquired a
-  // reference range of 2.5–7.5 kg. See docs/audits/reference-ranges.md.
+  // THE CATALOGUE, and it is now the catalogue by construction rather than by
+  // filter. This used to carry `source: { startsWith: 'Seed default' }`, which
+  // was a workaround for `ReferenceRange` holding both the authored fallbacks
+  // and one row per result ever materialised: without it the query read back
+  // the SYNTHETIC bands a previous demo run invented and treated them as
+  // catalogue truth — a feedback loop in which the demo's own guesses hardened
+  // into "the range", and how Weight acquired a reference range of 2.5–7.5 kg.
+  // The per-result records are in another table now, so the filter is gone and
+  // the sourced sex-specific rows (PUBLISHED, from NHS Lothian) are visible to
+  // the demo as well, which they should always have been.
   const catalogueRanges = await prisma.referenceRange.findMany({
-    where: {
-      markerId: { in: allMarkerIds },
-      sex: { in: [opts.patientSex, 'ANY'] },
-      source: { startsWith: 'Seed default' },
-    },
+    where: { markerId: { in: allMarkerIds }, sex: { in: [opts.patientSex, 'ANY'] } },
     select: { markerId: true, sex: true, unit: true, low: true, high: true },
+    orderBy: CATALOGUE_RANGE_ORDER,
   });
   const bandByMarkerId = new Map<string, Band>();
   for (const r of catalogueRanges) {

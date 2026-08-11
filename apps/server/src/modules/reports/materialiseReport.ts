@@ -262,7 +262,10 @@ export async function materialiseParsedReport(input: {
         });
 
     for (const row of matchedRows) {
-      const referenceRange = await tx.referenceRange.create({
+      // THE RECORD OF WHAT THIS DELIVERY PRINTED, in the table that holds only
+      // those. Never the catalogue: this is one patient's paper, and a row
+      // written here must never be reachable by anything correcting a fallback.
+      const referenceRange = await tx.resultReferenceRange.create({
         data: {
           markerId: row.markerId,
           sex: patientSex,

@@ -73,12 +73,14 @@ describe('resolveReferenceRange', () => {
   /**
    * THE TIE-BREAK, which used to be whatever order Postgres returned.
    *
-   * `ReferenceRange` holds the catalogue AND one row per result ever
-   * materialised, so a marker accumulates dozens of rows with the same sex and
-   * no age bracket — the development database has one marker with 76. Among
+   * `ReferenceRange` held the catalogue AND one row per result ever
+   * materialised, so a marker accumulated dozens of rows with the same sex and
+   * no age bracket — the development database had one marker with 76. Among
    * those the winner was arbitrary, which means the range suggested at verify
-   * time was effectively arbitrary among every range that marker had ever
-   * carried.
+   * time was arbitrary among every range that marker had ever carried. The two
+   * are separate tables now, so the ties this settles are between genuine
+   * catalogue rows; the ordering is a total one and is pinned against every
+   * input order by referenceRangeSplit.test.ts.
    */
   describe('when two rows are equally specific', () => {
     it('prefers the one with a source behind it', () => {

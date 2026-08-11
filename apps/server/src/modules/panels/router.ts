@@ -13,6 +13,11 @@ import {
   RANGE_UNAVAILABLE_MESSAGE,
   PROVENANCE_LABEL,
 } from '../../lib/resolveReferenceRange.js';
+import {
+  CATALOGUE_RANGE_ORDER,
+  createCatalogueRange,
+  updateCatalogueRange,
+} from '../../lib/catalogueRanges.js';
 
 export const panelsRouter = Router();
 
@@ -432,9 +437,7 @@ panelsRouter.post(
       return res.status(400).json({ error: 'low must be less than high' });
     }
 
-    const range = await prisma.referenceRange.create({
-      data: { markerId: req.params.markerId, ...parsed.data },
-    });
+    const range = await createCatalogueRange(prisma, { markerId: req.params.markerId, ...parsed.data });
 
     await recordAuditLog({
       actorUserId: req.user!.id,
@@ -463,13 +466,30 @@ panelsRouter.patch(
     const parsed = updateReferenceRangeSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
+    // The catalogue and nothing else. An id that names a per-result record —
+    // one laboratory's printed range on one patient's report — comes back as a
+    // 409 saying so, rather than editing a clinical document because the id
+    // happened to resolve. Ids were preserved across the table split, so a
+    // stale one from an old client or an old log still resolves.
     const existing = await prisma.referenceRange.findUnique({ where: { id: req.params.id } });
-    if (!existing) return res.status(404).json({ error: 'Reference range not found' });
+    if (!existing) {
+      const isResultRecord = await prisma.resultReferenceRange.findUnique({
+        where: { id: req.params.id },
+        select: { id: true },
+      });
+      if (isResultRecord) {
+        return res.status(409).json({
+          error:
+            'That reference range belongs to a result, not to the catalogue. It records what one laboratory printed on one report and is not editable here.',
+        });
+      }
+      return res.status(404).json({ error: 'Reference range not found' });
+    }
     const low = parsed.data.low ?? existing.low;
     const high = parsed.data.high ?? existing.high;
     if (low >= high) return res.status(400).json({ error: 'low must be less than high' });
 
-    const range = await prisma.referenceRange.update({ where: { id: req.params.id }, data: parsed.data });
+    const range = await updateCatalogueRange(prisma, req.params.id, parsed.data);
 
     await recordAuditLog({
       actorUserId: req.user!.id,
@@ -535,7 +555,10 @@ panelsRouter.get(
 
     const marker = await prisma.marker.findUnique({
       where: { id: req.params.markerId },
-      include: { referenceRanges: true },
+      // Catalogue rows only — a Marker has no relation to the per-result
+      // records — and in the resolver's own order, so two identical requests
+      // cannot get two different suggestions.
+      include: { referenceRanges: { orderBy: CATALOGUE_RANGE_ORDER } },
     });
     if (!marker) return res.status(404).json({ error: 'Marker not found' });
 

@@ -151,13 +151,15 @@ It is NOT Randox, and it goes in at the weaker tier for that reason. Every row c
 | Anti-Mullerian Hormone (AMH) | Core add-ons | 7–35 | clinical convention, unsourced | Declines with age by design — it is used as a measure of ovarian reserve, which is an age-relative quantity. |
 | ESR (Erythrocyte Sedimentation Rate) | Seeded, not in the Randox catalogue | 0–20 | clinical convention, unsourced | The conventional upper limit is calculated from age and differs by sex. A fixed 0–20 is wrong at both ends of adult life. |
 
-## A separate defect: the ReferenceRange table holds two different things
+## Fixed since the last run: the ReferenceRange table held two different things
 
-`ReferenceRange` is both the catalogue of fallbacks AND the per-result record of what was printed on the paper. `materialiseReport.ts` creates a row for every result it materialises, into the same table `marker.referenceRanges` reads from — so the "catalogue" grows by one row per result, for ever. This development database holds **3169 rows across 444 markers**; the worst single marker has **77**, of which exactly one is the seeded fallback.
+`ReferenceRange` used to be both the catalogue of fallbacks AND the per-result record of what was printed on the paper — `materialiseReport.ts` created a row for every result it materialised, into the same table `marker.referenceRanges` read from, so the "catalogue" grew by one row per result for ever. That is not a tidiness complaint. A `findFirst` on marker-and-sex landed on a result record far more often than on the catalogue row, and updating one rewrote a patient's history to say their laboratory printed a range it did not. Ten rows went that way in a single seed run; four still carry the sentence recording it, because what was printed is not recoverable.
 
-That is invisible to patients — every display path reads the range off the result, as above — but it is not harmless. `resolveReferenceRange()` is handed all of them, scores them by specificity, and where several tie (and they do, dozens at a time) breaks the tie on whatever order Postgres returned. The range suggested to an admin at verify time is therefore effectively arbitrary among the ranges that marker has ever carried.
+They are two tables as of August 2026: `ReferenceRange` is the catalogue and nothing else, and `ResultReferenceRange` holds one row per result. Nothing was deleted — every row was relocated into whichever table owns it, keeping its id and its timestamp. This development database now holds **89 catalogue rows across 79 markers** (the largest number any one marker carries is **2**) and **3080 per-result records**.
 
-NOT fixed here, and deliberately: the fix is a schema change (a flag marking a row as catalogue rather than as a record of one result, and a filter on it in the resolver) to a clinical data path, which is not something to slip into the end of a session that was asked for an audit. **For Richard, and it is a code change, not a data one.**
+Three consequences worth naming. A Marker has no relation to the per-result records at all, so `resolveReferenceRange()` cannot be handed one — the mistake is no longer expressible rather than merely avoided. `ReportResult.referenceRangeId` is UNIQUE, so a record belongs to one result and a correction to it can never reach another patient. And the `results: { none: {} }` guard the seed used to carry is gone, because it was never sound either: a re-verify orphans the record it replaces, and an orphaned result record satisfies that guard exactly as a catalogue row does. 152 of them were sitting in the catalogue that way.
+
+The tie-break is a total order now as well — specificity, then provenance, then `createdAt`, then `id` — in the query and in the comparator. Where two catalogue rows tie, the answer is fixed rather than being whatever Postgres returned first.
 
 ## Corrected, with the source for each
 
@@ -464,7 +466,8 @@ Nothing on this list has been changed. Each group is one panel tier, innermost f
 
 - **7 with an unsourced fallback**, left exactly as they are: ESR (Erythrocyte Sedimentation Rate), Haemoglobin, IL-6 (Interleukin-6), Lp-PLA2, RBC Magnesium, Red Cell Distribution Width (RDW), Testosterone.
 
-And two asks that are not per-marker:
+And one ask that is not per-marker:
 
 - **The Randox Pathology Services Catalogue**, which is the document that would source every tier above Basic Screen, and **a female HSC5 example report**, which is what would settle the six sex-split rows the current report cannot arbitrate.
-- **The `ReferenceRange` schema change** described above. It is the only item in this file that is a code change rather than a data one.
+
+The `ReferenceRange` schema change that used to sit here is done — see the section above. Everything left on this list needs a document, not code.

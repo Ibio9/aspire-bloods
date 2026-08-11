@@ -25,6 +25,13 @@ import { applyHouseStyle, applyVocabularyRule, sameWords } from '../src/lib/hous
 import { isRetractableApproval, retractionReason } from '../src/lib/explanationReview.js';
 import { explanationFor } from './markerExplanations.js';
 import { LOTHIAN, PUBLISHED_RANGES, WITHHELD, publishedRangeSource } from './publishedReferenceRanges.js';
+import {
+  CATALOGUE_RANGE_ORDER,
+  createCatalogueRange,
+  deleteCatalogueRange,
+  findCatalogueRange,
+  updateCatalogueRange,
+} from '../src/lib/catalogueRanges.js';
 
 interface MarkerSeed {
   key: string;
@@ -402,19 +409,21 @@ async function restyleStoredCopy() {
  *    A row already at `RANDOX` is left exactly as it is and the fact is
  *    printed, because "we skipped it" and "we forgot it" look identical in a
  *    silent run.
- *  · IT ONLY EVER TOUCHES A ROW NO RESULT POINTS AT, and this is the one that
- *    bites. `ReferenceRange` holds two different things under one roof: the
- *    catalogue of fallbacks, and one row per result ever materialised
- *    recording what was printed on that patient's paper (see the audit —
- *    3,127 rows across 444 markers in this development database, and one
- *    marker with 76). A `findFirst` on marker-and-sex therefore lands on an
- *    arbitrary RESULT record far more often than on the catalogue row, and
- *    updating it rewrites one patient's history to say their laboratory
- *    printed a range it did not. `results: { none: {} }` is the whole
- *    difference and it is not an optimisation.
+ *  · IT CANNOT REACH A RESULT RECORD, and this is the one that bit. It used to
+ *    be guarded by `results: { none: {} }` on every query, because
+ *    `ReferenceRange` held two things under one roof: the catalogue of
+ *    fallbacks, and one row per result ever materialised recording what was
+ *    printed on that patient's paper (3,080 of those against 89 catalogue rows
+ *    in this development database). A `findFirst` on marker-and-sex therefore
+ *    landed on an arbitrary RESULT record far more often than on the catalogue
+ *    row, and updating it rewrote one patient's history to say their laboratory
+ *    printed a range it did not. Ten rows went that way in one run. The guard
+ *    was also unsound: a re-verify orphans the record it replaces, and an
+ *    orphaned result record satisfies `results: { none: {} }` exactly as a
+ *    catalogue row does. They are separate tables now, so the whole class of
+ *    mistake is gone from the type system up — see lib/catalogueRanges.ts.
  *  · IT REPLACES ITS OWN PREVIOUS ROW rather than adding a second one. The
- *    catalogue is meant to hold one row per marker-and-sex; the table's habit
- *    of accumulating rows is a separate known defect and this must not feed it.
+ *    catalogue holds one row per marker-and-sex.
  *  · THE BLANKET `ANY` ROW GOES. Leaving it beside the two sex-specific rows
  *    would keep answering for a patient with no sex on file — which is exactly
  *    the silent wrong answer being fixed, still there, now with company. With
@@ -433,12 +442,9 @@ async function seedPublishedReferenceRanges() {
       continue;
     }
 
-    // A CATALOGUE row and never a result's own record. See the third bullet
-    // above: without `results: { none: {} }` this rewrites a patient's history.
-    const existing = await prisma.referenceRange.findFirst({
-      where: { markerId: marker.id, sex: range.sex, ageMin: null, ageMax: null, results: { none: {} } },
-      orderBy: { createdAt: 'asc' },
-    });
+    // A CATALOGUE row, and it can no longer be anything else — the table this
+    // reads holds nothing but the catalogue.
+    const existing = await findCatalogueRange(prisma, { markerId: marker.id, sex: range.sex });
     if (existing?.provenance === 'RANDOX') {
       skippedRandox += 1;
       continue;
@@ -457,8 +463,8 @@ async function seedPublishedReferenceRanges() {
       sourceDate: LOTHIAN.date,
       sourceUrl: LOTHIAN.url,
     };
-    if (existing) await prisma.referenceRange.update({ where: { id: existing.id }, data });
-    else await prisma.referenceRange.create({ data });
+    if (existing) await updateCatalogueRange(prisma, existing.id, data);
+    else await createCatalogueRange(prisma, data);
     written += 1;
   }
 
@@ -470,14 +476,14 @@ async function seedPublishedReferenceRanges() {
     const marker = await prisma.marker.findUnique({ where: { key } });
     if (!marker) continue;
     const blanket = await prisma.referenceRange.findMany({
-      where: { markerId: marker.id, sex: 'ANY', provenance: { not: 'RANDOX' }, results: { none: {} } },
+      where: { markerId: marker.id, sex: 'ANY', provenance: { not: 'RANDOX' } },
+      orderBy: CATALOGUE_RANGE_ORDER,
     });
     for (const row of blanket) {
-      // `results: { none: {} }` above is the guard that matters: a row a real
-      // result points at is that result's record of what was printed on the
-      // paper, not a catalogue fallback, and deleting one would rewrite
-      // history. Those are left and the count says so.
-      await prisma.referenceRange.delete({ where: { id: row.id } });
+      // A catalogue fallback, and only ever that: the records of what was
+      // printed on a patient's paper are in another table entirely, so this
+      // delete has nothing to be careful of any more.
+      await deleteCatalogueRange(prisma, row.id);
       anyRemoved += 1;
     }
   }
@@ -709,24 +715,37 @@ async function main() {
     });
     markerIdByKey.set(m.key, marker.id);
 
-    const existingRange = await prisma.referenceRange.findFirst({
-      where: { markerId: marker.id, sex: m.sex ?? 'ANY' },
-    });
-    if (!existingRange) {
-      await prisma.referenceRange.create({
-        data: {
-          markerId: marker.id,
-          sex: m.sex ?? 'ANY',
-          unit: m.unit,
-          low: m.low,
-          high: m.high,
-          source: 'Seed default: standard adult reference range, confirm against Randox report',
-          // UNSOURCED, and that is the honest tier for every one of these:
-          // they are standard adult bands nobody has verified against a
-          // document. The audit says so in a file; this says so on the row,
-          // which is what the verify form can actually show an admin.
-          provenance: 'UNSOURCED',
-        },
+    // A CATALOGUE row, and the query can no longer see anything else. This one
+    // never wrote to a result record, but it read from them, which cost the
+    // catalogue rather than a patient: an unscoped `findFirst` matched an
+    // arbitrary record of what some laboratory printed and concluded the
+    // fallback already existed, so the marker never got one. That is most of
+    // what the range audit counts as "no fallback at all", and a re-seed after
+    // the split fills them in.
+    const existingRange = await findCatalogueRange(prisma, { markerId: marker.id, sex: m.sex ?? 'ANY' });
+    // AND NEVER A BLANKET ROW BESIDE A SEX-SPECIFIC ONE. seedPublishedReference-
+    // Ranges deletes the `ANY` band once both sexes are covered, precisely
+    // because leaving it keeps answering for a patient with no sex on file —
+    // so recreating it here on the next run would undo that every time. (It
+    // used not to, for the wrong reason: the unscoped findFirst matched a
+    // result record and concluded a fallback already existed.)
+    const sexSpecific =
+      (m.sex ?? 'ANY') === 'ANY'
+        ? await prisma.referenceRange.count({ where: { markerId: marker.id, sex: { not: 'ANY' } } })
+        : 0;
+    if (!existingRange && sexSpecific === 0) {
+      await createCatalogueRange(prisma, {
+        markerId: marker.id,
+        sex: m.sex ?? 'ANY',
+        unit: m.unit,
+        low: m.low,
+        high: m.high,
+        source: 'Seed default: standard adult reference range, confirm against Randox report',
+        // UNSOURCED, and that is the honest tier for every one of these:
+        // they are standard adult bands nobody has verified against a
+        // document. The audit says so in a file; this says so on the row,
+        // which is what the verify form can actually show an admin.
+        provenance: 'UNSOURCED',
       });
     }
 

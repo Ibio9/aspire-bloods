@@ -9,6 +9,15 @@
  * result, not the marker" true even though the marker-level catalogue now
  * feeds a suggestion into that result.
  *
+ * IT READS CATALOGUE ROWS AND ONLY CATALOGUE ROWS. That used to be an
+ * intention: `ReferenceRange` held the catalogue AND one row per result ever
+ * materialised, so `marker.referenceRanges` handed this function dozens of
+ * records of what one patient's laboratory printed, and the suggestion was
+ * drawn from among them. The two are separate tables since August 2026 —
+ * per-result records live in `ResultReferenceRange` and there is no relation
+ * from a Marker to them — so the only thing that can reach this function is
+ * the catalogue. `referenceRangeSplit.test.ts` holds it.
+ *
  * The interesting case is a patient with no sex recorded. Sex is optional at
  * registration on purpose (registration stays frictionless), so this function
  * has to cope with it — and the one thing it must never do is quietly hand
@@ -40,6 +49,14 @@ export interface CatalogRange {
    */
   provenance?: RangeProvenance;
   citation?: RangeCitation | null;
+  /**
+   * The last two steps of the tie-break, and the reason they exist is that
+   * "whatever Postgres returned first" is not an answer. Optional because
+   * callers that build a range by hand (tests, fixtures) have no row to take
+   * one from; a row without a createdAt sorts after every row that has one,
+   * and `id` finishes the job because it is unique by construction.
+   */
+  createdAt?: Date | string | null;
 }
 
 export type RangeProvenance = 'RANDOX' | 'PUBLISHED' | 'UNSOURCED';
@@ -111,15 +128,7 @@ function specificity(r: CatalogRange): number {
 /**
  * THE TIE-BREAK, AND IT IS ONLY EVER A TIE-BREAK.
  *
- * Two rows of identical specificity is not a hypothetical: `ReferenceRange`
- * holds the catalogue AND one row per result ever materialised, so a marker
- * accumulates dozens of rows with the same sex and no age bracket. Until this
- * existed the winner among them was whatever order Postgres happened to
- * return — the range suggested at verify time was effectively arbitrary among
- * every range that marker had ever carried.
- *
- * Any deterministic rule beats that, and this is the one that is also right:
- * where two rows make the same claim about the same patient, prefer the one
+ * Where two rows make the same claim about the same patient, prefer the one
  * with a source behind it. It CANNOT override specificity, because it is
  * applied second — an unsourced sex-specific band still beats a Randox `ANY`
  * one for a patient whose sex we know, and it should, since the wrong sex is a
@@ -131,6 +140,42 @@ const PROVENANCE_RANK: Record<RangeProvenance, number> = { RANDOX: 2, PUBLISHED:
 
 function sourceRank(r: CatalogRange): number {
   return PROVENANCE_RANK[r.provenance ?? 'UNSOURCED'];
+}
+
+function createdAtRank(r: CatalogRange): number {
+  if (r.createdAt == null) return Number.POSITIVE_INFINITY;
+  const t = r.createdAt instanceof Date ? r.createdAt.getTime() : new Date(r.createdAt).getTime();
+  return Number.isNaN(t) ? Number.POSITIVE_INFINITY : t;
+}
+
+/**
+ * A TOTAL ORDER, WHICH IS THE POINT.
+ *
+ * Two catalogue rows of identical specificity and identical provenance is not a
+ * hypothetical, and until the last two steps existed the winner among them was
+ * whatever order Postgres happened to return: the range suggested at verify
+ * time was effectively arbitrary among every equally-specific row the marker
+ * carried, and it could differ between two identical requests. It cannot now —
+ * `id` is unique, so the comparator never returns 0 for two different rows and
+ * the answer does not depend on the order they arrived in.
+ *
+ *   1. specificity   — a sex-specific or age-bracketed row beats a blanket one
+ *   2. provenance    — RANDOX beats PUBLISHED beats UNSOURCED
+ *   3. createdAt asc — the row that has been the answer longest, rows with no
+ *                      timestamp last
+ *   4. id asc        — arbitrary, but fixed, and it is the only step that is
+ *
+ * The query that loads them orders by the same last two columns, so the
+ * database and the comparator agree rather than one silently correcting the
+ * other.
+ */
+export function compareCatalogRanges(a: CatalogRange, b: CatalogRange): number {
+  return (
+    specificity(b) - specificity(a) ||
+    sourceRank(b) - sourceRank(a) ||
+    createdAtRank(a) - createdAtRank(b) ||
+    (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+  );
 }
 
 export function resolveReferenceRange(
@@ -153,10 +198,7 @@ export function resolveReferenceRange(
     return { status: 'unavailable', reason: 'NO_MATCHING_RANGE' };
   }
 
-  return {
-    status: 'resolved',
-    range: candidates.slice().sort((a, b) => specificity(b) - specificity(a) || sourceRank(b) - sourceRank(a))[0],
-  };
+  return { status: 'resolved', range: candidates.slice().sort(compareCatalogRanges)[0] };
 }
 
 /** Whole-years age as of today, from an ISO (YYYY-MM-DD or full datetime) date-of-birth string. */

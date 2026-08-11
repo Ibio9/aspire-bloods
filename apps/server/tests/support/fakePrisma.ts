@@ -180,7 +180,12 @@ const TABLES = [
   'reportResult',
   'reportResultExclusion',
   'reportMeasurements',
+  // TWO TABLES, AND THE DOUBLE HAS TO KEEP THEM APART TOO. `referenceRange` is
+  // the catalogue of fallbacks; `resultReferenceRange` is what one laboratory
+  // printed on one report. A double that merged them would let a test pass
+  // against exactly the shape the split exists to prevent.
   'referenceRange',
+  'resultReferenceRange',
   'storedFile',
   'ingestionLogEntry',
   'auditLogEntry',

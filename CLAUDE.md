@@ -646,14 +646,30 @@ while the code map is the checked-in placeholder. Do not weaken it.
   asserted twice, independently — against the declared factor AND against the
   literal expected number — because a conversion error produces a correctly
   formatted number in the right column that is out by a factor of a thousand.
-- **Anything writing to `ReferenceRange` must scope to `results: { none: {} }`.**
-  The table holds the catalogue AND one row per result ever materialised (3,100+
-  rows across 444 markers here, one marker with 76), so a `findFirst` on
-  marker-and-sex lands on an arbitrary RESULT record far more often than on the
-  catalogue row — and updating one rewrites a patient's history to say their
-  laboratory printed a range it did not. This was caught by inspection after a
-  seed run did exactly that to ten rows. The real fix is a schema flag and is
-  still for Richard.
+- **THE CATALOGUE AND THE PER-RESULT RECORD ARE TWO TABLES (Aug 2026).**
+  `ReferenceRange` is the catalogue of fallbacks the verify form suggests.
+  `ResultReferenceRange` holds one row per result — what one laboratory printed
+  on one report — and `ReportResult.referenceRangeId` is UNIQUE, so a record
+  belongs to one result and correcting it can never reach another patient. A
+  Marker relates to both, under separate names, and `resolveReferenceRange()`
+  can only ever be handed the catalogue.
+  They were one table, which is not a tidiness complaint: a `findFirst` on
+  marker-and-sex landed on a RESULT record far more often than on the catalogue
+  row (3,080 against 89 here), and updating one rewrote a patient's history to
+  say their laboratory printed a range it did not. A seed run did exactly that
+  to ten rows; four still carry the sentence recording it, because what was
+  printed is not recoverable.
+  The `results: { none: {} }` guard that stood in for this is GONE, and do not
+  bring it back — it was also unsound. A re-verify orphans the record it
+  replaces, and an orphaned result record satisfies it exactly as a catalogue
+  row does; 152 were sitting in the catalogue that way.
+  **Every catalogue write goes through `lib/catalogueRanges.ts`**, which asserts
+  the row it is about to touch is a catalogue row first. That is not a
+  tautology: ids were preserved across the split, so an id from an old log or an
+  un-redeployed client still resolves, and it resolves to a clinical document.
+  `referenceRangeSplit.test.ts` pins the schema shape, the write-path list, and
+  that the resolver's tie-break (specificity → provenance → `createdAt` → `id`)
+  is a total order rather than Postgres row order.
 - **The seed never marks an explanation reviewed, and retracts the ones it used
   to.** A review is a NAMED PERSON WHO READ IT: a status with no `reviewedById`
   is a row somebody clicked, and one attributed to an account the seed creates

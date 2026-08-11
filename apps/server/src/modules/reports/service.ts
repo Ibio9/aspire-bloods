@@ -16,6 +16,7 @@ import {
   PROVENANCE_LABEL,
   type RangeProvenance,
 } from '../../lib/resolveReferenceRange.js';
+import { CATALOGUE_RANGE_ORDER } from '../../lib/catalogueRanges.js';
 import {
   classifyValue,
   resolveResultRange,
@@ -192,8 +193,13 @@ export async function parseReport(reportId: string, actorUserId: string, ip: str
   // through to the full marker catalogue rather than narrowing first.
   const panelMarkers = report.panel?.markers.map((pm) => pm.marker) ?? [];
   // referenceRanges come along because they are the SECOND source of truth for
-  // a range, used only where the lab printed none on the result itself.
-  const allMarkers = await prisma.marker.findMany({ include: { referenceRanges: true } });
+  // a range, used only where the lab printed none on the result itself. They
+  // are catalogue rows only — a marker has no relation to the per-result
+  // records — and they arrive in the resolver's own order, so the suggestion
+  // does not depend on what Postgres returned first.
+  const allMarkers = await prisma.marker.findMany({
+    include: { referenceRanges: { orderBy: CATALOGUE_RANGE_ORDER } },
+  });
 
   const patientSex = report.patient.patientProfile?.sex ?? null;
   const patientAge = report.patient.patientProfile?.dobEncrypted
@@ -493,7 +499,12 @@ export async function verifyReport(
 
   await prisma.$transaction([
     prisma.reportResult.deleteMany({ where: { reportId } }),
-    prisma.referenceRange.createMany({ data: rangeRows }),
+    // A PER-RESULT RECORD, into the table that holds only those. It is not a
+    // catalogue row and never was — writing them into the same table as the
+    // catalogue is what let a seeder overwrite one. The rows this replaces are
+    // left standing rather than deleted: an orphaned record is still the record
+    // of what was printed for the result that existed then.
+    prisma.resultReferenceRange.createMany({ data: rangeRows }),
     prisma.reportResult.createMany({ data: resultRows }),
     prisma.report.update({
       where: { id: reportId },
