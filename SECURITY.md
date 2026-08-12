@@ -33,12 +33,14 @@ Registration being open moves all the risk to one decision: whose results are th
 - The admin must restate the date of birth they matched on, and the server checks it against its own copy of the account before accepting the link.
 - Linking and unlinking are both audited, with **what agreed** recorded on the entry (`RESULT_LINKED_TO_PATIENT` / `RESULT_UNLINKED_FROM_PATIENT`), so a later review can ask on what basis, not just when.
 - Unlinking voids the report — removing it from the patient's portal immediately, including after release — and returns the result to the queue. Nothing is deleted.
-- Linking lands a report at `ADMIN_VERIFIED`, never past it: the clinician review and release gate is untouched.
+- Linking lands a report at `PARSED`, never past it: the one clinician review and release gate is untouched.
 
 ## Authorization
 
 - Every route is gated by `authGuard` (valid session) and, where relevant, `roleGuard` (PATIENT / ADMIN / CLINICIAN) — enforced server-side on every request, not just hidden client-side.
-- The report release pipeline is a strict server-enforced state machine (`UPLOADED → PARSED → ADMIN_VERIFIED → CLINICIAN_REVIEWED → RELEASED`, with a `CHANGES_REQUESTED` back-edge). Each transition checks the current status and the actor's role before proceeding — e.g. a clinician cannot release a report that hasn't been reviewed, an admin cannot perform the clinical review step.
+- The report release pipeline is a strict server-enforced state machine (`UPLOADED → PARSED → CLINICIAN_REVIEWED → RELEASED`, with a `CHANGES_REQUESTED` back-edge). Each transition checks the current status and the actor's role before proceeding — a report cannot be released that has not been reviewed, and `review` may only be performed from `PARSED`, so there is no route to a patient that does not pass a clinician.
+- **There is exactly ONE human gate and it is the clinical review (Aug 2026).** The `ADMIN_VERIFIED` stage was removed: it existed to catch transcription errors from a PDF, and results arrive structured through the Randox API, so it added a delay and a typo risk without adding a check. Entering or correcting results (`verify`) is still an action but no longer advances a status, so it cannot be a gate. Nothing auto-publishes and there is no setting that skips the review.
+- **A parse that is not clean holds the report, and approving it anyway is recorded.** With no stage left to park a problem in, `holdReasons` on the report carries it (`lib/cleanParse.ts`: an unmapped analyte, an unfiled row, a code not in our map, a disagreement with the lab's own high/low flag, an unfinished delivery). `reviewReport` refuses to approve a held report unless the clinician acknowledges the reasons in the same action; the acknowledgement and the reasons as they stood are written to the report and into the audit entry, because the report's own holds are cleared by the next correction.
 - Patients can only fetch their **own** `RELEASED` reports; ownership and release-status are checked on every patient-facing query, not assumed from the URL.
 
 ## Transport & headers

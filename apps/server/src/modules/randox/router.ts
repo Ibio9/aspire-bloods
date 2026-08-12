@@ -31,7 +31,7 @@ import {
  * behind ADMIN/CLINICIAN and every state change is audited.
  *
  * There is deliberately no "release" or "publish" route here. Ingestion
- * stops at ADMIN_VERIFIED and the existing clinician review/release
+ * stops at PARSED and the one clinician review/release
  * endpoints are the only way past that.
  */
 export const randoxRouter = Router();

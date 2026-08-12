@@ -3,6 +3,7 @@ import { useLocation, useParams } from 'react-router-dom';
 import { Breadcrumbs } from '../../components/nav/Breadcrumbs';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
+import { Checkbox } from '../../components/ui/Checkbox';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
 import { DateField } from '../../components/ui/DateField';
@@ -150,6 +151,17 @@ interface VerifiedResult {
 interface ReportDetail {
   id: string;
   status: string;
+  /**
+   * WHY THIS PARSE IS NOT CLEAN, in sentences. Empty means clean.
+   *
+   * With the admin verification stage gone, PARSED means both "awaiting
+   * clinician review" and "held with a question on it", and this is the only
+   * thing that tells them apart. It is not optional on the wire and it is not
+   * optional here: a screen that forgot to read it would show a report with a
+   * result missing from it as ready to approve.
+   */
+  holdReasons: string[];
+  heldAt: string | null;
   sampleDate: string;
   sourceLabel?: string;
   voidedAt: string | null;
@@ -191,6 +203,13 @@ export function ReportDetailPage() {
   const [busy, setBusy] = useState(false);
   const [parsing, setParsing] = useState(false);
   const [note, setNote] = useState('');
+  /**
+   * Approving a HELD report requires this. Deliberately not persisted and
+   * deliberately false on every load: an acknowledgement that survived a reload
+   * would be a tick box somebody had ticked once, for a report whose holds may
+   * since have changed.
+   */
+  const [acknowledged, setAcknowledged] = useState(false);
   const [voidOpen, setVoidOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -204,6 +223,14 @@ export function ReportDetailPage() {
   // legitimately returns zero rows would retrigger on every render.
   const autoParsed = useRef(false);
   const canActAsClinician = user?.role === 'ADMIN' || user?.role === 'CLINICIAN';
+
+  /**
+   * IS THIS REPORT HELD? The distinction the removed verification stage used to
+   * carry, now read off the report's own holdReasons — see lib/cleanParse.ts on
+   * the server for the closed list of what puts a sentence in there.
+   */
+  const holdReasons = report?.holdReasons ?? [];
+  const held = holdReasons.length > 0;
 
   function applyParse(result: ParseResponse) {
     setRows(result.rows);
@@ -391,6 +418,10 @@ export function ReportDetailPage() {
           results: buildResults(),
           note: note || undefined,
           confirm: true,
+          // Publish runs verify → review → release, and verify clears the holds —
+          // so the server reads them BEFORE that and refuses without this. See
+          // publishReport.
+          acknowledgeHolds: held ? acknowledged : false,
         }),
       });
       setPublishOpen(false);
@@ -411,7 +442,14 @@ export function ReportDetailPage() {
     setError(null);
     setBusy(true);
     try {
-      await apiFetch(`/reports/${id}/review`, { method: 'POST', body: JSON.stringify({ approve, note }) });
+      await apiFetch(`/reports/${id}/review`, {
+        method: 'POST',
+        // The server refuses to APPROVE a held report without this, and stamps
+        // the acknowledgement on the report and into the audit entry when it is
+        // sent. Requesting changes needs no acknowledgement — sending a held
+        // report back is the right answer to a hold.
+        body: JSON.stringify({ approve, note, acknowledgeHolds: approve && held ? acknowledged : false }),
+      });
       await load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Review failed');
@@ -488,7 +526,15 @@ export function ReportDetailPage() {
   const reportHeading = formatReportHeading(report.panel?.name, report.results.length);
   const attentionRows = rows.map((r, i) => ({ row: r, i })).filter(({ row }) => row.attention.length > 0);
   const cleanRows = rows.map((r, i) => ({ row: r, i })).filter(({ row }) => row.attention.length === 0);
-  const publishable = rows.length > 0 && buildResults().length > 0 && attentionRows.length === 0 && incompleteMatchedRows().length === 0;
+  // AND A HELD REPORT NEEDS THE ACKNOWLEDGEMENT FIRST. The server refuses either
+  // way (publishReport reads the holds before verify clears them), but a Publish
+  // button that looks available and then 409s is a worse way to say so.
+  const publishable =
+    rows.length > 0 &&
+    buildResults().length > 0 &&
+    attentionRows.length === 0 &&
+    incompleteMatchedRows().length === 0 &&
+    (!held || acknowledged);
 
   return (
     <>
@@ -568,10 +614,15 @@ export function ReportDetailPage() {
           </Button>
         )}
 
-        {canActAsClinician && report.status === 'ADMIN_VERIFIED' && (
+        {/* THE ONE HUMAN GATE, and it is now reached from PARSED rather than from
+            a stage an admin had to clear first. Approving a HELD report is
+            disabled until the reasons have been acknowledged in the card below —
+            the server refuses it either way, and a button that looks available
+            and then 409s is a worse way to say so. */}
+        {canActAsClinician && report.status === 'PARSED' && (
           <>
-            <Button onClick={() => handleReview(true)} loading={busy}>
-              Approve
+            <Button onClick={() => handleReview(true)} loading={busy} disabled={held && !acknowledged}>
+              {held ? 'Approve anyway' : 'Approve'}
             </Button>
             <Button variant="secondary" onClick={() => handleReview(false)} disabled={busy}>
               Request changes
@@ -592,7 +643,63 @@ export function ReportDetailPage() {
         )}
       </div>
 
-      {canActAsClinician && report.status === 'ADMIN_VERIFIED' && (
+      {/* ---------------------------------------------------------------------
+          WHAT IS WRONG WITH THIS DELIVERY, ABOVE THE DECISION ABOUT IT.
+          ---------------------------------------------------------------------
+
+          This card is what replaced the admin verification stage. That stage was
+          how a problem got in front of a person; with it gone, the problem has to
+          travel on the report and be the first thing on the screen of the one
+          person left in the pipeline.
+
+          NO COLOURED OUTLINE — the card carries a tinted fill and the warm
+          hairline, like every other card in the product. The tint is the
+          significantly-out wash because this is the strongest thing the console
+          says, and it is reinforced by the heading and by every sentence in the
+          list rather than by the colour. */}
+      {held && !report.voidedAt && (
+        <Card className="mt-6 max-w-2xl bg-tint-significantHigh">
+          <h2 className="font-display text-lg text-espresso">
+            {holdReasons.length === 1 ? 'This report is held for one reason' : `This report is held for ${holdReasons.length} reasons`}
+          </h2>
+          <p className="mt-1 text-sm text-espresso/85">
+            Nothing here is a failure and nothing has been discarded. Each one is a question about the delivery that a
+            person has to answer before a patient sees it.
+          </p>
+          <ul className="mt-3 space-y-2 text-sm text-espresso">
+            {holdReasons.map((reason) => (
+              <li key={reason} className="flex gap-2">
+                {/* A shape, not a colour: the list reads the same in greyscale. */}
+                <span aria-hidden="true" className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-espresso/60" />
+                <span>{reason}</span>
+              </li>
+            ))}
+          </ul>
+          {report.heldAt && (
+            <p className="numeric mt-3 text-xs text-espresso/80">Held since {formatDateTime(report.heldAt)}</p>
+          )}
+          {canActAsClinician && report.status === 'PARSED' && (
+            <div className="mt-2">
+              {/* The product's own checkbox, so the glyph is the rounded-mark
+                  square rather than a native control (CLAUDE.md: no default
+                  browser styling anywhere). */}
+              <Checkbox
+                id="acknowledge-holds"
+                checked={acknowledged}
+                onChange={(e) => setAcknowledged(e.target.checked)}
+                label={
+                  <>
+                    I have read {holdReasons.length === 1 ? 'this' : 'these'} and am reviewing the report knowing what is
+                    missing from it. This is recorded against my name in the audit log.
+                  </>
+                }
+              />
+            </div>
+          )}
+        </Card>
+      )}
+
+      {canActAsClinician && report.status === 'PARSED' && (
         <Card className="mt-6 max-w-xl">
           <label htmlFor="review-note" className="text-sm font-medium text-espresso">
             Note <span className="font-normal text-espresso/80">(optional, kept in the audit log)</span>
@@ -683,11 +790,18 @@ export function ReportDetailPage() {
             </div>
           )}
 
-          {/* Still available, still not mandatory: an admin who wants the
-              report verified now and reviewed by someone else later takes
-              this route instead of Publish. */}
+          {/* A CORRECTION, NOT A STAGE (changed Aug 2026). This form used to be
+              the second gate — it wrote ADMIN_VERIFIED, and review was only
+              permitted from there. It is now how a clinician fixes a value or
+              keys in a report that never came through the API, and it lands the
+              report back at PARSED, where it already was. Saving also clears any
+              holds, because a person has just entered every row deliberately.
+
+              So the label no longer says "verified": nothing is being verified,
+              and a button claiming a check that no longer exists is the removed
+              stage surviving as a word. */}
           <Button variant="secondary" onClick={handleVerify} loading={busy} className="mt-7">
-            Save &amp; mark as verified, review later
+            Save results, review later
           </Button>
         </div>
       )}

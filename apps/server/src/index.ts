@@ -107,7 +107,7 @@ cron.schedule('0 * * * *', () => {
 // webhooks land without anything downstream changing.
 //
 // Automatic ingestion is not automatic publication: this only ever lands
-// reports at ADMIN_VERIFIED, never past the clinician review/release gate.
+// reports at PARSED, never past the one clinician review/release gate.
 if (env.RANDOX_ENABLED) {
   cron.schedule(env.RANDOX_POLL_CRON, () => {
     runRandoxPollingJob().catch((e) => console.error('randoxPollingJob failed:', e));

@@ -42,7 +42,7 @@ import type { GetOrderResultDetailResponse, RandoxReportResultRow, OrderRef } fr
  * So this file's job is exactly: fetch → normalise into a ParsedReport →
  * hand it to the shared writer, or park it for an admin if we cannot say
  * whose it is. Ingestion never publishes; the writer lands everything at
- * ADMIN_VERIFIED and the clinician release gate is untouched.
+ * PARSED, clean or held, and the one clinician gate is untouched.
  */
 
 const SOURCE_KEY = 'randox_api';
@@ -65,7 +65,7 @@ export interface IngestResult {
 }
 
 /** Statuses a report can still be merged into on a redelivery. */
-const MERGEABLE_STATUSES = new Set(['UPLOADED', 'PARSED', 'ADMIN_VERIFIED', 'CHANGES_REQUESTED']);
+const MERGEABLE_STATUSES = new Set(['UPLOADED', 'PARSED', 'CHANGES_REQUESTED']);
 
 async function logAttempt(input: {
   orderNumber: string;
@@ -634,17 +634,20 @@ export async function ingestOrderResults(ref: OrderRef): Promise<IngestResult> {
   if (outcome.disagreementCount > 0) {
     parts.push(`${outcome.disagreementCount} where Randox’s own high/low flag disagrees with the range they sent`);
   }
-  // Where it stopped, and why. A report that advanced on its own to
-  // admin-verified needs no admin at all before the clinician sees it; one
-  // that did not has to say what an admin is being asked to look at, or the
-  // "automatic up to release" promise quietly becomes "sometimes automatic,
-  // and you find out by noticing".
+  // Whether it is waiting on the clinician or waiting on a question, and why.
+  // A clean parse needs nobody before the clinician sees it; a held one has to
+  // say what is being asked, or the "automatic up to release" promise quietly
+  // becomes "sometimes automatic, and you find out by noticing".
   parts.push(
-    outcome.verified
-      ? 'parse clean, advanced to admin-verified and waiting on clinician review'
-      : `held at parsed for an admin: ${outcome.holdReasons.join('; ')}`,
+    outcome.clean
+      ? 'parse clean, waiting on clinician review'
+      : `HELD for review: ${outcome.holdReasons.join(' ')}`,
   );
-  const message = `Order ${orderNumber}: ${parts.join(', ')}.`;
+  // No trailing full stop where the last part already ends in one: the hold
+  // reasons are whole sentences now (lib/cleanParse.ts), and appending to them
+  // produced "…incomplete..".
+  const body = parts.join(', ');
+  const message = `Order ${orderNumber}: ${body}${body.endsWith('.') ? '' : '.'}`;
 
   await logAttempt({
     orderNumber,

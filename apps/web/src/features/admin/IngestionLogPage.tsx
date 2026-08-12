@@ -139,7 +139,7 @@ export function IngestionLogPage() {
 
   return (
     <>
-      <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Ingestion log" />
+      <TwoTierHeading eyebrow="Aspire Clinic · Clinician console" title="Ingestion log" />
       <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
         Every attempt to pull a result in from Randox’s API, successful or not. A clean result attaches itself to the
         patient its order was placed for and stops at admin-verified; anything ambiguous stops earlier and says so

@@ -44,8 +44,20 @@ export const publishReportRequestSchema = z.object({
   results: z.array(verifiedResultRowSchema).min(1),
   /** Optional reviewer note, recorded on the review transition exactly as the two-step path records it. */
   note: z.string().max(2000).optional(),
-  /** Must be true. The single confirmation the admin gives, restated in the request. */
+  /** Must be true. The single confirmation the clinician gives, restated in the request. */
   confirm: z.literal(true),
+  /**
+   * Required to publish a report whose parse was not clean.
+   *
+   * This path runs verify → review → release, and `verify` legitimately CLEARS
+   * the holds (a person has just entered every row deliberately). So without this
+   * field the one-click path would clear the holds and then find nothing to
+   * acknowledge — a bypass of the acknowledgement by ordering rather than by
+   * intent. publishReport reads the holds BEFORE verify runs and refuses without
+   * it. Defaults to absent, which reads as false: the direction the default has
+   * to fail in.
+   */
+  acknowledgeHolds: z.boolean().optional(),
 });
 export type PublishReportRequest = z.infer<typeof publishReportRequestSchema>;
 

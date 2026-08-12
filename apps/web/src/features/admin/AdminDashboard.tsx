@@ -385,7 +385,7 @@ export function AdminDashboard() {
 
   return (
     <>
-      <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title={`Welcome, ${user?.displayName ?? ''}`} />
+      <TwoTierHeading eyebrow="Aspire Clinic · Clinician console" title={`Welcome, ${user?.displayName ?? ''}`} />
 
       {/* This is the admin's actual job, so it leads the page (brief §1) —
           counted and sorted by what's blocking each report, most
@@ -409,8 +409,11 @@ export function AdminDashboard() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {buckets.map((b, i) => (
               <Link
-                key={b.status}
-                to={`/admin?status=${b.status}`}
+                key={b.state}
+                // The queue's own vocabulary, not the status enum: HELD and
+                // AWAITING_REVIEW are the same status and must not link to the
+                // same list. See bucketAwaitingAction in lib/reportStatus.ts.
+                to={`/admin?queue=${b.state}`}
                 className="stagger-item motion-safe:animate-riseIn rounded-card"
                 style={{ animationDelay: `${staggerDelay(i, 30)}ms` }}
               >

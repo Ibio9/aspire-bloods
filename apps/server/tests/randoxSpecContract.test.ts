@@ -510,9 +510,9 @@ describe('the full flow against the mock', () => {
     expect(['INGESTED', 'PARTIAL']).toContain(result.outcome);
     expect(result.reportId).toBeTruthy();
 
-    // Nothing auto-publishes: the report stops at ADMIN_VERIFIED at best.
+    // Nothing auto-publishes: the report stops at PARSED, clean or held.
     const report = db.report.rows.find((r) => r.id === result.reportId)!;
-    expect(['PARSED', 'ADMIN_VERIFIED']).toContain(report.status);
+    expect(report.status).toBe('PARSED');
     expect(report.status).not.toBe('RELEASED');
 
     // THE PDF ARRIVES AS BASE64, NOT BINARY. Decoded on the way to storage,

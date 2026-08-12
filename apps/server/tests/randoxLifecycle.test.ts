@@ -13,7 +13,7 @@ import { createFakePrisma, seedCatalogue, seedPatient, type FakePrisma } from '.
  *
  *   1. Nobody typed anything. No admin action occurs anywhere between
  *      CreatePendingOrder and a report waiting to be released.
- *   2. It stopped exactly where it should. ADMIN_VERIFIED, not RELEASED —
+ *   2. It stopped exactly where it should. PARSED, not RELEASED —
  *      and the state machine physically prevents the difference, rather than
  *      the absence of a button in the UI doing it.
  */
@@ -109,17 +109,21 @@ describe('order to a report ready for release, with nobody typing anything', () 
     expect(report.patientId).toBe('p1');
     expect(db.reportResult.rows.length).toBeGreaterThan(0);
 
-    // 4. Where it stopped — and that no human touched it to get there.
-    expect(report.status).toBe('ADMIN_VERIFIED');
+    // 4. Where it stopped — and that no human touched it to get there. PARSED
+    // with nothing held is "awaiting clinician review"; the clean/held
+    // distinction is holdReasons rather than a status of its own now that the
+    // admin verification stage is gone.
+    expect(report.status).toBe('PARSED');
+    expect(report.holdReasons ?? [], 'a clean delivery holds nothing').toEqual([]);
     expect(report.verifiedById ?? null, 'no staff member verified this; the audit log is the record').toBeNull();
     expect(report.releasedAt ?? null).toBeNull();
     expect(db.auditLogEntry.rows.every((e) => e.actorUserId === null)).toBe(true);
 
-    // 5. The gate. A report cannot be released from here — the only route to
-    // RELEASED is through CLINICIAN_REVIEWED, and the only route into that is
-    // from ADMIN_VERIFIED. One clinician action away, and no fewer.
-    expect(canPerform('release', 'ADMIN_VERIFIED')).toBe(false);
-    expect(canPerform('review', 'ADMIN_VERIFIED')).toBe(true);
+    // 5. The gate, and there is exactly one. A report cannot be released from
+    // here — the only route to RELEASED is through CLINICIAN_REVIEWED, and the
+    // only route into that is a clinician reviewing it from PARSED.
+    expect(canPerform('release', 'PARSED')).toBe(false);
+    expect(canPerform('review', 'PARSED')).toBe(true);
     expect(canPerform('release', 'CLINICIAN_REVIEWED')).toBe(true);
 
     // 6. Polling stops. A completed order is not asked about again.

@@ -9,6 +9,7 @@ import { storageAdapter } from '../storage/LocalDiskStorageAdapter.js';
 import { resultSourceAdapter } from '../result-sources/index.js';
 import { findBestMarkerMatch } from './matchMarker.js';
 import { canPerform } from '../../lib/reportTransitions.js';
+import { holdFieldsFor } from '../../lib/cleanParse.js';
 import {
   resolveReferenceRange,
   ageFromDob,
@@ -506,13 +507,30 @@ export async function verifyReport(
     // of what was printed for the result that existed then.
     prisma.resultReferenceRange.createMany({ data: rangeRows }),
     prisma.reportResult.createMany({ data: resultRows }),
+    // PARSED, NOT A STAGE OF ITS OWN (changed Aug 2026).
+    //
+    // This form used to be the gate: it wrote ADMIN_VERIFIED, and `review` was
+    // only permitted from there. It is now a CORRECTION — a clinician fixing a
+    // value, or keying in a report that never came through the API — so it lands
+    // back where the report already was. Correcting the data does not move a
+    // report closer to a patient; only the clinician's review does.
+    //
+    // verifiedById/verifiedAt are still stamped, because somebody did enter this
+    // data by hand and the record of who is worth keeping. They are no longer a
+    // gate having been passed.
+    //
+    // AND THE HOLDS ARE CLEARED, because a human has just entered every row
+    // deliberately: whatever the machine could not file, they have now filed. A
+    // hold that survived the correction that fixed it would put the report in the
+    // exception queue for ever.
     prisma.report.update({
       where: { id: reportId },
       data: {
-        status: 'ADMIN_VERIFIED',
+        status: 'PARSED',
         sampleDate: new Date(input.sampleDate),
         verifiedById: actorUserId,
         verifiedAt,
+        ...holdFieldsFor({ clean: true, conditions: [], holdReasons: [] }),
       },
     }),
   ]);
@@ -527,12 +545,29 @@ export async function verifyReport(
   });
 }
 
+/**
+ * THE ONE HUMAN GATE.
+ *
+ * A clinician deciding a patient can see this. Not a check that the numbers
+ * copied across correctly — there is nothing being copied any more — which is
+ * why the admin verification stage that used to sit in front of this is gone.
+ *
+ * A HELD REPORT MAY BE REVIEWED, BUT NOT BY ACCIDENT. Where the parse was not
+ * clean (lib/cleanParse.ts), going ahead requires `acknowledgeHolds`, and that
+ * acknowledgement is stamped on the report and named in the audit entry. This is
+ * not a second gate: it is part of this one action, and it is what makes
+ * "automation never moves a problem forward" true without a second human step.
+ * The alternative — letting a held report be approved by the same click as a
+ * clean one — is precisely the failure of removing the earlier stage, since the
+ * clinician would have no way to know a result was missing.
+ */
 export async function reviewReport(
   reportId: string,
   approve: boolean,
   note: string | undefined,
   actorUserId: string,
   ip: string | null,
+  acknowledgeHolds = false,
 ) {
   const report = await prisma.report.findUnique({ where: { id: reportId } });
   if (!report) throw new ReportError('Report not found', 404);
@@ -541,10 +576,28 @@ export async function reviewReport(
     throw new ReportError(`Cannot review a report in status ${report.status}`, 409);
   }
 
+  const held = report.holdReasons.length > 0;
+  // Sending it BACK needs no acknowledgement — requesting changes is the
+  // correct response to a hold, and demanding a tick box before somebody is
+  // allowed to say "this is not right" would be the check working backwards.
+  if (approve && held && !acknowledgeHolds) {
+    throw new ReportError(
+      `This report is held for review and cannot be approved until the reasons are acknowledged: ` +
+        report.holdReasons.join(' '),
+      409,
+    );
+  }
+
+  const now = new Date();
   await prisma.report.update({
     where: { id: reportId },
     data: approve
-      ? { status: 'CLINICIAN_REVIEWED', reviewedById: actorUserId, reviewedAt: new Date() }
+      ? {
+          status: 'CLINICIAN_REVIEWED',
+          reviewedById: actorUserId,
+          reviewedAt: now,
+          ...(held ? { holdsAcknowledgedAt: now, holdsAcknowledgedById: actorUserId } : {}),
+        }
       : { status: 'CHANGES_REQUESTED' },
   });
 
@@ -554,7 +607,14 @@ export async function reviewReport(
     targetType: 'Report',
     targetId: reportId,
     ipAddress: ip,
-    metadata: note ? { note } : undefined,
+    // The audit entry records what was actually decided. "Approved" over a held
+    // report and "approved" over a clean one are two different decisions, and
+    // the holds themselves are written down rather than referenced, because the
+    // report's own holdReasons will be cleared by the next correction.
+    metadata: {
+      ...(note ? { note } : {}),
+      ...(held ? { acknowledgedHolds: report.holdReasons } : {}),
+    },
   });
 }
 
@@ -593,9 +653,11 @@ export async function releaseReport(reportId: string, actorUserId: string, ip: s
  * transition still runs through its own function above, which means each one
  * still checks canPerform() against reportTransitions.ts, still writes its own
  * audit entry, and still refuses from a status it isn't allowed to run from.
- * Nothing here writes RELEASED directly, nothing skips ADMIN_VERIFIED or
- * CLINICIAN_REVIEWED, and a report that fails halfway is left in whatever
- * legitimate intermediate state it reached rather than being forced onward.
+ * Nothing here writes RELEASED directly, nothing skips CLINICIAN_REVIEWED, and a
+ * report that fails halfway is left in whatever legitimate intermediate state it
+ * reached rather than being forced onward. Since `verify` no longer advances a
+ * status, what this collapses is three actions rather than four — and the one it
+ * cannot collapse is the review, because that is the gate.
  *
  * So the pipeline is unchanged and the saving is entirely in interactions —
  * which is the only place the saving was ever wanted.
@@ -606,8 +668,31 @@ export async function publishReport(
   actorUserId: string,
   ip: string | null,
 ) {
+  // THE HOLDS ARE READ BEFORE VERIFY RUNS, AND THAT ORDER IS THE POINT.
+  //
+  // `verify` clears them, legitimately — a person has just entered every row
+  // deliberately, so whatever the machine could not file, they have now filed. But
+  // that means by the time `reviewReport` looks, there is nothing left to
+  // acknowledge, and this path would have approved a held report without the
+  // acknowledgement the two-step path demands. Not a bypass anybody chose: a
+  // bypass produced by the order of three calls.
+  //
+  // So the holds are captured first, refused on here rather than three calls
+  // later, and passed through to the review so the acknowledgement lands on the
+  // report and in the audit entry exactly as it would have.
+  const before = await prisma.report.findUnique({ where: { id: reportId }, select: { holdReasons: true } });
+  if (!before) throw new ReportError('Report not found', 404);
+  const heldReasons = before.holdReasons;
+  if (heldReasons.length > 0 && !input.acknowledgeHolds) {
+    throw new ReportError(
+      `This report is held for review and cannot be published until the reasons are acknowledged: ` +
+        heldReasons.join(' '),
+      409,
+    );
+  }
+
   await verifyReport(reportId, { sampleDate: input.sampleDate, results: input.results }, actorUserId, ip);
-  await reviewReport(reportId, true, input.note, actorUserId, ip);
+  await reviewReport(reportId, true, input.note, actorUserId, ip, input.acknowledgeHolds ?? false);
   const report = await releaseReport(reportId, actorUserId, ip);
 
   // One extra entry on top of the three each transition already wrote, so the
@@ -619,7 +704,14 @@ export async function publishReport(
     targetType: 'Report',
     targetId: reportId,
     ipAddress: ip,
-    metadata: { resultCount: input.results.length, viaSingleStepPublish: true },
+    metadata: {
+      resultCount: input.results.length,
+      viaSingleStepPublish: true,
+      // Written here as well as on the review entry, because verify has cleared
+      // the report's own holdReasons by now and this is the record of what the
+      // clinician was told when they published.
+      ...(heldReasons.length > 0 ? { acknowledgedHolds: heldReasons } : {}),
+    },
   });
 
   return report;

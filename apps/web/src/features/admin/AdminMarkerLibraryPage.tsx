@@ -477,7 +477,7 @@ function CopyBlocksTab() {
 export function AdminMarkerLibraryPage() {
   return (
     <>
-      <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Marker library" />
+      <TwoTierHeading eyebrow="Aspire Clinic · Clinician console" title="Marker library" />
       <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
         Every analyte the clinic can report, and the wording a patient reads beside it. Explanation copy isn’t
         visible to patients until it has been reviewed.

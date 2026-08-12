@@ -129,7 +129,7 @@ test('nothing patient-visible until a report is RELEASED', async ({ page, browse
   // Signing in lands on the portal Overview, not the panel list.
   await expect(patientPage.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })).toBeVisible({ timeout: 10000 });
 
-  // ADMIN_VERIFIED, not yet reviewed or released — Overview says a result is coming
+  // PARSED, not yet reviewed or released — Overview says a result is coming
   // and nothing about its contents.
   await expect(patientPage.getByText('A result is on its way')).toBeVisible();
   await expect(patientPage.getByText('in range')).not.toBeVisible();

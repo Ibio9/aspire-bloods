@@ -221,7 +221,7 @@ export function PanelsPage() {
   if (!panels || !markers) {
     return (
       <>
-        <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Panels" />
+        <TwoTierHeading eyebrow="Aspire Clinic · Clinician console" title="Panels" />
         <div className="mt-10 flex flex-col gap-6" aria-busy="true" aria-label="Loading panels">
           {[0, 1].map((i) => (
             <Card key={i}>
@@ -241,7 +241,7 @@ export function PanelsPage() {
 
   return (
     <>
-      <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Panels" />
+      <TwoTierHeading eyebrow="Aspire Clinic · Clinician console" title="Panels" />
       <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
         The test levels the clinic offers, and what each contains. A panel is optional on a report: one with no
         panel is titled by its marker count and date.

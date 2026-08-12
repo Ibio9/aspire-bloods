@@ -776,6 +776,115 @@ while the code map is the checked-in placeholder. Do not weaken it.
   chosen for that quota. Never clamped instead: a clamped value computes to a
   different status than the one it was generated for.
 - Nothing auto-publishes; release is an explicit state change
+
+# One human gate, and it is a clinician (Aug 2026)
+
+The pipeline is **UPLOADED → PARSED → CLINICIAN_REVIEWED → RELEASED**, with
+CHANGES_REQUESTED as a loop back rather than a fifth forward stage.
+
+**ADMIN_VERIFIED is gone. Do not bring it back.** It existed to catch
+transcription errors from a PDF, and results arrive structured through the Randox
+API now — so there was nothing being transcribed and nothing for the step to
+catch, and a person retyping what the laboratory already sent added a delay and a
+typo risk without adding a check. CLINICIAN_REVIEWED stays and is the only gate:
+one click, and it is a clinician deciding a patient can see this, which is a
+different question from whether the numbers copied across correctly. Enforced
+server-side in `lib/reportTransitions.ts` — `review` only from PARSED, `release`
+only from CLINICIAN_REVIEWED. No bypass, no setting that skips it.
+
+**`verify` is a CORRECTION, not a stage.** It is how a clinician fixes a value or
+keys in a report that never came through the API, it may repeat, and it lands
+back on PARSED. If it ever lands on a status of its own again, that status is a
+gate whether or not anybody meant it to be, because `review` would have to be
+permitted from it. It also CLEARS the holds, because a person has just entered
+every row deliberately.
+
+**The console reads clinician.** "Clinician console" in every eyebrow and in the
+sidebar; the `/admin` routes keep their URLs because they are in bookmarks. The
+button that said "Save & mark as verified" says "Save results, review later" —
+a label claiming a check that no longer exists is the removed stage surviving as
+a word. Release audit entries name the clinician and mean a clinician judged this
+releasable. `ADMIN_EMAILS` still governs who may act; no new non-clinical role
+was invented, and if one is ever added it does not get the release action.
+
+## What "a clean parse" means, and it is load-bearing
+
+`lib/cleanParse.ts` is the single definition, because anything it lets through
+reaches a clinician who has no way to know something is missing. The conditions
+are a CLOSED LIST of five, each a fact about the delivery:
+
+1. **UNMAPPED_ANALYTE** — a row the laboratory sent that no marker answered to.
+   The commonest one in practice: the analyte map has never been confirmed
+   against a real payload.
+2. **UNFILED_ROW** — matched a marker but could not be written (no usable
+   two-sided range, an unparseable value, a duplicate marker on one report).
+3. **UNRECOGNISED_CODE** — a void or caveat code not in the configured map. It is
+   already treated as void and the result withheld, which is the safe default,
+   and it means a test the patient paid for is absent for a reason nobody has
+   read. This is the ONE case where a withheld-by-the-lab exclusion holds.
+4. **LAB_DISAGREEMENT** — Randox's own `lowHigh` contradicts the status we
+   computed from the value and the range they sent.
+5. **PARTIAL_DELIVERY** — the laboratory has not finished reporting the order.
+
+**Two deliberate non-conditions.** A result withheld under a RECOGNISED void code
+does not hold — that report is complete as far as anyone here can make it and the
+exclusion is on the record. Nor does an out-of-range result: a significantly
+raised marker is a clinical finding, which is exactly what the clinician is being
+asked to look at, and holding on it would make the queue the whole report list.
+
+## A hold is a property of the report, not a stage
+
+`Report.holdReasons` (plus `heldAt`, `holdsAcknowledgedAt/ById`). A four-state
+pipeline has no state left to park a problem in, and the failure that has to be
+impossible is a report with an unmapped analyte in it looking identical, on a
+clinician's queue, to one with nothing wrong. So:
+
+- PARSED with no holds is "awaiting clinician review"; PARSED with holds is HELD.
+  `queueState()` on the server and in `lib/reportStatus.ts` is the one place that
+  distinction is made, and every label function takes the holds as well as the
+  status. A function that only sees the status cannot tell them apart.
+- `reviewReport` REFUSES to approve a held report without `acknowledgeHolds`. The
+  acknowledgement is stamped on the report and the reasons AS THEY STOOD are
+  copied into the audit entry, because the report's own holds are cleared by the
+  next correction. Requesting changes needs no acknowledgement — sending a held
+  report back is the right answer to a hold.
+- This is NOT a second gate: it is part of the one review action.
+- A new hold retracts any previous acknowledgement (`holdFieldsFor`), or a
+  clinician who acknowledged one problem would have silently pre-cleared the next
+  delivery's.
+- The work queue leads with HELD. It used to lead with CLINICIAN_REVIEWED on the
+  reasoning that those patients have waited longest — still true, and no longer
+  the most urgent thing, because held is now the only thing standing between a
+  bad parse and a clinician's screen.
+
+`reportTransitions.test.ts` and `cleanParse.test.ts` pin all of it, including
+that `clean` is exactly "no holds" rather than a second judgement that could
+drift from the list.
+
+## What the catalogue reference range fallbacks are still for
+
+They were built to suggest a range in the verify form. That form is no longer a
+gate, so the honest answer to "does that work retain its purpose":
+
+- **Yes, and unchanged in kind.** `resolveReferenceRange()` is read in exactly
+  two places, and NEITHER was the gate: `reports/service.ts` (the parse
+  response's per-row `fallback`, `fallbackProvenance` and
+  `fallbackUnavailableReason`) and `panels/router.ts` (the marker-library
+  suggestion endpoint). Both still run — the verify form still exists as the
+  correction and manual-entry route, and it is now a CLINICIAN who sees the
+  suggestion and its provenance tier rather than an administrator.
+- **Its importance went up, not down.** A missing or one-sided range is an
+  UNFILED_ROW, which holds the report. The fallback is what a clinician uses to
+  clear that hold, so a catalogue with a sourced range is now the difference
+  between a report a clinician can release and one that sits in the exception
+  queue.
+- The provenance tier being on screen matters more for the same reason: the
+  person reading it is now the person releasing the report, not somebody handing
+  it to them.
+- Nothing about the sourcing rules changes. `RANDOX` is never overwritten by
+  `PUBLISHED`, specificity beats provenance in the tie-break, unsourced stays
+  flagged, and the twenty blanket `ANY` rows on sex-dependent analytes are still
+  the open problem recorded in docs/audits/reference-ranges.md.
 - Admin role only via ADMIN_EMAILS, checked per request
 - Editing a released report versions, never overwrites
 - Every admin view of patient data is audited, not just edits

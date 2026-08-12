@@ -70,7 +70,7 @@ export function AuditLogPage() {
 
   return (
     <>
-      <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Audit log" />
+      <TwoTierHeading eyebrow="Aspire Clinic · Clinician console" title="Audit log" />
       <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
         Every admin and clinician action, and every view of patient data. Nothing is filtered out for anyone.
       </p>

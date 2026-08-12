@@ -143,11 +143,11 @@ function SidebarContents({
             <Wordmark variant="light" size="sm" />
           )}
         </Link>
-        {!collapsed && <p className="eyebrow mt-2">Admin console</p>}
+        {!collapsed && <p className="eyebrow mt-2">Clinician console</p>}
       </div>
 
       <nav
-        aria-label="Admin navigation"
+        aria-label="Clinician console navigation"
         className={`mt-4 flex flex-1 flex-col gap-0.5 pb-1 ${collapsed ? 'px-2' : 'px-3'}`}
       >
         {items.map((item) => (
@@ -306,7 +306,7 @@ export function AdminShell({ children }: { children?: ReactNode }) {
             tabIndex={-1}
             role="dialog"
             aria-modal="true"
-            aria-label="Admin navigation"
+            aria-label="Clinician console navigation"
             className="absolute left-0 top-0 flex h-full w-72 flex-col bg-cream-50 shadow-card outline-none motion-safe:animate-riseIn"
           >
             {/* Tapping the scrim closes it, but a scrim is not a discoverable

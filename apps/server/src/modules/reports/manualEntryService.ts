@@ -110,7 +110,7 @@ export async function createManualEntryReport(input: {
   // Same verify→review→release gate as every other source — no shortcuts.
   // Manual entry has no parse step (there's no document), so it goes
   // straight from UPLOADED to the verify call, which moves it to
-  // ADMIN_VERIFIED exactly as the PDF-upload path does.
+  // PARSED exactly as the PDF-upload path does.
   await verifyReport(
     report.id,
     { sampleDate: new Date(input.sampleDate).toISOString(), results: input.results },

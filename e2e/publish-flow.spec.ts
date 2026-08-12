@@ -12,7 +12,7 @@ import { test, expect, type APIRequestContext } from '@playwright/test';
  *     one request — markers matched, ranges resolved, statuses derived — and
  *     publishing it takes one more. That is the interaction budget the whole
  *     change exists to hit.
- *  2. The state machine survives it. The report passes through ADMIN_VERIFIED
+ *  2. The state machine survives it. The report passes through PARSED
  *     and CLINICIAN_REVIEWED on the way to RELEASED, and the patient can see
  *     nothing until it gets there.
  */

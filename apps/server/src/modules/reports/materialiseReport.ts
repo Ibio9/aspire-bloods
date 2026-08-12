@@ -2,6 +2,7 @@ import { prisma } from '../../db/client.js';
 import { encryptField } from '../../lib/crypto.js';
 import { computeMarkerStatus } from '../../lib/markerStatus.js';
 import { findBestMarkerMatch } from './matchMarker.js';
+import { assessParseCleanliness, holdFieldsFor } from '../../lib/cleanParse.js';
 import type { ParsedReport } from '../result-sources/ResultSourceAdapter.js';
 
 /**
@@ -24,9 +25,10 @@ import type { ParsedReport } from '../result-sources/ResultSourceAdapter.js';
  * it. Everything Randox-specific (void codes, order status, polling) is in
  * modules/randox/; everything about *writing a result* is here.
  *
- * Both callers land at exactly the same place — ADMIN_VERIFIED, never past
- * it. A linked result is not a released result, and neither is an ingested
- * one; the clinician review and release gate is untouched by either path.
+ * Both callers land at exactly the same place — PARSED, never past it, with
+ * `holdReasons` recording anything that was not clean about the delivery. A
+ * linked result is not a released result, and neither is an ingested one; the one
+ * clinician gate is untouched by either path.
  */
 
 export interface MappingFailure {
@@ -55,12 +57,12 @@ export interface MaterialiseResult {
   disagreementCount: number;
   mappingFailures: MappingFailure[];
   /**
-   * True when the delivery was clean enough to advance to ADMIN_VERIFIED on
-   * its own. False means it stopped at PARSED and an admin has something to
-   * look at — see holdReasons.
+   * True when the parse was CLEAN — see lib/cleanParse.ts for the closed list of
+   * conditions. A clean report is awaiting clinician review; an unclean one is
+   * in the exception queue with `holdReasons` on it. Both are at PARSED.
    */
-  verified: boolean;
-  /** Why it stopped, in words. Empty when verified. */
+  clean: boolean;
+  /** Why it is held, in sentences a clinician reads. Empty when clean. */
   holdReasons: string[];
 }
 
@@ -198,43 +200,41 @@ export async function materialiseParsedReport(input: {
   }
 
   // ---------------------------------------------------------------------
-  // May this advance on its own, or does it need an admin?
+  // IS THIS A CLEAN PARSE?
   //
-  // Computed before the write, because it decides what status the write
-  // lands on. Clean means: every row in the delivery became a result, every
-  // one had a usable two-sided range, the lab's own high/low flag agreed
-  // with the status we computed for every one of them, and the lab has
-  // finished — nothing is still being processed.
+  // Computed before the write, because it decides what the write records on
+  // the report. The five conditions and the sentences they produce are in
+  // lib/cleanParse.ts, deliberately in one place: with the admin verification
+  // stage gone, a clean parse goes straight to awaiting clinician review, so
+  // anything this assessment lets through reaches a clinician who has no way
+  // to know something is missing.
   //
-  // Anything else is not a failure and is not discarded; it is a report an
-  // admin has to look at before a clinician is asked to review it.
+  // Nothing here is a failure and nothing is discarded. A held report is a
+  // report with a question attached to it.
   // ---------------------------------------------------------------------
   const disagreementCount = matchedRows.filter((r) => r.labStatusDisagrees).length;
-  const holdReasons: string[] = [];
-  // AN ANALYTE WE COULD NOT IDENTIFY HOLDS THE REPORT. It is recorded as an
-  // exclusion so nothing is lost, but a report that advanced on its own with a
-  // result silently missing from it would put a clinician in front of an
-  // incomplete panel with nothing saying so. Withheld-by-the-lab exclusions do
-  // NOT hold it: that report is complete as far as anyone here can make it.
-  if (unmappedExclusions.length > 0) {
-    holdReasons.push(
-      `${unmappedExclusions.length} result(s) could not be matched to a marker in our catalogue (${[...new Set(unmappedExclusions.map((x) => x.rawName))].slice(0, 5).join(', ')}${unmappedExclusions.length > 5 ? ', …' : ''})`,
-    );
-  }
-  if (mappingFailures.length > 0) {
-    holdReasons.push(
-      `${mappingFailures.length} result(s) could not be filed automatically (${[...new Set(mappingFailures.map((f) => f.markerName))].slice(0, 5).join(', ')}${mappingFailures.length > 5 ? ', …' : ''})`,
-    );
-  }
-  if (disagreementCount > 0) {
-    holdReasons.push(
-      `${disagreementCount} result(s) where the laboratory’s own high/low flag disagrees with the reference range they sent`,
-    );
-  }
-  if (parsed.isPartial) {
-    holdReasons.push('the laboratory has not finished reporting this order');
-  }
-  const verified = holdReasons.length === 0;
+  const cleanliness = assessParseCleanliness({
+    unmappedAnalytes: unmappedExclusions.map((x) => x.rawName),
+    unfiledRows: mappingFailures.map((f) => ({ markerName: f.markerName, reason: f.reason })),
+    // An unrecognised code is already treated as VOID and the result withheld
+    // (classifyCode in randox/codes.ts — there is no such thing as an
+    // unrecognised CAVEAT, because a caveat is only ever produced from a map
+    // entry that says so). So it arrives here as an exclusion carrying
+    // codeRecognised: false, and it means a test the patient paid for is absent
+    // for a reason nobody has read yet. The real code list is still not
+    // available from Randox, so this fires on live data rather than in theory.
+    //
+    // This is the ONE case where a withheld-by-the-lab exclusion holds the
+    // report. A RECOGNISED void code does not: that report is complete as far as
+    // anyone here can make it, and the exclusion is on the record.
+    unrecognisedCodes: exclusions
+      .filter((x) => x.code !== null && !x.codeRecognised)
+      .map((x) => x.code as string),
+    labDisagreementCount: disagreementCount,
+    isPartial: parsed.isPartial ?? false,
+  });
+  const holdReasons = cleanliness.holdReasons;
+  const clean = cleanliness.clean;
 
   const reportId = await prisma.$transaction(async (tx) => {
     const report = existing
@@ -342,28 +342,32 @@ export async function materialiseParsedReport(input: {
       });
     }
 
-    // Machine-sourced, structured data — there's no OCR ambiguity for an
-    // admin to eyeball the way a PDF parse has, so a CLEAN delivery advances
-    // to ADMIN_VERIFIED (data is in and computed) rather than stopping at
-    // PARSED. verifiedById stays null (no staff user verified it) — the
-    // audit log entry is the record of what happened and when.
+    // PARSED EITHER WAY, AND THE DIFFERENCE IS ON THE REPORT (changed Aug 2026).
     //
-    // An unclean one does NOT advance, and that asymmetry is the whole
-    // safety property of automatic ingestion. "Anything ambiguous stops and
-    // is surfaced" cannot be enforced by an admin screen, because the
-    // failure mode is nobody opening it: a report that had an unmatched
-    // marker, a missing range or a disagreement with the lab's own high/low
-    // flag would sail through to clinician review carrying a hole nobody had
-    // been told about. Stopping at PARSED puts it in the "needs an admin"
-    // bucket by construction, because `review` may only be performed from
-    // ADMIN_VERIFIED (lib/reportTransitions.ts) and there is no other route.
+    // A clean delivery used to advance to ADMIN_VERIFIED and an unclean one
+    // stopped at PARSED, so the pipeline position WAS the hold. With the admin
+    // stage gone there is no position left to hold in, so the hold moved onto
+    // the report: both land at PARSED, and `holdReasons` is what says whether
+    // this one is awaiting a clinician or waiting on a question.
+    //
+    // The safety property is unchanged and is still the whole point of automatic
+    // ingestion: "anything ambiguous is surfaced" cannot be enforced by a screen
+    // somebody has to open, because the failure mode is nobody opening it. What
+    // enforces it now is that `reviewReport` refuses a held report unless the
+    // clinician acknowledges the holds in the same action, and the exception
+    // queue sorts on heldAt. A report with an unmapped analyte cannot look
+    // identical to a clean one.
+    //
+    // verifiedById stays null — no staff user verified this, and stamping one
+    // would put a name against a decision nobody made. The audit log entry is the
+    // record of what happened and when.
     //
     // Clinician review and release remain untouched, explicit, human actions
     // either way. Automatic ingestion is not automatic publication, and
     // neither is an admin linking a result to an account.
     await tx.report.update({
       where: { id: report.id },
-      data: verified ? { status: 'ADMIN_VERIFIED', verifiedAt: new Date() } : { status: 'PARSED' },
+      data: { status: 'PARSED', ...holdFieldsFor(cleanliness) },
     });
 
     return report.id;
@@ -375,7 +379,7 @@ export async function materialiseParsedReport(input: {
     excludedCount: exclusions.length,
     disagreementCount,
     mappingFailures,
-    verified,
+    clean,
     holdReasons,
   };
 }

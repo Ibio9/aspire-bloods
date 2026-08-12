@@ -46,10 +46,26 @@ enum MarkerReviewStatus {
   PUBLISHED
 }
 
+/// ONE HUMAN GATE, AND IT IS A CLINICIAN (Aug 2026).
+///
+/// ADMIN_VERIFIED is gone. It existed to catch transcription errors from a PDF,
+/// and results arrive structured through the Randox API now — so there was
+/// nothing being transcribed and nothing for the step to catch, and a person
+/// retyping what the laboratory already sent added a delay and a typo risk
+/// without adding a check.
+///
+///   UPLOADED → PARSED → CLINICIAN_REVIEWED → RELEASED
+///
+/// with CHANGES_REQUESTED as a loop back, not a fifth forward stage.
+///
+/// PARSED means "the data is in, awaiting clinician review". Whether the parse
+/// was CLEAN is not a status — it is `holdReasons` on the report, because a
+/// four-state pipeline has no state left to hold a problem in, and the thing
+/// that must never happen is a report with a hole in it looking identical to a
+/// good one on a clinician's queue. See lib/cleanParse.ts.
 enum ReportStatus {
   UPLOADED
   PARSED
-  ADMIN_VERIFIED
   CHANGES_REQUESTED
   CLINICIAN_REVIEWED
   RELEASED
@@ -187,6 +203,8 @@ model User {
   reportsVerified   Report[] @relation("VerifiedByStaff")
   reportsReviewed   Report[] @relation("ReviewedByStaff")
   reportsVoided     Report[] @relation("VoidedByStaff")
+  /// The clinician who reviewed a held report having been shown why it was held.
+  reportHoldsAcknowledged Report[] @relation("HoldsAcknowledgedByStaff")
   resultEdits       ReportResultEdit[] @relation("ResultEditedByStaff")
 
   randoxOrders       RandoxOrder[] @relation("PatientRandoxOrders")
@@ -722,6 +740,28 @@ model Report {
   reviewedBy   User?     @relation("ReviewedByStaff", fields: [reviewedById], references: [id])
   reviewedAt   DateTime?
   releasedAt   DateTime?
+
+  // WHY THIS PARSE IS NOT CLEAN, in sentences, persisted.
+  //
+  // With ADMIN_VERIFIED gone there is no stage to park a problem in, so the
+  // problem is recorded on the report instead. Empty means a clean parse (see
+  // lib/cleanParse.ts for the closed list of conditions). Non-empty means the
+  // exception queue has this report and the clinician review screen leads with
+  // these sentences — automation never moves a problem forward, and the one
+  // human in the pipeline is never shown a panel with a result silently missing
+  // from it.
+  //
+  // Recomputed on every parse/ingest/verify, so correcting the cause clears it.
+  holdReasons String[] @default([])
+  // When the current set of holds was raised — the "oldest first" sort key the
+  // exception queue reads. Null exactly when holdReasons is empty.
+  heldAt      DateTime?
+  // A clinician may review a held report: the holds are shown, and going ahead
+  // anyway is an explicit acknowledgement recorded here and in the audit log.
+  // This is NOT a second gate — it is part of the one review action.
+  holdsAcknowledgedAt   DateTime?
+  holdsAcknowledgedById String?
+  holdsAcknowledgedBy   User?     @relation("HoldsAcknowledgedByStaff", fields: [holdsAcknowledgedById], references: [id])
 
   // Void is a state change, not a deletion — the row, every ReportResult,
   // and the full audit trail all stay intact. Voided reports are filtered

@@ -152,7 +152,7 @@ export function PatientDetailPage() {
   return (
     <>
       <Breadcrumbs items={[{ label: 'Patients', to: '/admin/patients' }, { label: name }]} />
-      <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title={name} />
+      <TwoTierHeading eyebrow="Aspire Clinic · Clinician console" title={name} />
 
       {error && (
         <p role="alert" className="mt-4 text-sm text-status-significantHigh">

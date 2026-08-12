@@ -537,7 +537,7 @@ export function LinkingPage() {
   if (failed) {
     return (
       <>
-        <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Result linking" />
+        <TwoTierHeading eyebrow="Aspire Clinic · Clinician console" title="Result linking" />
         <Card className="mt-10 max-w-xl">
           <p className="font-display text-xl text-espresso">We couldn’t load the linking queue</p>
           <p className="mt-2 text-sm text-espresso/80">Please refresh the page.</p>
@@ -548,7 +548,7 @@ export function LinkingPage() {
 
   return (
     <>
-      <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Result linking" />
+      <TwoTierHeading eyebrow="Aspire Clinic · Clinician console" title="Result linking" />
       <p className="mt-5 max-w-3xl text-lg leading-relaxed text-espresso">
         The exceptions. A result that arrives against an order we placed is attached to that patient on the order
         reference, once the name and date of birth agree — nobody types anything. What reaches this page is

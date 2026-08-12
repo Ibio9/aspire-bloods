@@ -54,6 +54,13 @@ const uploadRequestSchema = z.object({
 const reviewRequestSchema = z.object({
   approve: z.boolean(),
   note: z.string().max(2000).optional(),
+  /**
+   * Required to APPROVE a report whose parse was not clean — see
+   * lib/cleanParse.ts and reviewReport(). Defaults to false so a client that
+   * does not know about holds cannot approve one by omission, which is the
+   * direction the default has to fail in.
+   */
+  acknowledgeHolds: z.boolean().optional(),
 });
 
 const voidRequestSchema = z.object({
@@ -225,7 +232,14 @@ reportsRouter.post(
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
     try {
-      await reviewReport(req.params.id, parsed.data.approve, parsed.data.note, req.user!.id, req.ip ?? null);
+      await reviewReport(
+        req.params.id,
+        parsed.data.approve,
+        parsed.data.note,
+        req.user!.id,
+        req.ip ?? null,
+        parsed.data.acknowledgeHolds ?? false,
+      );
       res.json({ ok: true });
     } catch (e) {
       if (!handleReportError(e, res)) throw e;

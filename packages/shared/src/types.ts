@@ -11,10 +11,21 @@ export type Sex = 'MALE' | 'FEMALE' | 'ANY';
 
 export type MarkerReviewStatus = 'DRAFT' | 'REVIEWED' | 'PUBLISHED';
 
+/**
+ * ONE HUMAN GATE, AND IT IS A CLINICIAN (changed Aug 2026).
+ *
+ *   UPLOADED → PARSED → CLINICIAN_REVIEWED → RELEASED
+ *
+ * with CHANGES_REQUESTED as a loop back rather than a fifth forward stage.
+ * ADMIN_VERIFIED is gone: it caught transcription errors from a PDF, and results
+ * arrive structured through the Randox API now.
+ *
+ * PARSED is "awaiting clinician review". Whether the parse was clean is
+ * `holdReasons` on the report, not a status — see server lib/cleanParse.ts.
+ */
 export type ReportStatus =
   | 'UPLOADED'
   | 'PARSED'
-  | 'ADMIN_VERIFIED'
   | 'CHANGES_REQUESTED'
   | 'CLINICIAN_REVIEWED'
   | 'RELEASED';

@@ -93,7 +93,10 @@ test('every admin route loads with a clean console', async ({ page }) => {
   const routes: { name: string; path: string }[] = [
     { name: 'Console', path: '/' },
     { name: 'Reports & entry', path: '/admin' },
-    { name: 'Reports filtered by status', path: '/admin?status=ADMIN_VERIFIED' },
+    { name: 'Reports filtered by status', path: '/admin?status=PARSED' },
+    // HELD is a queue bucket rather than a status — PARSED covers both awaiting
+    // review and held, so the two filters are separate URLs.
+    { name: 'Reports filtered to the held queue', path: '/admin?queue=HELD' },
     { name: 'Patients', path: '/admin/patients' },
     { name: 'Result linking', path: '/admin/linking' },
     { name: 'Panels', path: '/admin/panels' },

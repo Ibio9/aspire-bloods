@@ -87,14 +87,20 @@ matches on name similarity, on a partial match, or on a probability. See
 linking flow (`lib/identityMatch.ts`) so the automatic bar can never end up
 lower than the one a person is held to.
 
-**Ingestion is not publication.** A clean parse lands at `ADMIN_VERIFIED` and
-stops. An unclean one — an unmatched marker, a missing or one-sided range, a
-disagreement with `lowHigh`, a lab that has not finished — lands at `PARSED`
-and says why. That asymmetry is the safety property: `review` may only be
-performed from `ADMIN_VERIFIED` and there is no other route into
-`CLINICIAN_REVIEWED`, so a delivery with a hole in it cannot reach a
-clinician's queue looking complete. Neither status is release; release is a
-clinician's explicit act, enforced server-side.
+**Ingestion is not publication.** Every delivery lands at `PARSED` and stops.
+Whether the parse was CLEAN is `holdReasons` on the report, not a status —
+`lib/cleanParse.ts` holds the closed list of five conditions (an unmapped
+analyte, a row that could not be filed, a code not in our map, a disagreement
+with `lowHigh`, a lab that has not finished), and each one puts a sentence there
+and a row in the exception queue.
+
+That asymmetry is still the safety property, and it is now enforced by the data
+rather than by the pipeline position: `reviewReport` REFUSES to approve a report
+with holds unless the clinician acknowledges them in the same action, which is
+stamped on the report and named in the audit entry. So a delivery with a hole in
+it cannot reach a clinician's queue looking complete. `PARSED` is not release;
+release is a clinician's explicit act from `CLINICIAN_REVIEWED`, enforced
+server-side, and there is exactly one human gate in front of it.
 
 ## Shape
 

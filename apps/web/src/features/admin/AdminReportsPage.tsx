@@ -14,7 +14,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { apiFetch, ApiError, extractErrorMessage } from '../../lib/api';
 import { API_BASE_URL } from '../../lib/apiBase';
-import { statusLabel, stageIndex, type ReportStatus } from '../../lib/reportStatus';
+import { statusLabel, stageIndex, queueState, type ReportStatus } from '../../lib/reportStatus';
 import { staggerDelay } from '../../components/motion/stagger';
 
 interface PatientOption {
@@ -93,6 +93,13 @@ interface MarkerOption {
 interface ReportRow {
   id: string;
   status: ReportStatus;
+  /**
+   * Why this parse is not clean. Empty means clean. PARSED means both "awaiting
+   * clinician review" and "held" now that the admin verification stage is gone,
+   * and this is the only thing that separates them — so the list has to read it
+   * or it shows a report with a hole in it as ready for a clinician.
+   */
+  holdReasons: string[];
   voidedAt: string | null;
   sampleDate: string;
   panel: { name: string } | null;
@@ -527,6 +534,12 @@ export function AdminReportsPage() {
   const [loadError, setLoadError] = useState<unknown>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const statusFilter = searchParams.get('status');
+  /**
+   * The queue bucket, which is NOT the status. HELD and AWAITING_REVIEW are both
+   * PARSED, so a `status=PARSED` filter cannot answer "what is held" — and that is
+   * the question the dashboard's most urgent tile asks. See lib/reportStatus.ts.
+   */
+  const queueFilter = searchParams.get('queue');
   const [query, setQuery] = useState('');
 
   const loadAll = useCallback(async () => {
@@ -571,15 +584,22 @@ export function AdminReportsPage() {
       .sort((a, b) => stageIndex(a.status) - stageIndex(b.status));
   }, [reports]);
 
+  /** How many open reports are held, for the row label and the filter's own count. */
+  const heldCount = useMemo(
+    () => (reports ?? []).filter((r) => !r.voidedAt && queueState(r) === 'HELD').length,
+    [reports],
+  );
+
   const visibleReports = useMemo(() => {
     const sorted = sortReports(reports ?? []);
     const byStatus = statusFilter ? sorted.filter((r) => r.status === statusFilter) : sorted;
+    const byQueue = queueFilter ? byStatus.filter((r) => queueState(r) === queueFilter) : byStatus;
     // Name, email and the report's own title. The admin looking for "the one I
     // uploaded for Mrs Okafor this morning" was previously scrolling a flat
     // list of every report the practice has ever produced to find it.
     const q = query.trim().toLowerCase();
-    if (!q) return byStatus;
-    return byStatus.filter((r) => {
+    if (!q) return byQueue;
+    return byQueue.filter((r) => {
       const name = r.patient.patientProfile
         ? `${r.patient.patientProfile.firstName} ${r.patient.patientProfile.lastName}`
         : '';
@@ -589,15 +609,18 @@ export function AdminReportsPage() {
         r.title.toLowerCase().includes(q)
       );
     });
-  }, [reports, statusFilter, query]);
+  }, [reports, statusFilter, queueFilter, query]);
 
   function setStatusFilter(next: string) {
+    // Setting a stage clears any queue filter: they are two answers to the same
+    // question and leaving both on returns the intersection, which is not what
+    // either control claims to do.
     setSearchParams(next ? { status: next } : {}, { replace: true });
   }
 
   return (
     <>
-      <TwoTierHeading eyebrow="Aspire Clinic · Admin console" title="Reports" />
+      <TwoTierHeading eyebrow="Aspire Clinic · Clinician console" title="Reports" />
 
       <div className="mt-8">
         <Tabs
@@ -618,8 +641,14 @@ export function AdminReportsPage() {
 
       <div className="mt-10">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="eyebrow">{statusFilter ? `Reports · ${statusLabel(statusFilter as ReportStatus)}` : 'All reports'}</p>
-          {(statusFilter || query) && (
+          <p className="eyebrow">
+            {queueFilter === 'HELD'
+              ? 'Reports · Held'
+              : statusFilter
+                ? `Reports · ${statusLabel(statusFilter as ReportStatus)}`
+                : 'All reports'}
+          </p>
+          {(statusFilter || queueFilter || query) && (
             <Button
               variant="ghost"
               onClick={() => {
@@ -655,11 +684,34 @@ export function AdminReportsPage() {
             <option value="">All stages ({(reports ?? []).length})</option>
             {stageOptions.map(({ status, count }) => (
               <option key={status} value={status}>
-                {statusLabel(status)} ({count})
+                {/* Never `statusLabel(status)` alone for PARSED: it would read
+                    "Awaiting review" over a count that includes every held
+                    report. The stage picker filters on stage, so it says stage. */}
+                {status === 'PARSED' ? 'Results in' : statusLabel(status)} ({count})
               </option>
             ))}
           </Select>
         </div>
+        {/* THE EXCEPTION QUEUE, ON THE SCREEN STAFF SPEND THEIR MORNING ON.
+            With the verification stage gone, a held report is the only thing
+            standing between a bad parse and a clinician's screen, and it was
+            reachable only by opening reports one at a time. It is a toggle rather
+            than a permanent banner: shown only when something is actually held,
+            so an ordinary morning does not carry a warning about nothing. */}
+        {heldCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setSearchParams(queueFilter === 'HELD' ? {} : { queue: 'HELD' }, { replace: true })}
+            aria-pressed={queueFilter === 'HELD'}
+            className={`mb-4 rounded-card border border-taupe px-3.5 py-2 text-left text-sm text-espresso transition ${
+              queueFilter === 'HELD' ? 'bg-bronze/[0.08]' : 'bg-tint-significantHigh hover:border-bronze/70'
+            }`}
+          >
+            <span className="tabular font-medium">{heldCount}</span>{' '}
+            {heldCount === 1 ? 'report is held' : 'reports are held'} and needs a decision before review
+            {queueFilter === 'HELD' && <span className="text-espresso/80"> · showing these only</span>}
+          </button>
+        )}
         {reports !== null && (
           <p className="mb-4 text-sm text-espresso/80" role="status">
             {visibleReports.length === (reports ?? []).length
@@ -706,7 +758,11 @@ export function AdminReportsPage() {
                     Sample date: {formatDate(r.sampleDate)} · {r.source.name}
                   </p>
                 </div>
-                <span className="eyebrow">{r.voidedAt ? 'Voided' : statusLabel(r.status)}</span>
+                {/* Held reads as HELD on the row, not as "Awaiting review" —
+                    the row is where somebody decides what to open next. */}
+                <span className="eyebrow">
+                  {r.voidedAt ? 'Voided' : statusLabel(r.status, (r.holdReasons ?? []).length > 0)}
+                </span>
               </Card>
             </Link>
           ))}

@@ -93,6 +93,13 @@ class Table {
     return this.rows.find((r) => matches(r, args.where)) ?? null;
   }
 
+  /** Throws rather than returning null, like the real one — releaseReport re-reads through it. */
+  async findUniqueOrThrow({ where }: { where: Record<string, unknown> }) {
+    const row = await this.findUnique({ where });
+    if (!row) throw new Error(`${this.name}.findUniqueOrThrow: no row matching ${JSON.stringify(where)}`);
+    return row;
+  }
+
   async findMany(args: { where?: Record<string, unknown> } = {}) {
     return this.rows.filter((r) => matches(r, args.where));
   }
@@ -113,6 +120,17 @@ class Table {
     };
     this.rows.push(row);
     return row;
+  }
+
+  /**
+   * The batched form reports/service.ts uses on the verify path: the reference
+   * ranges and the results go in as two createMany calls with the ids generated
+   * caller-side, because one create per marker was ~85 sequential round trips on
+   * a 40-marker report.
+   */
+  async createMany({ data }: { data: Record<string, unknown>[] }) {
+    for (const row of data) await this.create({ data: row });
+    return { count: data.length };
   }
 
   async update({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) {
@@ -201,7 +219,18 @@ const TABLES = [
 ] as const;
 
 export type FakePrisma = Record<(typeof TABLES)[number], Table> & {
-  $transaction: <T>(fn: (tx: unknown) => Promise<T>) => Promise<T>;
+  /**
+   * Both forms, because the code under test uses both: the interactive callback
+   * form (ingestion) and the ARRAY form (reports/service.ts's verify path, where
+   * the batched createMany calls are pre-built precisely so there is no
+   * round trip between them). A fake that only accepted the callback threw
+   * "fn is not a function" from inside the service, which reads as a bug in the
+   * service rather than a gap in the fake.
+   */
+  $transaction: {
+    <T>(fn: (tx: unknown) => Promise<T>): Promise<T>;
+    <T>(operations: Promise<T>[]): Promise<T[]>;
+  };
 };
 
 export function createFakePrisma(): FakePrisma {
@@ -212,7 +241,8 @@ export function createFakePrisma(): FakePrisma {
   // No isolation and no rollback. That is honest about what this is: the
   // tests below assert on committed outcomes, and a fake that pretended to
   // roll back would be claiming a guarantee it cannot make.
-  db.$transaction = async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => fn(db);
+  db.$transaction = (async (arg: unknown) =>
+    typeof arg === 'function' ? (arg as (tx: unknown) => unknown)(db) : Promise.all(arg as Promise<unknown>[])) as FakePrisma['$transaction'];
   return db;
 }
 

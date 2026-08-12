@@ -151,10 +151,10 @@ describe('auto-linking on an order we placed ourselves', () => {
     expect(outcome.outcome).toBe('INGESTED');
     expect(db.report.rows).toHaveLength(1);
     expect(db.report.rows[0].patientId).toBe('p1');
-    // Clean parse advances on its own. It stops there — ADMIN_VERIFIED is not
-    // release, and there is no route to RELEASED that does not pass a
-    // clinician.
-    expect(db.report.rows[0].status).toBe('ADMIN_VERIFIED');
+    // A clean parse is awaiting clinician review and holds nothing. It stops
+    // there — there is no route to RELEASED that does not pass a clinician.
+    expect(db.report.rows[0].status).toBe('PARSED');
+    expect(db.report.rows[0].holdReasons ?? []).toEqual([]);
     expect(db.reportResult.rows).toHaveLength(1);
   });
 
@@ -407,7 +407,7 @@ describe('what stops for an admin, and what does not', () => {
     expect(db.report.rows[0].status).toBe('PARSED');
     // And the reason is stated, not left to be noticed.
     const log = db.ingestionLogEntry.rows.at(-1);
-    expect(String(log!.message)).toMatch(/held at parsed/i);
+    expect(String(log!.message)).toMatch(/HELD for review/i);
   });
 
   it('holds a report at parsed when Randox’s own high/low flag disagrees with the range they sent', async () => {
