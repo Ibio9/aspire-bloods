@@ -90,6 +90,30 @@ function reHsl(hex: string, saturation: number, lightness: number): string {
   return rgbToHex(hslToRgb([h, saturation, lightness]));
 }
 
+/**
+ * `hex`'s own hue AND its own saturation (capped), at a different lightness.
+ *
+ * The operation an OPAQUE band fill needs, and the reason it is not `reHsl`
+ * with a number typed in beside it: the saturation is not a free parameter
+ * here. A band is painted rather than composited now, so nothing stops a call
+ * site asking for 100% — and 100% of any of these five hues is a signal green,
+ * a lemon and a web red, which is the one thing this palette has never been.
+ * Keeping the hue's own saturation is what makes an opaque band the brand
+ * colour at a chosen weight rather than a new colour at a chosen weight.
+ *
+ * THE CAP EXISTS BECAUSE THE FIVE HUES ARE NOT EQUALLY SATURATED. They were
+ * picked to survive a WASH — see the note on `statusHue` — so the gold is 80%
+ * saturated where the green is 41%, a difference a 15% composite damped almost
+ * out of existence and a solid fill does not. Painted at their own values the
+ * in-range band was a soft sage beside an above-range band in full gold: the
+ * LADDER is meant to be the only thing that varies between two bands, and the
+ * hues were quietly adding a second, unequal multiplier on top of it.
+ */
+function reLightness(hex: string, lightness: number, saturationCap = 1): string {
+  const [h, s] = rgbToHsl(hexToRgb(hex));
+  return rgbToHex(hslToRgb([h, Math.min(s, saturationCap), lightness]));
+}
+
 /** Tailwind-style 50-900 scale: light tints (toward white) through the base
  * hue (500) to dark shades (toward espresso, never toward pure black). */
 function buildScale(baseHex: string): Record<number, string> {
@@ -361,8 +385,24 @@ const TINT_MIX = {
  * Per hue rather than one constant for the same reason `statusTextHex` is:
  * yellow starts far brighter than the others, so a single value that made
  * yellow legible on its own band would drag green and red into mud.
+ *
+ * RE-SOLVED WITH THE OPAQUE BANDS (Aug 2026), and every value went up. A mark
+ * stands on its own state's band and has to clear 3:1 against it; the bands
+ * are painted now rather than composited at 15–40%, so each one is between a
+ * third and a half again as far from the surface as it was, and the mark has to
+ * step further off the hue to stay visible on it. Solved per hue for the
+ * SMALLEST shift clearing 3.2:1 — every step past that is chroma spent for
+ * nothing — and green is solved against the OPTIMAL fill as well as its own
+ * band, since an in-range point can land inside the narrowing.
+ *
+ * The cost is real and is recorded rather than hidden: light's gold mark is
+ * #6b592c and its amber #6f4f2e, which are dark warm browns rather than the
+ * gold and amber they were. Status is still carried by the mark's SHAPE, by the
+ * word in the tooltip and by the word in the key; the mark's own colour has
+ * never been the thing that says it, and a mark that has vanished into its band
+ * loses the shape layer, which is the thing that does.
  */
-const MARK_SHIFT: Record<StatusHue, number> = { green: 0.18, olive: 0.24, yellow: 0.44, orange: 0.34, red: 0.12 };
+const MARK_SHIFT: Record<StatusHue, number> = { green: 0.44, olive: 0.53, yellow: 0.69, orange: 0.66, red: 0.46 };
 
 /**
  * The same, in dark — and it is a SEPARATE RECORD now (Aug 2026), because the
@@ -383,8 +423,16 @@ const MARK_SHIFT: Record<StatusHue, number> = { green: 0.18, olive: 0.24, yellow
  * Solved per hue for the SMALLEST shift that clears 3.2:1 on its own band at
  * that band's own weight, because every step past that is chroma spent for
  * nothing. tokenContrast.test.ts measures the result at 3:1.
+ *
+ * RE-SOLVED with the opaque bands (Aug 2026), and dark went the OTHER WAY from
+ * light — three of the five need no shift at all now. A dark band is lighter
+ * than the plot it sits on, and the lifted hue is already well clear of it;
+ * what was binding before was a MUDDIER band closer to the mark's own tone.
+ * Zero is a real answer here and not a missing one: the mark is the lifted hue
+ * itself, which is the most chromatic it can be, and only orange and red — the
+ * two heaviest bands — need to be pulled off it.
  */
-const MARK_SHIFT_DARK: Record<StatusHue, number> = { green: 0.18, olive: 0.16, yellow: 0.16, orange: 0.24, red: 0.36 };
+const MARK_SHIFT_DARK: Record<StatusHue, number> = { green: 0.04, olive: 0, yellow: 0, orange: 0.22, red: 0.46 };
 
 /**
  * How far each hue is lifted toward the theme's text tone before anything in
@@ -416,181 +464,136 @@ const DARK_FILL = { band: 0.46, track: 0.78, edge: 0.94 } as const;
 const DARK_FILL_HUE: Record<StatusHue, number> = { green: 1, olive: 0.9, yellow: 0.82, orange: 0.9, red: 1.08 };
 
 /**
- * THE `plot` ROLE — a hue meant to be COMPOSITED, not painted.
+ * ---------------------------------------------------------------------------
+ * THE `fill` ROLE — A BAND IS PAINTED NOW, NOT COMPOSITED (Aug 2026).
+ * ---------------------------------------------------------------------------
  *
- * Every other role in this file is a colour that lands on screen at full
- * opacity, mixed here so the call site never has to think about alpha. A chart
- * band is the one thing that cannot work that way, and the trend chart's
- * redesign is what made it obvious:
+ * This role was called `plot` and was "the hue as the browser should composite
+ * it", drawn at 15% / 28% / 40% over whatever was underneath. That is what made
+ * the bands read washed out, and no amount of re-solving the hue could fix it,
+ * because the failure was structural rather than chromatic: **the chroma of a
+ * composited band is very nearly `weight × chroma(hue)`**, so at 15% the
+ * in-range band could carry at most 15% of any colour that exists. Three
+ * separate re-solves of this record are recorded in the git history, each
+ * chasing "the bands are muddy" round the same ceiling. The ceiling was the
+ * alpha.
  *
- *  · A band needs a FALLOFF at its edges, so it reads as a region rather than
- *    as a slab with a hard step at each boundary. A falloff is a ramp of alpha,
- *    so the alpha has to be at the call site whatever else is true.
- *  · The band's own weight varies by state — in range carries almost none,
- *    significantly-out carries a little more — which is three weights of one
- *    colour, not three colours.
- *  · And a pre-mixed dark band is a DOUBLE darkening: `band` is already 46% of
- *    the hue against black, and drawing that at 20% alpha lands at 9%, which is
- *    the mud this redesign started from.
+ * A band is now a SOLID FILL. No alpha anywhere in the chain: the rect is
+ * opaque, the gradient stops are opaque, and nothing behind a band shows
+ * through it. The weight ladder did not go away — it moved from the alpha into
+ * the colour, which is what `BAND_CONTRAST` (statusBands.ts) states and what
+ * this record solves for.
  *
- * So `plot` is the hue AS THE BROWSER SHOULD COMPOSITE IT, at the weights in
- * `BAND_WEIGHT` (statusBands.ts). In light that is the hue itself. In dark it
- * is the same hue at its own saturation and lightness, SOLVED so that a band
- * composited at the same weight lands at the same distance off the card as its
- * light-mode counterpart — measured, not chosen, and pinned by
- * tokenContrast.test.ts.
+ * WHAT IS FREE NOW AND WHAT IS NOT. Chroma is free: an opaque fill can be as
+ * saturated as it likes, which is why every band roughly doubled its colour
+ * without moving a single rung of the ladder. Saturation is therefore the thing
+ * that has to be held DOWN rather than pushed up — an unconstrained solve for
+ * maximum chroma returns #66e900 and #ff7c68, a highlighter green and a neon
+ * salmon, which are correct answers to the wrong question. So the saturation is
+ * not solved at all: **it is each hue's own**, and only the LIGHTNESS is
+ * solved. See `reLightness`. An opaque band is the brand hue at the weight the
+ * ladder asked for, and cannot be anything else.
  *
- * TWO THINGS ARE BEING CORRECTED AT ONCE, and only one of them is obvious.
+ * ── WHICH SURFACE THE LADDER IS MEASURED AGAINST, AND WHY IT IS BOTH ────────
  *
- *  · Saturation goes UP. It has to: a fifth of a colour over a near-black card
- *    is a dark colour, and a dark yellow is olive unless it is carrying real
- *    chroma. This is the mud the redesign started from.
- *  · Lightness goes DOWN — and against every instinct, since dark mode is where
- *    you expect to have to brighten things. The four hues do not start at the
- *    same luminance, and on a near-black card that difference is amplified
- *    rather than damped: gold at the weight that suits it on cream measured
- *    1.44:1 off the dark card against 1.16:1 off the light one, which is a
- *    band a third again as loud in the theme that can least afford it. Green
- *    was barely out; red, the darkest of the four, needed lightening instead.
- *    So the lift is per hue, for exactly the reason DARK_FILL_HUE above is.
+ * One fill is drawn on two surfaces: the chart's plot panel and the card a
+ * range bar sits on. Those two are not the same distance apart in the two
+ * themes — light's plot is a step DOWN from its card and dark's plot is a step
+ * down from its card as well, which pushes a light (darker) band closer to the
+ * plot and a dark (lighter) band further from it. Measured: solving the ladder
+ * against the card alone leaves the CHART's bands 33% apart between themes;
+ * solving it against the plot alone leaves the RANGE BAR's 30% apart. Neither
+ * instrument is the junior one.
  *
- * The result is ONE weight ladder that is right in both themes, which is the
- * property worth having — a component picking its opacity from the theme is a
- * component that will drift, and the two themes' bands would part company the
- * first time anybody touched one of them.
+ * So the ladder is the GEOMETRIC MEAN of the two contrasts, which splits the
+ * difference exactly: both instruments land within 16% across the two themes,
+ * inside the 20% tolerance tokenContrast.test.ts has always held bands to.
  *
- * ------------------------------------------------------------------------
- * RE-SOLVED (Aug 2026): THE DARK BANDS WERE OLIVE AND BROWN.
- * ------------------------------------------------------------------------
+ * Measured, at these values — contrast off the card / off the plot panel:
  *
- * The equal-weight property above held and the HUE did not. Measured, as the
- * colour that actually landed on the dark card:
+ *     light   green 1.62 / 1.39   gold 2.04 / 1.74   red 2.49 / 2.12
+ *     dark    green 1.41 / 1.59   gold 1.78 / 2.01   red 2.16 / 2.44
  *
- *     green   → hsl(76, 0.18, 0.17)   the reference range, as olive
- *     yellow  → hsl(43, 0.32, 0.17)   above range, as brown
- *     red     → hsl(11, 0.33, 0.26)   significantly out, as maroon
+ * and CHROMA, as the composited band was → as the painted fill is:
  *
- * Two things were happening at once and only the first was accounted for. A
- * band is composited at 10–24%, so 76–90% of what lands on screen is the CARD,
- * which on a near-black warm surface is hue 33 at 9% saturation — it pulls
- * every band's hue toward itself and flattens its chroma. And the lightness
- * correction that made the weights match had pushed three of the four DOWN,
- * which is the direction that costs the most chroma.
+ *     light   green 0.114 → 0.243   gold 0.200 → 0.776   red 0.400 → 0.396
+ *     dark    green 0.125 → 0.157   gold 0.224 → 0.333   red 0.337 → 0.490
  *
- * The fix is to stop treating the plot colour as "the hue, adjusted" and solve
- * for it as "whatever produces the intended composite". Every value below is
- * the output of a search over (saturation, lightness) at the hue's own angle,
- * maximising the SATURATION OF THE COMPOSITE subject to four constraints:
+ * ── THE THREE THINGS THAT MOVE WITH IT ─────────────────────────────────────
  *
- *   1. the composited band is within 17% of its light-mode weight (the test
- *      allows 20%, so the solve keeps headroom);
- *   2. the ladder holds in dark as well as light — in range fainter than out,
- *      out fainter than significantly out;
- *   3. the composite's hue is within 11° of its light-mode counterpart's, so
- *      "green" is the same green in both themes;
- *   4. a point mark on its own band still clears 3:1.
+ * BAND_FILL, LINE_LIFT AND MARK_SHIFT ARE ONE DECISION, exactly as PLOT_LIFT,
+ * BAND_WEIGHT and MARK_SHIFT were. A stronger band is closer to the trend line
+ * and closer to the point mark standing on it, and both have to move away from
+ * it — the line by getting brighter (never the band by getting duller: the line
+ * is the content and the bands are the context, and that ordering is a fact
+ * about the chart rather than about how much ink is on it), the mark by taking
+ * a bigger step off its own hue. Change any rung of `BAND_CONTRAST` and all
+ * three are solved again.
  *
- * Saturation goes to the top of the range for all four, and lightness goes UP
- * rather than down — which is the opposite of the previous solve and is why the
- * bands were muddy: pulling lightness down toward a near-black card is exactly
- * how a hue is spent. What it costs is nothing, because the weight is held by
- * constraint 1 rather than by the lightness.
+ * ── THE TWO HINGES ARE NOT SOLVED, THEY ARE MIDPOINTS ──────────────────────
  *
- * ------------------------------------------------------------------------
- * RE-SOLVED AGAIN (Aug 2026), BECAUSE THE WEIGHTS MOVED UNDER IT.
- * ------------------------------------------------------------------------
- *
- * The bands went olive and brown a second time, and nothing in this file had
- * been touched. The cause is the sentence at the top of the solve: THIS IS
- * SOLVED AT A WEIGHT. When the chart's bands went flat, `BAND_WEIGHT` was cut
- * by about a third (0.10/0.17/0.24 → 0.07/0.12/0.18) to keep the same average
- * ink on the plot — correct arithmetic, and it silently invalidated every
- * number below, because a band is 76–93% CARD and its saturation is very
- * nearly linear in that weight. Measured, as what landed on the dark card at
- * the reduced weights: green hsl(80, 0.24, ...), gold hsl(43, 0.33, ...) —
- * the exact figures the previous re-solve was written to fix.
- *
- * So the pairing is the thing to remember: PLOT_LIFT AND BAND_WEIGHT ARE ONE
- * DECISION. Change either and this has to be solved again. It is a search, not
- * a judgement — the same four constraints, at the weight each hue is actually
- * checked at, plus a fifth that was previously enforced by hand and is now part
- * of the solve (the ladder must hold in DARK, where a saturated red is darker
- * than a gold and will sit below it unless its lightness is raised for it).
- *
- * ------------------------------------------------------------------------
- * RE-SOLVED A THIRD TIME (Aug 2026), AND LIGHT IS NOW SOLVED TOO.
- * ------------------------------------------------------------------------
- *
- * Two things were wrong and only one of them was in this file.
- *
- * FIRST: LIGHT WAS NEVER SOLVED AT ALL. `--c-hue-*-plot` in light was
- * `statusHue[hue]` — the hue itself, unaltered — on the reasoning that light
- * mode needs no correction. That is true of a PAINTED colour and false of a
- * composited one. The brand green is a 41%-saturation leaf green, so 11% of it
- * over a near-white card landed at **hsl(90, 0.25) with a chroma of 10/255**:
- * a grey with a rumour of green in it, which is exactly the "too muted to read
- * as green" the redesign was asked to fix. Every hue is now solved in BOTH
- * themes, and this record is keyed by theme first.
- *
- * SECOND: THE OBJECTIVE WAS THE WRONG NUMBER. The previous two solves maximised
- * the composite's HSL SATURATION, which is a ratio and therefore says nothing
- * about how much colour is actually present: a pale pink and a saturated red
- * can report the same figure. What a reader means by "unmistakably green" is
- * CHROMA — distance from the neutral axis — and chroma of a composited band is
- * very nearly `weight × chroma(plot)`. So the objective is chroma, and the
- * consequence is the one the old objective hid: **you cannot raise the chroma
- * of a band without raising its weight.** Hence BAND_WEIGHT going up as part of
- * the same change.
- *
- * The search is otherwise as before — over (saturation, lightness) at the hue's
- * own angle, per theme, subject to:
- *
- *   1. the composited band lands within 7% of its own rung on the weight ladder
- *      (which is what keeps the two themes within the test's 20%, and in
- *      practice holds them inside 15%);
- *   2. the ladder holds in both themes — in range fainter than the bound hinge,
- *      fainter than out, fainter than the threshold hinge, fainter than
- *      significantly out — enforced DURING the search rather than checked after
- *      it, which is what forces red's lightness up: a saturated brick red is the
- *      darkest of the five and sits under orange otherwise;
- *   3. the composite's hue within 11° of its counterpart in the other theme, so
- *      "green" is the same green in both.
- *
- * A POINT MARK CLEARING 3:1 ON ITS OWN BAND used to be a fourth constraint here
- * and is not one any more — it is solved for separately, in `MARK_SHIFT` /
- * `MARK_SHIFT_DARK`. Leaving it in this search meant the BAND was being
- * desaturated to suit the mark: dark red's ceiling under it was a 36%-saturation
- * band, i.e. the maroon this has now been through twice. The mark moves, the
- * band does not.
- *
- * Solved at 0.15 / 0.28 / 0.40. Composite CHROMA off the card, before → after:
- *
- *     light   green 0.039 → 0.114   gold 0.149 → 0.200   red 0.153 → 0.400
- *     dark    green 0.122 → 0.125   gold 0.180 → 0.224   red 0.251 → 0.337
- *
- * PLOT_LIFT, BAND_WEIGHT AND MARK_SHIFT ARE ONE DECISION. Change any of the
- * three and all of it has to be solved again.
+ * Only the three STATES are solved. Olive and orange are the exact RGB midpoint
+ * of the two fills either side of them, computed where they are drawn rather
+ * than taken from `statusHue`, and that is the whole claim a boundary blend
+ * makes: a result sitting exactly on the limit is drawn exactly half in each.
+ * Solving a hinge independently broke it — `statusHue.olive` is 57% saturated
+ * against green's 41%, so an independently-solved olive came out MORE chromatic
+ * than either neighbour and drew a bright chartreuse stripe along the reference
+ * bound, which is the opposite of a blend.
  */
-const PLOT_LIFT: Record<'light' | 'dark', Record<StatusHue, { s: number; l: number }>> = {
+const BAND_FILL: Record<'light' | 'dark', { green: number; yellow: number; red: number; optimal: number }> = {
+  // Lightness only. The hue is the brand hue's own; the saturation is too,
+  // capped at BAND_FILL_SAT_CAP.
   light: {
-    green: { s: 1, l: 0.36 },
-    olive: { s: 0.98, l: 0.3 },
-    yellow: { s: 1, l: 0.35 },
-    orange: { s: 1, l: 0.39 },
-    red: { s: 1, l: 0.5 },
+    green: 0.705, // #b0d395
+    yellow: 0.561, // #d2b04c
+    red: 0.688, // #df8c80
+    // The optimal narrowing: the same green, one rung deeper. 1.14:1 off the
+    // in-range band — a visible shading-in, and nothing like the step a
+    // boundary makes.
+    optimal: 0.636, // #9dc97c
   },
   dark: {
-    green: { s: 0.96, l: 0.38 },
-    olive: { s: 1, l: 0.31 },
-    yellow: { s: 1, l: 0.36 },
-    orange: { s: 0.98, l: 0.48 },
-    // Lightness well above the others, and it is the ladder that puts it there:
-    // a fully saturated brick red is the darkest of the five, so at equal
-    // lightness the significantly-out band measures FAINTER off a near-black
-    // card than the gold band below it — which inverts the one thing the
-    // weights exist to say.
-    red: { s: 1, l: 0.6 },
+    green: 0.191, // #2e451d
+    yellow: 0.227, // #5d4b17
+    red: 0.389, // #9f3728
+    optimal: 0.217, // #354e20
   },
+};
+
+/**
+ * The ceiling on a band fill's saturation — see `reLightness` for why one is
+ * needed at all.
+ *
+ * 0.6 is above green's own 41% and olive's 57% (so neither moves) and below
+ * gold's 80%, amber's 73% and red's 63%, which is exactly the group that was
+ * shouting. Measured chroma across the five, before the cap → after: light
+ * 0.243 / 0.561 / 0.776 / 0.553 / 0.396 → 0.243 / 0.318 / 0.525 / 0.451 /
+ * 0.373 — a ladder rather than a spike at the gold.
+ */
+const BAND_FILL_SAT_CAP = 0.6;
+
+/**
+ * THE TREND LINE, AND IT IS BRIGHTER BECAUSE THE BANDS ARE (Aug 2026).
+ *
+ * It was `bronze-700` in light and `bronze-500` in dark, and on the opaque
+ * significantly-out band those measure 2.87:1 and 2.42:1 — under AA-large,
+ * i.e. a line buried by its own context. The rule when that happens is written
+ * down and is one direction only: brighten the LINE.
+ *
+ * Solved rather than stepped along the scale, and for a reason worth stating.
+ * The bronze scale's dark end is mixed toward espresso, so `bronze-900` clears
+ * the band comfortably (3.73:1) at a chroma of 0.090 — a warm grey, a line that
+ * has stopped being bronze on a plot where bronze is the one colour that means
+ * "your series". Solved at bronze's OWN saturation and nothing higher (the
+ * bronze hue sits at 19°, between the status red at 8° and the status orange at
+ * 30°, so a saturated bronze line would read as a status colour crossing the
+ * plot) it lands at 3.36:1 in light and 3.33:1 in dark, at a chroma of 0.20 —
+ * darker AND more bronze than the step it replaces.
+ */
+const LINE_LIFT: Record<'light' | 'dark', number> = {
+  light: 0.296, // #654532
+  dark: 0.709, // #ceae9c
 };
 
 // ---------------------------------------------------------------------------
@@ -892,6 +895,23 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    */
   out['--c-onaccent'] = dark ? mix(darkPage, '#000000', 0.25) : brand.white;
 
+  /**
+   * THE OPAQUE BAND FILLS, solved before the per-role loop because the two
+   * HINGES are derived from the three STATES rather than from their own brand
+   * hue — see BAND_FILL. Olive is exactly half of the green fill and the gold
+   * one; orange is exactly half of the gold and the red. That is the claim a
+   * boundary blend makes, made where the blend is actually drawn.
+   */
+  const bandFill = (hue: 'green' | 'yellow' | 'red' | 'optimal'): string =>
+    reLightness(hue === 'optimal' ? statusHue.green : statusHue[hue], BAND_FILL[mode][hue], BAND_FILL_SAT_CAP);
+  const FILL: Record<StatusHue, string> = {
+    green: bandFill('green'),
+    yellow: bandFill('yellow'),
+    red: bandFill('red'),
+    olive: mix(bandFill('green'), bandFill('yellow'), 0.5),
+    orange: mix(bandFill('yellow'), bandFill('red'), 0.5),
+  };
+
   // The five hues, per role. Emitted per HUE and not only per status because
   // the two HINGES are real tokens here — olive at a reference bound, orange at
   // a significantly-out threshold, each the midpoint of the gradient centred on
@@ -903,10 +923,11 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
     // neutral black instead — see darkFill.
     out[`--c-hue-${hue}-wash`] = mix(tintTowards, h, dark ? TINT_MIX.washDark : TINT_MIX.wash);
     out[`--c-hue-${hue}-band`] = dark ? darkFill(hue, 'band') : mix(tintTowards, h, TINT_MIX.band);
-    // The one role that is composited rather than painted, and SOLVED IN BOTH
-    // THEMES since Aug 2026 — light used to be the raw hue, which is what made
-    // the in-range band a grey with a rumour of green in it. See PLOT_LIFT.
-    out[`--c-hue-${hue}-plot`] = reHsl(statusHue[hue], PLOT_LIFT[mode][hue].s, PLOT_LIFT[mode][hue].l);
+    // THE OPAQUE BAND FILL — the chart's bands and the range bars' track, one
+    // colour, drawn at full opacity in both. It used to be `-plot`, a hue meant
+    // to be composited at BAND_WEIGHT; see BAND_FILL for why an alpha was the
+    // ceiling on how much colour a band could carry.
+    out[`--c-hue-${hue}-fill`] = FILL[hue];
     out[`--c-hue-${hue}-track`] = dark ? darkFill(hue, 'track') : mix(tintTowards, h, TINT_MIX.track);
     out[`--c-hue-${hue}-edge`] = dark ? darkFill(hue, 'edge') : mix(tintTowards, h, TINT_MIX.edge);
     // Away from the surface rather than toward it — see TINT_MIX.mark.
@@ -925,7 +946,7 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
       ['wash', ''],
       ['bar', '-bar'],
       ['band', '-band'],
-      ['plot', '-plot'],
+      ['fill', '-fill'],
       ['edge', '-edge'],
       ['mark', '-mark'],
     ] as const) {
@@ -948,13 +969,17 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * much ink is on it.
    *
    * So it steps AWAY from the surface in each theme rather than staying at the
-   * brand bronze: `bronze-700` on the light card, and the lifted `bronze-500`
-   * in dark. Measured against the heaviest band it ever crosses (the
-   * significantly-out red at `BAND_WEIGHT.SIGNIFICANT_HIGH`), which is the only
-   * place burying it was ever a risk. Paired with `chart.lineWidth`.
+   * brand bronze. It was `bronze-700` light / `bronze-500` dark, which cleared
+   * the composited bands and does NOT clear the painted ones — 2.87:1 and
+   * 2.42:1 on the significantly-out red, i.e. under AA-large, a line lost in
+   * its own context. It is solved now, at bronze's own hue and saturation and
+   * at the lightness that clears 3.3:1 on every band including the optimal
+   * narrowing: see LINE_LIFT for why it is solved rather than stepped further
+   * along a scale whose dark end has had the bronze mixed out of it.
+   * Paired with `chart.lineWidth`.
    */
-  out['--c-chart-line'] = dark ? darkScales.bronze[500] : scales.bronze[700];
-  out['--c-chart-point'] = dark ? darkScales.bronze[500] : scales.bronze[700];
+  out['--c-chart-line'] = reLightness(brand.bronze, LINE_LIFT[mode]);
+  out['--c-chart-point'] = out['--c-chart-line'];
   /**
    * The ring around a plotted point, and it is THE CARD'S OWN SURFACE in both
    * themes rather than white in light and the card in dark.
@@ -985,8 +1010,22 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * and the reader's own result is not.
    */
   out['--c-chart-reference-edge'] = dark ? darkScales.taupe[800] : scales.taupe[900];
-  out['--c-chart-optimal-band'] = dark ? darkScales.bronze[400] : scales.bronze[300];
-  out['--c-chart-optimal-edge'] = dark ? darkScales.bronze[700] : scales.bronze[600];
+  /**
+   * THE OPTIMAL NARROWING, AS AN OPAQUE FILL of its own (Aug 2026).
+   *
+   * It was the green band's own colour drawn OVER the green band at a small
+   * alpha — 0.09 on the chart, 0.24 of the green edge on a range bar, two
+   * numbers for one idea, and both of them alpha in a system where a band no
+   * longer has any. So the deepening is a colour now, in the one place colours
+   * are decided: the same green as the in-range band, one rung further along
+   * the ladder. 1.14:1 off the band it sits inside, in both themes — visible as
+   * a shading-in and nothing like the step a boundary makes.
+   *
+   * The two bronze tokens that used to be here (`--c-chart-optimal-band` /
+   * `-edge`) are gone with the hatched band they painted; see the note on
+   * `chart` below.
+   */
+  out['--c-band-optimal'] = bandFill('optimal');
   out['--c-chart-axis-line'] = dark ? darkScales.taupe[600] : brand.taupe;
   out['--c-chart-axis-text'] = dark ? darkScales.espresso[400] : scales.espresso[400];
   out['--c-chart-gridline'] = dark ? darkScales.taupe[300] : scales.taupe[200];
@@ -1312,8 +1351,8 @@ function tintSet(key: StatusKey) {
     surface: `rgb(var(--c-tint-${k}))`,
     bar: `rgb(var(--c-tint-${k}-bar))`,
     band: `rgb(var(--c-tint-${k}-band))`,
-    /** Composited at `BAND_WEIGHT`, never painted flat — see PLOT_LIFT. */
-    plot: `rgb(var(--c-tint-${k}-plot))`,
+    /** The opaque band fill — a chart band and a range-bar segment. See BAND_FILL. */
+    fill: `rgb(var(--c-tint-${k}-fill))`,
     edge: `rgb(var(--c-tint-${k}-edge))`,
     mark: `rgb(var(--c-tint-${k}-mark))`,
   } as const;
@@ -1337,7 +1376,7 @@ function hueSet(hue: StatusHue) {
   return {
     wash: `rgb(var(--c-hue-${hue}-wash))`,
     band: `rgb(var(--c-hue-${hue}-band))`,
-    plot: `rgb(var(--c-hue-${hue}-plot))`,
+    fill: `rgb(var(--c-hue-${hue}-fill))`,
     track: `rgb(var(--c-hue-${hue}-track))`,
     edge: `rgb(var(--c-hue-${hue}-edge))`,
     mark: `rgb(var(--c-hue-${hue}-mark))`,
@@ -1351,6 +1390,17 @@ export const hueTint = {
   orange: hueSet('orange'),
   red: hueSet('red'),
 } as const;
+
+/**
+ * THE OPTIMAL NARROWING'S OWN FILL — opaque, and the same colour on the trend
+ * chart and on both range bars.
+ *
+ * One token because it is one region: the part of the reference range that is
+ * also optimal, drawn as the in-range green taken a rung deeper. It replaced
+ * two different alphas of two different greens applied in two components, which
+ * is how one idea ends up looking like two.
+ */
+export const OPTIMAL_FILL = 'rgb(var(--c-band-optimal))';
 
 // ---------------------------------------------------------------------------
 // Charts — structure from the brand palette, status from the status hues.
@@ -1387,8 +1437,8 @@ export const chart = {
   line: 'rgb(var(--c-chart-line))',
   /**
    * And its weight. A token rather than a literal on the `<Line>` because it is
-   * half of one decision with `BAND_WEIGHT`: the bands were raised to make the
-   * regions unmistakable, and the answer to a line competing with them is a
+   * half of one decision with `BAND_CONTRAST`: the bands were raised to make
+   * the regions unmistakable, and the answer to a line competing with them is a
    * heavier line, never a lighter band.
    */
   lineWidth: 3,
@@ -1432,18 +1482,21 @@ export const chart = {
   stepOpacity: 0.7,
   stepWidth: 1,
   /**
-   * ── FLAT BANDS, HARD EDGES (Aug 2026) ────────────────────────────────
+   * ── OPAQUE BANDS (Aug 2026) ──────────────────────────────────────────
    *
-   * `bandEdgeFade` and `areaOpacity` are GONE, and both removals are the same
-   * decision. A band that fades at its own edges has no edge, so where one
-   * region ends and the next begins became a matter of opinion — on a plot
-   * whose entire subject is a boundary. And an area fill under the line was a
-   * sixth region of colour over five that were already competing.
+   * `bandEdgeFade`, `areaOpacity` and the band weights are all GONE, and the
+   * three removals are one decision. There is NO ALPHA ANYWHERE in a band now:
+   * the rect is opaque, every gradient stop is opaque, and nothing behind a
+   * band shows through it. A band that fades at its own edges has no edge, so
+   * where one region ended and the next began became a matter of opinion on a
+   * plot whose whole subject is a boundary; a band drawn at 15% of a colour can
+   * carry at most 15% of a colour, which is what "washed out" was; and an area
+   * fill under the line was a sixth region over five that already competed.
    *
-   * A band is now a flat rectangle at `BAND_WEIGHT[status]`, meeting its
-   * neighbour at a hairline. The reason the old chart needed the falloff was
-   * that its bands were SATURATED SLABS and something had to soften them; with
-   * the weights unequal and low, flat is legible and the edges are the point.
+   * A band is a solid rectangle in `--c-hue-*-fill`, handing over to its
+   * neighbour across a blend centred on the boundary between them — a gradient
+   * between two OPAQUE colours, never a ramp of opacity. The ladder that the
+   * weights used to carry is in the colours: see BAND_CONTRAST in statusBands.
    */
   /**
    * ── THE PLOT AREA AS AN INSET PANEL ──────────────────────────────────
@@ -1482,10 +1535,11 @@ export const chart = {
    * bronze hatch and a bronze dashed rule — a whole second visual vocabulary
    * for a region that overlaps the reference range, which on screen read as two
    * competing systems making two claims about one result. An optimal range is a
-   * NARROWING of in-range, so it is drawn as one: the same green taken a step
-   * deeper (`OPTIMAL_DEEPEN` in statusBands.ts) over the part of the lab's
-   * range that is also optimal, bounded by the same neutral `referenceEdge`
-   * every other boundary in this chart uses. Nothing here needs to name it.
+   * NARROWING of in-range, so it is drawn as one: the same green taken a rung
+   * deeper (`OPTIMAL_FILL`, opaque like every other band since Aug 2026) over
+   * the part of the lab's range that is also optimal, bounded by the same
+   * neutral `referenceEdge` every other boundary in this chart uses. Nothing
+   * here needs to name it.
    */
   /** Axis rule and ticks. */
   axisLine: 'rgb(var(--c-chart-axis-line))',

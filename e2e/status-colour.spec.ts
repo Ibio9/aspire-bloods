@@ -150,22 +150,25 @@ test.describe('traffic-light status', () => {
       await page.waitForSelector('text=Trend over time');
 
       // ─────────────────────────────────────────────────────────────────
-      // FIVE BANDS, EACH PAINTED AT ITS OWN WEIGHT — AND THE WEIGHT MOVED
-      // BACK INTO THE GRADIENT STOPS (rewritten again, Aug 2026).
+      // FIVE BANDS, AND NOT ONE PIXEL OF TRANSLUCENCY IN ANY OF THEM
+      // (rewritten again, Aug 2026).
       //
-      // The history is worth keeping because the check has now followed the
-      // implementation twice: the weight lived in gradient stops, then on the
-      // element when the bands went flat, and now in the stops again because
-      // the bands ramp in hue AND weight together (`bandPlotGradient`).
+      // The history is worth keeping because the check has followed the
+      // implementation three times: the weight lived in gradient stops, then on
+      // the element when the bands went flat, then in the stops again when the
+      // bands ramped in hue and weight together — and now there is no weight at
+      // all. A band is an OPAQUE fill; the ladder moved into the colours (see
+      // BAND_CONTRAST), because a band drawn at 15% of a colour can carry at
+      // most 15% of a colour, which is what "washed out" was.
       //
-      // THE PROPERTY BEING PROTECTED IS UNCHANGED. Recharts' ReferenceArea
-      // defaults fillOpacity to 0.5, so a band whose weight is not stated is
-      // drawn at half whatever the tokens decided. When that happened every
-      // band landed in the same beige and the whole chart read as grey — while
-      // the key, the boundary lines and the tokens themselves were all
+      // THE PROPERTY BEING PROTECTED IS THE SAME ONE, INVERTED. Recharts'
+      // ReferenceArea defaults fillOpacity to 0.5, so a band whose opacity is
+      // not stated is drawn at half strength over the plot. When that happened
+      // every band landed in the same beige and the whole chart read as grey —
+      // while the key, the boundary lines and the tokens themselves were all
       // perfectly correct. Nothing short of reading the painted opacity sees
-      // it. So: the element must be at exactly 1 (stated, not defaulted), and
-      // every stop-opacity inside must be one the tokens actually produce.
+      // it. So: the element and every stop inside it must be at exactly 1, and
+      // the five stop COLOURS must be the five fill tokens and nothing else.
       // ─────────────────────────────────────────────────────────────────
       // The same selector e2e/chart-bands.spec.ts measures band geometry
       // through, so the two specs cannot disagree about what a band is.
@@ -185,7 +188,10 @@ test.describe('traffic-light status', () => {
               fillOpacity: Number(getComputedStyle(el).fillOpacity),
               gradientId: id,
               stops: gradient
-                ? [...gradient.querySelectorAll('stop')].map((s) => Number(getComputedStyle(s).stopOpacity))
+                ? [...gradient.querySelectorAll('stop')].map((s) => ({
+                    opacity: Number(getComputedStyle(s).stopOpacity),
+                    colour: getComputedStyle(s).stopColor,
+                  }))
                 : [],
             };
           });
@@ -193,62 +199,67 @@ test.describe('traffic-light status', () => {
       expect(bandPaint.length, `${theme}: no status bands were painted at all`).toBeGreaterThanOrEqual(5);
 
       for (const band of bandPaint) {
-        // The element carries no weight of its own. 0.5 here is the library's
-        // default showing through, which is the failure this test exists for.
+        // 0.5 here is the library's default showing through, which is the
+        // failure this test was written for; anything under 1 at all is the
+        // translucency the opaque redesign removed.
         expect(
           band.fillOpacity,
-          `${theme}: a band's own fill-opacity is ${band.fillOpacity}; the weight belongs in the stops and this must be exactly 1`,
+          `${theme}: a band's own fill-opacity is ${band.fillOpacity}; a band is opaque and this must be exactly 1`,
         ).toBeCloseTo(1, 5);
         expect(band.gradientId, `${theme}: a band is not painted with a gradient at all`).not.toBeNull();
         expect(band.stops.length, `${theme}: gradient ${band.gradientId} has no stops`).toBeGreaterThanOrEqual(2);
+        for (const stop of band.stops) {
+          expect(
+            stop.opacity,
+            `${theme}: a band stop is painted at ${stop.opacity}; every stop in a band is opaque`,
+          ).toBeCloseTo(1, 5);
+        }
       }
 
-      // EVERY STOP IS A WEIGHT THE TOKENS PRODUCE, AND THERE ARE EXACTLY FIVE
-      // OF THEM (Aug 2026). The ramp is at the BOUNDARY now rather than across
-      // the band, so a band is flat at its own weight and hands over to its
-      // neighbour at the midpoint of the two — which means the whole plot is
-      // painted at three band weights and the two hinges between them, and
-      // nothing else. Computed here from the same three numbers rather than
-      // transcribed: a stop at 0.5 could not survive this, and neither could a
-      // band drawn at a weight nobody chose.
-      const PEAK = { inRange: 0.15, out: 0.28, significant: 0.4 };
-      const ALLOWED = [
-        PEAK.inRange,
-        (PEAK.inRange + PEAK.out) / 2, // the hinge at a reference bound
-        PEAK.out,
-        (PEAK.out + PEAK.significant) / 2, // the hinge at a severity threshold
-        PEAK.significant,
-      ];
+      // EVERY STOP IS ONE OF THE FIVE FILL TOKENS, AND NOTHING ELSE. This is
+      // the check the stop-opacity ladder used to be: the ramp is at the
+      // BOUNDARY rather than across the band, so a band is flat in its own
+      // colour and hands over to its neighbour in the hinge colour between
+      // them — which means the whole plot is painted in three band colours and
+      // the two hinges, and nothing in between. Read off the document's own
+      // custom properties rather than transcribed, so a re-solve of BAND_FILL
+      // does not have to be copied into a spec file to keep it passing.
+      const ladder = await page.evaluate(() => {
+        const styles = getComputedStyle(document.documentElement);
+        return ['green', 'olive', 'yellow', 'orange', 'red'].map((h) => ({
+          hue: h,
+          channels: styles.getPropertyValue(`--c-hue-${h}-fill`).trim(),
+        }));
+      });
+      const asRgb = (channels: string) => `rgb(${channels.split(/\s+/).join(', ')})`;
+      const ALLOWED = new Map(ladder.map((l) => [asRgb(l.channels), l.hue]));
       for (const band of bandPaint) {
         for (const stop of band.stops) {
           expect(
-            ALLOWED.some((w) => Math.abs(w - stop) < 0.002),
-            `${theme}: a band stop is painted at ${stop}, which is not a weight these tokens produce ` +
-              `(${ALLOWED.map((w) => w.toFixed(3)).join(', ')}).`,
+            ALLOWED.has(stop.colour),
+            `${theme}: a band stop is painted ${stop.colour}, which is not one of the five band fills ` +
+              `(${[...ALLOWED.keys()].join(', ')}).`,
           ).toBe(true);
         }
       }
 
-      // THE LADDER IS ON SCREEN, not merely in the token file: the heaviest
-      // stop anywhere is the significantly-out peak and the lightest is the
-      // flat in-range green, so a chart that painted every band at one value
-      // could not pass by accident.
-      const allStops = bandPaint.flatMap((b) => b.stops);
-      expect(Math.max(...allStops)).toBeCloseTo(PEAK.significant, 2);
-      expect(Math.min(...allStops)).toBeCloseTo(PEAK.inRange, 2);
-      expect(new Set(allStops.map((o) => o.toFixed(3))).size, `${theme}: every band stop is the same weight`).toBeGreaterThanOrEqual(3);
+      // THE LADDER IS ON SCREEN, not merely in the token file: a chart that
+      // painted every band in one colour could not pass this.
+      const allStops = bandPaint.flatMap((b) => b.stops.map((s) => s.colour));
+      expect(new Set(allStops).size, `${theme}: every band stop is the same colour`).toBeGreaterThanOrEqual(3);
 
       // AND THE HANDOVER IS SHARED. The two bands either side of a boundary
-      // both carry a stop at the midpoint weight, which is what makes the fill
+      // both carry a stop in the hinge colour, which is what makes the fill
       // continuous across a boundary drawn as two separate shapes. A ramp that
-      // finished at one weight and restarted at another would put a visible
+      // finished in one colour and restarted in another would put a visible
       // step in the middle of the transition — the exact thing moving the
       // gradient to the boundary was meant to remove.
-      for (const hinge of [(PEAK.inRange + PEAK.out) / 2, (PEAK.out + PEAK.significant) / 2]) {
-        const carrying = bandPaint.filter((b) => b.stops.some((s) => Math.abs(s - hinge) < 0.002));
+      for (const hinge of ['olive', 'orange']) {
+        const colour = asRgb(ladder.find((l) => l.hue === hinge)!.channels);
+        const carrying = bandPaint.filter((b) => b.stops.some((s) => s.colour === colour));
         expect(
           carrying.length,
-          `${theme}: the ${hinge.toFixed(3)} hinge is carried by ${carrying.length} band(s); both sides must name it`,
+          `${theme}: the ${hinge} hinge is carried by ${carrying.length} band(s); both sides must name it`,
         ).toBeGreaterThanOrEqual(2);
       }
 
@@ -258,14 +269,14 @@ test.describe('traffic-light status', () => {
       expect(new Set(bandPaint.map((b) => b.gradientId)).size).toBe(bandPaint.length);
 
       // The band tokens themselves still carry real colour in this theme. A
-      // band drawn at its own weight is worth nothing if the value behind it
-      // has been flattened to the surface colour. `plot` is what the chart
-      // composites now; `band` is the pre-mixed role the range bar still
-      // paints, and both have to hold.
+      // band drawn on its own rung is worth nothing if the value behind it has
+      // been flattened to the surface colour. `fill` is what the chart and both
+      // range bars paint; `band` is the pre-mixed role the normalised
+      // comparison chart still uses, and both have to hold.
       const hues = await page.evaluate(() => {
         const styles = getComputedStyle(document.documentElement);
         return ['green', 'olive', 'yellow', 'orange', 'red'].flatMap((h) =>
-          ['band', 'plot'].map((role) => ({
+          ['band', 'fill'].map((role) => ({
             hue: `${h}-${role}`,
             channels: styles.getPropertyValue(`--c-hue-${h}-${role}`).trim(),
           })),

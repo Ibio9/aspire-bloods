@@ -174,7 +174,7 @@ export const NO_STATUS_PAINT = {
   surface: 'rgb(var(--c-cream-50))',
   bar: 'rgb(var(--c-cream-300))',
   band: 'rgb(var(--c-cream-200))',
-  plot: 'rgb(var(--c-taupe-300))',
+  fill: 'rgb(var(--c-taupe-300))',
   edge: 'rgb(var(--c-taupe-600))',
   mark: 'rgb(var(--c-taupe-700))',
 } as const;
@@ -194,6 +194,12 @@ export function statusPaint(status: MarkerStatusInput): typeof statusTint[Status
 }
 
 /**
+ * The two-stop ramp the NORMALISED COMPARISON chart draws (MultiTrendChart),
+ * which plots several markers on one 0–1 scale and predates the boundary-
+ * centred ramp below. It takes the pre-mixed `band` role and is unaffected by
+ * the opaque-fill change; `bandRampStops` is what the trend chart and the range
+ * bars share.
+ *
  * A band's fill, as a gradient where the band is a transition and a flat
  * colour where it isn't.
  *
@@ -227,80 +233,72 @@ export function bandGradientStops(status: MarkerStatusInput): [string, string] {
 }
 
 /**
- * HOW HEAVILY EACH BAND IS DRAWN — and they are deliberately not equal.
+ * ---------------------------------------------------------------------------
+ * HOW HEAVILY EACH BAND IS DRAWN — AND IT IS A COLOUR, NOT AN ALPHA (Aug 2026)
+ * ---------------------------------------------------------------------------
  *
- * The old chart painted all five at one weight, which is five regions all
- * shouting at once and a line lost behind them. A band is CONTEXT: it says
- * where the laboratory's range sits so the reader can place their own result
- * against it. The result is the content. So the reader should meet the line
- * first and the bands second, which is the order these weights impose:
+ * The ladder is unchanged and is still the thing the chart is built on. A band
+ * is CONTEXT: it says where the laboratory's range sits so the reader can place
+ * their own result against it, and the result is the content. So the reader
+ * meets the line first and the bands second, and the bands themselves are
+ * unequal:
  *
- *  · IN RANGE carries almost nothing. It is the ordinary case, it is the
- *    largest region on most charts, and a green field heavy enough to notice is
- *    a green field the eye keeps returning to for no information.
- *  · ABOVE / BELOW carry a little more, because something is being said.
- *  · SIGNIFICANTLY OUT carries the most, and still less than the old flat
- *    weight — the reader is already being told this three other ways.
+ *  · IN RANGE carries the least. It is the ordinary case, it is the largest
+ *    region on most charts, and a green field heavy enough to notice is a green
+ *    field the eye keeps returning to for no information.
+ *  · ABOVE / BELOW carry more, because something is being said.
+ *  · SIGNIFICANTLY OUT carries the most — and still not much, because the
+ *    reader is already being told this three other ways.
  *
- * Composited, never mixed: these are alphas applied to the `plot` role, which
- * is why one ladder is right in both themes. See PLOT_LIFT in tokens.ts.
+ * WHAT CHANGED IS WHAT THE NUMBER IS. It was `BAND_WEIGHT`, an ALPHA applied to
+ * a hue, and every previous round of "the bands look muted" was spent
+ * re-solving that hue. That could never work, and the reason is one sentence:
+ * **the chroma of a composited band is very nearly `weight × chroma(hue)`**, so
+ * a band drawn at 15% of a colour carries at most 15% of a colour whatever
+ * colour it is. Three re-solves of PLOT_LIFT are in the history, each hitting
+ * the same ceiling, because the ceiling was the alpha.
  *
- * ── THIS NUMBER IS NOW A PEAK, NOT A FLAT WEIGHT (Aug 2026) ───────────────
+ * So a band is PAINTED now. No alpha in the rect, none in the gradient stops,
+ * nothing behind a band showing through it — and the ladder moved into the
+ * colour, as the CONTRAST each rung's fill is solved to stand off the surface
+ * it is drawn on. Same ordering, same reasoning, expressed in the one dimension
+ * that is not capped. The fills themselves are `BAND_FILL` in tokens.ts, at
+ * each hue's own saturation so that "stronger" can never turn into "a signal
+ * green and a web red".
  *
- * The bands carry gradients again (`bandPlotGradient` below), so a band's
- * weight varies across its own height and BAND_WEIGHT is the STRONGEST point
- * in it — at the far end of an out-of-range band, furthest from the reference
- * range. Every stop is a share of it. That is also the worst case for
- * everything tokenContrast.test.ts measures at these numbers: the faintest a
- * band ever gets is not what makes it hard to see through, and a point mark
- * standing off its own band has to clear the heaviest part of it.
+ * THE MEASURE IS THE GEOMETRIC MEAN of the contrast off the CARD (where a range
+ * bar sits) and off the PLOT PANEL (where a chart band sits), because one fill
+ * is drawn on both and the two surfaces are not the same distance apart in the
+ * two themes. See the note on BAND_FILL for the measurement.
  *
- * ── AND IT WENT BACK UP, TWICE ────────────────────────────────────────────
- *
- * 0.10 / 0.17 / 0.24 were solved for bands that FADED OUT at their own edges,
- * so the stated weight was a peak and the average was well under it. When the
- * bands went flat those numbers were cut by about a third, to 0.07 / 0.12 /
- * 0.18 — correct arithmetic for keeping the same average, and it quietly
- * undid the dark-mode solve in PLOT_LIFT, which had been done AT the old
- * weights. A band is 76–93% card, so its saturation is very nearly linear in
- * this number. Measured, as the colour that landed on the dark card at 0.07 /
- * 0.12: green hsl(80, 0.24, 0.17) and gold hsl(43, 0.33, 0.18) — the olive and
- * the brown the redesign had already been through once. 0.11 / 0.21 / 0.28
- * with PLOT_LIFT re-solved at those weights fixed the mud.
- *
- * 0.15 / 0.28 / 0.40 (Aug 2026) IS A DIFFERENT KIND OF CHANGE, and the reason
- * is worth writing down because it is the one thing every previous round of
- * this got wrong: **the chroma of a composited band is very nearly
- * `weight × chroma(hue)`.** So "the bands are too muted to read as green,
- * yellow and red" cannot be answered by re-picking the hue — the hues were
- * already at full saturation in dark — and it cannot be answered by moving
- * lightness, which is what the earlier solves spent their effort on. There is
- * one lever and it is this number. Measured chroma off the light card, before
- * → after: green 0.039 → 0.114, gold 0.149 → 0.200, red 0.153 → 0.400.
- *
- * The line stays the content. It is heavier and brighter for exactly this
- * reason — see `chart.line` and `lineWidth` — because the instruction was to
- * raise the bands and brighten the line rather than dull the bands back down.
+ * BAND_CONTRAST, LINE_LIFT AND MARK_SHIFT ARE ONE DECISION. A heavier band is
+ * closer to the trend line crossing it and to the point mark standing on it;
+ * change a rung here and both are solved again — the line by getting brighter,
+ * never the bands by getting duller.
  */
-export const BAND_WEIGHT: Record<MarkerStatus, number> = {
-  IN_RANGE: 0.15,
-  LOW: 0.28,
-  HIGH: 0.28,
-  SIGNIFICANT_LOW: 0.4,
-  SIGNIFICANT_HIGH: 0.4,
+export const BAND_CONTRAST: Record<MarkerStatus, number> = {
+  IN_RANGE: 1.5,
+  LOW: 1.88,
+  HIGH: 1.88,
+  SIGNIFICANT_LOW: 2.3,
+  SIGNIFICANT_HIGH: 2.3,
 };
 
 /**
- * THE WEIGHT AT EACH OF THE TWO BOUNDARIES — the midpoint of the two bands it
+ * THE RUNG AT EACH OF THE TWO BOUNDARIES — the midpoint of the two bands it
  * joins, DERIVED rather than written down.
  *
- * A boundary is drawn as a blend centred on itself, so the weight there has to
- * be the average of the two weights either side; written as a literal, one edit
- * to `BAND_WEIGHT` would put a visible step in the middle of what is meant to
- * be a continuous ramp and nothing would fail.
+ * A boundary is drawn as a blend centred on itself, so the hinge colour there
+ * has to sit halfway up the ladder between the two bands either side of it.
+ * Written as a literal, one edit to `BAND_CONTRAST` would put a visible step in
+ * the middle of what is meant to be a continuous ramp and nothing would fail.
+ *
+ * These are what `BAND_FILL`'s olive and orange are solved to, and they are
+ * exported so tokenContrast.test.ts measures each hinge at the rung it is
+ * actually drawn at rather than at its heavier neighbour's.
  */
-const WEIGHT_AT_BOUND = (BAND_WEIGHT.IN_RANGE + BAND_WEIGHT.HIGH) / 2;
-const WEIGHT_AT_THRESHOLD = (BAND_WEIGHT.HIGH + BAND_WEIGHT.SIGNIFICANT_HIGH) / 2;
+export const CONTRAST_AT_BOUND = (BAND_CONTRAST.IN_RANGE + BAND_CONTRAST.HIGH) / 2;
+export const CONTRAST_AT_THRESHOLD = (BAND_CONTRAST.HIGH + BAND_CONTRAST.SIGNIFICANT_HIGH) / 2;
 
 /**
  * HOW WIDE A TRANSITION IS, as a share of the DRAWN EXTENT — the plot's y
@@ -320,25 +318,20 @@ const WEIGHT_AT_THRESHOLD = (BAND_WEIGHT.HIGH + BAND_WEIGHT.SIGNIFICANT_HIGH) / 
  */
 export const TRANSITION_SHARE = 0.11;
 
-/** The weight of a band, total for anything that isn't one of the five. */
-export function bandWeight(status: MarkerStatusInput): number {
-  const known = asMarkerStatus(status);
-  return known ? BAND_WEIGHT[known] : 0.08;
-}
-
 /** One stop in a band's fill, placed by the VALUE it belongs at. */
 export interface BandRampStop {
   /** Where this stop sits, in the result's own units. The caller maps it onto whatever it is drawing. */
   value: number;
-  /** The hue. `plot` where it is composited (a chart band), `track` where it is painted (a range bar). */
-  colour: string;
   /**
-   * The alpha this stop is composited at, ABSOLUTE rather than a share of the
-   * band's own peak — because a stop at a boundary belongs to both bands either
-   * side of it and has to carry the same number in each. In the painted `track`
-   * role every weight is 1: a range-bar segment is opaque colour.
+   * The opaque fill for this point on the ramp.
+   *
+   * There is no `weight` beside it and that absence is the design: a band is a
+   * solid fill, the ladder is IN this colour (see BAND_CONTRAST), and a stop
+   * that carried an alpha as well would be two answers to one question. A
+   * caller that needs a number here is a caller about to reintroduce the
+   * translucency this removed.
    */
-  weight: number;
+  colour: string;
 }
 
 /** What a ramp needs to know about the marker, in the result's own units. */
@@ -394,12 +387,21 @@ export interface BandRampGeometry {
  * be done at the reference bound, and it is the exact RGB midpoint of green and
  * yellow for the same reason the blend is centred: half of each.
  *
- * THE WEIGHT LADDER IS UNBROKEN AND CONTINUOUS. Each stop carries an absolute
- * weight, the two boundary stops carry the midpoint of the two bands they join
- * (`WEIGHT_AT_BOUND` / `WEIGHT_AT_THRESHOLD`, derived), and both adjacent bands
- * name the same stop at the same value — so the fill is continuous across a
- * boundary even though it is drawn as two separate shapes, and "further out is
- * more strongly marked" holds at every point rather than at three sampled ones.
+ * THE LADDER IS UNBROKEN AND CONTINUOUS, and it is carried by the five fills:
+ * green, olive, gold, orange, red, each solved a rung further from the surface
+ * than the last (`BAND_CONTRAST`, with the two hinges at the derived midpoints
+ * `CONTRAST_AT_BOUND` / `CONTRAST_AT_THRESHOLD`). Both adjacent bands name the
+ * same stop, at the same value, in the same colour — so the fill is continuous
+ * across a boundary even though it is drawn as two separate shapes, and
+ * "further out is more strongly marked" holds at every point rather than at
+ * three sampled ones.
+ *
+ * ONE SET OF STOPS FOR BOTH INSTRUMENTS (Aug 2026). There used to be a `role`
+ * parameter — `plot` for the chart, where the colours were composited at a
+ * weight, and `track` for a range bar, where they were painted. Two palettes
+ * for one vocabulary, which is why a chart band and the bar directly below it
+ * on the same card were different greens. Bands are painted everywhere now, so
+ * there is one answer and the parameter is gone.
  *
  * STOPS RUN LOW VALUE TO HIGH, which is bottom-to-top on a chart's y-axis and
  * left-to-right along a range bar. The caller orients them.
@@ -407,17 +409,8 @@ export interface BandRampGeometry {
 export function bandRampStops(
   status: MarkerStatusInput,
   { low, high, threshold, halfWidth }: BandRampGeometry,
-  role: 'plot' | 'track' = 'plot',
 ): BandRampStop[] {
-  const [g, v, y, o, r] = (['green', 'olive', 'yellow', 'orange', 'red'] as const).map((hue) => hueTint[hue][role]);
-  // A painted segment is opaque colour; only the composited role carries a
-  // weight ladder at all.
-  const w = (weight: number) => (role === 'track' ? 1 : weight);
-  const IN = w(BAND_WEIGHT.IN_RANGE);
-  const OUT = w(BAND_WEIGHT.HIGH);
-  const SIG = w(BAND_WEIGHT.SIGNIFICANT_HIGH);
-  const BOUND = w(WEIGHT_AT_BOUND);
-  const THRESH = w(WEIGHT_AT_THRESHOLD);
+  const [g, v, y, o, r] = (['green', 'olive', 'yellow', 'orange', 'red'] as const).map((hue) => hueTint[hue].fill);
 
   /**
    * The flat part of a band, inset from both its ends by the half-transition —
@@ -434,28 +427,28 @@ export function bandRampStops(
     case 'IN_RANGE': {
       const [a, b] = flat(low, high);
       return [
-        { value: low, colour: v, weight: BOUND },
-        { value: a, colour: g, weight: IN },
-        { value: b, colour: g, weight: IN },
-        { value: high, colour: v, weight: BOUND },
+        { value: low, colour: v },
+        { value: a, colour: g },
+        { value: b, colour: g },
+        { value: high, colour: v },
       ];
     }
     case 'HIGH': {
       const [a, b] = flat(high, high + threshold);
       return [
-        { value: high, colour: v, weight: BOUND },
-        { value: a, colour: y, weight: OUT },
-        { value: b, colour: y, weight: OUT },
-        { value: high + threshold, colour: o, weight: THRESH },
+        { value: high, colour: v },
+        { value: a, colour: y },
+        { value: b, colour: y },
+        { value: high + threshold, colour: o },
       ];
     }
     case 'LOW': {
       const [a, b] = flat(low - threshold, low);
       return [
-        { value: low - threshold, colour: o, weight: THRESH },
-        { value: a, colour: y, weight: OUT },
-        { value: b, colour: y, weight: OUT },
-        { value: low, colour: v, weight: BOUND },
+        { value: low - threshold, colour: o },
+        { value: a, colour: y },
+        { value: b, colour: y },
+        { value: low, colour: v },
       ];
     }
     // The two outer bands are open-ended, so they carry only the half of the
@@ -464,41 +457,40 @@ export function bandRampStops(
     // does.
     case 'SIGNIFICANT_HIGH':
       return [
-        { value: high + threshold, colour: o, weight: THRESH },
-        { value: high + threshold + halfWidth, colour: r, weight: SIG },
+        { value: high + threshold, colour: o },
+        { value: high + threshold + halfWidth, colour: r },
       ];
     case 'SIGNIFICANT_LOW':
       return [
-        { value: low - threshold - halfWidth, colour: r, weight: SIG },
-        { value: low - threshold, colour: o, weight: THRESH },
+        { value: low - threshold - halfWidth, colour: r },
+        { value: low - threshold, colour: o },
       ];
-    default: {
+    default:
       // Flat neutral, spanning the reference range so the two stops are still
       // in order and still real numbers. Total by construction, for the same
       // reason every other lookup in this file is: an `undefined` reaching an
       // SVG stop is not a colour, and the browser drops it silently.
-      const neutral = role === 'track' ? NO_STATUS_PAINT.bar : NO_STATUS_PAINT.plot;
       return [
-        { value: low, colour: neutral, weight: w(bandWeight(status)) },
-        { value: high, colour: neutral, weight: w(bandWeight(status)) },
+        { value: low, colour: NO_STATUS_PAINT.fill },
+        { value: high, colour: NO_STATUS_PAINT.fill },
       ];
-    }
   }
 }
 
 /**
- * HOW MUCH FURTHER THE OPTIMAL PORTION OF THE REFERENCE RANGE IS TAKEN.
+ * HOW THE OPTIMAL PORTION OF THE REFERENCE RANGE IS DEEPENED — and it is a
+ * COLOUR now, `OPTIMAL_FILL` in tokens.ts.
  *
- * Composited ON TOP of the in-range band, so the optimal region lands at
- * 0.11 + 0.09 — a deepening of one green rather than a second region in a
- * second texture. That is the whole change: an optimal range is a NARROWING of
- * in-range, and until now it was drawn as a hatched band with its own key
- * entry, which reads as a parallel system making a competing claim.
+ * `OPTIMAL_DEEPEN` was 0.09 of alpha, composited on top of the in-range band,
+ * and the range bar reached for a different green at a different alpha to say
+ * the same thing. With the bands opaque there is nothing to composite onto: the
+ * narrowing is the same green solved one rung further along the ladder, drawn
+ * solid, identical on the chart and on both bars.
  *
- * Small on purpose. It has to be visible as a shift and must not be mistaken
- * for a band boundary, which is what the hairlines are for.
+ * Small on purpose, and unchanged in that: 1.14:1 off the band it sits inside,
+ * which is visible as a shading-in and nothing like the step a boundary makes —
+ * that is what the hairlines are for.
  */
-export const OPTIMAL_DEEPEN = 0.09;
 
 /**
  * What a band is, in words. Present on every band in every chart key, because

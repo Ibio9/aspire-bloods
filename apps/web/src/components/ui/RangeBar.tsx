@@ -5,6 +5,7 @@ import {
   formatReferenceBound,
   formatReferenceRange,
   hueTint,
+  OPTIMAL_FILL,
   severityThresholdFor,
   statusBands,
   TRANSITION_SHARE,
@@ -190,16 +191,17 @@ export function RangeBar({ value, low, high, status, severityThreshold = null, o
           {optimal && optimalWidth > 0 && (
             // A DEEPENING OF THE SAME GREEN, not a second texture. The optimal
             // range is a narrowing of in-range and this is what a narrowing
-            // looks like: one region, shaded a step further in where the
+            // looks like: one region, shaded a rung further in where the
             // narrower band sits.
+            //
+            // OPAQUE, and the SAME token the trend chart draws it with. It was
+            // `hueTint.green.edge` at 24% here and a different green at 9% on
+            // the chart — two alphas of two colours for one idea, which is how
+            // the two instruments ended up disagreeing about what "optimal"
+            // looks like.
             <div
               className="absolute inset-y-0"
-              style={{
-                left: `${optimalLeft}%`,
-                width: `${optimalWidth}%`,
-                backgroundColor: hueTint.green.edge,
-                opacity: 0.24,
-              }}
+              style={{ left: `${optimalLeft}%`, width: `${optimalWidth}%`, backgroundColor: OPTIMAL_FILL }}
             />
           )}
           {optimalEdges.map((left, i) => (
@@ -527,9 +529,20 @@ export function MiniRangeBar({
  * trend chart's bands speak.
  *
  * Five flat regions with a blend centred on each of the four boundaries between
- * them, from the one derivation both instruments share (`bandRampStops`). Three
- * things follow from building it this way, and each of them was a bug the
- * per-segment version could have:
+ * them, from the one derivation both instruments share (`bandRampStops`).
+ *
+ * AND IT IS THE SAME FIVE COLOURS THE CHART DRAWS NOW (Aug 2026). This used to
+ * ask `bandRampStops` for the `track` role while the chart asked for `plot`,
+ * because a chart band was composited at an alpha and a bar segment was
+ * painted — so a marker card showed a green bar directly under a chart drawn in
+ * a different green, at a different weight, with no ladder on the bar at all
+ * (the old track colours ran 2.05, 1.86, 1.68, 2.01, 2.65 off the card: gold
+ * FAINTER than in-range). Bands are opaque everywhere, there is one palette,
+ * and the ladder — in range lightest, significantly out strongest — is on the
+ * bar for the first time.
+ *
+ * Three things follow from building the track as one gradient, and each of them
+ * was a bug the per-segment version could have:
  *
  *  · THE BOUNDARY IS AT THE MIDDLE OF ITS BLEND, so the hairline that marks it
  *    runs through the middle of the colour change rather than along the edge of
@@ -555,7 +568,7 @@ function trackGradient(
   const threshold = severityThresholdFor(low, high, severityThreshold);
   const halfWidth = ((scale.max - scale.min) * TRANSITION_SHARE) / 2;
   const all = statusBands(low, high, severityThreshold).flatMap((band) =>
-    bandRampStops(band.status, { low, high, threshold, halfWidth }, 'track'),
+    bandRampStops(band.status, { low, high, threshold, halfWidth }),
   );
 
   /**

@@ -15,12 +15,11 @@ import {
 import {
   asMarkerStatus,
   chart as chartTokens,
-  hueTint,
   statusBands,
   statusPaint,
   bandRampStops,
   TRANSITION_SHARE,
-  OPTIMAL_DEEPEN,
+  OPTIMAL_FILL,
   severityThresholdFor,
   formatOptimalRange,
   formatReferenceBound,
@@ -72,10 +71,15 @@ import { statusColor, statusLabel } from '../../lib/markerCopy';
  *
  * Four changes, and they are one change:
  *
- *  1. WEIGHT. A band is composited at `BAND_WEIGHT` (statusBands.ts) rather
- *     than painted at full strength, and the weights are unequal: in range
- *     carries almost nothing, out-of-range a little, significantly-out a little
- *     more. The reader meets the line first.
+ *  1. WEIGHT — AND IT IS A COLOUR, NOT AN ALPHA (Aug 2026). A band is an
+ *     OPAQUE fill; nothing behind one shows through it, on the rect or in the
+ *     gradient stops. The ladder is unchanged and unequal — in range carries
+ *     the least, out-of-range more, significantly-out most — but it is carried
+ *     by how far each fill stands off the plot surface (`BAND_CONTRAST`)
+ *     rather than by how much of it is let through. Translucency was the
+ *     ceiling on how much colour a band could hold: at 15% alpha the in-range
+ *     band carried 15% of whatever green it was given, which is what "washed
+ *     out" was, and it is why re-picking the hue never fixed it.
  *  2. THE RAMP, AND IT IS AT THE BOUNDARY (Aug 2026). Each band is FLAT across
  *     itself and blends into its neighbour over a zone CENTRED ON the boundary
  *     between them (`bandRampStops`): flat green, then green→olive→gold across
@@ -403,9 +407,9 @@ function PlotPanel() {
  * drawn over a green reference band — two overlapping green regions in two
  * textures, which reads as two schemes making competing claims about the same
  * result. An optimal range is not a parallel concept: it is a NARROWING of the
- * lab's range, and it is drawn as one now. The same green, taken a step deeper
- * over the part of the reference range that is also optimal, with a neutral
- * hairline where the narrowing starts.
+ * lab's range, and it is drawn as one now. The same green, taken a rung deeper
+ * on the band ladder, over the part of the reference range that is also
+ * optimal, with a neutral hairline where the narrowing starts.
  *
  * DRAWN AS THE INTERSECTION WITH THE REFERENCE RANGE, and per period, which is
  * two decisions:
@@ -454,8 +458,11 @@ function OptimalRegions({ regions }: { regions: OptimalRegion[] }) {
               y={top}
               width={right - left}
               height={bottom - top}
-              fill={hueTint.green.plot}
-              fillOpacity={OPTIMAL_DEEPEN}
+              // Opaque, like every other band. This was `fillOpacity={0.09}`
+              // over the in-range green — a fifth translucency in a chart that
+              // now has none, and one whose result depended on what it happened
+              // to be drawn over.
+              fill={OPTIMAL_FILL}
             />
             {region.edges.map((value) => {
               const y = yScale(value);
@@ -1039,7 +1046,6 @@ export function TrendChart({
           // HIGH-value end is the gradient's offset 0.
           offset: Math.max(0, Math.min(1, 1 - (stop.value - y1) / drawnSpan)),
           colour: stop.colour,
-          opacity: stop.weight,
         }))
         .sort((a, b) => a.offset - b.offset);
       return {
@@ -1140,12 +1146,15 @@ export function TrendChart({
                   extent, so two periods with different ranges cannot share a
                   definition — see `bandRects`.
 
-                  Both the hue and the weight ramp, which is why this is a
-                  gradient rather than a fill plus a fillOpacity: a band is
-                  flat across itself and hands over to its neighbour across the
-                  boundary between them, at a weight that is the midpoint of the
-                  two — so the fill is continuous across a boundary even though
-                  it is drawn as two separate shapes.
+                  EVERY STOP IS OPAQUE, and `stopOpacity` is stated at 1 rather
+                  than left to default so that "a band never blends with what is
+                  behind it" is written where somebody editing this would see
+                  it. A gradient is still the right shape for the boundary
+                  blend — the ramp is between two SOLID colours, green into
+                  olive into gold, and the ladder is in those colours (see
+                  BAND_CONTRAST) rather than in an alpha. Both bands either side
+                  of a boundary name the same stop in the same colour, so the
+                  fill is continuous across a boundary drawn as two shapes.
 
                   NO AREA GRADIENT. The fill under the line was a sixth region
                   of colour over five that were already competing, and the line
@@ -1153,7 +1162,7 @@ export function TrendChart({
               {bandRects.map((rect) => (
                 <linearGradient key={rect.gradientId} id={rect.gradientId} x1="0" y1="0" x2="0" y2="1">
                   {rect.stops.map((stop, i) => (
-                    <stop key={i} offset={stop.offset} stopColor={stop.colour} stopOpacity={stop.opacity} />
+                    <stop key={i} offset={stop.offset} stopColor={stop.colour} stopOpacity={1} />
                   ))}
                 </linearGradient>
               ))}
@@ -1214,7 +1223,7 @@ export function TrendChart({
                 axis minimum to the axis maximum, so the patient sees where
                 their one result sits relative to its range.
 
-                GRADIENTS AGAIN, AND THE WEIGHT IS IN THE STOPS. The rects are
+                OPAQUE, AND THE LADDER IS IN THE COLOURS. The rects are
                 clamped to the domain: `ifOverflow="hidden"` clips with a
                 clip-path rather than shortening the rect, so an unclamped band
                 is a rect the browser has cut a hole in, and clamping is what
@@ -1227,10 +1236,11 @@ export function TrendChart({
                 y1={rect.y1}
                 y2={rect.y2}
                 fill={`url(#${rect.gradientId})`}
-                // Pinned at 1 because the weight lives in each stop's own
-                // stop-opacity. Recharts' ReferenceArea defaults fillOpacity to
-                // 0.5, so leaving it off would halve every band a second time —
-                // which it once did to every band on this chart.
+                // Pinned at 1, and now for the plainest possible reason: a band
+                // is opaque. Recharts' ReferenceArea defaults fillOpacity to
+                // 0.5, so leaving it off would draw every band at half strength
+                // over the plot — which it once did to every band on this chart,
+                // and which is exactly the translucency this redesign removed.
                 fillOpacity={1}
                 strokeOpacity={0}
                 ifOverflow="hidden"
@@ -1334,7 +1344,7 @@ export function TrendChart({
               // Round caps and joins: a line with mitred corners reads as a
               // plotted path, and a drawn stroke is what the rest of the
               // product's marks are. The WEIGHT is a token because it is half
-              // of one decision with BAND_WEIGHT — the bands were raised and
+              // of one decision with BAND_CONTRAST — the bands were raised and
               // the line was raised with them, rather than the bands being
               // dulled back down to leave room for it.
               strokeWidth={chartTokens.lineWidth}

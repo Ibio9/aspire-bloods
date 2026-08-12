@@ -379,6 +379,41 @@
     @apply font-eyebrow text-xs font-medium uppercase tracking-eyebrow text-espresso/80;
   }
 
+  /* THE LABEL ON A CARD WHOSE CONTENTS ALSO CARRY LABELS.
+     One step up the scale (14px), full weight, full tone — the eyebrow's own
+     tracking and case, so it is the same family and not a new one.
+
+     It exists because `.eyebrow` cannot be both the heading of a card and the
+     labels inside it. On the marker explanation card it was exactly that: "What
+     this marker means" at 12px medium /80, above three of "If it's high" at
+     12px medium /80 — four peers, in which the one that is a heading has
+     nothing to say so. A heading is not competing to be read, but it does have
+     to be the most prominent LABEL in its own card, and at identical treatment
+     it was not.
+
+     Never a substitute for a section heading, which is Fraunces (see
+     `.section-heading`). This is still an eyebrow: it labels a card whose
+     content is the thing to read. */
+  .card-eyebrow {
+    @apply font-eyebrow text-sm font-semibold uppercase tracking-eyebrow text-espresso;
+  }
+
+  /* THE LABEL HALF OF A PAIR INSIDE A CARD THAT ALREADY HAS A HEADING.
+     12px is the floor of the type scale and /80 is the floor of the text
+     opacity ladder, so a label that has to go quieter than an eyebrow cannot do
+     it with size or tone. What it drops is the SHOUT: uppercase at 0.14em is
+     what makes 12px loud, and three of them running down a card out-read one of
+     them at the top however the heading is set.
+
+     Sentence case, the body face, medium weight — kept at medium rather than
+     dropped to regular for the same reason `.eyebrow` is: a thin 12px label
+     disappears on the dark page, and "quieter" must not become "fainter". It
+     pairs with its answer by proximity (see MarkerExplanation) and reads as an
+     introduction to one rather than as a fourth heading. */
+  .sublabel {
+    @apply font-body text-xs font-medium text-espresso/80;
+  }
+
   /* Sidebar navigation labels, in both shells.
      UI, not headings — IBM Plex Sans at the small step with a little more
      tracking and a medium weight, which is a step down from the reading size
@@ -1006,7 +1041,12 @@
   h2,
   h3,
   .section-heading,
-  .eyebrow {
+  .eyebrow,
+  /* Both of the eyebrow's relatives, for the same reason: a label printed at
+     the foot of a page with its answer overleaf is the failure this rule
+     exists for, and it does not care which of the three classes said it. */
+  .card-eyebrow,
+  .sublabel {
     break-after: avoid;
     page-break-after: avoid;
   }

@@ -373,7 +373,7 @@ export function MarkerDetailPage() {
           {/* Heading, then the definition as the loudest thing in the card,
               then quiet label-and-answer pairs. Four levels, one component,
               shared with the library — see MarkerExplanation.tsx. */}
-          <p className="eyebrow mb-5">What this marker means</p>
+          <p className="card-eyebrow mb-5">What this marker means</p>
           <MarkerExplanationBody explanation={detail.explanation} />
         </Card>
       )}

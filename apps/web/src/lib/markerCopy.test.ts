@@ -3,7 +3,9 @@ import {
   asMarkerStatus,
   bandGradientStops,
   bandRampStops,
-  BAND_WEIGHT,
+  BAND_CONTRAST,
+  CONTRAST_AT_BOUND,
+  CONTRAST_AT_THRESHOLD,
   bandLabel,
   statusBands,
   TRANSITION_SHARE,
@@ -230,31 +232,28 @@ describe('every lookup keyed on status is total', () => {
     // worse: the browser drops the declaration and the band renders black.
     for (const s of [...MARKER_STATUSES, ...NOT_A_STATUS]) {
       const paint = statusPaint(s);
-      for (const role of ['surface', 'bar', 'band', 'edge', 'mark'] as const) {
+      for (const role of ['surface', 'bar', 'band', 'fill', 'edge', 'mark'] as const) {
         expect(paint[role], `statusPaint(${String(s)}).${role}`).toMatch(/^rgb\(var\(--c-[a-z0-9-]+\)\)$/);
       }
       for (const stop of bandGradientStops(s)) {
         expect(stop, `bandGradientStops(${String(s)})`).toMatch(/^rgb\(var\(--c-[a-z0-9-]+\)\)$/);
       }
-      // The chart's band gradient, same claim. A stop-opacity of `undefined`
-      // is not an error either — SVG falls back to 1 and paints the band at
-      // full strength, which is the loudest possible failure to be silent.
-      for (const role of ['plot', 'track'] as const) {
-        const stops = bandRampStops(s, RAMP, role);
-        expect(stops.length, `bandRampStops(${String(s)}, ${role})`).toBeGreaterThanOrEqual(2);
-        for (const stop of stops) {
-          expect(stop.colour, `bandRampStops(${String(s)}, ${role}).colour`).toMatch(/^rgb\(var\(--c-[a-z0-9-]+\)\)$/);
-          expect(Number.isFinite(stop.value), `bandRampStops(${String(s)}, ${role}).value`).toBe(true);
-          expect(stop.weight).toBeGreaterThan(0);
-          expect(stop.weight).toBeLessThanOrEqual(1);
-        }
-        // Values run low to high, in order — the caller reverses them for a
-        // chart's y-axis, and an unsorted list would reverse into nonsense.
-        expect([...stops].sort((a, b) => a.value - b.value)).toEqual(stops);
+      // The band ramp both the chart and the range bars draw from, same claim.
+      const stops = bandRampStops(s, RAMP);
+      expect(stops.length, `bandRampStops(${String(s)})`).toBeGreaterThanOrEqual(2);
+      for (const stop of stops) {
+        expect(stop.colour, `bandRampStops(${String(s)}).colour`).toMatch(/^rgb\(var\(--c-[a-z0-9-]+\)\)$/);
+        expect(Number.isFinite(stop.value), `bandRampStops(${String(s)}).value`).toBe(true);
+        // A BAND IS OPAQUE, so a stop carries a colour and nothing else. An
+        // `alpha`/`weight`/`opacity` reappearing on this shape is the
+        // translucency coming back — the ladder lives in the colours now (see
+        // BAND_CONTRAST), and a second place to state it is a second place for
+        // it to disagree with itself.
+        expect(Object.keys(stop).sort(), `bandRampStops(${String(s)}) stop shape`).toEqual(['colour', 'value']);
       }
-      // A painted segment is opaque colour; only the composited role carries
-      // the weight ladder at all.
-      for (const stop of bandRampStops(s, RAMP, 'track')) expect(stop.weight).toBe(1);
+      // Values run low to high, in order — the caller reverses them for a
+      // chart's y-axis, and an unsorted list would reverse into nonsense.
+      expect([...stops].sort((a, b) => a.value - b.value)).toEqual(stops);
       // A band with no words beside it is the "colour alone" failure the key
       // exists to prevent, so the label is never empty either.
       expect(bandLabel(s).length, `bandLabel(${String(s)})`).toBeGreaterThan(0);
@@ -291,17 +290,17 @@ describe('every lookup keyed on status is total', () => {
       expect(at('HIGH', RAMP.high + RAMP.threshold - half).colour).toBe(at('HIGH', RAMP.high + half).colour);
     });
 
-    it('hands over between two bands at exactly one weight and one colour', () => {
+    it('hands over between two bands at exactly one colour', () => {
       // A visible step in the middle of a ramp that is meant to be continuous.
-      // The weights are derived rather than written down in the source, and
-      // asserted here so that changing either cannot quietly reintroduce one.
+      // Both bands either side of a boundary have to name the same stop in the
+      // same colour, which is what makes the fill continuous across a boundary
+      // drawn as two separate shapes.
       for (const [a, b, value] of [
         ['IN_RANGE', 'HIGH', RAMP.high],
         ['IN_RANGE', 'LOW', RAMP.low],
         ['HIGH', 'SIGNIFICANT_HIGH', RAMP.high + RAMP.threshold],
         ['LOW', 'SIGNIFICANT_LOW', RAMP.low - RAMP.threshold],
       ] as const) {
-        expect(at(a, value).weight, `${a}/${b}`).toBeCloseTo(at(b, value).weight, 10);
         expect(at(a, value).colour, `${a}/${b}`).toBe(at(b, value).colour);
       }
     });
@@ -327,20 +326,39 @@ describe('every lookup keyed on status is total', () => {
       expect(at('IN_RANGE', RAMP.low + RAMP.halfWidth).colour).toBe(at('IN_RANGE', RAMP.high - RAMP.halfWidth).colour);
     });
 
-    it('keeps the weight ladder rising outward, at the boundaries as well as across them', () => {
-      const weightAt = (status: MarkerStatus, value: number) => at(status, value).weight;
-      const green = weightAt('IN_RANGE', RAMP.low + RAMP.halfWidth);
-      const bound = weightAt('IN_RANGE', RAMP.high);
-      const gold = weightAt('HIGH', RAMP.high + RAMP.halfWidth);
-      const threshold = weightAt('HIGH', RAMP.high + RAMP.threshold);
-      const red = weightAt('SIGNIFICANT_HIGH', RAMP.high + RAMP.threshold + RAMP.halfWidth);
-      expect(green).toBeLessThan(bound);
-      expect(bound).toBeLessThan(gold);
-      expect(gold).toBeLessThan(threshold);
-      expect(threshold).toBeLessThan(red);
-      expect(green).toBe(BAND_WEIGHT.IN_RANGE);
-      expect(gold).toBe(BAND_WEIGHT.HIGH);
-      expect(red).toBe(BAND_WEIGHT.SIGNIFICANT_HIGH);
+    it('walks five distinct rungs outward, each a colour of its own', () => {
+      // THE LADDER IS IN THE COLOURS NOW (Aug 2026) rather than in a per-stop
+      // alpha, so what this can assert here is that the five rungs are five
+      // different tokens in the right sequence; that each is FURTHER from the
+      // surface than the last is a fact about the token values and is measured
+      // in apps/server/tests/tokenContrast.test.ts, which is the only place
+      // that can see a hex.
+      const rungs = [
+        at('IN_RANGE', RAMP.low + RAMP.halfWidth).colour,
+        at('IN_RANGE', RAMP.high).colour,
+        at('HIGH', RAMP.high + RAMP.halfWidth).colour,
+        at('HIGH', RAMP.high + RAMP.threshold).colour,
+        at('SIGNIFICANT_HIGH', RAMP.high + RAMP.threshold + RAMP.halfWidth).colour,
+      ];
+      expect(new Set(rungs).size, `five rungs, ${new Set(rungs).size} colours`).toBe(5);
+      expect(rungs).toEqual([
+        'rgb(var(--c-hue-green-fill))',
+        'rgb(var(--c-hue-olive-fill))',
+        'rgb(var(--c-hue-yellow-fill))',
+        'rgb(var(--c-hue-orange-fill))',
+        'rgb(var(--c-hue-red-fill))',
+      ]);
+      // And the ladder the fills are solved against is itself rising, including
+      // across the two derived hinges. `BAND_CONTRAST` is what tokens.ts solves
+      // `BAND_FILL` to hit, so an edit that inverted a rung here would produce a
+      // chart on which "further out" was drawn fainter.
+      expect(BAND_CONTRAST.IN_RANGE).toBeLessThan(CONTRAST_AT_BOUND);
+      expect(CONTRAST_AT_BOUND).toBeLessThan(BAND_CONTRAST.HIGH);
+      expect(BAND_CONTRAST.HIGH).toBeLessThan(CONTRAST_AT_THRESHOLD);
+      expect(CONTRAST_AT_THRESHOLD).toBeLessThan(BAND_CONTRAST.SIGNIFICANT_HIGH);
+      // Direction is not carried by the ladder: above and below are one rung.
+      expect(BAND_CONTRAST.LOW).toBe(BAND_CONTRAST.HIGH);
+      expect(BAND_CONTRAST.SIGNIFICANT_LOW).toBe(BAND_CONTRAST.SIGNIFICANT_HIGH);
     });
 
     it('never emits stops out of order, however narrow the band', () => {

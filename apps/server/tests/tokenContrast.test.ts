@@ -8,7 +8,9 @@ import {
   statusTint,
   hueTint,
   chart,
-  BAND_WEIGHT,
+  BAND_CONTRAST,
+  CONTRAST_AT_BOUND,
+  CONTRAST_AT_THRESHOLD,
   NO_STATUS_PAINT,
   PANEL_WASH_ALPHA,
   PANEL_SHEEN,
@@ -36,22 +38,62 @@ import {
 const MODES = ['light', 'dark'] as const;
 
 /**
- * Every hue that lands on a plot, at the weight it is actually drawn at.
+ * Every hue that lands on a band, and the rung of the ladder it is drawn at.
  *
- * The three STATES take their own band's weight. The two HINGES — olive at a
+ * The three STATES take their own band's rung. The two HINGES — olive at a
  * reference bound, orange at a significantly-out threshold — are drawn at the
  * MIDPOINT of the two bands they join, because each is the middle stop of a
  * blend centred on its own boundary. Measuring a hinge at the heavier
- * neighbour's weight (which is what this used to do for orange) measures a
- * colour that is never on screen.
+ * neighbour's rung (which is what this used to do for orange) measures a colour
+ * that is never on screen.
+ *
+ * THE RUNG IS A CONTRAST RATIO NOW, NOT AN ALPHA (Aug 2026). A band used to be
+ * the `plot` hue composited at `BAND_WEIGHT`, so every measurement below had to
+ * blend the token against a surface before it could say anything. A band is an
+ * opaque fill now — `--c-hue-*-fill` is what lands on screen — and the ladder
+ * is the distance each fill stands off the surface it is drawn on. So the
+ * numbers here are targets to check against rather than alphas to composite
+ * with, and every measurement below reads the token directly.
  */
 const BAND_HUES = [
-  ['green', BAND_WEIGHT.IN_RANGE],
-  ['olive', (BAND_WEIGHT.IN_RANGE + BAND_WEIGHT.HIGH) / 2],
-  ['yellow', BAND_WEIGHT.HIGH],
-  ['orange', (BAND_WEIGHT.HIGH + BAND_WEIGHT.SIGNIFICANT_HIGH) / 2],
-  ['red', BAND_WEIGHT.SIGNIFICANT_HIGH],
+  ['green', BAND_CONTRAST.IN_RANGE],
+  ['olive', CONTRAST_AT_BOUND],
+  ['yellow', BAND_CONTRAST.HIGH],
+  ['orange', CONTRAST_AT_THRESHOLD],
+  ['red', BAND_CONTRAST.SIGNIFICANT_HIGH],
 ] as const;
+
+/**
+ * The three that are SOLVED, and the two that are DERIVED.
+ *
+ * A hinge is the exact RGB midpoint of the two fills either side of it, so it
+ * cannot also be solved to a rung: an RGB midpoint is not a contrast midpoint
+ * (WCAG luminance is not linear in RGB), and asserting it against a separately
+ * computed target would be asserting that it is. What has to hold for a hinge
+ * is that it IS the midpoint and that it lands between its neighbours — which
+ * is what a blend centred on a boundary means and what the test below checks.
+ */
+const BAND_STATES = BAND_HUES.filter(([hue]) => hue === 'green' || hue === 'yellow' || hue === 'red');
+const BAND_HINGES = [
+  ['olive', 'green', 'yellow'],
+  ['orange', 'yellow', 'red'],
+] as const;
+
+/**
+ * THE TWO SURFACES ONE FILL IS DRAWN ON: the plot panel inside a trend chart,
+ * and the card a range bar sits on. The ladder is the GEOMETRIC MEAN of the
+ * two, because they are not the same distance apart in the two themes and
+ * matching one of them lets the other drift by a third. See BAND_FILL.
+ */
+function bandSurfaces(mode: (typeof MODES)[number]): [string, string] {
+  return [tone(mode, '--c-cream-50'), tone(mode, '--c-chart-plot-surface')];
+}
+
+function bandRung(mode: (typeof MODES)[number], hue: string): number {
+  const fill = tone(mode, `--c-hue-${hue}-fill`);
+  const [card, plot] = bandSurfaces(mode);
+  return Math.sqrt(contrastRatio(fill, card) * contrastRatio(fill, plot));
+}
 
 function tone(mode: (typeof MODES)[number], name: string): string {
   const hex = themeTokens[mode][name];
@@ -171,38 +213,84 @@ describe.each(MODES)('%s theme', (mode) => {
     }
   });
 
-  it('draws a chart band at the same weight in both themes', () => {
-    // THE BAND THAT LANDS ON SCREEN, not the token behind it.
+  it('lands every band on its own rung of the ladder', () => {
+    // THE LADDER, MEASURED AGAINST THE TOKEN THAT IS ACTUALLY PAINTED.
     //
-    // A band is the one thing in this system that is COMPOSITED rather than
-    // painted: the `plot` hue at `BAND_WEIGHT`, so it can fade out at its own
-    // edges. That makes the token on its own unmeasurable — `--c-hue-red-plot`
-    // is a bright red in dark and a brick one in light, and neither figure says
-    // anything about what a reader sees.
+    // A band used to be composited, which made its token unmeasurable on its
+    // own — `--c-hue-red-plot` was a bright red in dark and a brick one in
+    // light, and neither figure said anything about what a reader saw. It is an
+    // opaque fill now, so the fill IS the band and this reads it directly.
     //
-    // What has to hold is that the composite is the same WEIGHT in both themes.
-    // It very nearly wasn't: at the light-mode weights, dark's gold measured
-    // 1.44:1 off the card against light's 1.16:1, because a near-black surface
-    // amplifies a luminance difference that a cream one damps. That is the
-    // difference between a band and a slab, and it is invisible in a token file.
+    // The rung is the geometric mean of the two surfaces a fill is drawn on,
+    // because the chart's plot panel and the card a range bar sits on are not
+    // the same distance apart in the two themes — see BAND_FILL. Solving
+    // against either one alone leaves the other instrument's bands about a
+    // third apart between light and dark.
+    for (const [hue, rung] of BAND_STATES) {
+      const got = bandRung(mode, hue);
+      expect(got, `the ${hue} band is at ${got.toFixed(3)}:1, ladder says ${rung.toFixed(3)}`).toBeCloseTo(rung, 1);
+    }
+  });
+
+  it('puts each hinge exactly halfway between the two bands it joins', () => {
+    // THE WHOLE CLAIM A BOUNDARY BLEND MAKES: a result sitting exactly on the
+    // limit is drawn exactly half in each colour. Olive at a reference bound,
+    // orange at a significantly-out threshold — neither is ever a state, and
+    // neither is solved for. They are computed as the RGB midpoint of the two
+    // fills either side, in the theme they are drawn in.
+    //
+    // The failure this catches is real and was on screen for one iteration:
+    // solved independently from `statusHue.olive` (57% saturated against
+    // green's 41%), the olive came out MORE chromatic than either neighbour and
+    // drew a bright chartreuse stripe down the middle of the blend — the
+    // opposite of a hand-over.
+    for (const [hinge, below, above] of BAND_HINGES) {
+      const channels = (name: string) =>
+        [1, 3, 5].map((i) => parseInt(tone(mode, `--c-hue-${name}-fill`).slice(i, i + 2), 16));
+      const [lo, mid, hi] = [below, hinge, above].map(channels);
+      for (const [i, c] of mid.entries()) {
+        // Within one level: the mix rounds to a whole channel.
+        expect(Math.abs(c - (lo[i] + hi[i]) / 2), `the ${hinge} hinge's channel ${i}`).toBeLessThanOrEqual(1);
+      }
+      // And it therefore lands between its neighbours on the ladder, which is
+      // the property the monotonic-rungs test below depends on.
+      expect(bandRung(mode, below)).toBeLessThan(bandRung(mode, hinge));
+      expect(bandRung(mode, hinge)).toBeLessThan(bandRung(mode, above));
+    }
+  });
+
+  it('draws a band at the same weight in both themes, on both surfaces', () => {
+    // It very nearly wasn't: at the light-mode weights, dark's gold once
+    // measured 1.44:1 off the card against light's 1.16:1, because a near-black
+    // surface amplifies a luminance difference that a cream one damps. That is
+    // the difference between a band and a slab, and it is invisible in a token
+    // file.
+    //
+    // BOTH SURFACES, since Aug 2026. One fill is drawn on the chart's plot
+    // panel and on a range bar's card, so holding only one of them is how the
+    // range bar quietly drifts while the chart is being looked at.
     //
     // The bound is generous (20%) because the two themes are not obliged to
     // match to three decimal places — it is there to catch a theme drifting a
     // third of the way clear of the other, which is what it did.
-    for (const [hue, weight] of BAND_HUES) {
-      const weights = MODES.map((m) => {
-        const card = tone(m, '--c-cream-50');
-        return contrastRatio(blend(tone(m, `--c-hue-${hue}-plot`), card, weight), card);
-      });
-      const [light, dark] = weights;
-      // Visible at all — a band nobody can see is a band that is not there.
-      for (const [i, w] of weights.entries()) {
-        expect(w, `the ${hue} band in ${MODES[i]} is ${w.toFixed(3)}:1 off the card`).toBeGreaterThan(1.05);
+    //
+    // THE THREE SOLVED STATES, not the two hinges: a hinge is an RGB midpoint,
+    // its luminance is therefore not the mean of its neighbours', and holding
+    // it to a bound it cannot control would only ever be a bound on its
+    // neighbours applied twice. Its own claim is checked above.
+    for (const [hue] of BAND_STATES) {
+      for (const surface of ['--c-cream-50', '--c-chart-plot-surface'] as const) {
+        const measured = MODES.map((m) => contrastRatio(tone(m, `--c-hue-${hue}-fill`), tone(m, surface)));
+        const [light, dark] = measured;
+        // Visible at all — a band nobody can see is a band that is not there.
+        for (const [i, w] of measured.entries()) {
+          expect(w, `the ${hue} band in ${MODES[i]} is ${w.toFixed(3)}:1 off ${surface}`).toBeGreaterThan(1.15);
+        }
+        expect(
+          Math.max(light, dark) / Math.min(light, dark),
+          `on ${surface} the ${hue} band is ${light.toFixed(3)}:1 in light and ${dark.toFixed(3)}:1 in dark`,
+        ).toBeLessThan(1.2);
       }
-      expect(
-        Math.max(light, dark) / Math.min(light, dark),
-        `the ${hue} band is ${light.toFixed(3)}:1 in light and ${dark.toFixed(3)}:1 in dark`,
-      ).toBeLessThan(1.2);
     }
   });
 
@@ -210,43 +298,63 @@ describe.each(MODES)('%s theme', (mode) => {
     // THE COMPLAINT THIS ANSWERS, MEASURED. "Too muted to read as green,
     // yellow and red" is about CHROMA — distance from the neutral axis — and
     // not about HSL saturation, which is a ratio and therefore reports a pale
-    // pink and a saturated red as the same figure. Chroma of a composited band
-    // is very nearly `weight × chroma(hue)`, which is why raising it meant
-    // raising BAND_WEIGHT rather than re-picking a hue.
+    // pink and a saturated red as the same figure.
     //
-    // The light in-range band measured 0.039 before this — ten RGB levels
-    // between its brightest and darkest channel, i.e. a grey with a rumour of
-    // green in it, because `--c-hue-*-plot` in light was the raw brand hue and
-    // the brand green is only 41% saturated. It is solved in both themes now.
-    const card = tone(mode, '--c-cream-50');
-    for (const [hue, weight] of BAND_HUES) {
-      const band = blend(tone(mode, `--c-hue-${hue}-plot`), card, weight);
+    // While a band was composited, its chroma was very nearly
+    // `weight × chroma(hue)` — so the alpha was a hard ceiling and three
+    // separate re-solves of the hue could not get past it. The light in-range
+    // band measured 0.039: ten RGB levels between its brightest and darkest
+    // channel, a grey with a rumour of green in it. An opaque fill has no such
+    // ceiling, which is why the floor here is 0.15 rather than the 0.1 that was
+    // as much as the old bands could reach.
+    for (const [hue] of BAND_HUES) {
+      const band = tone(mode, `--c-hue-${hue}-fill`);
       const [r, g, b] = [1, 3, 5].map((i) => parseInt(band.slice(i, i + 2), 16));
       const chroma = (Math.max(r, g, b) - Math.min(r, g, b)) / 255;
-      expect(chroma, `the ${hue} band is ${band}, chroma ${chroma.toFixed(3)}`).toBeGreaterThan(0.1);
+      expect(chroma, `the ${hue} band is ${band}, chroma ${chroma.toFixed(3)}`).toBeGreaterThan(0.15);
     }
   });
 
   it('keeps in range the faintest band and significantly-out the strongest', () => {
     // The ladder the redesign is built on: the bands are CONTEXT and the line is
-    // content, so the ordinary case carries almost no tint and the two that are
-    // saying something carry more. Painted at one flat weight — which is what
-    // this chart did — five regions of colour are the picture and the reader's
-    // own result is a detail on top of them.
-    const card = tone(mode, '--c-cream-50');
-    const at = (hue: string, weight: number) => contrastRatio(blend(tone(mode, `--c-hue-${hue}-plot`), card, weight), card);
-    expect(BAND_WEIGHT.IN_RANGE).toBeLessThan(BAND_WEIGHT.HIGH);
-    expect(BAND_WEIGHT.HIGH).toBeLessThan(BAND_WEIGHT.SIGNIFICANT_HIGH);
+    // content, so the ordinary case carries the least colour and the two that
+    // are saying something carry more. Painted at one flat weight — which is
+    // what this chart once did — five regions of colour are the picture and the
+    // reader's own result is a detail on top of them.
+    expect(BAND_CONTRAST.IN_RANGE).toBeLessThan(BAND_CONTRAST.HIGH);
+    expect(BAND_CONTRAST.HIGH).toBeLessThan(BAND_CONTRAST.SIGNIFICANT_HIGH);
     // Every rung, including the two hinges, so "further out is more strongly
     // marked" holds continuously across the boundaries rather than only
-    // between the three flat regions.
-    const rungs = BAND_HUES.map(([hue, weight]) => ({ hue, ratio: at(hue, weight) }));
+    // between the three flat regions. Measured off the fills rather than read
+    // off the ladder, so a fill solved to the wrong lightness fails here even
+    // though the ladder it was meant to hit is still in order.
+    const rungs = BAND_HUES.map(([hue]) => ({ hue, ratio: bandRung(mode, hue) }));
     for (let i = 1; i < rungs.length; i += 1) {
       expect(
         rungs[i - 1].ratio,
         `${rungs[i - 1].hue} ${rungs[i - 1].ratio.toFixed(3)} vs ${rungs[i].hue} ${rungs[i].ratio.toFixed(3)}`,
       ).toBeLessThan(rungs[i].ratio);
     }
+  });
+
+  it('shades the optimal narrowing into the in-range band without making it a boundary', () => {
+    // An optimal range is a NARROWING of in-range, drawn as the same green a
+    // rung deeper. Two failures either side of that: too little and it is
+    // invisible, too much and it reads as the edge of a different region — on a
+    // chart where the edge of a region is a clinical threshold.
+    const optimal = tone(mode, '--c-band-optimal');
+    const green = tone(mode, '--c-hue-green-fill');
+    const ratio = contrastRatio(optimal, green);
+    expect(ratio, `the optimal narrowing is ${ratio.toFixed(3)}:1 off the in-range band`).toBeGreaterThan(1.06);
+    expect(ratio, `the optimal narrowing is ${ratio.toFixed(3)}:1 off the in-range band`).toBeLessThan(1.3);
+    // And it never reaches the next rung up, or the narrowing would be drawn in
+    // the colour that means "outside the range".
+    expect(bandRung(mode, 'green')).toBeLessThan(
+      Math.sqrt(contrastRatio(optimal, tone(mode, '--c-cream-50')) * contrastRatio(optimal, tone(mode, '--c-chart-plot-surface'))),
+    );
+    expect(
+      Math.sqrt(contrastRatio(optimal, tone(mode, '--c-cream-50')) * contrastRatio(optimal, tone(mode, '--c-chart-plot-surface'))),
+    ).toBeLessThan(BAND_CONTRAST.HIGH);
   });
 
   it('keeps a band boundary visible on the heaviest band it crosses', () => {
@@ -262,10 +370,9 @@ describe.each(MODES)('%s theme', (mode) => {
     // near-solid rule over every boundary is what made the edge of the
     // reference range the strongest mark on the old chart, when the reader's
     // own result should be.
-    const card = tone(mode, '--c-cream-50');
     const edge = tone(mode, '--c-chart-reference-edge');
-    for (const [hue, weight] of BAND_HUES) {
-      const band = blend(tone(mode, `--c-hue-${hue}-plot`), card, weight);
+    for (const [hue] of BAND_HUES) {
+      const band = tone(mode, `--c-hue-${hue}-fill`);
       const drawn = blend(edge, band, chart.referenceEdgeOpacity);
       const ratio = contrastRatio(drawn, band);
       expect(ratio, `the boundary hairline on the ${hue} band is ${ratio.toFixed(2)}:1`).toBeGreaterThan(1.6);
@@ -274,36 +381,50 @@ describe.each(MODES)('%s theme', (mode) => {
   });
 
   it('keeps the trend line the most prominent thing on the plot', () => {
-    // The instruction the band weights were raised under, made checkable: if
-    // brighter bands bury the line, brighten the LINE — never dull the bands
+    // The instruction the bands were made opaque under, made checkable: if
+    // stronger bands bury the line, brighten the LINE — never dull the bands
     // back down. So the line has to clear every band it crosses, including the
-    // heaviest, and it has to beat the boundary hairline while doing it.
-    const plot = tone(mode, '--c-chart-plot-surface');
+    // heaviest and including the optimal narrowing, and it has to beat the
+    // boundary hairline while doing it.
+    //
+    // This is what caught the line at its old value: `bronze-700` measured
+    // 2.87:1 on the opaque significantly-out band and `bronze-500` in dark
+    // 2.42:1, both under AA-large. See LINE_LIFT.
     const line = tone(mode, '--c-chart-line');
     const edge = tone(mode, '--c-chart-reference-edge');
-    for (const [hue, weight] of BAND_HUES) {
-      const band = blend(tone(mode, `--c-hue-${hue}-plot`), plot, weight);
+    for (const band of [...BAND_HUES.map(([hue]) => tone(mode, `--c-hue-${hue}-fill`)), tone(mode, '--c-band-optimal')]) {
       const lineRatio = contrastRatio(line, band);
-      expect(lineRatio, `the trend line on the ${hue} band is ${lineRatio.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+      expect(lineRatio, `the trend line on ${band} is ${lineRatio.toFixed(2)}:1`).toBeGreaterThanOrEqual(
         WCAG_AA_LARGE_TEXT,
       );
       const edgeRatio = contrastRatio(blend(edge, band, chart.referenceEdgeOpacity), band);
-      expect(lineRatio, `the ${hue} band's boundary out-reads the line`).toBeGreaterThan(edgeRatio);
+      expect(lineRatio, `the boundary on ${band} out-reads the line`).toBeGreaterThan(edgeRatio);
     }
   });
 
-  it('keeps a plotted point readable against the composited band it lands on', () => {
-    // The same claim as the `band` role below, made against the thing that is
-    // actually drawn. A point takes its own state's colour and sits on a wash
-    // of that same colour; if the two met, the chart would lose the shape layer
-    // that carries the status.
-    const card = tone(mode, '--c-cream-50');
-    for (const [hue, weight] of BAND_HUES) {
-      const band = blend(tone(mode, `--c-hue-${hue}-plot`), card, weight);
-      const ratio = contrastRatio(tone(mode, `--c-hue-${hue}-mark`), band);
-      expect(ratio, `${hue} mark on its own composited band is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(
-        WCAG_AA_LARGE_TEXT,
-      );
+  it('keeps a plotted point readable against the band it lands on', () => {
+    // A point takes its own state's colour and sits on a band of that same
+    // colour; if the two met, the chart would lose the shape layer that carries
+    // the status. Green is checked against the optimal narrowing too, since an
+    // in-range point can land inside it.
+    for (const [hue] of BAND_HUES) {
+      const grounds = [tone(mode, `--c-hue-${hue}-fill`), ...(hue === 'green' ? [tone(mode, '--c-band-optimal')] : [])];
+      for (const band of grounds) {
+        const ratio = contrastRatio(tone(mode, `--c-hue-${hue}-mark`), band);
+        expect(ratio, `${hue} mark on ${band} is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(WCAG_AA_LARGE_TEXT);
+      }
+    }
+  });
+
+  it('keeps the range-bar mark readable on every segment it can stand on', () => {
+    // The bar's mark is NOT a status colour — it is `rangemark`, white in dark
+    // and espresso in light, because a mark drawn in its own state's colour is
+    // a mark drawn in the shade of the segment it is standing on. It moved onto
+    // brighter segments with this change, so it is measured on all of them.
+    const mark = tone(mode, '--c-rangemark');
+    for (const band of [...BAND_HUES.map(([hue]) => tone(mode, `--c-hue-${hue}-fill`)), tone(mode, '--c-band-optimal')]) {
+      const ratio = contrastRatio(mark, band);
+      expect(ratio, `the range-bar mark on ${band} is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(WCAG_AA_LARGE_TEXT);
     }
   });
 
@@ -315,15 +436,15 @@ describe.each(MODES)('%s theme', (mode) => {
     // the bar and the chart fall back to a hard step at every boundary — which
     // is the thing the boundary gradient exists to remove.
     for (const hue of ['green', 'olive', 'yellow', 'orange', 'red']) {
-      for (const role of ['wash', 'band', 'plot', 'track', 'edge', 'mark']) {
+      for (const role of ['wash', 'band', 'fill', 'track', 'edge', 'mark']) {
         expect(themeTokens[mode][`--c-hue-${hue}-${role}`], `--c-hue-${hue}-${role}`).toBeTruthy();
       }
     }
   });
 
-  it('gives every status a wash, bar, band, plot, edge and mark', () => {
+  it('gives every status a wash, bar, band, fill, edge and mark', () => {
     for (const key of Object.keys(status) as StatusKey[]) {
-      for (const suffix of ['', '-bar', '-band', '-plot', '-edge', '-mark']) {
+      for (const suffix of ['', '-bar', '-band', '-fill', '-edge', '-mark']) {
         expect(themeTokens[mode][`--c-tint-${kebab(key)}${suffix}`], `${key}${suffix}`).toBeTruthy();
       }
     }
@@ -345,7 +466,7 @@ describe.each(MODES)('%s theme', (mode) => {
     // segments in a bar. Not an accessibility threshold — shape, hatch and the
     // written label carry those — but a wash where all three measure the same
     // is a wash doing no work at all.
-    for (const role of ['wash', 'band', 'track'] as const) {
+    for (const role of ['wash', 'band', 'track', 'fill'] as const) {
       const seen = new Map<string, string>();
       for (const hue of ['green', 'yellow', 'red']) {
         const v = tone(mode, `--c-hue-${hue}-${role}`);

@@ -18,16 +18,27 @@
  * So the card read as a flat list of four paragraphs and nothing in it said
  * what to read first. Rebuilt as four levels:
  *
- *   1. HEADING. The eyebrow, unchanged. It labels the card; it is not competing
- *      to be read.
+ *   1. HEADING. `.card-eyebrow`: one step up the scale (14px), semibold, full
+ *      tone, and the only uppercase tracked line in the card. It labels the
+ *      card; it is not competing to be read — but it does have to be the most
+ *      prominent LABEL in it.
  *   2. THE LEAD. Fraunces at the section optical size, one step below a page
  *      title. It is the definition, and it should be the loudest thing here.
- *   3. THE LABELS. The eyebrow treatment — small, spaced, uppercase Plex Sans,
- *      muted. They introduce an answer; they are not headings competing with
- *      the card title, which is exactly what they had become by being bigger
- *      than it.
+ *   3. THE LABELS. `.sublabel`: sentence case, 12px, muted. They introduce an
+ *      answer; they are not headings competing with the card title.
  *   4. THE ANSWERS. Plex Sans at reading size, regular weight, one step muted
  *      against the lead.
+ *
+ * ── AND THE FIRST FIX WAS HALF A FIX (Aug 2026) ────────────────────────────
+ *
+ * Levels 1 and 3 were both `.eyebrow`: 12px, medium, uppercase, tracked, /80 —
+ * IDENTICAL. So the card still had four peers in it, with nothing saying which
+ * was the heading, and three repetitions of the treatment underneath one
+ * instance of it read as the stronger thing. Both moved apart: the heading up a
+ * step in size, weight and tone; the labels out of the uppercase tracking,
+ * which is what makes 12px shout and is the only thing they had left to give up
+ * (12px is the floor of the type scale and /80 the floor of the opacity
+ * ladder). The lead in Fraunces is untouched and is still the loudest line.
  *
  * SPACE BETWEEN BLOCKS, NOT INSIDE THEM. `If it’s high` used to sit `mt-8` from
  * the block above and `mt-2` from its own answer — nearly the same distance
@@ -75,7 +86,12 @@ function Block({ label, body }: { label: string; body: string }) {
     // what makes this a pair rather than two paragraphs that happen to be
     // adjacent.
     <div className="mt-9">
-      <p className="eyebrow">{label}</p>
+      {/* `.sublabel`, not `.eyebrow` — see globals.css. Same size, same tone,
+          sentence case: 12px is the floor of the scale and /80 the floor of the
+          opacity ladder, so what a label subordinate to a card heading can give
+          up is the uppercase tracking, which is the whole of what makes 12px
+          shout. */}
+      <p className="sublabel">{label}</p>
       <p className="mt-1.5 text-reading leading-relaxed text-espresso/90">{body}</p>
     </div>
   );
