@@ -23,6 +23,7 @@ import { ReportDetailView } from './ReportDetailView';
 import { AllMarkersSummary, MarkerListView } from './MarkerListView';
 import type { MarkerRow } from '../../lib/patientPortal';
 import { CompareView } from './CompareView';
+import { RESULT_TYPE_FILTERS, reportSectionCount, resultTypeFilter } from './reportSections';
 import { useReportDetail } from './useReportDetail';
 
 /**
@@ -97,6 +98,22 @@ export function ResultsPage() {
    * health areas and its status counts up here.
    */
   const [summaryMarkers, setSummaryMarkers] = useState<MarkerRow[]>([]);
+
+  /**
+   * WHICH SECTION OF AN OPEN REPORT THE READER HAS ASKED FOR.
+   *
+   * Two things write it and both are the reader: a chip in the section index
+   * above the control bar, and the URL's own hash — so `/reports/:id#sensitivity`
+   * out of an email opens the food list rather than landing on nine shut
+   * disclosures. A section reads it to open whatever it keeps collapsed.
+   *
+   * Initialised from the hash rather than set by an effect after mount: an
+   * effect would render the shut version first and open it a frame later, which
+   * is a page that visibly changes its mind.
+   */
+  const [revealed, setRevealed] = useState<string | null>(() =>
+    typeof window === 'undefined' ? null : decodeURIComponent(window.location.hash.slice(1)) || null,
+  );
 
   // No-ops without an id, so the two views that are not a report cost nothing.
   const report = useReportDetail(reportId);
@@ -185,8 +202,30 @@ export function ResultsPage() {
    * there. A control that no longer lists its own value is the worse failure:
    * it reads as though nothing is filtering while everything is hidden.
    */
+  /**
+   * The result types this screen can actually narrow to.
+   *
+   * An open report only, because it is the only screen that draws anything but
+   * the marker grid — By marker and Compare are measured markers by
+   * construction, and offering "Food sensitivity" there would be a filter whose
+   * only possible answer is an empty page. And only where there is more than
+   * one of them: a report with nothing but blood measurements gets no group,
+   * for the same reason its section index does not render.
+   */
+  const resultTypeOptions = useMemo(() => {
+    if (!reportId) return [];
+    const present = RESULT_TYPE_FILTERS.filter((t) => reportSectionCount(report, t.resultType) > 0);
+    return present.length > 1 ? present.map((t) => ({ key: t.value, name: t.label })) : [];
+  }, [reportId, report]);
+
   const categoryOptions = useMemo(() => {
-    if (filters.categoryFilter === 'ALL' || activeCategories.some((c) => c.key === filters.categoryFilter)) return activeCategories;
+    if (
+      filters.categoryFilter === 'ALL' ||
+      resultTypeFilter(filters.categoryFilter) !== null ||
+      activeCategories.some((c) => c.key === filters.categoryFilter)
+    ) {
+      return activeCategories;
+    }
     return [...activeCategories, { key: filters.categoryFilter, name: 'Selected area, not in this view' }];
   }, [activeCategories, filters.categoryFilter]);
 
@@ -205,6 +244,7 @@ export function ResultsPage() {
           data={report}
           activeStatus={filters.statusFilter}
           onSelectStatus={onStatusFilter}
+          onReveal={setRevealed}
         />
       )}
 
@@ -230,6 +270,7 @@ export function ResultsPage() {
         onChange={updateFilters}
         onClearFilters={clearFilters}
         categories={categoryOptions}
+        resultTypes={resultTypeOptions}
         statusCounts={statusCounts}
         arrangement={arrangement}
         onArrange={updateArrangement}
@@ -250,6 +291,7 @@ export function ResultsPage() {
               filters={filters}
               arrangement={arrangement}
               onClearFilters={clearFilters}
+              revealed={revealed}
             />
           ) : (
             <ReportListView />

@@ -290,6 +290,84 @@ test.describe('Results', () => {
   });
 
   /**
+   * ---------------------------------------------------------------------
+   * 249 OF 433 RESULTS WERE BELOW THE FOLD AND NOTHING SAID SO.
+   * ---------------------------------------------------------------------
+   *
+   * A Signature report is a marker grid with the genetic indicators, the 207
+   * food sensitivities and the microbiome panel underneath it. A patient who
+   * scrolled to the end of the markers and stopped had seen a little over a
+   * third of what they paid for and no reason to think otherwise — and the two
+   * tools that should have found the rest both failed in the same direction:
+   * the search box narrowed only the measured markers, and the category picker
+   * offered only health areas.
+   *
+   * Three things fixed it and each is asserted here, because each of them is a
+   * silent failure — nothing on screen looks broken when a search quietly does
+   * not cover two thirds of a page.
+   */
+  test('the report says what is below the fold, and the search and the filter reach it', async ({ browser }) => {
+    const ctx = await browser.newContext();
+    await loginAsDemoPatient(ctx.request);
+    const page = await ctx.newPage();
+    await page.setViewportSize({ width: 1280, height: 1000 });
+
+    const reports = (await (await ctx.request.get('/api/patient/reports')).json()) as {
+      reportId: string;
+      markerCount: number;
+      patientStatus: string;
+    }[];
+    const biggest = reports.filter((r) => r.patientStatus === 'RELEASED').sort((a, b) => b.markerCount - a.markerCount)[0];
+    await page.goto(`/reports/${biggest.reportId}`);
+    await expect(page.locator('a[href^="/markers/"]').first()).toBeVisible({ timeout: 10_000 });
+
+    // 1. THE INDEX. One chip per section the report actually has, each a real
+    //    anchor to a real id — so it navigates before hydration and a URL
+    //    ending in the fragment opens the right part of the page.
+    const index = page.getByRole('navigation', { name: 'Sections in this report' });
+    const chips = index.getByRole('link');
+    expect(await chips.count(), 'a Signature report has sections below the grid').toBeGreaterThan(1);
+    for (const href of await chips.evaluateAll((els) => els.map((el) => el.getAttribute('href') ?? ''))) {
+      expect(href).toMatch(/^#[a-z-]+$/);
+      await expect(page.locator(`section${href}`)).toHaveCount(1);
+    }
+
+    // 2. A CHIP OPENS WHAT IT POINTS AT. The food groups are collapsed by
+    //    default — landing on nine shut disclosures answers "is it in here"
+    //    with "yes, somewhere under this".
+    const foods = index.getByRole('link', { name: /Food sensitivity/ });
+    await expect(foods).toHaveCount(1);
+    await foods.click();
+    await page.waitForFunction(
+      () => Math.abs(document.getElementById('sensitivity')!.getBoundingClientRect().top) < 200,
+      null,
+      { timeout: 15_000 },
+    );
+    await expect(page.locator('#sensitivity button[aria-expanded="true"]').first()).toBeVisible();
+
+    // 3. THE PAGE SEARCH REACHES A SECTION IT USED NOT TO. "cod" is a food and
+    //    not a marker: before this it produced "Nothing matches those filters"
+    //    over an empty grid while Cod sat in a collapsed group far below.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.getByLabel('Find a marker').fill('cod');
+    await expect(page.getByText('Nothing matches those filters')).toBeVisible();
+    await expect(page.locator('#sensitivity').getByText('Cod', { exact: true })).toBeVisible({ timeout: 10_000 });
+
+    // 4. THE CATEGORY PICKER NAMES A RESULT TYPE. Narrowing to one section
+    //    takes the others away entirely rather than leaving them standing
+    //    empty, and the chip row says which one is on.
+    await page.getByLabel('Find a marker').fill('');
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.getByRole('button', { name: /^Filters/ }).click();
+    await choose(page, 'Category', 'Genetic indicators');
+    await expect(page.locator('#genetic')).toHaveCount(1);
+    await expect(page.locator('#sensitivity')).toHaveCount(0);
+    await expect(page.getByRole('group', { name: 'Applied filters' }).getByRole('button', { name: /Genetic indicators/ })).toBeVisible();
+
+    await ctx.close();
+  });
+
+  /**
    * The filters panel is the READER'S, and nothing else touches it.
    *
    * It used to open and close on SCROLL: an IntersectionObserver decided

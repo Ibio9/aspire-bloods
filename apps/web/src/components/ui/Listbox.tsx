@@ -5,6 +5,17 @@ export interface ListboxOption {
   value: string;
   label: string;
   disabled?: boolean;
+  /**
+   * The heading this option sits under, where a picker holds two vocabularies.
+   *
+   * Optional, and absent on almost every picker in the product — a list of one
+   * kind of thing does not need to be told it is one kind of thing. It exists
+   * for the results page's Category filter, which offers result types and
+   * health areas in one control: "Food sensitivity" and "Kidney health" are
+   * both answers to "narrow this page", and they are not the same KIND of
+   * answer. Ungrouped options come first, in the order they were given.
+   */
+  group?: string;
 }
 
 interface ListboxProps {
@@ -63,6 +74,26 @@ export function Listbox({
   }, [options, query, searchable]);
 
   const selected = options.find((o) => o.value === value);
+
+  /**
+   * The visible options in runs, so a heading can be drawn where the run
+   * changes — while every option keeps its FLAT index.
+   *
+   * That split is the whole of it: the flat index is what arrow keys, type-
+   * ahead, `aria-activedescendant` and `commit()` all address an option by, and
+   * a grouped render that renumbered them would break every one of those at
+   * once. Nothing below reads a group for anything except a heading.
+   */
+  const runs = useMemo(() => {
+    const out: { group: string | null; items: { option: ListboxOption; index: number }[] }[] = [];
+    filteredOptions.forEach((option, index) => {
+      const group = option.group ?? null;
+      const last = out[out.length - 1];
+      if (!last || last.group !== group) out.push({ group, items: [] });
+      out[out.length - 1].items.push({ option, index });
+    });
+    return out;
+  }, [filteredOptions]);
 
   useEffect(() => {
     if (!open) return;
@@ -178,6 +209,44 @@ export function Listbox({
     }
   }
 
+  /** One option, addressed by its FLAT index whatever run it is drawn in. */
+  function renderOption(opt: ListboxOption, i: number) {
+    return (
+      <li
+        key={opt.value}
+        id={`${id ?? 'listbox'}-opt-${i}`}
+        data-index={i}
+        role="option"
+        aria-selected={opt.value === value}
+        onMouseEnter={() => setActiveIndex(i)}
+        onClick={() => commit(i)}
+        className={`mx-1 flex cursor-pointer items-center justify-between rounded-input px-3 py-2.5 text-sm transition-colors duration-100 ${
+          opt.disabled
+            ? 'cursor-not-allowed text-espresso/40'
+            : i === activeIndex
+              ? 'bg-bronze text-onaccent'
+              : opt.value === value
+                ? 'text-bronze-700 font-medium'
+                : 'text-espresso'
+        }`}
+      >
+        <span className="truncate">{opt.label}</span>
+        {opt.value === value && (
+          <svg width="12" height="10" viewBox="0 0 12 10" aria-hidden="true" className="shrink-0">
+            <path
+              d="M1 5L4.5 8.5L11 1"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        )}
+      </li>
+    );
+  }
+
   function handleTriggerKeyDown(e: React.KeyboardEvent) {
     if (disabled) return;
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === ' ') {
@@ -235,40 +304,30 @@ export function Listbox({
             className="scroll-thin flex-1 overflow-y-auto py-1"
           >
             {filteredOptions.length === 0 && <li className="px-3.5 py-2.5 text-sm text-espresso/80">No matches</li>}
-            {filteredOptions.map((opt, i) => (
-              <li
-                key={opt.value}
-                id={`${id ?? 'listbox'}-opt-${i}`}
-                data-index={i}
-                role="option"
-                aria-selected={opt.value === value}
-                onMouseEnter={() => setActiveIndex(i)}
-                onClick={() => commit(i)}
-                className={`mx-1 flex cursor-pointer items-center justify-between rounded-input px-3 py-2.5 text-sm transition-colors duration-100 ${
-                  opt.disabled
-                    ? 'cursor-not-allowed text-espresso/40'
-                    : i === activeIndex
-                      ? 'bg-bronze text-onaccent'
-                      : opt.value === value
-                        ? 'text-bronze-700 font-medium'
-                        : 'text-espresso'
-                }`}
-              >
-                <span className="truncate">{opt.label}</span>
-                {opt.value === value && (
-                  <svg width="12" height="10" viewBox="0 0 12 10" aria-hidden="true" className="shrink-0">
-                    <path
-                      d="M1 5L4.5 8.5L11 1"
-                      stroke="currentColor"
-                      strokeWidth="1.6"
-                      fill="none"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                )}
-              </li>
-            ))}
+            {runs.map((run, r) =>
+              run.group === null ? (
+                run.items.map(({ option, index }) => renderOption(option, index))
+              ) : (
+                // A real `role="group"` with its own name rather than a bare
+                // heading row: a heading that is only text is a heading only a
+                // sighted reader gets, and the whole reason this control holds
+                // two vocabularies is that they are different KINDS of answer.
+                <li key={`group-${r}`} role="presentation">
+                  <ul role="group" aria-label={run.group}>
+                    <li
+                      role="presentation"
+                      className="eyebrow px-3.5 pb-1 pt-2.5 text-espresso/80"
+                      // Named on the group above; drawn here. Announcing it
+                      // twice is how a list of five options reads as ten.
+                      aria-hidden="true"
+                    >
+                      {run.group}
+                    </li>
+                    {run.items.map(({ option, index }) => renderOption(option, index))}
+                  </ul>
+                </li>
+              ),
+            )}
           </ul>
         </div>
       )}

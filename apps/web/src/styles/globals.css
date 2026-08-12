@@ -1173,35 +1173,49 @@
   }
 
   /* ── THE SECTION RAIL ───────────────────────────────────────────────────
-     A vertical index of the page's own sections, in the gutter beside the
-     content column. See components/patient/SectionRail.tsx for why the labels
-     are set vertically rather than revealed on hover.
+     A vertical index of the page's own sections, on the RIGHT of the content.
+     Two states: a readable list of horizontal labels at rest, and a line with
+     one node per section once the reader has scrolled. See
+     components/patient/SectionRail.tsx for why it is that way round.
 
      ── IT CANNOT COLLIDE, BY CONSTRUCTION ──────────────────────────────────
 
-     It is absolutely positioned against the sections wrapper, which sits inside
-     the shell's `mx-auto max-w-5xl` content column — so its offsets are
-     measured from the COLUMN and not from the viewport. That is what makes the
-     two requirements structural rather than a set of numbers that happen to
-     work at the widths somebody checked:
+     The rail needs real width now — a horizontal label is 100–130px where a
+     rotated one was 12 — and the gutter it used to live in does not have it.
+     At 1440 with the sidebar expanded the content column fills everything
+     inside `main`'s own padding, so the free space to the right of it is those
+     80px and nothing else. A rail that took its room by overlapping would be
+     drawing a label over somebody's results.
 
-       · It never overlaps the CONTENT, because it occupies x from -72px to
-         -24px of a box whose content starts at 0. A 24px gutter, at every
-         width, including while the column is growing toward its max-width.
-       · It never overlaps the SIDEBAR, because those 72px come out of `main`'s
-         own left padding, which is 80px from `lg` up (px-20) and is by
-         definition empty. 8px of clearance in the worst case — the narrowest
-         window that shows the rail, with the sidebar expanded — and more at
-         every wider one, since the column then centres and the gutter grows.
+     So the space is RESERVED rather than borrowed, and the two halves of that
+     are what make "no collision" structural rather than a set of numbers that
+     happen to work at the widths somebody checked:
 
-     Below `xl` it is `display: none`: at 1280px the padding is the whole of the
-     free space and there is nothing to spare. A phone has neither the room nor
-     the need — the page is four headings long and scrolling is the index.
+       · THE SECTIONS WRAPPER CARRIES `xl:pr-36` (144px). The rail is
+         positioned against that wrapper, so its offsets are measured from the
+         COLUMN and not from the viewport — and the content inside the wrapper
+         is inset by exactly the padding, at every width, including while the
+         column is still growing toward its max-width.
+       · THE REMAINING 48px COME OUT OF `main`'s OWN RIGHT PADDING, which is
+         80px from `lg` up (px-20) and is empty by definition. 32px of
+         clearance to the window in the worst case — the narrowest window that
+         shows the rail — and more at every wider one, since the column then
+         centres and the gutter grows.
+
+     168px of rail with a 24px gap to the content: 144 reserved + 48 borrowed −
+     24 gap. The RESERVATION DOES NOT CHANGE WITH THE STATE. A collapsed rail
+     needs about 20px and an expanded one needs all 168, and reserving the
+     larger of the two permanently is what stops the page reflowing under the
+     reader on their first scroll.
+
+     Below `xl` it is `display: none`: at 1280 the padding is the whole of the
+     free space. A phone has neither the room nor the need — the page is four
+     headings long and scrolling is the index.
 
      `position: sticky` on the LIST rather than the nav: the nav spans the full
      height of the sections so the sticky child has something to travel inside.
-     Near the top (6rem) rather than centred, so the rail reads as an index of
-     the page rather than as a floating widget. */
+     8rem rather than centred, so the rail reads as an index of the page rather
+     than as a floating widget. */
   .section-rail {
     display: none;
   }
@@ -1212,116 +1226,159 @@
       position: absolute;
       top: 0;
       bottom: 0;
-      left: -72px;
-      width: 48px;
+      right: -48px;
+      width: 168px;
     }
   }
 
-  /* 8rem, and it is measured rather than chosen: the sidebar's collapse toggle
-     is pinned at `top-24` (96px) and hangs 12px past the panel's own edge, so
-     it ends at 124px and it overlaps the rail's x range. The line starts below
-     it. At 6rem the two cleared each other only because the first label
-     happened to be long enough to push its dot past the button — which is a
-     coincidence about the word "Worth", not a layout. */
   .section-rail__list {
     position: sticky;
     top: 8rem;
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    gap: 1.75rem;
+    align-items: stretch;
+    gap: 0.85rem;
+    transition: gap 200ms ease-out;
   }
 
-  /* The line. Drawn behind the dots and centred on them — `left` is the dot's
-     own centre, so moving the dot moves the line with it. It runs only as far
-     as the dots do, which is what makes it an index of four things rather than
-     a rule down the side of the page. */
+  /* The line. Down the RIGHT-hand edge, which is the edge nearest the window
+     and furthest from the content — so the nodes hang off it toward the page
+     they are an index of, and a revealed label has somewhere to go. It runs
+     only as far as the nodes do, which is what makes it an index of four
+     things rather than a rule down the side of the page. */
   .section-rail__list::before {
     content: '';
     position: absolute;
-    top: 0.35rem;
-    bottom: 0.35rem;
-    left: 3.5px;
+    top: 0.4rem;
+    bottom: 0.4rem;
+    right: 0;
     width: 1px;
-    background-color: rgb(var(--c-taupe) / 0.5);
+    background-color: rgb(var(--c-taupe) / 0.55);
   }
 
   .section-rail__link {
     position: relative;
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    justify-content: flex-end;
+    gap: 0.625rem;
+    min-height: 1.25rem;
     border-radius: 0.625rem;
     color: rgb(var(--c-taupe-900));
-    transition:
-      color 150ms ease-out,
-      opacity 150ms ease-out;
+    transition: color 150ms ease-out;
   }
 
-  .section-rail__link:hover {
-    color: rgb(var(--c-espresso));
-  }
-
+  .section-rail__link:hover,
   .section-rail__link.is-active {
     color: rgb(var(--c-espresso));
   }
 
-  /* An outline until it is the section you are in, and then filled. Shape as
-     well as weight, so the state is not carried by brightness alone. */
-  .section-rail__dot {
-    box-sizing: border-box;
+  .section-rail__link:focus-visible {
+    outline: 2px solid rgb(var(--c-bronze));
+    outline-offset: 4px;
+  }
+
+  /* THE NODE IS AN ARCH: a rectangle with one semicircular end, laid on its
+     side with the FLAT edge against the line and the curve pointing away from
+     it, into the page. A circle would be a bullet — a mark that says "an item"
+     — and this has to say "a position on this line", which is what an object
+     attached to the line by one flat edge does.
+
+     The active one is filled and longer; the rest are short and muted. Both
+     dimensions move, so the state is not carried by brightness alone. */
+  .section-rail__node {
     flex: none;
-    width: 8px;
-    height: 8px;
-    border-radius: 9999px;
-    border: 1.5px solid rgb(var(--c-taupe-900));
-    background-color: rgb(var(--c-cream));
+    width: 10px;
+    height: 5px;
+    border-radius: 9999px 0 0 9999px;
+    background-color: rgb(var(--c-taupe-900) / 0.55);
     transition:
-      background-color 150ms ease-out,
-      border-color 150ms ease-out,
-      transform 150ms ease-out;
+      width 200ms ease-out,
+      height 200ms ease-out,
+      background-color 200ms ease-out;
   }
 
-  .section-rail__link:hover .section-rail__dot {
-    border-color: rgb(var(--c-bronze));
+  .section-rail__link:hover .section-rail__node {
+    background-color: rgb(var(--c-bronze) / 0.7);
   }
 
-  .section-rail__link.is-active .section-rail__dot {
-    border-color: rgb(var(--c-bronze));
+  .section-rail__link.is-active .section-rail__node {
+    width: 22px;
+    height: 9px;
     background-color: rgb(var(--c-bronze));
-    transform: scale(1.25);
   }
 
-  /* Bottom-to-top. `vertical-rl` gives the browser a real vertical writing mode
-     — so the anchor's HEIGHT is the label's length and the list spaces itself —
-     and the half turn is what makes it read upward rather than down. */
-  /* `sideways`, not the default `mixed`, and the apostrophe is why. In a
-     vertical writing mode `mixed` rotates only the glyphs whose scripts are
-     horizontal-only and leaves the rest UPRIGHT — and U+2019 is one of the
-     rest. "What’s changed" set vertically therefore came out as "What· s
-     changed": the apostrophe standing on its own in the middle of the word
-     with the line broken either side of it. `sideways` turns the whole run,
-     punctuation included, so the label is the same string it is everywhere
-     else in the product. */
+  /* ORDINARY HORIZONTAL TEXT, and that is the whole change from the rotated
+     version this replaced. Small and quiet: one step below the reading size,
+     in the muted body tone, with the active one taking the text colour and a
+     little more weight. */
   .section-rail__label {
-    writing-mode: vertical-rl;
-    text-orientation: sideways;
-    transform: rotate(180deg);
     font-size: 0.75rem;
-    line-height: 1;
+    line-height: 1.25;
     font-weight: 500;
-    letter-spacing: 0.045em;
+    letter-spacing: 0.01em;
+    text-align: right;
     white-space: nowrap;
+    transition:
+      opacity 180ms ease-out,
+      transform 180ms ease-out;
   }
 
   .section-rail__link.is-active .section-rail__label {
     font-weight: 600;
   }
 
+  /* ── COLLAPSED ─────────────────────────────────────────────────────────
+     The labels go and the nodes carry the position. The label is taken OUT OF
+     FLOW rather than removed: it keeps its place in the accessibility tree —
+     a collapsed rail whose links have no names is four anonymous shapes to a
+     screen reader — and it is what comes back on hover or focus.
+
+     It comes back OVER THE CONTENT, which is why it takes a surface there and
+     does not at rest. At rest it sits in reserved empty gutter and can be
+     plain text; revealed, it is drawn on top of somebody's results and has to
+     be legible against them. The glass material, the same one the chart's
+     tooltip uses, for the same reason: it is a reading of the page and should
+     not delete the part it is covering. */
+  .section-rail.is-collapsed .section-rail__list {
+    gap: 0.6rem;
+  }
+
+  .section-rail.is-collapsed .section-rail__label {
+    position: absolute;
+    right: calc(100% + 0.75rem);
+    top: 50%;
+    transform: translateY(-50%) translateX(0.25rem);
+    opacity: 0;
+    pointer-events: none;
+    padding: 0.3rem 0.6rem;
+    border-radius: 0.625rem;
+    border: 1px solid rgb(var(--c-taupe));
+    color: rgb(var(--c-espresso));
+    box-shadow:
+      0 4px 8px -2px rgb(var(--c-shadow) / calc(var(--shadow-tight) * 1.6)),
+      0 16px 32px -8px rgb(var(--c-shadow) / calc(var(--shadow-diffuse) * 2.5));
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    background-color: rgb(var(--c-glass) / var(--glass-wash));
+  }
+
+  .section-rail.is-collapsed .section-rail__link:hover .section-rail__label,
+  .section-rail.is-collapsed .section-rail__link:focus-visible .section-rail__label {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
+
   @media (prefers-reduced-motion: reduce) {
+    .section-rail__list,
     .section-rail__link,
-    .section-rail__dot {
+    .section-rail__label,
+    .section-rail__node {
       transition: none;
+    }
+
+    .section-rail.is-collapsed .section-rail__label {
+      transform: translateY(-50%);
     }
   }
 }

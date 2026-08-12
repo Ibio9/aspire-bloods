@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   asMarkerStatus,
   bandGradientStops,
-  bandPlotGradient,
+  bandRampStops,
   BAND_WEIGHT,
   bandLabel,
+  statusBands,
+  TRANSITION_SHARE,
   countable,
   hasResultValue,
   MARKER_STATUSES,
@@ -28,6 +30,15 @@ import {
 } from './markerCopy';
 
 const m = (status: MarkerStatusInput) => ({ status });
+
+/**
+ * One marker's geometry, in its own units, as every caller of `bandRampStops`
+ * assembles it: a reference range, the distance out at which significantly-out
+ * begins, and HALF a transition zone taken as a share of the drawn extent
+ * rather than of the range. The numbers here are a plausible plot: a 3.9–5.1
+ * range, a 1.8-wide severity step, and a domain of roughly 2–7.
+ */
+const RAMP = { low: 3.9, high: 5.1, threshold: 1.8, halfWidth: (5 * TRANSITION_SHARE) / 2 };
 
 describe('statusFilterCounts', () => {
   it('counts every filter in one pass, matching the per-filter predicate', () => {
@@ -178,7 +189,7 @@ describe('every lookup keyed on status is total', () => {
       expect(() => attentionRank(s), where).not.toThrow();
       expect(() => statusPaint(s), where).not.toThrow();
       expect(() => bandGradientStops(s), where).not.toThrow();
-      expect(() => bandPlotGradient(s), where).not.toThrow();
+      expect(() => bandRampStops(s, RAMP), where).not.toThrow();
       expect(() => bandLabel(s), where).not.toThrow();
     }
   });
@@ -228,18 +239,22 @@ describe('every lookup keyed on status is total', () => {
       // The chart's band gradient, same claim. A stop-opacity of `undefined`
       // is not an error either — SVG falls back to 1 and paints the band at
       // full strength, which is the loudest possible failure to be silent.
-      const stops = bandPlotGradient(s);
-      expect(stops.length, `bandPlotGradient(${String(s)})`).toBeGreaterThanOrEqual(2);
-      for (const stop of stops) {
-        expect(stop.colour, `bandPlotGradient(${String(s)}).colour`).toMatch(/^rgb\(var\(--c-[a-z0-9-]+\)\)$/);
-        expect(stop.offset).toBeGreaterThanOrEqual(0);
-        expect(stop.offset).toBeLessThanOrEqual(1);
-        expect(stop.weight).toBeGreaterThan(0);
-        expect(stop.weight).toBeLessThanOrEqual(1);
+      for (const role of ['plot', 'track'] as const) {
+        const stops = bandRampStops(s, RAMP, role);
+        expect(stops.length, `bandRampStops(${String(s)}, ${role})`).toBeGreaterThanOrEqual(2);
+        for (const stop of stops) {
+          expect(stop.colour, `bandRampStops(${String(s)}, ${role}).colour`).toMatch(/^rgb\(var\(--c-[a-z0-9-]+\)\)$/);
+          expect(Number.isFinite(stop.value), `bandRampStops(${String(s)}, ${role}).value`).toBe(true);
+          expect(stop.weight).toBeGreaterThan(0);
+          expect(stop.weight).toBeLessThanOrEqual(1);
+        }
+        // Values run low to high, in order — the caller reverses them for a
+        // chart's y-axis, and an unsorted list would reverse into nonsense.
+        expect([...stops].sort((a, b) => a.value - b.value)).toEqual(stops);
       }
-      // Offsets run low value to high, in order — the caller reverses them for
-      // a chart's y-axis, and an unsorted list would reverse into nonsense.
-      expect([...stops].sort((a, b) => a.offset - b.offset)).toEqual(stops);
+      // A painted segment is opaque colour; only the composited role carries
+      // the weight ladder at all.
+      for (const stop of bandRampStops(s, RAMP, 'track')) expect(stop.weight).toBe(1);
       // A band with no words beside it is the "colour alone" failure the key
       // exists to prevent, so the label is never empty either.
       expect(bandLabel(s).length, `bandLabel(${String(s)})`).toBeGreaterThan(0);
@@ -247,45 +262,96 @@ describe('every lookup keyed on status is total', () => {
   });
 
   /**
-   * The two properties the chart's ramp is built on. Both are about points
-   * BETWEEN the sampled weights, which is exactly what tokenContrast.test.ts
-   * cannot see: it measures three representative numbers and the reader sees a
-   * continuous surface.
+   * THE RAMP IS AT THE BOUNDARY, AND IT IS CONTINUOUS ACROSS IT.
+   *
+   * Every claim here is about the seam between two bands, which is exactly what
+   * neither tokenContrast.test.ts nor a screenshot can settle: the first
+   * measures three representative colours and the second shows a picture in
+   * which a one-pixel step and a smooth hand-over look identical.
    */
   describe('the chart band ramp', () => {
-    /** The composited weight of a band at one of its own stops. */
-    const at = (status: MarkerStatus, offset: number) => {
-      const stop = bandPlotGradient(status).find((s) => s.offset === offset);
-      if (!stop) throw new Error(`no stop at ${offset} for ${status}`);
-      return { weight: BAND_WEIGHT[status] * stop.weight, colour: stop.colour };
+    /** A stop by the value it sits at, which is how both callers place them. */
+    const at = (status: MarkerStatus, value: number) => {
+      const stop = bandRampStops(status, RAMP).find((s) => Math.abs(s.value - value) < 1e-9);
+      if (!stop) throw new Error(`no stop at ${value} for ${status}`);
+      return stop;
     };
 
-    it('never draws an out-of-range region fainter than in range, even at the reference bound', () => {
-      // The faintest an above-range band ever gets is where it meets the
-      // reference bound. If that dipped below the flat green beside it, the
-      // ladder would invert for every result that is only just outside.
-      const green = at('IN_RANGE', 0.12).weight;
-      for (const status of ['HIGH', 'LOW'] as const) {
-        const bound = status === 'HIGH' ? at(status, 0) : at(status, 1);
-        expect(bound.weight, `${status} at the reference bound`).toBeGreaterThan(green);
+    it('puts the boundary at the MIDPOINT of its own blend, never at an edge of it', () => {
+      // The whole claim the gradient makes: a result exactly on the limit is
+      // drawn exactly half in each colour. That is true only if the flat part
+      // of each band starts a half-transition away from the boundary and the
+      // boundary itself carries the hinge.
+      const half = RAMP.halfWidth;
+      expect(at('IN_RANGE', RAMP.high).colour).toBe(at('HIGH', RAMP.high).colour);
+      expect(at('IN_RANGE', RAMP.high - half).colour).toBe(at('IN_RANGE', RAMP.low + half).colour);
+      expect(at('HIGH', RAMP.high + half).colour).toBe(at('LOW', RAMP.low - half).colour);
+      // And the flat gold reaches to within a half-transition of BOTH of its
+      // own boundaries, so the middle of "above range" is one colour.
+      expect(at('HIGH', RAMP.high + RAMP.threshold - half).colour).toBe(at('HIGH', RAMP.high + half).colour);
+    });
+
+    it('hands over between two bands at exactly one weight and one colour', () => {
+      // A visible step in the middle of a ramp that is meant to be continuous.
+      // The weights are derived rather than written down in the source, and
+      // asserted here so that changing either cannot quietly reintroduce one.
+      for (const [a, b, value] of [
+        ['IN_RANGE', 'HIGH', RAMP.high],
+        ['IN_RANGE', 'LOW', RAMP.low],
+        ['HIGH', 'SIGNIFICANT_HIGH', RAMP.high + RAMP.threshold],
+        ['LOW', 'SIGNIFICANT_LOW', RAMP.low - RAMP.threshold],
+      ] as const) {
+        expect(at(a, value).weight, `${a}/${b}`).toBeCloseTo(at(b, value).weight, 10);
+        expect(at(a, value).colour, `${a}/${b}`).toBe(at(b, value).colour);
       }
     });
 
-    it('hands over between the two out-of-range bands at exactly one weight', () => {
-      // A visible step in the middle of a ramp that is meant to be continuous.
-      // Derived rather than written down in the source, and asserted here so
-      // that changing either weight cannot quietly reintroduce it.
-      expect(at('HIGH', 1).weight).toBeCloseTo(at('SIGNIFICANT_HIGH', 0).weight, 10);
-      expect(at('LOW', 0).weight).toBeCloseTo(at('SIGNIFICANT_LOW', 1).weight, 10);
+    it('hands over in a hinge hue, and neither hinge is ever a band on its own', () => {
+      // Olive at the reference bound, orange at the threshold. Both are the
+      // midpoint of a blend and neither is a state a result can be in, so
+      // neither may be the colour of any flat region.
+      const boundHinge = at('IN_RANGE', RAMP.high).colour;
+      const thresholdHinge = at('HIGH', RAMP.high + RAMP.threshold).colour;
+      expect(boundHinge).not.toBe(thresholdHinge);
+      const flats = [
+        at('IN_RANGE', RAMP.low + RAMP.halfWidth).colour,
+        at('HIGH', RAMP.high + RAMP.halfWidth).colour,
+        at('SIGNIFICANT_HIGH', RAMP.high + RAMP.threshold + RAMP.halfWidth).colour,
+      ];
+      for (const flat of flats) {
+        expect(flat).not.toBe(boundHinge);
+        expect(flat).not.toBe(thresholdHinge);
+      }
+      // And in range is one hue across its own flat middle: the resting state
+      // reads as one region rather than as a vignette.
+      expect(at('IN_RANGE', RAMP.low + RAMP.halfWidth).colour).toBe(at('IN_RANGE', RAMP.high - RAMP.halfWidth).colour);
     });
 
-    it('hands over in orange, which is the transition and never a state', () => {
-      expect(at('HIGH', 1).colour).toBe(at('SIGNIFICANT_HIGH', 0).colour);
-      expect(at('LOW', 0).colour).toBe(at('SIGNIFICANT_LOW', 1).colour);
-      // And in range is one hue from end to end: the resting state reads as one
-      // region, so nothing in it ramps toward the colour of being outside it.
-      const green = new Set(bandPlotGradient('IN_RANGE').map((s) => s.colour));
-      expect(green.size).toBe(1);
+    it('keeps the weight ladder rising outward, at the boundaries as well as across them', () => {
+      const weightAt = (status: MarkerStatus, value: number) => at(status, value).weight;
+      const green = weightAt('IN_RANGE', RAMP.low + RAMP.halfWidth);
+      const bound = weightAt('IN_RANGE', RAMP.high);
+      const gold = weightAt('HIGH', RAMP.high + RAMP.halfWidth);
+      const threshold = weightAt('HIGH', RAMP.high + RAMP.threshold);
+      const red = weightAt('SIGNIFICANT_HIGH', RAMP.high + RAMP.threshold + RAMP.halfWidth);
+      expect(green).toBeLessThan(bound);
+      expect(bound).toBeLessThan(gold);
+      expect(gold).toBeLessThan(threshold);
+      expect(threshold).toBeLessThan(red);
+      expect(green).toBe(BAND_WEIGHT.IN_RANGE);
+      expect(gold).toBe(BAND_WEIGHT.HIGH);
+      expect(red).toBe(BAND_WEIGHT.SIGNIFICANT_HIGH);
+    });
+
+    it('never emits stops out of order, however narrow the band', () => {
+      // A range narrower than one transition zone. The flat part collapses to
+      // the band's own midpoint rather than crossing itself, which is what
+      // stops a gradient being handed a stop list that runs backwards.
+      const narrow = { low: 10, high: 10.01, threshold: 0.005, halfWidth: 5 };
+      for (const band of statusBands(narrow.low, narrow.high, narrow.threshold)) {
+        const stops = bandRampStops(band.status, narrow);
+        expect([...stops].sort((a, b) => a.value - b.value), band.status).toEqual(stops);
+      }
     });
   });
 

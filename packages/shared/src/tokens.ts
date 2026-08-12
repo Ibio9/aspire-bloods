@@ -143,14 +143,23 @@ export const inkScale = {
 // ---------------------------------------------------------------------------
 // The traffic-light hues.
 //
-// Three hues carry the five states, plus a fourth that is never a state:
+// Three hues carry the five states, plus TWO HINGES that are never states:
 //
 //   significantLow / significantHigh → RED
 //   low            / high            → YELLOW
 //   inRange                          → GREEN
-//   ORANGE is the transition between yellow and red. It is used for the
-//          gradient in the range bar and for the shoulder of a chart band,
-//          and it is never a discrete status of its own.
+//   OLIVE is the transition between green and yellow, drawn at a REFERENCE
+//          BOUND. ORANGE is the transition between yellow and red, drawn at a
+//          SIGNIFICANTLY-OUT THRESHOLD. Neither is ever a status of its own.
+//
+// THERE ARE TWO HINGES BECAUSE THERE ARE TWO BOUNDARIES (Aug 2026). Orange was
+// on its own for as long as the ramp ran ACROSS a band — yellow at the
+// reference bound shading out to orange at the threshold — which put the
+// colour change in the middle of a region and a hard edge at the boundary. The
+// gradient sits AT each boundary now, centred on it, so a value one unit inside
+// the range and one unit outside it are drawn a hair apart rather than in two
+// different colours. That needs a colour for the midpoint of green→yellow in
+// exactly the way the threshold already had one for yellow→red.
 //
 // They cannot be derived from a palette with no green/yellow/red in it, so
 // they are picked — but picked against two constraints at once, which is what
@@ -170,11 +179,21 @@ export const inkScale = {
 // ---------------------------------------------------------------------------
 
 export const statusHue = {
-  /** Warm olive-green. Unmistakably green, never a signal green. */
+  /** Warm leaf-green. Unmistakably green, never a signal green. */
   green: '#5E8C3A',
+  /**
+   * The hinge at a REFERENCE BOUND — never a state.
+   *
+   * The exact RGB midpoint of green and yellow, written out rather than
+   * computed so the palette stays a list of hexes somebody can read: (0x5E +
+   * 0xC7)/2 = 0x93, (0x8C + 0x9A)/2 = 0x93, (0x3A + 0x16)/2 = 0x28. It has to
+   * be the midpoint, because the whole claim the gradient makes is that a
+   * result sitting exactly on the limit is drawn exactly half in each colour.
+   */
+  olive: '#939328',
   /** Warm gold. Yellow at this luminance, not lemon and not brown. */
   yellow: '#C79A16',
-  /** The transition only — never a state. */
+  /** The hinge at a SIGNIFICANTLY-OUT THRESHOLD — never a state. */
   orange: '#C4711F',
   /** Warm brick-red. Unmistakably red, never a web #f00 alert. */
   red: '#B23A28',
@@ -200,7 +219,9 @@ function statusTextHex(hue: StatusHue): string {
   // pulling down to reach 4.5:1 — the amount is per hue rather than one
   // constant, so each lands just past the threshold instead of all three
   // being dragged to the darkest one's level.
-  const toward: Record<StatusHue, number> = { green: 0.45, yellow: 0.63, orange: 0.49, red: 0.22 };
+  // Olive is carried for completeness — it is a hinge, never a state, so no
+  // status label is ever set in it — and it sits between its two neighbours.
+  const toward: Record<StatusHue, number> = { green: 0.45, olive: 0.54, yellow: 0.63, orange: 0.49, red: 0.22 };
   return mix(statusHue[hue], brand.espresso, toward[hue]);
 }
 
@@ -341,7 +362,29 @@ const TINT_MIX = {
  * yellow starts far brighter than the others, so a single value that made
  * yellow legible on its own band would drag green and red into mud.
  */
-const MARK_SHIFT: Record<StatusHue, number> = { green: 0.18, yellow: 0.4, orange: 0.24, red: 0.12 };
+const MARK_SHIFT: Record<StatusHue, number> = { green: 0.18, olive: 0.24, yellow: 0.44, orange: 0.34, red: 0.12 };
+
+/**
+ * The same, in dark — and it is a SEPARATE RECORD now (Aug 2026), because the
+ * bands got stronger and the mark has to keep standing off its own band.
+ *
+ * The two themes fail in opposite directions, which is why one record could not
+ * serve both. A mark shifts toward the theme's TEXT tone: in light that is
+ * espresso, so a bigger shift makes the mark darker and it gains contrast
+ * against a pale band; in dark it is a warm cream, so a bigger shift makes the
+ * mark lighter and it gains contrast against a dark one. Raising `BAND_WEIGHT`
+ * therefore needs MORE shift in both themes — and by different amounts per hue,
+ * since the four do not start at the same luminance in either.
+ *
+ * Red in dark is the one that actually bound. At the old 0.12 it measured
+ * 2.7:1 against the new significantly-out band, which is a point mark
+ * disappearing into the region it is standing on — the failure the shape layer
+ * cannot afford, since shape is what carries status when colour is taken away.
+ * Solved per hue for the SMALLEST shift that clears 3.2:1 on its own band at
+ * that band's own weight, because every step past that is chroma spent for
+ * nothing. tokenContrast.test.ts measures the result at 3:1.
+ */
+const MARK_SHIFT_DARK: Record<StatusHue, number> = { green: 0.18, olive: 0.16, yellow: 0.16, orange: 0.24, red: 0.36 };
 
 /**
  * How far each hue is lifted toward the theme's text tone before anything in
@@ -353,7 +396,7 @@ const MARK_SHIFT: Record<StatusHue, number> = { green: 0.18, yellow: 0.4, orange
  * least because it starts brightest; red gets the most because a brick red is
  * the darkest of the four and the one most at risk of disappearing.
  */
-const DARK_HUE_LIFT: Record<StatusHue, number> = { green: 0.2, yellow: 0.1, orange: 0.14, red: 0.26 };
+const DARK_HUE_LIFT: Record<StatusHue, number> = { green: 0.2, olive: 0.15, yellow: 0.1, orange: 0.14, red: 0.26 };
 
 /**
  * The strength of a dark FILL — the fraction of the lifted hue that survives
@@ -370,7 +413,7 @@ const DARK_HUE_LIFT: Record<StatusHue, number> = { green: 0.2, yellow: 0.1, oran
  * mark still standing off its own band.
  */
 const DARK_FILL = { band: 0.46, track: 0.78, edge: 0.94 } as const;
-const DARK_FILL_HUE: Record<StatusHue, number> = { green: 1, yellow: 0.82, orange: 0.9, red: 1.08 };
+const DARK_FILL_HUE: Record<StatusHue, number> = { green: 1, olive: 0.9, yellow: 0.82, orange: 0.9, red: 1.08 };
 
 /**
  * THE `plot` ROLE — a hue meant to be COMPOSITED, not painted.
@@ -474,20 +517,80 @@ const DARK_FILL_HUE: Record<StatusHue, number> = { green: 1, yellow: 0.82, orang
  * of the solve (the ladder must hold in DARK, where a saturated red is darker
  * than a gold and will sit below it unless its lightness is raised for it).
  *
- * Solved at 0.11 / 0.21 / 0.28. Composite saturation on the dark card, against
- * the reduced weights it replaces: green 0.24 → 0.33, gold 0.33 → 0.45,
- * red 0.34 → 0.46, orange 0.47 → 0.60.
+ * ------------------------------------------------------------------------
+ * RE-SOLVED A THIRD TIME (Aug 2026), AND LIGHT IS NOW SOLVED TOO.
+ * ------------------------------------------------------------------------
+ *
+ * Two things were wrong and only one of them was in this file.
+ *
+ * FIRST: LIGHT WAS NEVER SOLVED AT ALL. `--c-hue-*-plot` in light was
+ * `statusHue[hue]` — the hue itself, unaltered — on the reasoning that light
+ * mode needs no correction. That is true of a PAINTED colour and false of a
+ * composited one. The brand green is a 41%-saturation leaf green, so 11% of it
+ * over a near-white card landed at **hsl(90, 0.25) with a chroma of 10/255**:
+ * a grey with a rumour of green in it, which is exactly the "too muted to read
+ * as green" the redesign was asked to fix. Every hue is now solved in BOTH
+ * themes, and this record is keyed by theme first.
+ *
+ * SECOND: THE OBJECTIVE WAS THE WRONG NUMBER. The previous two solves maximised
+ * the composite's HSL SATURATION, which is a ratio and therefore says nothing
+ * about how much colour is actually present: a pale pink and a saturated red
+ * can report the same figure. What a reader means by "unmistakably green" is
+ * CHROMA — distance from the neutral axis — and chroma of a composited band is
+ * very nearly `weight × chroma(plot)`. So the objective is chroma, and the
+ * consequence is the one the old objective hid: **you cannot raise the chroma
+ * of a band without raising its weight.** Hence BAND_WEIGHT going up as part of
+ * the same change.
+ *
+ * The search is otherwise as before — over (saturation, lightness) at the hue's
+ * own angle, per theme, subject to:
+ *
+ *   1. the composited band lands within 7% of its own rung on the weight ladder
+ *      (which is what keeps the two themes within the test's 20%, and in
+ *      practice holds them inside 15%);
+ *   2. the ladder holds in both themes — in range fainter than the bound hinge,
+ *      fainter than out, fainter than the threshold hinge, fainter than
+ *      significantly out — enforced DURING the search rather than checked after
+ *      it, which is what forces red's lightness up: a saturated brick red is the
+ *      darkest of the five and sits under orange otherwise;
+ *   3. the composite's hue within 11° of its counterpart in the other theme, so
+ *      "green" is the same green in both.
+ *
+ * A POINT MARK CLEARING 3:1 ON ITS OWN BAND used to be a fourth constraint here
+ * and is not one any more — it is solved for separately, in `MARK_SHIFT` /
+ * `MARK_SHIFT_DARK`. Leaving it in this search meant the BAND was being
+ * desaturated to suit the mark: dark red's ceiling under it was a 36%-saturation
+ * band, i.e. the maroon this has now been through twice. The mark moves, the
+ * band does not.
+ *
+ * Solved at 0.15 / 0.28 / 0.40. Composite CHROMA off the card, before → after:
+ *
+ *     light   green 0.039 → 0.114   gold 0.149 → 0.200   red 0.153 → 0.400
+ *     dark    green 0.122 → 0.125   gold 0.180 → 0.224   red 0.251 → 0.337
+ *
+ * PLOT_LIFT, BAND_WEIGHT AND MARK_SHIFT ARE ONE DECISION. Change any of the
+ * three and all of it has to be solved again.
  */
-const PLOT_LIFT: Record<StatusHue, { s: number; l: number }> = {
-  green: { s: 0.98, l: 0.49 },
-  yellow: { s: 0.96, l: 0.39 },
-  orange: { s: 1, l: 0.49 },
-  // Lightness well above the others, and it is the ladder that puts it there:
-  // a fully saturated brick red is the darkest of the four, so at equal
-  // lightness the significantly-out band measures FAINTER off a near-black card
-  // than the gold band below it — which inverts the one thing the weights exist
-  // to say.
-  red: { s: 1, l: 0.59 },
+const PLOT_LIFT: Record<'light' | 'dark', Record<StatusHue, { s: number; l: number }>> = {
+  light: {
+    green: { s: 1, l: 0.36 },
+    olive: { s: 0.98, l: 0.3 },
+    yellow: { s: 1, l: 0.35 },
+    orange: { s: 1, l: 0.39 },
+    red: { s: 1, l: 0.5 },
+  },
+  dark: {
+    green: { s: 0.96, l: 0.38 },
+    olive: { s: 1, l: 0.31 },
+    yellow: { s: 1, l: 0.36 },
+    orange: { s: 0.98, l: 0.48 },
+    // Lightness well above the others, and it is the ladder that puts it there:
+    // a fully saturated brick red is the darkest of the five, so at equal
+    // lightness the significantly-out band measures FAINTER off a near-black
+    // card than the gold band below it — which inverts the one thing the
+    // weights exist to say.
+    red: { s: 1, l: 0.6 },
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -622,7 +725,7 @@ function darkStatusHex(hue: StatusHue): string {
   // on the wash, the page, the card and the input — spending more than that is
   // spending chroma for nothing, and chroma is the whole reason a status colour
   // exists.
-  const toward: Record<StatusHue, number> = { green: 0.44, yellow: 0.34, orange: 0.42, red: 0.5 };
+  const toward: Record<StatusHue, number> = { green: 0.44, olive: 0.39, yellow: 0.34, orange: 0.42, red: 0.5 };
   return mix(statusHue[hue], darkText, toward[hue]);
 }
 
@@ -789,9 +892,10 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    */
   out['--c-onaccent'] = dark ? mix(darkPage, '#000000', 0.25) : brand.white;
 
-  // The four hues, per role. Emitted per HUE and not only per status because
-  // orange is a real token here (the transition stop in a range-bar gradient
-  // and the shoulder of a chart band) while never being a status of its own.
+  // The five hues, per role. Emitted per HUE and not only per status because
+  // the two HINGES are real tokens here — olive at a reference bound, orange at
+  // a significantly-out threshold, each the midpoint of the gradient centred on
+  // its own boundary — while neither is ever a status of its own.
   for (const hue of Object.keys(statusHue) as StatusHue[]) {
     const h = themedHue(hue);
     // The wash is the card's own background, so it is mixed FROM the card in
@@ -799,15 +903,15 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
     // neutral black instead — see darkFill.
     out[`--c-hue-${hue}-wash`] = mix(tintTowards, h, dark ? TINT_MIX.washDark : TINT_MIX.wash);
     out[`--c-hue-${hue}-band`] = dark ? darkFill(hue, 'band') : mix(tintTowards, h, TINT_MIX.band);
-    // The one role that is composited rather than painted — see PLOT_LIFT.
-    out[`--c-hue-${hue}-plot`] = dark
-      ? reHsl(statusHue[hue], PLOT_LIFT[hue].s, PLOT_LIFT[hue].l)
-      : statusHue[hue];
+    // The one role that is composited rather than painted, and SOLVED IN BOTH
+    // THEMES since Aug 2026 — light used to be the raw hue, which is what made
+    // the in-range band a grey with a rumour of green in it. See PLOT_LIFT.
+    out[`--c-hue-${hue}-plot`] = reHsl(statusHue[hue], PLOT_LIFT[mode][hue].s, PLOT_LIFT[mode][hue].l);
     out[`--c-hue-${hue}-track`] = dark ? darkFill(hue, 'track') : mix(tintTowards, h, TINT_MIX.track);
     out[`--c-hue-${hue}-edge`] = dark ? darkFill(hue, 'edge') : mix(tintTowards, h, TINT_MIX.edge);
     // Away from the surface rather than toward it — see TINT_MIX.mark.
     out[`--c-hue-${hue}-mark`] = dark
-      ? mix(h, darkText, MARK_SHIFT[hue])
+      ? mix(h, darkText, MARK_SHIFT_DARK[hue])
       : mix(statusHue[hue], brand.espresso, MARK_SHIFT[hue]);
   }
 
@@ -834,8 +938,23 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
   // `--c-tint-*-band`); everything structural — axes, gridlines, the trend
   // line itself, the optimal band — stays on the four brand hues, so the only
   // colour in a chart that means anything is the colour that means status.
-  out['--c-chart-line'] = dark ? darkScales.bronze[600] : brand.bronze;
-  out['--c-chart-point'] = dark ? darkScales.bronze[600] : brand.bronze;
+  /**
+   * THE LINE, BRIGHTENED BECAUSE THE BANDS GOT HEAVIER (Aug 2026).
+   *
+   * The rule the redesign was given is the right way round and worth keeping
+   * written down: if brighter bands bury the line, brighten the LINE — never
+   * dull the bands back down. The line is the content and the bands are the
+   * context, and that ordering is a fact about the chart rather than about how
+   * much ink is on it.
+   *
+   * So it steps AWAY from the surface in each theme rather than staying at the
+   * brand bronze: `bronze-700` on the light card, and the lifted `bronze-500`
+   * in dark. Measured against the heaviest band it ever crosses (the
+   * significantly-out red at `BAND_WEIGHT.SIGNIFICANT_HIGH`), which is the only
+   * place burying it was ever a risk. Paired with `chart.lineWidth`.
+   */
+  out['--c-chart-line'] = dark ? darkScales.bronze[500] : scales.bronze[700];
+  out['--c-chart-point'] = dark ? darkScales.bronze[500] : scales.bronze[700];
   /**
    * The ring around a plotted point, and it is THE CARD'S OWN SURFACE in both
    * themes rather than white in light and the card in dark.
@@ -849,7 +968,23 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * choice.
    */
   out['--c-chart-point-ring'] = s.cream[50];
-  out['--c-chart-reference-edge'] = dark ? darkScales.taupe[800] : scales.taupe[600];
+  /**
+   * The hairline that bounds a band — AND IT WENT DARKER IN LIGHT (Aug 2026).
+   *
+   * It has one job that nothing else can do: with the bands blending across a
+   * boundary rather than meeting at a step, this line is the only thing saying
+   * exactly where the reference bound is, and it is the thing that has to
+   * survive the colour being taken away. At `taupe-600` over the new
+   * significantly-out band it measured **1.11:1** — a line nobody can see,
+   * drawn across the one region where being able to see it matters most.
+   *
+   * `taupe-900` in light and `taupe-800` in dark: 2.05:1 and 2.32:1 on that
+   * same band, which is a hairline in both themes rather than a hairline in one
+   * and a rumour in the other. It is deliberately not `espresso`, which at
+   * 2.57:1 starts to compete with the trend line — the boundary is furniture
+   * and the reader's own result is not.
+   */
+  out['--c-chart-reference-edge'] = dark ? darkScales.taupe[800] : scales.taupe[900];
   out['--c-chart-optimal-band'] = dark ? darkScales.bronze[400] : scales.bronze[300];
   out['--c-chart-optimal-edge'] = dark ? darkScales.bronze[700] : scales.bronze[600];
   out['--c-chart-axis-line'] = dark ? darkScales.taupe[600] : brand.taupe;
@@ -1194,8 +1329,9 @@ export const statusTint = {
 
 /**
  * The same five roles per HUE rather than per status — the only way to reach
- * orange, which is the transition stop in a range-bar gradient and the
- * shoulder of a chart band, and is never a status.
+ * the two HINGES, which are the midpoint of the gradient drawn at a boundary
+ * (olive at a reference bound, orange at a significantly-out threshold) and are
+ * never statuses.
  */
 function hueSet(hue: StatusHue) {
   return {
@@ -1210,6 +1346,7 @@ function hueSet(hue: StatusHue) {
 
 export const hueTint = {
   green: hueSet('green'),
+  olive: hueSet('olive'),
   yellow: hueSet('yellow'),
   orange: hueSet('orange'),
   red: hueSet('red'),
@@ -1248,6 +1385,13 @@ export const hueTint = {
 export const chart = {
   /** The trend line itself. Bronze — it says "this is your series", not "this is good". */
   line: 'rgb(var(--c-chart-line))',
+  /**
+   * And its weight. A token rather than a literal on the `<Line>` because it is
+   * half of one decision with `BAND_WEIGHT`: the bands were raised to make the
+   * regions unmistakable, and the answer to a line competing with them is a
+   * heavier line, never a lighter band.
+   */
+  lineWidth: 3,
   point: 'rgb(var(--c-chart-point))',
   /** Ring around every point so it stays legible against the band it lands on. */
   pointRing: 'rgb(var(--c-chart-point-ring))',
@@ -1265,8 +1409,8 @@ export const chart = {
    * result. The reference bounds still take twice the weight of the severity
    * thresholds, because that is the band the chart is actually about.
    */
-  referenceEdgeOpacity: 0.55,
-  severityEdgeOpacity: 0.28,
+  referenceEdgeOpacity: 0.62,
+  severityEdgeOpacity: 0.4,
   /**
    * THE STEP: where a marker's reference range changed between two results.
    *

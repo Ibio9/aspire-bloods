@@ -369,11 +369,14 @@ export function PatientOverview() {
         )}
       </header>
 
-      {/* `relative` is what the rail positions against — see .section-rail in
-          globals.css, where the whole of "it cannot collide with anything" is
-          derived from this box being the content column rather than the
-          viewport. */}
-      <div className="relative mt-14 flex flex-col gap-16 md:gap-24">
+      {/* `relative` is what the rail positions against, and `xl:pr-36` is the
+          room it takes — see .section-rail in globals.css, where the whole of
+          "it cannot collide with anything" is derived from this box being the
+          content column rather than the viewport, and from the content inside
+          it being inset by exactly the padding the rail is drawn in. The
+          reservation does not change with the rail's state, so the page does
+          not reflow under the reader on their first scroll. */}
+      <div className="relative mt-14 flex flex-col gap-16 md:gap-24 xl:pr-36">
       <SectionRail sections={railSections} />
 
       {/* ---------------------------------------------------------------

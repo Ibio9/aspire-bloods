@@ -203,19 +203,21 @@ test.describe('traffic-light status', () => {
         expect(band.stops.length, `${theme}: gradient ${band.gradientId} has no stops`).toBeGreaterThanOrEqual(2);
       }
 
-      // EVERY STOP IS A WEIGHT THE TOKENS PRODUCE. The three peaks and the two
-      // handover fractions between them, computed here from the same numbers
-      // rather than transcribed — a stop at 0.5 could not survive this, and
-      // neither could a band drawn at a weight nobody chose.
-      const PEAK = { inRange: 0.11, out: 0.21, significant: 0.28 };
+      // EVERY STOP IS A WEIGHT THE TOKENS PRODUCE, AND THERE ARE EXACTLY FIVE
+      // OF THEM (Aug 2026). The ramp is at the BOUNDARY now rather than across
+      // the band, so a band is flat at its own weight and hands over to its
+      // neighbour at the midpoint of the two — which means the whole plot is
+      // painted at three band weights and the two hinges between them, and
+      // nothing else. Computed here from the same three numbers rather than
+      // transcribed: a stop at 0.5 could not survive this, and neither could a
+      // band drawn at a weight nobody chose.
+      const PEAK = { inRange: 0.15, out: 0.28, significant: 0.4 };
       const ALLOWED = [
         PEAK.inRange,
-        PEAK.inRange * 0.86, // the green easing off at its own edges
+        (PEAK.inRange + PEAK.out) / 2, // the hinge at a reference bound
         PEAK.out,
-        PEAK.out * 0.62, // an out-of-range band where it meets the reference bound
-        PEAK.out * 0.82,
+        (PEAK.out + PEAK.significant) / 2, // the hinge at a severity threshold
         PEAK.significant,
-        PEAK.out, // and where significantly-out begins, which is the same weight
       ];
       for (const band of bandPaint) {
         for (const stop of band.stops) {
@@ -228,13 +230,27 @@ test.describe('traffic-light status', () => {
       }
 
       // THE LADDER IS ON SCREEN, not merely in the token file: the heaviest
-      // stop anywhere is the significantly-out peak and the lightest is inside
-      // the in-range band, so a chart that painted every band at one value
+      // stop anywhere is the significantly-out peak and the lightest is the
+      // flat in-range green, so a chart that painted every band at one value
       // could not pass by accident.
       const allStops = bandPaint.flatMap((b) => b.stops);
       expect(Math.max(...allStops)).toBeCloseTo(PEAK.significant, 2);
-      expect(Math.min(...allStops)).toBeLessThan(PEAK.out * 0.62 + 0.001);
+      expect(Math.min(...allStops)).toBeCloseTo(PEAK.inRange, 2);
       expect(new Set(allStops.map((o) => o.toFixed(3))).size, `${theme}: every band stop is the same weight`).toBeGreaterThanOrEqual(3);
+
+      // AND THE HANDOVER IS SHARED. The two bands either side of a boundary
+      // both carry a stop at the midpoint weight, which is what makes the fill
+      // continuous across a boundary drawn as two separate shapes. A ramp that
+      // finished at one weight and restarted at another would put a visible
+      // step in the middle of the transition — the exact thing moving the
+      // gradient to the boundary was meant to remove.
+      for (const hinge of [(PEAK.inRange + PEAK.out) / 2, (PEAK.out + PEAK.significant) / 2]) {
+        const carrying = bandPaint.filter((b) => b.stops.some((s) => Math.abs(s - hinge) < 0.002));
+        expect(
+          carrying.length,
+          `${theme}: the ${hinge.toFixed(3)} hinge is carried by ${carrying.length} band(s); both sides must name it`,
+        ).toBeGreaterThanOrEqual(2);
+      }
 
       // ONE GRADIENT PER DRAWN BAND, not one per status: the stops are placed
       // by value and mapped onto each rect's own clamped extent, so two bands
@@ -248,7 +264,7 @@ test.describe('traffic-light status', () => {
       // paints, and both have to hold.
       const hues = await page.evaluate(() => {
         const styles = getComputedStyle(document.documentElement);
-        return ['green', 'yellow', 'orange', 'red'].flatMap((h) =>
+        return ['green', 'olive', 'yellow', 'orange', 'red'].flatMap((h) =>
           ['band', 'plot'].map((role) => ({
             hue: `${h}-${role}`,
             channels: styles.getPropertyValue(`--c-hue-${h}-${role}`).trim(),

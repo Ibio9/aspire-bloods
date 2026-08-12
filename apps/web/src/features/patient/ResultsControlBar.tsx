@@ -13,6 +13,7 @@ import {
   type ResultSort,
   type StatusFilter,
 } from '../../lib/markerCopy';
+import { RESULT_TYPE_FILTERS } from './reportSections';
 import {
   RESULTS_VIEWS,
   filtersApplied,
@@ -85,7 +86,7 @@ function FilterChip({ value, onClear }: { value: string; onClear: () => void }) 
  *   view switch, and whatever is currently narrowing the page. These are what
  *   a patient reaches for repeatedly while reading 187 markers.
  *
- *   The fold, below it: Show, Health area, Group by and Sort by. Closed on
+ *   The fold, below it: Show, Category, Group by and Sort by. Closed on
  *   load, behind a Filters disclosure that brings it straight back.
  *
  * NO BOX, AND NO BAND (Aug 2026). It used to be a full-bleed sticky band —
@@ -165,6 +166,7 @@ export function ResultsControlBar({
   onChange,
   onClearFilters,
   categories,
+  resultTypes,
   statusCounts,
   arrangement,
   onArrange,
@@ -179,6 +181,13 @@ export function ResultsControlBar({
   onClearFilters: () => void;
   /** Only the areas the active view can return something for, plus whatever is currently chosen. */
   categories: { key: string; name: string }[];
+  /**
+   * The result types this view actually contains — empty everywhere but an open
+   * report, which is the only screen with sections other than the marker grid
+   * on it. Same rule as the health areas: a picker never offers a value that
+   * can only ever return nothing.
+   */
+  resultTypes: { key: string; name: string }[];
   /** Counts beside each status option, from the active view's own marker set. */
   statusCounts?: Record<StatusFilter, number>;
   arrangement: ResultsArrangement;
@@ -295,7 +304,16 @@ export function ResultsControlBar({
   }, [open]);
 
   const statusLabel = STATUS_FILTERS.find((f) => f.value === filters.statusFilter)?.label;
-  const categoryLabel = categories.find((c) => c.key === filters.categoryFilter)?.name;
+  // One value space, two vocabularies — so the chip has to look in both or a
+  // result-type filter appears in the row as "Selected category" and the reader
+  // cannot tell what they turned on. The result types are read from the CLOSED
+  // LIST rather than from what this view happens to offer, because a filter set
+  // inside a report and carried out of it is exactly the case where a chip has
+  // to keep naming itself: switching view must never silently drop a filter,
+  // and a chip reading "Selected category" is a filter nobody can identify.
+  const categoryLabel = [...RESULT_TYPE_FILTERS.map((t) => ({ key: t.value, name: t.label })), ...categories].find(
+    (c) => c.key === filters.categoryFilter,
+  )?.name;
   // What is narrowing the page from behind the fold — the search box is in the
   // row above and says so for itself.
   const narrowing = (filters.statusFilter === 'ALL' ? 0 : 1) + (filters.categoryFilter === 'ALL' ? 0 : 1);
@@ -424,7 +442,7 @@ export function ResultsControlBar({
             <FilterChip value={statusLabel ?? filters.statusFilter} onClear={() => onChange({ statusFilter: 'ALL' })} />
           )}
           {filters.categoryFilter !== 'ALL' && (
-            <FilterChip value={categoryLabel ?? 'Selected area'} onClear={() => onChange({ categoryFilter: 'ALL' })} />
+            <FilterChip value={categoryLabel ?? 'Selected category'} onClear={() => onChange({ categoryFilter: 'ALL' })} />
           )}
           <button
             type="button"
@@ -472,19 +490,57 @@ export function ResultsControlBar({
                 ))}
               </Select>
             </div>
-            <div className="w-full sm:w-48">
+            {/* CATEGORY, NOT "HEALTH AREA" (Aug 2026) — because it now answers
+                two questions with one control.
+
+                A patient who wants to see only their food sensitivities and a
+                patient who wants to see only their kidney markers are asking
+                the same kind of thing, and until this they had to ask it in two
+                completely different ways: one was a picker at the top of the
+                page, the other was scrolling 5,000px to find a section they
+                did not know existed. Result types sit ABOVE the areas under
+                their own heading, because they are a coarser cut — one names a
+                whole section of the report, the other names a slice through the
+                markers in one of them.
+
+                Grouped rather than merged into one flat list: "Food
+                sensitivity" and "Kidney health" are both answers to "narrow
+                this", and they are not the same KIND of answer. Where a view
+                has no result types to offer (everything but an open report) the
+                group is absent and this is the area picker it always was. */}
+            <div className="w-full sm:w-56">
               <Select
-                label="Health area"
+                label="Category"
                 name="results-category-filter"
                 value={filters.categoryFilter}
                 onChange={(e) => onChange({ categoryFilter: e.target.value })}
               >
-                <option value="ALL">All health areas</option>
-                {categories.map((c) => (
-                  <option key={c.key} value={c.key}>
-                    {c.name}
-                  </option>
-                ))}
+                <option value="ALL">Everything</option>
+                {resultTypes.length > 0 && (
+                  <optgroup label="Result type">
+                    {resultTypes.map((t) => (
+                      <option key={t.key} value={t.key}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {categories.length > 0 &&
+                  (resultTypes.length > 0 ? (
+                    <optgroup label="Health area">
+                      {categories.map((c) => (
+                        <option key={c.key} value={c.key}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : (
+                    categories.map((c) => (
+                      <option key={c.key} value={c.key}>
+                        {c.name}
+                      </option>
+                    ))
+                  ))}
               </Select>
             </div>
             {scope && (

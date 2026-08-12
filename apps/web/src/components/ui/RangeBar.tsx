@@ -1,22 +1,36 @@
 import { useEffect, useState } from 'react';
 import {
-  asMarkerStatus,
+  bandRampStops,
   formatOptimalRange,
   formatReferenceBound,
   formatReferenceRange,
   hueTint,
-  NO_STATUS_PAINT,
+  severityThresholdFor,
   statusBands,
+  TRANSITION_SHARE,
   type MarkerStatusInput,
   type OptimalRangeDTO,
 } from '@aspire-bloods/shared';
 import { statusLabel } from '../../lib/markerCopy';
-import { rangeBarScale } from '../../lib/rangeScale';
+import {
+  RANGE_BAR_UNAVAILABLE,
+  rangeBarScale,
+  type RangeBarScale as Scale,
+  type RangeBarUndrawable,
+} from '../../lib/rangeScale';
 
 interface RangeBarProps {
-  value: number;
-  low: number;
-  high: number;
+  /**
+   * All three are nullable because the wire is: a qualitative result carries no
+   * numeric value, and a marker can reach a screen with one or both reference
+   * bounds missing. Callers guard where they can, but typing these as plain
+   * numbers never stopped a null arriving — it only stopped the component from
+   * being written to survive one. `rangeBarScale` refuses each case by name and
+   * the bar says which in words.
+   */
+  value: number | null | undefined;
+  low: number | null | undefined;
+  high: number | null | undefined;
   /**
    * Nullable because the wire is. Callers already decline to draw a bar for a
    * result that was never placed against its range — this type says so, and the
@@ -64,10 +78,15 @@ interface RangeBarProps {
  *
  * ── THE TRACK ──────────────────────────────────────────────────────────────
  *
- * The traffic light: green across the lab's reference range, shading out
- * through yellow to orange and then red toward the extremes. Every boundary on
- * it comes from THIS result's own range and this marker's own severity
- * threshold. There is no fixed scale anywhere in here.
+ * The traffic light: green across the lab's reference range, gold outside it,
+ * red beyond the significantly-out thresholds — each region FLAT, and each
+ * handing over to the next across a blend CENTRED ON the boundary between them.
+ * The same instrument as the trend chart's bands, from the same derivation
+ * (`bandRampStops`), so the bar and the chart speak one visual language: a
+ * boundary is where the colour changes, and it sits at the midpoint of the
+ * change rather than at its edge. Every boundary comes from THIS result's own
+ * range and this marker's own severity threshold. There is no fixed scale
+ * anywhere in here.
  *
  * Three things stop the colour from being the whole story, in the order they
  * are read: the figures under the bar, the hairline ticks at the reference
@@ -92,34 +111,60 @@ interface RangeBarProps {
  */
 export function RangeBar({ value, low, high, status, severityThreshold = null, optimal = null, unit = null }: RangeBarProps) {
   const scale = rangeBarScale({ low, high, value, severityThreshold });
-  const { pct } = scale;
-  const clamp = (v: number) => Math.min(100, Math.max(0, v));
-  const bandLeft = clamp(pct(low));
-  const bandRight = clamp(pct(high));
+
+  // Sweeps in from the middle of the band to its true position once, on mount — a two-step
+  // render (start position, then true position after a frame) so the browser has something to
+  // transition between. motion-safe: strips the transition entirely under reduced-motion, so it
+  // lands straight at the true position instead of "moving slowly."
+  // Before the refusal below, because a hook that runs on some renders and not
+  // others is not a hook.
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setSettled(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  const optimalBand = optimal ? formatOptimalRange(optimal.low, optimal.high, optimal.unit) : null;
+  const label =
+    accessibleLabel(value, low, high, status) +
+    (optimalBand ? `. Optimal range ${optimalBand}, ${optimal!.within ? 'within optimal' : 'outside optimal'}` : '');
+
+  // NOTHING DRAWN, AND THE FACT SAID INSTEAD — with the sentence naming WHICH
+  // fact. A reference range rendered as a sliver at one end of a bar is not a
+  // scale; neither is a result with no range, a range with no width, or a
+  // result with no numeric value. All four used to share one sentence about
+  // being far outside the reference range, which was true of exactly one of
+  // them. See RANGE_BAR_UNAVAILABLE.
+  if (scale.outOfScale) {
+    return <UnavailableBar reason={scale.undrawable} value={value} low={low} high={high} unit={unit} label={label} />;
+  }
+
+  // Past the refusal, and only past it, these are real numbers — the scale
+  // carries the ones it was built from, so the bar and its axis cannot be
+  // reading two different versions of the same result.
+  const { pct, low: lowN, high: highN, value: valueN } = scale;
+  const clamp = clampPct;
+  const bandLeft = clamp(pct(lowN));
+  const bandRight = clamp(pct(highN));
 
   // NOT CLAMPED. `rangeBarScale` guarantees the value is inside the scale with
   // headroom at both ends, so a clamp here could only ever hide a scale that
   // had stopped containing its own value — which is precisely the bug this
   // component was rebuilt around.
-  const pointLeft = pct(value);
+  const pointLeft = pct(valueN);
 
-  // The five regions, in value order, clipped to what is actually on screen.
-  // Each is drawn as its own segment so the boundaries land on real numbers
-  // rather than on percentages of a bar. The two outer bands are open-ended —
-  // "significantly above" has no ceiling — which is what the clamp is for.
-  const segments = statusBands(low, high, severityThreshold)
-    .map((b) => {
-      const from = clamp(pct(b.from ?? scale.min));
-      const to = clamp(pct(b.to ?? scale.max));
-      return { ...b, from, to, width: Math.max(0, to - from) };
-    })
-    .filter((s) => s.width > 0);
+  // ONE GRADIENT ACROSS THE WHOLE TRACK, rather than five abutting segments.
+  // The five regions used to be five positioned elements, which is what a
+  // per-band ramp needed; a ramp that lives AT the boundaries is one continuous
+  // statement from end to end, and drawing it as one is what makes it
+  // impossible for two neighbours to disagree by a rounding at the seam.
+  const track = trackGradient(scale, lowN, highN, severityThreshold);
 
   // The optimal region, as the part of the reference range that is also
   // optimal — see the note above. A one-sided band ("below 33") takes the
   // reference bound as its open end, which is what makes it a narrowing.
-  const optimalFrom = optimal ? Math.max(low, optimal.low ?? low) : 0;
-  const optimalTo = optimal ? Math.min(high, optimal.high ?? high) : 0;
+  const optimalFrom = optimal ? Math.max(lowN, optimal.low ?? lowN) : 0;
+  const optimalTo = optimal ? Math.min(highN, optimal.high ?? highN) : 0;
   const optimalLeft = optimal ? clamp(pct(optimalFrom)) : 0;
   const optimalRight = optimal ? clamp(pct(optimalTo)) : 0;
   const optimalWidth = Math.max(0, optimalRight - optimalLeft);
@@ -128,42 +173,12 @@ export function RangeBar({ value, low, high, status, severityThreshold = null, o
   // rather than a second mark.
   const optimalEdges = optimal
     ? [
-        ...(optimalFrom > low ? [optimalLeft] : []),
-        ...(optimalTo < high ? [optimalRight] : []),
+        ...(optimalFrom > lowN ? [optimalLeft] : []),
+        ...(optimalTo < highN ? [optimalRight] : []),
       ]
     : [];
 
-  // Sweeps in from the middle of the band to its true position once, on mount — a two-step
-  // render (start position, then true position after a frame) so the browser has something to
-  // transition between. motion-safe: strips the transition entirely under reduced-motion, so it
-  // lands straight at the true position instead of "moving slowly."
-  const [settled, setSettled] = useState(false);
-  useEffect(() => {
-    const id = requestAnimationFrame(() => setSettled(true));
-    return () => cancelAnimationFrame(id);
-  }, []);
   const displayLeft = settled ? pointLeft : bandLeft + (bandRight - bandLeft) / 2;
-
-  const optimalBand = optimal ? formatOptimalRange(optimal.low, optimal.high, optimal.unit) : null;
-  const label =
-    `Result ${value}, reference range ${formatReferenceRange(low, high)}, status: ${statusLabel(status)}` +
-    (optimalBand ? `. Optimal range ${optimalBand}, ${optimal!.within ? 'within optimal' : 'outside optimal'}` : '');
-
-  // NOTHING DRAWN, AND THE FACT SAID INSTEAD. A reference range rendered as a
-  // sliver at one end of a bar is not a scale, and a value drawn at an edge is
-  // the failure this component exists to have stopped making.
-  if (scale.outOfScale) {
-    return (
-      <p className="text-xs leading-relaxed text-espresso/85" role="img" aria-label={label}>
-        This result is too far outside the reference range to draw on a scale that shows both. Result{' '}
-        <span className="numeric">
-          {value}
-          {unit ? ` ${unit}` : ''}
-        </span>
-        , reference range <span className="numeric">{formatReferenceRange(low, high, unit)}</span>.
-      </p>
-    );
-  }
 
   return (
     <div className="w-full" role="img" aria-label={label}>
@@ -171,22 +186,7 @@ export function RangeBar({ value, low, high, status, severityThreshold = null, o
           segments to a rounded-input pill — two things one element can't do, so the
           clipping box is inset inside a wrapper the dot is free to overflow. */}
       <div className="relative h-2.5" aria-hidden="true">
-        <div className="absolute inset-0 overflow-hidden rounded-full bg-cream-300">
-          {segments.map((s) => (
-            <div
-              key={s.status}
-              className="absolute inset-y-0"
-              style={{
-                left: `${s.from}%`,
-                width: `${s.width}%`,
-                // In range is flat; the four out-of-range segments are the
-                // transition itself, so each one is a gradient rather than a
-                // block — which is what puts orange between yellow and red
-                // without ever making orange a state of its own.
-                background: gradientFor(s.status),
-              }}
-            />
-          ))}
+        <div className="absolute inset-0 overflow-hidden rounded-full" style={{ background: track }}>
           {optimal && optimalWidth > 0 && (
             // A DEEPENING OF THE SAME GREEN, not a second texture. The optimal
             // range is a narrowing of in-range and this is what a narrowing
@@ -229,9 +229,81 @@ export function RangeBar({ value, low, high, status, severityThreshold = null, o
           style={{ left: `${displayLeft}%` }}
         />
       </div>
-      <ScaleAxis scale={scale} low={low} high={high} />
+      <ScaleAxis scale={scale} />
     </div>
   );
+}
+
+/**
+ * WHAT IS SAID WHEN NOTHING CAN BE DRAWN.
+ *
+ * One sentence naming the reason, then whatever figures actually exist. The
+ * figures are conditional because the reasons are: a result with no numeric
+ * value has no value to print, and a result with no reference range has no
+ * range to print — and this block used to print both unconditionally under a
+ * sentence about being far outside the range, which produced "Result null,
+ * reference range 0–0" on exactly the results least able to afford it.
+ */
+function UnavailableBar({
+  reason,
+  value,
+  low,
+  high,
+  unit,
+  label,
+}: {
+  reason: RangeBarUndrawable;
+  value: number | null | undefined;
+  low: number | null | undefined;
+  high: number | null | undefined;
+  unit: string | null;
+  label: string;
+}) {
+  const hasValue = isNumber(value);
+  const hasRange = isNumber(low) && isNumber(high);
+  return (
+    <p className="text-xs leading-relaxed text-espresso/85" role="img" aria-label={label}>
+      {RANGE_BAR_UNAVAILABLE[reason].long}
+      {hasValue && (
+        <>
+          {' '}
+          Result{' '}
+          <span className="numeric">
+            {value}
+            {unit ? ` ${unit}` : ''}
+          </span>
+          .
+        </>
+      )}
+      {hasRange && (
+        <>
+          {' '}
+          Reference range <span className="numeric">{formatReferenceRange(low, high, unit)}</span>.
+        </>
+      )}
+    </p>
+  );
+}
+
+function isNumber(value: number | null | undefined): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+/**
+ * The one accessible sentence both bars use, and it survives every shape the
+ * wire can produce — a missing value and a missing range are stated rather than
+ * interpolated, because `Result null, reference range NaN–NaN` is what an
+ * unguarded template literal reads out.
+ */
+function accessibleLabel(
+  value: number | null | undefined,
+  low: number | null | undefined,
+  high: number | null | undefined,
+  status: MarkerStatusInput,
+): string {
+  const result = isNumber(value) ? `Result ${value}` : 'Result not available';
+  const range = isNumber(low) && isNumber(high) ? `reference range ${formatReferenceRange(low, high)}` : 'no reference range';
+  return `${result}, ${range}, status: ${statusLabel(status)}`;
 }
 
 /**
@@ -246,71 +318,84 @@ export function RangeBar({ value, low, high, status, severityThreshold = null, o
  * chart's axis follows. A bound carries a short tick up to the track it belongs
  * to and is set in the text colour; a scale end is muted and unmarked.
  *
- * WHERE THEY COLLIDE, THE BOUND WINS AND THE SCALE END GOES. This is the common
- * case rather than an edge one: a marker whose range starts at zero on a scale
- * that also starts at zero has two labels reading "0" in the same place, so
- * dropping the scale end loses nothing at all — the bound label IS the end.
+ * WHERE THEY COLLIDE, THE ONE THAT SURVIVES IS THE ONE THAT IS STILL TRUE OF
+ * THE END. Two labels in the same place is unreadable, so one has to go, and
+ * which one is not a matter of taste:
+ *
+ *  · IDENTICAL TEXT — drop the scale end. This is the common case rather than
+ *    an edge one: a marker whose range starts at zero on a scale that also
+ *    starts at zero has two labels reading "0" in the same place, so dropping
+ *    one loses nothing at all. The bound label IS the end.
+ *  · DIFFERENT TEXT — drop the BOUND'S NUMBER and keep its tick. A reference
+ *    range of 1–1,000,000 draws a scale from 0, which puts the bound "1" at
+ *    0.00005% of the bar: dropping the end would leave "1" sitting at the far
+ *    left of a bar that starts at 0, which is the original bug in miniature —
+ *    a reference bound standing in for a scale end. The end has to be printed,
+ *    because "the printed ends are the scale" is the whole contract; the bound
+ *    keeps its tick, and every surface that draws this bar prints the reference
+ *    range in words beside it.
  */
-function ScaleAxis({
-  scale,
-  low,
-  high,
-}: {
-  scale: ReturnType<typeof rangeBarScale>;
-  low: number;
-  high: number;
-}) {
+function ScaleAxis({ scale }: { scale: Extract<Scale, { outOfScale: false }> }) {
   /**
    * How close two labels may be, as a percentage of the bar, before they are
    * treated as one. Roughly four mono digits at the narrowest place this bar is
    * used (a ~200px card column); wider than that and the allowance is generous,
-   * which is the harmless direction — a dropped scale end is a number the bound
-   * beside it is already saying.
+   * which is the harmless direction.
    */
   const COLLIDE = 14;
   const bounds = [
-    { at: Math.max(0, Math.min(100, scale.pct(low))), text: formatReferenceBound(low) },
-    { at: Math.max(0, Math.min(100, scale.pct(high))), text: formatReferenceBound(high) },
+    { at: clampPct(scale.pct(scale.low)), text: formatReferenceBound(scale.low) },
+    { at: clampPct(scale.pct(scale.high)), text: formatReferenceBound(scale.high) },
   ];
+  // The ends come off the scale itself rather than being formatted here, so
+  // there is no second derivation to disagree with the geometry.
   const ends = [
-    { at: 0, text: trimNumber(scale.min) },
-    { at: 100, text: trimNumber(scale.max) },
-  ].filter((end) => !bounds.some((b) => Math.abs(b.at - end.at) < COLLIDE));
+    { at: 0, text: scale.minLabel },
+    { at: 100, text: scale.maxLabel },
+  ];
+  const collides = (a: { at: number }, b: { at: number }) => Math.abs(a.at - b.at) < COLLIDE;
 
-  const anchor = (at: number) => (at <= 0.5 ? 'translateX(0)' : at >= 99.5 ? 'translateX(-100%)' : 'translateX(-50%)');
+  const shownEnds = ends.filter((end) => !bounds.some((b) => collides(b, end) && b.text === end.text));
+  const numberedBounds = bounds.map((b) => ({
+    ...b,
+    numbered: !ends.some((end) => collides(b, end) && b.text !== end.text),
+  }));
 
   return (
     <div className="relative mt-1.5 h-8 text-xs" aria-hidden="true">
-      {ends.map((end) => (
+      {shownEnds.map((end) => (
         <span
           key={`end-${end.at}`}
           className="numeric absolute top-[9px] whitespace-nowrap text-espresso/80"
-          style={{ left: `${end.at}%`, transform: anchor(end.at) }}
+          style={{ left: `${end.at}%`, transform: anchorAt(end.at) }}
         >
           {end.text}
         </span>
       ))}
-      {bounds.map((b) => (
+      {numberedBounds.map((b, i) => (
         <span
-          key={`bound-${b.text}`}
+          // Indexed, not keyed by text: two bounds can print the same string
+          // (1 and 1.0001 both read "1" at the precision a bound is read at),
+          // and two children under one key is a rendering fault rather than a
+          // duplicate label.
+          key={`bound-${i}`}
           className="absolute top-0 flex flex-col items-center whitespace-nowrap"
-          style={{ left: `${b.at}%`, transform: anchor(b.at) }}
+          style={{ left: `${b.at}%`, transform: anchorAt(b.at) }}
         >
           {/* The tick. Three pixels of hairline joining the number to the
               boundary it names, so it is attached to a mark on the track rather
               than merely level with one. */}
           <span className="h-[5px] w-px bg-espresso/60" />
-          <span className="numeric mt-[3px] text-espresso">{b.text}</span>
+          {b.numbered && <span className="numeric mt-[3px] text-espresso">{b.text}</span>}
         </span>
       ))}
     </div>
   );
 }
 
-/** A scale end, with float noise off it. The ends come off a 1/2/2.5/5 ladder, so this only ever removes an artefact. */
-function trimNumber(value: number): string {
-  return String(Number(value.toFixed(6)));
-}
+const clampPct = (v: number) => Math.min(100, Math.max(0, v));
+
+const anchorAt = (at: number) => (at <= 0.5 ? 'translateX(0)' : at >= 99.5 ? 'translateX(-100%)' : 'translateX(-50%)');
 
 /**
  * THE CARD-SIZED VERSION of the bar above, and deliberately the same
@@ -323,15 +408,38 @@ function trimNumber(value: number): string {
  * the bar is the thing that answers it. The history is still one click away on
  * the marker's own page, where there is room to plot it honestly.
  *
- * Three differences from the full bar, all of them size:
- *  · FLAT SEGMENTS, no gradient. At 8px tall and a third of a card wide, a
- *    yellow-to-orange gradient is a smear; the boundaries have to be legible
- *    at a glance or the bar is decoration.
- *  · No axis numbers. The reference range is printed under the value on the
- *    card in words, so repeating it here would be the same fact twice in a
- *    space that has none to spare.
- *  · The result is a POINTER above the track rather than a dot on it, so it is
- *    still findable where it sits on a segment of its own colour.
+ * ONE DIFFERENCE FROM THE FULL BAR, and it is size: the result is a POINTER
+ * above the track rather than a dot on it, so it is still findable where it
+ * sits on a segment of its own colour.
+ *
+ * IT CARRIES THE SAME GRADIENT NOW (Aug 2026), and the objection that kept it
+ * flat has gone with the thing it was an objection to. That objection was
+ * right: at 8px tall and a third of a card wide, a ramp running the WHOLE
+ * width of a segment is a smear with no locatable boundary in it. The ramp
+ * lives at the boundary now — one blend about 26px wide on a 15rem bar, with
+ * the reference bound at its midpoint and its own hairline through the middle
+ * of it — so what used to be a smear is the one part of the bar a reader is
+ * looking for. Flat regions either side, exactly as on the chart.
+ *
+ * ── AND IT PRINTS ITS OWN ENDS, WHICH IS WHAT IT WAS MISSING ───────────────
+ *
+ * It used to print no figures at all, on the reasoning that the card already
+ * says the reference range in words underneath and repeating it here would be
+ * the same fact twice in a space with none to spare. That reasoning was about
+ * the wrong two numbers. The bar is NOT drawn on the reference range — it is
+ * drawn on `rangeBarScale`'s wider scale, and the card's own "Lab reference
+ * range 3.8–5.8" two lines below was the only pair of numbers anywhere near
+ * it. So a value of 3.4 against 3.8–5.8 drew its mark correctly, at 23% of a
+ * scale running 2 to 8, under a card that appeared to say the bar ran from 3.8
+ * to 5.8 — the mark then reads as a value INSIDE the range, which is the exact
+ * failure the full bar was rebuilt to stop making. A bar with no axis does not
+ * read as a bar with no axis. It reads as a bar whose axis is whatever figures
+ * are nearest.
+ *
+ * So the two ends are printed, muted and small, and the reference bounds keep
+ * their ticks on the track — which is where the card's written range attaches
+ * itself. Four labels will not fit at 15rem, so the bounds are marked here and
+ * named below, and nothing on the card is now the ends of a bar it is not.
  *
  * Everything else is identical, and that is the point: THE SAME SCALE
  * (lib/rangeScale.ts), the same statusBands() boundaries derived from this
@@ -348,33 +456,27 @@ export function MiniRangeBar({
   severityThreshold = null,
 }: Omit<RangeBarProps, 'optimal' | 'unit'>) {
   const scale = rangeBarScale({ low, high, value, severityThreshold });
-  const { pct } = scale;
-  const clamp = (v: number) => Math.min(100, Math.max(0, v));
-  const bandLeft = clamp(pct(low));
-  const bandRight = clamp(pct(high));
-  // Not clamped, for the same reason as the full bar: the scale contains it.
-  const pointLeft = pct(value);
+  const label = accessibleLabel(value, low, high, status);
 
-  const segments = statusBands(low, high, severityThreshold)
-    .map((b) => {
-      const from = clamp(pct(b.from ?? scale.min));
-      const to = clamp(pct(b.to ?? scale.max));
-      return { ...b, from, width: Math.max(0, to - from) };
-    })
-    .filter((s) => s.width > 0);
-
-  const label = `Result ${value}, reference range ${formatReferenceRange(low, high)}, status: ${statusLabel(status)}`;
-
-  // Said rather than drawn — the same rule as the full bar. The value, the
-  // range and the status are all directly below this on the card, so one short
-  // line is enough to explain the absence.
+  // Said rather than drawn — the same rule as the full bar, and the same four
+  // reasons. The value, the range and the status are all directly below this on
+  // the card, so one short line is enough to explain the absence.
   if (scale.outOfScale) {
     return (
       <p className="text-xs leading-snug text-espresso/85" role="img" aria-label={label}>
-        Too far outside the range to draw to scale
+        {RANGE_BAR_UNAVAILABLE[scale.undrawable].short}
       </p>
     );
   }
+
+  const { pct, low: lowN, high: highN, value: valueN } = scale;
+  const clamp = clampPct;
+  const bandLeft = clamp(pct(lowN));
+  const bandRight = clamp(pct(highN));
+  // Not clamped, for the same reason as the full bar: the scale contains it.
+  const pointLeft = pct(valueN);
+
+  const track = trackGradient(scale, lowN, highN, severityThreshold);
 
   return (
     <div className="w-full" role="img" aria-label={label}>
@@ -400,14 +502,7 @@ export function MiniRangeBar({
           <path d="M6 7 1 1.2h10L6 7Z" strokeWidth="1.2" strokeLinejoin="round" />
         </svg>
       </div>
-      <div className="relative h-2 overflow-hidden rounded-full bg-cream-300" aria-hidden="true">
-        {segments.map((s) => (
-          <div
-            key={s.status}
-            className="absolute inset-y-0"
-            style={{ left: `${s.from}%`, width: `${s.width}%`, backgroundColor: flatFillFor(s.status) }}
-          />
-        ))}
+      <div className="relative h-2 overflow-hidden rounded-full" aria-hidden="true" style={{ background: track }}>
         {/* The two reference bounds, marked. Without these the only thing
             saying where the range ends is the colour change, which is exactly
             what must never be true here — at this size most of all. */}
@@ -415,61 +510,79 @@ export function MiniRangeBar({
           <div key={i} className="absolute inset-y-0 w-px bg-espresso/60" style={{ left: `${left}%` }} />
         ))}
       </div>
+      {/* THE ENDS OF THE SCALE THAT WAS ACTUALLY DRAWN. Two figures, one line,
+          muted — enough to say what the track spans and not enough to compete
+          with the value below it. Taken straight off the scale, so they cannot
+          describe a different one. */}
+      <div className="mt-1 flex items-baseline justify-between text-xs text-espresso/80" aria-hidden="true">
+        <span className="numeric">{scale.minLabel}</span>
+        <span className="numeric">{scale.maxLabel}</span>
+      </div>
     </div>
   );
 }
 
 /**
- * The flat fill for one segment of the compact bar. Three hues, no transition:
- * yellow either side of green, red at both extremes. Orange is absent on
- * purpose — it is the hinge between yellow and red in a gradient, and there is
- * no gradient here for it to be the hinge of.
- */
-function flatFillFor(status: MarkerStatusInput): string {
-  switch (asMarkerStatus(status)) {
-    case 'SIGNIFICANT_LOW':
-    case 'SIGNIFICANT_HIGH':
-      return hueTint.red.track;
-    case 'LOW':
-    case 'HIGH':
-      return hueTint.yellow.track;
-    case 'IN_RANGE':
-      return hueTint.green.track;
-    default:
-      return NO_STATUS_PAINT.bar;
-  }
-}
-
-/**
- * The fill for one segment of the track, left to right in value order.
+ * THE WHOLE TRACK, AS ONE CSS GRADIENT — the bar's half of the language the
+ * trend chart's bands speak.
  *
- * In range is a flat green. The two mildly-out segments run from yellow at the
- * reference bound out to orange at the significantly-out threshold, and the
- * two significantly-out segments carry on from orange into red — so the colour
- * is continuous across the whole bar and orange is only ever the hinge between
- * the two, never a state.
+ * Five flat regions with a blend centred on each of the four boundaries between
+ * them, from the one derivation both instruments share (`bandRampStops`). Three
+ * things follow from building it this way, and each of them was a bug the
+ * per-segment version could have:
+ *
+ *  · THE BOUNDARY IS AT THE MIDDLE OF ITS BLEND, so the hairline that marks it
+ *    runs through the middle of the colour change rather than along the edge of
+ *    one — and a result sitting exactly on the limit is drawn half in each.
+ *  · IT IS ONE ELEMENT, so two neighbouring regions cannot disagree by a
+ *    rounding at the seam and leave a hairline of card showing through.
+ *  · THE TRANSITION IS A SHARE OF THE SCALE, not of the reference range, so it
+ *    is the same width on a bar drawn for a 3.9–5.1 range as on one drawn for
+ *    30–400.
+ *
+ * Stops are placed by VALUE and converted through the scale's own `pct`, so the
+ * colour at a point on the bar and the figure printed under that point cannot
+ * describe two different scales. Clamped to the bar at both ends: the two outer
+ * bands are open-ended, and CSS holds the first and last stop's colour out to
+ * the edges, which is exactly the flat red that is wanted there.
  */
-function gradientFor(status: MarkerStatusInput): string {
-  const g = hueTint.green.track;
-  const y = hueTint.yellow.track;
-  const o = hueTint.orange.track;
-  const r = hueTint.red.track;
-  switch (asMarkerStatus(status)) {
-    case 'SIGNIFICANT_LOW':
-      return `linear-gradient(to right, ${r}, ${o})`;
-    case 'LOW':
-      return `linear-gradient(to right, ${o}, ${y})`;
-    case 'IN_RANGE':
-      return g;
-    case 'HIGH':
-      return `linear-gradient(to right, ${y}, ${o})`;
-    case 'SIGNIFICANT_HIGH':
-      return `linear-gradient(to right, ${o}, ${r})`;
-    default:
-      // The switch had no default and returned `undefined` for anything else,
-      // which is not a background value: the segment rendered as the bare
-      // track. The segments here are always generated by statusBands, so this
-      // is unreachable by construction — and stated rather than assumed.
-      return NO_STATUS_PAINT.bar;
+function trackGradient(
+  scale: Extract<Scale, { outOfScale: false }>,
+  low: number,
+  high: number,
+  severityThreshold: number | null | undefined,
+): string {
+  const threshold = severityThresholdFor(low, high, severityThreshold);
+  const halfWidth = ((scale.max - scale.min) * TRANSITION_SHARE) / 2;
+  const all = statusBands(low, high, severityThreshold).flatMap((band) =>
+    bandRampStops(band.status, { low, high, threshold, halfWidth }, 'track'),
+  );
+
+  /**
+   * ONLY THE NEAREST STOP OUTSIDE THE BAR SURVIVES ON EACH SIDE.
+   *
+   * The two outer bands run off to infinity, so several of their stops land
+   * past the ends of the scale and clamp to 0% or 100% — and where two clamp to
+   * the same place, the one that paints the end is whichever the list happened
+   * to leave last. Keeping the nearest gives the colour that is actually true
+   * at that end, and CSS then holds it out to the edge, which is the flat red
+   * that is wanted there. The same rule the trend chart applies to a band rect
+   * it has had to clamp, and for the same reason.
+   */
+  const inside = all.filter((s) => s.value >= scale.min && s.value <= scale.max);
+  const below = all.filter((s) => s.value < scale.min).pop();
+  const above = all.find((s) => s.value > scale.max);
+  const kept = [...(below ? [below] : []), ...inside, ...(above ? [above] : [])];
+
+  const stops: { at: number; colour: string }[] = [];
+  for (const stop of kept) {
+    const at = clampPct(scale.pct(stop.value));
+    // Two adjacent bands name the SAME stop at their shared boundary — that is
+    // what makes the fill continuous — so the second copy is dropped rather
+    // than emitted as a zero-length step.
+    const previous = stops[stops.length - 1];
+    if (previous && previous.colour === stop.colour && Math.abs(previous.at - at) < 1e-6) continue;
+    stops.push({ at, colour: stop.colour });
   }
+  return `linear-gradient(to right, ${stops.map((s) => `${s.colour} ${s.at.toFixed(3)}%`).join(', ')})`;
 }

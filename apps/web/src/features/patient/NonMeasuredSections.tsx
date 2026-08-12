@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { RESULT_TYPE_RULES, FOOD_SENSITIVITY_GROUPS } from '@aspire-bloods/shared';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
@@ -6,6 +6,7 @@ import { Select } from '../../components/ui/Select';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { filterCountLabelFor, matchesMarkerQuery } from '../../lib/markerCopy';
 import { useGridColumns, useWindowVirtual } from '../../lib/useWindowVirtual';
+import { REPORT_SECTION_IDS, sectionMatchesType } from './reportSections';
 import type { SummaryCategory } from './ResultsSummary';
 
 /**
@@ -32,6 +33,31 @@ export interface NonMeasuredMarker {
   resultType?: string;
   categoryKeys?: string[];
   aliases?: string[];
+}
+
+/**
+ * WHAT THE PAGE ABOVE IS DOING, AND WHAT THIS SECTION HAS TO SAY BACK.
+ *
+ * These sections used to be sealed off from the results control bar entirely,
+ * on the reasoning that the bar's filters are about status and health area and
+ * a genetic indicator has neither. That reasoning is right about the STATUS
+ * filter and was wrong about the search box, which is the one control on that
+ * bar that means the same thing everywhere: find this. A patient typing "cod"
+ * into it saw an empty grid and the word "Nothing", with 207 foods —
+ * including cod — collapsed 5,000px below.
+ *
+ * So the page's query narrows these too, ON TOP OF the section's own field, and
+ * the category picker can now name a result type outright. `onReveal` is how a
+ * section says "the thing you searched for is in here": it opens whatever it
+ * keeps collapsed and tells the page, which is what lets the page take a reader
+ * whose grid is empty to the section that answered them.
+ */
+export interface PageFilters {
+  query: string;
+  categoryFilter: string;
+  /** The section the reader asked for, by chip or by URL hash. */
+  revealed: string | null;
+  onReveal: (sectionId: string) => void;
 }
 
 function SectionFraming({ title, framing }: { title: string; framing: string }) {
@@ -141,16 +167,19 @@ function PlainResult({
 export function GeneticSection({
   markers,
   categories,
+  page,
 }: {
   markers: NonMeasuredMarker[];
   categories: SummaryCategory[];
+  page: PageFilters;
 }) {
   return (
     <CategorisedSection
       markers={markers}
       categories={categories}
+      page={page}
       resultType="GENETIC"
-      idPrefix="genetic"
+      idPrefix={REPORT_SECTION_IDS.genetic}
       title="Genetic indicators"
       framing={RESULT_TYPE_RULES.GENETIC.framing}
       otherHeading="Other genetic indicators"
@@ -167,16 +196,19 @@ export function GeneticSection({
 export function CompositionSection({
   markers,
   categories,
+  page,
 }: {
   markers: NonMeasuredMarker[];
   categories: SummaryCategory[];
+  page: PageFilters;
 }) {
   return (
     <CategorisedSection
       markers={markers}
       categories={categories}
+      page={page}
       resultType="COMPOSITION"
-      idPrefix="composition"
+      idPrefix={REPORT_SECTION_IDS.composition}
       title="Gut microbiome"
       framing={RESULT_TYPE_RULES.COMPOSITION.framing}
       otherHeading="Other composition measures"
@@ -204,16 +236,19 @@ export function CompositionSection({
 export function QualitativeSection({
   markers,
   categories,
+  page,
 }: {
   markers: NonMeasuredMarker[];
   categories: SummaryCategory[];
+  page: PageFilters;
 }) {
   return (
     <CategorisedSection
       markers={markers}
       categories={categories}
+      page={page}
       resultType="QUALITATIVE"
-      idPrefix="qualitative"
+      idPrefix={REPORT_SECTION_IDS.qualitative}
       title="Findings and readings"
       framing={RESULT_TYPE_RULES.QUALITATIVE.framing}
       otherHeading="Other findings and readings"
@@ -235,6 +270,7 @@ export function QualitativeSection({
 function CategorisedSection({
   markers,
   categories,
+  page,
   resultType,
   idPrefix,
   title,
@@ -245,6 +281,7 @@ function CategorisedSection({
 }: {
   markers: NonMeasuredMarker[];
   categories: SummaryCategory[];
+  page: PageFilters;
   resultType: string;
   idPrefix: string;
   title: string;
@@ -261,15 +298,32 @@ function CategorisedSection({
     [categories, markers, resultType],
   );
 
+  // BOTH SEARCHES, AND THEY COMPOSE. The bar at the top of the page narrows the
+  // whole page; this section's own field narrows within it. A row has to
+  // satisfy both, which is the only reading under which the two controls do not
+  // contradict each other.
   const visible = useMemo(
     () =>
       markers.filter(
-        (m) => matchesMarkerQuery(m, query) && (group === 'ALL' || (m.categoryKeys ?? []).includes(group)),
+        (m) =>
+          matchesMarkerQuery(m, query) &&
+          matchesMarkerQuery(m, page.query) &&
+          (group === 'ALL' || (m.categoryKeys ?? []).includes(group)),
       ),
-    [markers, query, group],
+    [markers, query, group, page.query],
   );
 
-  if (markers.length === 0) return null;
+  // Says upward that the page's search found something here, so a reader
+  // looking at an empty marker grid can be taken to the section that answered
+  // them. Reported rather than acted on: this section does not know what else
+  // on the page matched, and only the page does.
+  const matchedPageQuery = page.query.trim() !== '' && visible.length > 0;
+  const { onReveal } = page;
+  useEffect(() => {
+    if (matchedPageQuery) onReveal(idPrefix);
+  }, [matchedPageQuery, onReveal, idPrefix]);
+
+  if (markers.length === 0 || !sectionMatchesType(resultType, page.categoryFilter)) return null;
 
   const shownAreas = areas
     .map((c) => ({ c, members: visible.filter((m) => m.categoryKeys?.includes(c.key)) }))
@@ -280,7 +334,12 @@ function CategorisedSection({
   const ungrouped = visible.filter((m) => !grouped.has(m.markerId));
 
   return (
-    <section className="mt-16" aria-labelledby={`${idPrefix}-heading`}>
+    <section
+      id={idPrefix}
+      tabIndex={-1}
+      className="mt-16 scroll-mt-24 focus:outline-none"
+      aria-labelledby={`${idPrefix}-heading`}
+    >
       <div id={`${idPrefix}-heading`}>
         <SectionFraming title={title} framing={framing} />
       </div>
@@ -412,10 +471,23 @@ function FoodGroupPanel({
  * report with the least established clinical meaning. Opening every group by
  * default would make the least interpretable section the most prominent one.
  */
-export function SensitivitySection({ markers }: { markers: NonMeasuredMarker[] }) {
+export function SensitivitySection({ markers, page }: { markers: NonMeasuredMarker[]; page: PageFilters }) {
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState('ALL');
+  /**
+   * EVERY GROUP OPEN, because the reader asked for this section by name.
+   *
+   * Pressing "Food sensitivity 207" in the index and landing on nine shut
+   * disclosures answers "is it in here" with "yes, somewhere under this" — the
+   * chip said there were 207 and the page then shows none of them. Same for a
+   * URL ending `#sensitivity`, which is the form the chip writes.
+   *
+   * It is one boolean and only the READER sets it: the chip, or the hash they
+   * arrived on. Nothing derived from scroll or from a fetch may write it, for
+   * the reason the results control bar's panel has the same rule.
+   */
+  const revealAll = page.revealed === REPORT_SECTION_IDS.sensitivity;
 
   // The catalogue suffixes each food "(IgG)" so it can never collide with a
   // blood analyte of the same name; the patient sees the food.
@@ -454,12 +526,28 @@ export function SensitivitySection({ markers }: { markers: NonMeasuredMarker[] }
     () =>
       allGroups
         .filter((g) => group === 'ALL' || g.key === group)
-        .map((g) => ({ ...g, items: g.items.filter((i) => matchesMarkerQuery({ name: i.food }, query)) }))
+        .map((g) => ({
+          ...g,
+          // BOTH SEARCHES, on the food name a patient reads. The page's query
+          // matching "cod" has to find Cod here, or the bar at the top of the
+          // page is a search box that silently does not cover two thirds of
+          // the report.
+          items: g.items.filter(
+            (i) => matchesMarkerQuery({ name: i.food }, query) && matchesMarkerQuery({ name: i.food }, page.query),
+          ),
+        }))
         .filter((g) => g.items.length > 0),
-    [allGroups, group, query],
+    [allGroups, group, query, page.query],
   );
   const shown = groups.reduce((n, g) => n + g.items.length, 0);
-  const filtering = query.trim() !== '' || group !== 'ALL';
+  const filtering = query.trim() !== '' || page.query.trim() !== '' || group !== 'ALL';
+
+  // The page's search found foods in here — see CategorisedSection.
+  const matchedPageQuery = page.query.trim() !== '' && shown > 0;
+  const { onReveal } = page;
+  useEffect(() => {
+    if (matchedPageQuery) onReveal(REPORT_SECTION_IDS.sensitivity);
+  }, [matchedPageQuery, onReveal]);
 
   function toggle(key: string) {
     setOpen((prev) => {
@@ -470,10 +558,17 @@ export function SensitivitySection({ markers }: { markers: NonMeasuredMarker[] }
     });
   }
 
-  if (markers.length === 0 || allGroups.length === 0) return null;
+  if (markers.length === 0 || allGroups.length === 0 || !sectionMatchesType('SENSITIVITY', page.categoryFilter)) {
+    return null;
+  }
 
   return (
-    <section className="mt-16" aria-labelledby="sensitivity-heading">
+    <section
+      id={REPORT_SECTION_IDS.sensitivity}
+      tabIndex={-1}
+      className="mt-16 scroll-mt-24 focus:outline-none"
+      aria-labelledby="sensitivity-heading"
+    >
       <div id="sensitivity-heading">
         <SectionFraming title="Food sensitivity" framing={RESULT_TYPE_RULES.SENSITIVITY.framing} />
       </div>
@@ -503,7 +598,7 @@ export function SensitivitySection({ markers }: { markers: NonMeasuredMarker[] }
           // A search is a request to see the matches, so the groups holding
           // them open themselves. Collapsed-by-default is the right default
           // for 197 items and the wrong one for the four you just looked for.
-          const isOpen = open.has(g.key) || filtering;
+          const isOpen = open.has(g.key) || filtering || revealAll;
           const panelId = `sensitivity-${g.key}`;
           return (
             <div key={g.key} className="rounded-card border border-taupe bg-cream-50">

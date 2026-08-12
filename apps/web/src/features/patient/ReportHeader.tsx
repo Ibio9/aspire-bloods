@@ -10,6 +10,8 @@ import { BOOKING_ENABLED } from '../../lib/features';
 import { ReportBookingLink } from '../booking/ReportBookingLink';
 import { PrintHeader } from '../../components/patient/PrintDocument';
 import { CountsStrip } from './ResultsSummary';
+import { SectionIndex } from './SectionIndex';
+import { reportSections } from './reportSections';
 import type { ReportDetailData } from './useReportDetail';
 
 /**
@@ -34,12 +36,15 @@ export function ReportHeader({
   data,
   activeStatus,
   onSelectStatus,
+  onReveal,
 }: {
   reportId: string;
   data: ReportDetailData;
   /** The status filter currently applied, so the matching tile reads as selected. */
   activeStatus?: string;
   onSelectStatus: (status: MarkerStatus | 'ALL') => void;
+  /** A section index chip was pressed — the section may need to open something. */
+  onReveal: (sectionId: string) => void;
 }) {
   const { report, failed, byType } = data;
   const [downloading, setDownloading] = useState<string | null>(null);
@@ -126,6 +131,12 @@ export function ReportHeader({
         onSelectStatus={onSelectStatus}
         className="mt-10"
       />
+
+      {/* THE HEADLINE, THEN THE CONTENTS. On a Signature report 249 of 433
+          results sit below the marker grid and nothing on the first screen said
+          so. Deliberately quieter than the strip it follows — that is what the
+          panel says about itself, this is only a list of where things are. */}
+      <SectionIndex sections={reportSections(data)} onReveal={onReveal} />
 
       {/* `print-hide`: a download control is a thing you press. On paper it is
           a pill with a verb in it that does nothing. */}

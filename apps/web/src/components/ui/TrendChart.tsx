@@ -18,8 +18,8 @@ import {
   hueTint,
   statusBands,
   statusPaint,
-  bandPlotGradient,
-  BAND_WEIGHT,
+  bandRampStops,
+  TRANSITION_SHARE,
   OPTIMAL_DEEPEN,
   severityThresholdFor,
   formatOptimalRange,
@@ -76,13 +76,16 @@ import { statusColor, statusLabel } from '../../lib/markerCopy';
  *     than painted at full strength, and the weights are unequal: in range
  *     carries almost nothing, out-of-range a little, significantly-out a little
  *     more. The reader meets the line first.
- *  2. THE RAMP. Each band is a GRADIENT rather than a slab, in hue and in
- *     weight together (`bandPlotGradient`): gold at the reference bound running
- *     out to orange at the significantly-out threshold, orange carrying on into
- *     red beyond it, and the in-range green flat through its middle and easing
- *     at its own two edges. So "further out" is drawn as a continuous statement
- *     rather than as three sampled ones, and orange keeps the job the design
- *     rules give it: the hinge between yellow and red, never a state.
+ *  2. THE RAMP, AND IT IS AT THE BOUNDARY (Aug 2026). Each band is FLAT across
+ *     itself and blends into its neighbour over a zone CENTRED ON the boundary
+ *     between them (`bandRampStops`): flat green, then green→olive→gold across
+ *     the reference bound with the bound at the midpoint, then flat gold, then
+ *     gold→orange→red across the significantly-out threshold, then flat red.
+ *     A value one unit inside the range and one unit outside it are not
+ *     clinically different, and a hard edge at the bound says they are; a ramp
+ *     across a whole band says the opposite falsehood, that the middle of
+ *     "above range" is a transition. The dotted boundary hairline runs through
+ *     the MIDDLE of its gradient rather than along its edge.
  *  3. HAIRLINES. The boundaries are 1px strokes at low opacity — and the
  *     reference bounds are LABELLED INLINE on the left axis, so "where does my
  *     range actually start" is answered on the chart instead of in the key.
@@ -961,42 +964,83 @@ export function TrendChart({
           .join(', then ');
 
   /**
-   * THE BAND RECTS AND THEIR GRADIENTS, computed together because the gradient
-   * has to be mapped from the band's TRUE extent onto the rect that is actually
-   * drawn.
+   * HOW WIDE A TRANSITION IS ON THIS PLOT, in the marker's own units.
+   *
+   * A share of the DOMAIN and never of the reference range — see
+   * TRANSITION_SHARE. That is what makes the blend at a bound the same handful
+   * of pixels on a marker whose range is 3.9–5.1 as on one whose range is
+   * 30–400, which is the only way the softness of an edge can be read as a
+   * statement about the boundary rather than about the width of the band.
+   */
+  const transitionHalfWidth = ((domainMax - domainMin) * TRANSITION_SHARE) / 2;
+
+  /**
+   * THE BAND RECTS AND THEIR GRADIENTS, computed together because the stops are
+   * placed by VALUE and the rect they are drawn on is CLAMPED to the domain.
    *
    * A band can reach past the domain — a marker whose range is 135–145 puts the
    * top of its above-range band at 160, well past a 148 axis — and the outermost
-   * two are open-ended by design. So the rect is clamped, and if the gradient
-   * were laid out across the clamped rect its ramp would finish early: gold
-   * would reach orange somewhere in the middle of the above-range region rather
-   * than at the threshold where orange means something. Every stop is therefore
-   * placed by its VALUE and then converted, so the colour at a given value is
-   * the same whatever the axis happens to be showing.
+   * two are open-ended by design. `ifOverflow="hidden"` clips with a clip-path
+   * rather than shortening the rect, so the rect has to be clamped for its
+   * geometry to equal what is on screen; and a stop placed as a fraction OF THE
+   * RECT would then land at the wrong value, which is how orange once ended up
+   * in the middle of the above-range region rather than at the threshold where
+   * orange means something.
    *
-   * An open band has no true extent to map from, so it takes the drawn one —
-   * which is the only thing defined for "everything above this line".
+   * So every stop keeps its value and is converted onto the drawn rect at the
+   * end.
+   *
+   * ONLY THE NEAREST STOP OUTSIDE THE RECT SURVIVES ON EACH SIDE, and that is
+   * not tidiness. A gradient cannot be asked to extrapolate a colour, so a stop
+   * past the rect has to be clamped to its edge — and where TWO of them clamp
+   * to the same edge, the one that ends up painting it is whichever the sort
+   * happened to leave last. Measured, on an HDL with a 1–999 range: the
+   * above-range band's flat gold (at 1068) and the orange at its threshold (at
+   * 3495) both clamped to the top of a plot that ends at 1250, and the ORANGE
+   * won — so a chart whose visible region is entirely inside the flat gold part
+   * of the band painted the transition-into-significant across the top of it.
+   * Keeping the nearest one gives the colour that is actually true at the edge,
+   * which in that case is the gold.
    */
+  const withinRect = <T extends { value: number }>(stops: T[], y1: number, y2: number): T[] => {
+    // NORMALISED, because a band that does not reach the domain at all
+    // produces an INVERTED rect: a marker whose range is 0.5–1.5 puts its
+    // significantly-above band at 3.0 on an axis that stops at 1.8, so the
+    // clamps cross over and y1 > y2. `ifOverflow="hidden"` clips it away to
+    // nothing, so what it is filled with is invisible — but "invisible" is not
+    // a reason for the arithmetic to be nonsense, and an unnormalised compare
+    // put every stop outside the extent and collapsed the gradient to one
+    // colour repeated twice.
+    const [lo, hi] = y1 <= y2 ? [y1, y2] : [y2, y1];
+    const inside = stops.filter((s) => s.value >= lo && s.value <= hi);
+    const below = stops.filter((s) => s.value < lo).pop();
+    const above = stops.find((s) => s.value > hi);
+    const kept = [...(below ? [below] : []), ...inside, ...(above ? [above] : [])];
+    // A rect that contains no stop at all still needs two to be a gradient.
+    return kept.length >= 2 ? kept : [...kept, ...kept].slice(0, 2);
+  };
   const bandRects = bandSegments.flatMap((seg, i) =>
     seg.bands.map((band) => {
       const y1 = Math.max(band.from ?? domainMin, domainMin);
       const y2 = Math.min(band.to ?? domainMax, domainMax);
-      const peak = BAND_WEIGHT[band.status];
       const drawnSpan = y2 - y1 || 1;
-      const trueFrom = band.from ?? y1;
-      const trueTo = band.to ?? y2;
-      const trueSpan = trueTo - trueFrom || 1;
-      const stops = bandPlotGradient(band.status)
-        .map((stop) => {
-          const value = trueFrom + stop.offset * trueSpan;
+      const stops = withinRect(
+        bandRampStops(band.status, {
+          low: seg.low,
+          high: seg.high,
+          threshold: seg.threshold,
+          halfWidth: transitionHalfWidth,
+        }),
+        y1,
+        y2,
+      )
+        .map((stop) => ({
           // SVG's y grows downward and a value grows upward, so a band's
           // HIGH-value end is the gradient's offset 0.
-          return {
-            offset: Math.max(0, Math.min(1, 1 - (value - y1) / drawnSpan)),
-            colour: stop.colour,
-            opacity: peak * stop.weight,
-          };
-        })
+          offset: Math.max(0, Math.min(1, 1 - (stop.value - y1) / drawnSpan)),
+          colour: stop.colour,
+          opacity: stop.weight,
+        }))
         .sort((a, b) => a.offset - b.offset);
       return {
         key: `band-${i}-${band.status}`,
@@ -1098,9 +1142,10 @@ export function TrendChart({
 
                   Both the hue and the weight ramp, which is why this is a
                   gradient rather than a fill plus a fillOpacity: a band is
-                  faintest where a result is barely outside its range and
-                  strongest where it is furthest out, and that has to be one
-                  continuous statement rather than three sampled ones.
+                  flat across itself and hands over to its neighbour across the
+                  boundary between them, at a weight that is the midpoint of the
+                  two — so the fill is continuous across a boundary even though
+                  it is drawn as two separate shapes.
 
                   NO AREA GRADIENT. The fill under the line was a sixth region
                   of colour over five that were already competing, and the line
@@ -1286,11 +1331,13 @@ export function TrendChart({
               // which says "this is your series" rather than borrowing a status
               // hue and implying a verdict on the trend.
               stroke={connected ? chartTokens.line : 'none'}
-              // Moderate weight with round caps and joins. A 2px line with
-              // mitred corners reads as a plotted path; 2.5 with round ones
-              // reads as a drawn stroke, which is what the rest of the
-              // product's marks are.
-              strokeWidth={2.5}
+              // Round caps and joins: a line with mitred corners reads as a
+              // plotted path, and a drawn stroke is what the rest of the
+              // product's marks are. The WEIGHT is a token because it is half
+              // of one decision with BAND_WEIGHT — the bands were raised and
+              // the line was raised with them, rather than the bands being
+              // dulled back down to leave room for it.
+              strokeWidth={chartTokens.lineWidth}
               strokeLinecap="round"
               strokeLinejoin="round"
               dot={<CustomDot latestT={tLast} />}

@@ -193,17 +193,25 @@ with a strip of scrolling content showing through the gap.
 This overrides the old "no green, amber or red anywhere" rule. Patients expect
 traffic-light coding on a blood result and the clinic asked for it. Do not revert it.
 
-**The five states and their three hues.** Significantly below and significantly
-above are RED. Below and above are YELLOW. In range is GREEN. ORANGE is the
-transition between yellow and red — the gradient stop in the range bar and the
-shoulder of a chart band — and is never a state a result can be in.
-Five states, three hues: direction is carried by the chevron and the word, never
-by colour, which is why high and low share a hue and both significants share one.
+**The five states, their three hues and their two hinges.** Significantly below
+and significantly above are RED. Below and above are YELLOW. In range is GREEN.
+OLIVE is the transition between green and yellow, drawn AT a reference bound;
+ORANGE is the transition between yellow and red, drawn AT a significantly-out
+threshold. Neither hinge is ever a state a result can be in — each is the middle
+of a blend centred on a boundary, and olive exists because the gradient moved to
+the boundaries and the green→yellow one needed the midpoint colour the
+yellow→red one already had. Five states, three hues: direction is carried by the
+chevron and the word, never by colour, which is why high and low share a hue and
+both significants share one.
 
 **Where it appears, and it must appear in all of them:**
 1. Result cards and rows — soft background wash (`bg-tint-*`).
-2. The range bar — green across the reference range, shading out through yellow
-   and orange to red.
+2. The range bar — flat green across the reference range, flat gold outside it,
+   flat red beyond the thresholds, with a BLEND CENTRED ON each of the four
+   boundaries between them. The same instrument as the chart's bands, from the
+   same derivation (`bandRampStops`), so the two speak one visual language; the
+   whole track is ONE CSS gradient rather than five abutting segments, which is
+   what stops two neighbours disagreeing by a rounding at the seam.
    **THE SCALE IS NOT THE REFERENCE RANGE, AND THE PRINTED ENDS SAY WHICH IT
    IS (Aug 2026).** The two numbers under the bar were `low` and `high`
    whatever scale had actually been drawn, so the picture was right and the
@@ -223,6 +231,44 @@ by colour, which is why high and low share a hue and both significants share one
    that the reference range would be under 5% of the bar, NOTHING IS DRAWN and
    the fact is said in words instead. `rangeScale.test.ts` pins both live
    examples by their own numbers.
+   **A BAR WITH NO AXIS IS A BAR WHOSE AXIS IS WHATEVER FIGURES ARE NEAREST
+   (Aug 2026).** The card bar printed nothing at all, on the reasoning that the
+   card already says the reference range in words underneath and repeating it
+   would be the same fact twice in a space with none to spare. That was about
+   the wrong two numbers. The third live example: 3.4 against 3.8–5.8 drew its
+   mark correctly, at 23% of a scale running 2 to 8, on a card whose only
+   figures anywhere near the bar were "Lab reference range 3.8–5.8" two lines
+   below — so the bar read as running 3.8 to 5.8 and a value BELOW the entire
+   range read as one inside it. Exactly the failure the full bar had just been
+   rebuilt to stop making, surviving in the one place nothing was printed. The
+   card bar now prints its two ends (muted, mono, one line); four labels do not
+   fit at 15rem, so the reference bounds keep their ticks there and are named in
+   words below. **Never print a range bar without its scale.**
+   **THE LABELS COME OFF THE SCALE OBJECT** (`minLabel`/`maxLabel`), not from a
+   formatter in the component, so a bar cannot print a number describing a
+   different scale — `Number(minLabel) === min` exactly. And where a bound
+   collides with a scale end, the one that survives is the one still true of the
+   end: identical text drops the end (0 and 0), **different text keeps the end
+   and drops the bound's number**, since a range of 1–1,000,000 on a scale from
+   0 would otherwise leave "1" standing at the far left of a bar starting at 0.
+   **THERE ARE FOUR REASONS NOT TO DRAW, AND ONE SENTENCE EACH** — no reference
+   range, a range with no width, no numeric value, and too far out to show both.
+   They shared one sentence about being far outside the range, which was true of
+   one of them; `RANGE_BAR_UNAVAILABLE` in rangeScale.ts holds the copy, so a
+   new reason without its words is a type error. `rangeBarScale` takes nullable
+   bounds and a nullable value BY TYPE and refuses each by name — typing them as
+   plain numbers never stopped a null arriving, it only stopped the function
+   being written to survive one, and `NaN - undefined` reaches `left: NaN%`.
+   `min`/`max` are finite and `max > min` in every case including the refusals.
+   **`rangeScale.property.test.ts` runs the invariant over ~5,000 generated
+   inputs** — an enumerated spread of range shapes crossed with value positions,
+   plus a seeded sweep across twelve orders of magnitude — asserting that the
+   mark's drawn fraction equals the value's true position on the PRINTED scale,
+   that the printed ends bound everything the bar contains, that a value below
+   the range is drawn left of it, and that the mark lands in the segment its own
+   status names. Seeded and deterministic: a property test that cannot reproduce
+   its own failure is a rumour. `RangeBar.test.tsx` pins the card bar at the
+   reported numbers through `react-dom/server` (no jsdom, no testing-library).
    **The MARK on it is NOT a status colour (Aug 2026).** It
    is the `rangemark` token: pure white in dark, espresso in light, always
    inside a ring of the opposite tone. A mark drawn in its own state's colour is
@@ -235,9 +281,9 @@ by colour, which is why high and low share a hue and both significants share one
    word and the card's own wash. Applies to both bars — the card-sized pointer
    is an SVG triangle rather than a CSS border trick precisely so it can take
    the same ring.
-3. Trend charts — the reference range as a soft green band, yellow immediately
-   above and below, red beyond the significantly-out thresholds, orange as the
-   transition.
+3. Trend charts — the reference range as a soft green band, gold immediately
+   above and below, red beyond the significantly-out thresholds, with the two
+   hinges at the boundaries between them. Same ramp as the range bar.
    **THE OPTIMAL RANGE IS A NARROWING OF IN-RANGE AND IS DRAWN AS ONE (Aug
    2026).** It was a hatched bronze band with a dashed edge and its own key
    entry, over a green reference band — two overlapping green things in two
@@ -337,52 +383,86 @@ by colour, which is why high and low share a hue and both significants share one
    a luminance step a cream one damps. Orange survives only in the
    significantly-out bands: below-range is a fifth visible at a typical axis
    scale, so ramping it out to orange painted the transition-into-significant
-   immediately below the reference bound. The range bar keeps the full ramp.
-   **THE GRADIENTS ARE BACK, AND FLAT WAS THE WRONG CALL (Aug 2026).** For a
-   while a band was a flat rectangle at `BAND_WEIGHT[status]` meeting its
-   neighbour at a hairline, green / gold / gold / red / red, on the reasoning
-   that a flat band has one colour by definition and orange as that colour
-   would be a region meaning "somewhere between the two either side". That
-   reasoning was right about a flat band and wrong about the band: the region
-   between "just above the range" and "significantly above it" IS a transition,
-   the system draws one everywhere else, and five hard-edged slabs is a fill
-   tool rather than a chart. `bandPlotGradient` is the one derivation and it
-   ramps HUE AND WEIGHT TOGETHER — gold at the reference bound out to ORANGE at
-   the threshold, orange carrying on into red beyond it, and the in-range green
-   flat through its middle and easing only at its own two edges so the resting
-   state still reads as one region. Orange keeps exactly its documented job:
-   the hinge between yellow and red, never a state.
-   **TWO PROPERTIES HOLD AT EVERY POINT ON THE PLOT, not merely between three
-   sampled numbers.** The faintest part of an out-of-range band (at the
-   reference bound) is still heavier than in-range's flat weight, so "further
-   out is more strongly marked" is continuous; and `SIGNIFICANT_AT_THRESHOLD`
-   is DERIVED from the two weights rather than written down, so the two bands
-   meet at one value and the ramp cannot develop a step in the middle of
-   itself. `markerCopy.test.ts` pins both.
+   immediately below the reference bound.
+   **THE GRADIENT IS AT THE BOUNDARY, NOT ACROSS THE BAND (Aug 2026).** It has
+   now been flat slabs, then a ramp running the whole width of each band, and
+   both were wrong in the same place. A hard edge at the reference bound says
+   the bound is a cliff — a value one unit inside a range and one unit outside
+   it are not clinically different — and a ramp across a whole band says the
+   opposite falsehood, that the middle of "above range" is a transition. So
+   each of the four boundaries is drawn as a blend CENTRED ON ITSELF, at a
+   fixed share of the DRAWN EXTENT (`TRANSITION_SHARE`, 11%, ±5.5% either side)
+   rather than of the range — so the blend is the same handful of pixels on a
+   3.9–5.1 marker and a 30–400 one. Flat green across the range, blend at the
+   bound, flat gold, blend at the threshold, flat red. The bound sits at the
+   MIDPOINT of its blend, so a result exactly on the limit is drawn exactly
+   half in each colour, and the boundary hairline runs through the middle of
+   the gradient rather than along its edge. `bandRampStops` (statusBands.ts) is
+   the ONE derivation, shared by the chart and by both range bars — the bar and
+   the chart speak one visual language, and the mini bar's old "flat segments,
+   a ramp at this size is a smear" objection went with the ramp it was about.
+   **THERE ARE TWO HINGES NOW, AND NEITHER IS EVER A STATE.** Orange was on its
+   own for as long as the ramp ran across a band. A blend centred on a
+   reference bound needs a midpoint colour in exactly the way the threshold
+   already had one, so `statusHue.olive` is the fifth hue: the exact RGB
+   midpoint of green and yellow, written out, because "half of each" is the
+   whole claim the gradient makes. OLIVE at a reference bound, ORANGE at a
+   severity threshold.
+   **THE WEIGHT LADDER IS CONTINUOUS ACROSS A BOUNDARY.** Each stop carries an
+   ABSOLUTE weight rather than a share of its band's peak, and the two boundary
+   stops carry the midpoint of the two bands they join (`WEIGHT_AT_BOUND` /
+   `WEIGHT_AT_THRESHOLD`, derived from `BAND_WEIGHT` rather than written down).
+   Both adjacent bands name the same stop at the same value, so the fill is
+   continuous across a boundary drawn as two separate shapes. `markerCopy.test.ts`
+   pins the hand-over; `status-colour.spec.ts` reads the painted stop-opacities
+   off the plot and checks that both sides carry each hinge.
    **THE GRADIENT IS PLACED BY VALUE, NOT BY THE RECT.** A band can reach past
    the domain and the outer two are open-ended, so the rect is clamped — and a
    gradient laid out across the clamped rect finishes its ramp early, putting
    orange somewhere in the middle of the above-range region rather than at the
    threshold where orange means something. Every stop is placed by its value
    and converted onto the rect's own extent, which is why there is ONE GRADIENT
-   PER DRAWN BAND rather than one per status.
-   **`BAND_WEIGHT` IS NOW A PEAK, AND PLOT_LIFT AND BAND_WEIGHT ARE ONE
-   DECISION.** The dark bands went olive and brown for a SECOND time with
-   nothing in tokens.ts touched, and the cause is that `PLOT_LIFT` is solved AT
-   A WEIGHT: when the bands went flat, `BAND_WEIGHT` was cut by about a third
-   (0.10/0.17/0.24 → 0.07/0.12/0.18) to hold the same average ink, which is
-   correct arithmetic and silently invalidated the solve, because a band is
-   76–93% CARD and its saturation is very nearly linear in that number.
-   Measured at the reduced weights: green hsl(80, 0.24, …), gold hsl(43, 0.33,
-   …) — the exact figures the previous re-solve existed to fix. Weights are
-   0.11 / 0.21 / 0.28 and `PLOT_LIFT` is re-solved at them, by a search
-   maximising the COMPOSITE's saturation subject to five constraints: within
-   17% of the light-mode weight, the ladder holding in DARK as well as light
-   (which is what forces red's lightness up — a saturated brick red is the
-   darkest of the four and sits below gold otherwise), the composite hue within
-   11° of its light counterpart, and a point mark still clearing 3:1 on its own
-   band. Composite saturation 0.24 → 0.33 (green), 0.33 → 0.45 (gold),
-   0.34 → 0.46 (red). **Change either number and this has to be solved again.**
+   PER DRAWN BAND rather than one per status. **And only the NEAREST stop
+   outside the rect survives on each side**: where two clamp to the same edge
+   the one that paints it is whichever the sort left last, which on an HDL with
+   a 1–999 range put the orange from a threshold at 3495 across the top of a
+   plot ending at 1250. Keeping the nearest gives the colour that is true at
+   the edge. The range bar clamps the same way for the same reason.
+   **THE BANDS WERE TOO MUTED, AND THE ONLY LEVER IS THE WEIGHT.** "Reads as
+   green" is about CHROMA — distance from the neutral axis — not about HSL
+   saturation, which is a ratio and reports a pale pink and a saturated red as
+   the same figure. Chroma of a composited band is very nearly
+   `weight × chroma(hue)`, so re-picking a hue cannot fix it and moving
+   lightness cannot either. `BAND_WEIGHT` is **0.15 / 0.28 / 0.40** and
+   `PLOT_LIFT` is re-solved at those weights — **and light is now solved too**,
+   where it used to be the raw brand hue: the brand green is 41% saturated, so
+   11% of it over a near-white card landed at a chroma of 10/255, a grey with a
+   rumour of green in it. Measured chroma, before → after: light green
+   0.039 → 0.114, gold 0.149 → 0.200, red 0.153 → 0.400; dark gold
+   0.180 → 0.224, red 0.251 → 0.337. The solve maximises composite chroma
+   subject to the weight ladder holding IN THE SEARCH (which is what forces
+   red's lightness up), the two themes within 15% of each other, and the
+   composite hue within 11° across themes. **PLOT_LIFT, BAND_WEIGHT and
+   MARK_SHIFT are one decision — change any and all of it is solved again.**
+   **THE POINT MARK IS SOLVED SEPARATELY, AND THAT IS THE POINT.** "A mark
+   clears 3:1 on its own band" used to be a constraint inside the PLOT_LIFT
+   search, which meant the BAND was being desaturated to suit the mark: dark
+   red's ceiling under it was a 36%-saturation band, i.e. the maroon this has
+   been through twice. The mark moves and the band does not — `MARK_SHIFT` and
+   `MARK_SHIFT_DARK` are two records because the two themes fail in opposite
+   directions, and each is the SMALLEST shift that clears 3.2:1 on its own
+   band, because every step past that is chroma spent for nothing.
+   **IF BRIGHTER BANDS BURY THE LINE, BRIGHTEN THE LINE.** Never dull the bands
+   back down: the line is the content and the bands are the context, and that
+   ordering is a fact about the chart rather than about how much ink is on it.
+   `chart.line` steps away from the surface in each theme (bronze-700 light,
+   the lifted bronze-500 dark) and `chart.lineWidth` is 3. The boundary
+   hairline went the same way — `taupe-900` in light, where at `taupe-600` it
+   measured **1.11:1** against the new significantly-out band, a line nobody
+   can see drawn across the region where seeing it matters most.
+   `tokenContrast.test.ts` holds the line above every band it crosses, the
+   hairline visible on all of them and below the line, and every band's chroma
+   above 0.1.
    **A TICK IS DROPPED WHERE IT WOULD PRINT ON A REFERENCE BOUND**, because the
    bound is the number that means something. `TICK_BOUND_GAP` is 8% of the
    domain — 16px on the shortest plot this chart is drawn at — and it is a
@@ -1366,34 +1446,99 @@ It refuses to run unless the target database's name contains "drill" or
   and a retest prompt, which is a booking affordance on a portal whose booking
   flow is deliberately off. Removed from the DTO as well as the page: a computed
   field nothing renders is one autocomplete away from bringing the section back.
-- **A SECTION RAIL, IN THE GUTTER, ANCHORED TO THE CONTENT COLUMN (Aug 2026).**
-  A dot per section on a hairline, sticky at `8rem`, labels set VERTICALLY along
-  the line. Rotated rather than revealed on hover, and the reason is that a bare
-  dot is not an index — it is a promise, invisible to touch and useless to
-  somebody who does not already know what is down there; a hover-revealed label
-  also has to be drawn over the content beside it, which a 48px gutter cannot
-  do. `writing-mode: vertical-rl` + `text-orientation: sideways` + a 180° turn,
-  and **`sideways` is load-bearing**: under the default `mixed` the apostrophe
-  stays upright and "What’s changed" reads "What· s changed".
+- **A SECTION RAIL ON THE RIGHT, IN TWO STATES (redesigned Aug 2026).**
+  AT REST it is a list of horizontal labels in page order — ordinary text you
+  can read without doing anything to it, one step below the reading size and in
+  the muted tone. ONCE THE READER SCROLLS (`COLLAPSE_AT`, 24px — zero flickers
+  on a rubber-band and on a restored scroll position) it collapses to a line
+  with one node per section, and position is the only thing it still carries.
+  **THE NODE IS AN ARCH**: a rectangle with one semicircular end, laid on its
+  side with the flat edge against the line and the curve pointing into the
+  page. A circle would be a bullet — a mark meaning "an item" — and this has to
+  mean "a position on this line". The active one is filled and longer; both
+  dimensions move, so the state is not carried by brightness alone.
+  **WHAT THIS REPLACED, AND WHY THE OLD REASONING WAS WRONG.** It was rotated
+  labels on the LEFT, and the note here argued at length that a bare dot "is
+  not an index — it is a promise". That argument was right, and it was an
+  argument for the EXPANDED state rather than for rotation: rotated text is
+  harder to read than horizontal text, and the cost was being paid permanently
+  to solve a problem that only exists once the reader has started scrolling.
+  **THE LABEL IS TAKEN OUT OF FLOW, NEVER OUT OF THE TREE.** `opacity: 0` and
+  `position: absolute` when collapsed — a rail whose links have no accessible
+  names is four anonymous shapes to a screen reader — and it comes back on
+  hover or focus, to the LEFT of its node, on the GLASS material, because
+  revealed it is drawn over somebody's results and at rest it is not.
   **IT CANNOT COLLIDE, BY CONSTRUCTION rather than by numbers that happened to
-  work.** It is positioned against the SECTIONS WRAPPER — inside the shell's
-  `mx-auto max-w-5xl` column — so it is measured from the column and not the
-  viewport: 24px of gutter to the content at every width, and its 72px come out
-  of `main`'s own 80px of padding, which is empty by definition, so 8px clears
-  the sidebar in the worst case (1280, expanded) and more at every wider one.
-  Below `xl` it is `display: none`. The sticky top is 8rem because the sidebar's
-  collapse toggle hangs past the panel edge and ends at 124px; at 6rem the two
-  cleared each other only because the first label happened to be long.
-  Every dot is a REAL `href="#id"` anchor, so it works before hydration; the
+  work.** A horizontal label is 100–130px where a rotated one was 12, and the
+  gutter does not have it: at 1440 with the sidebar expanded the free space to
+  the right of the column IS `main`'s 80px of padding. So the space is
+  RESERVED — the sections wrapper carries `xl:pr-36` (144px) and the remaining
+  48px come out of that padding, which is empty by definition. 168px of rail,
+  24px of gap, 32px of clearance to the window in the worst case. **The
+  reservation does not change with the state**, so the page does not reflow
+  under the reader on their first scroll. Below `xl` it is `display: none`.
+  The sticky top is 8rem because the sidebar's collapse toggle hangs past the
+  panel edge and ends at 124px.
+  Every node is a REAL `href="#id"` anchor, so it works before hydration; the
   handler only upgrades it to a smooth scroll (`auto` under reduced motion),
   `replaceState`s the hash and moves focus with `preventScroll` — a plain
   `focus()` jumps the viewport and cancels the scroll it was intercepting for.
   Active is picked from scroll POSITION (the last section whose top has passed
   30% of the viewport, and the last section outright at the bottom of the
   document) rather than from an IntersectionObserver, which has both a
-  nothing-in-the-band state and a two-in-the-band state and a filled dot has
-  neither. `e2e/overview-rail.spec.ts` measures the boxes.
+  nothing-in-the-band state and a two-in-the-band state and a filled node has
+  neither — and the same read decides both booleans in one frame, so the rail
+  cannot be collapsed about one scroll position and active about another.
+  `e2e/overview-rail.spec.ts` measures the boxes in BOTH states at 1280, 1440
+  and 1920.
 - Nothing auto-publishes; release is an explicit state change
+
+# A report says what is on it (Aug 2026)
+
+A Signature report is 433 results and **249 of them are below the marker
+grid** — the genetic indicators, 207 food sensitivities, the microbiome panel.
+Nothing on the first screen said so, so a patient who scrolled to the end of
+the markers and stopped had seen a little over a third of what they paid for
+with no reason to think otherwise: the page looked finished. Three things fixed
+it, and each was a SILENT failure — nothing on screen looks broken when a
+search quietly does not cover two thirds of a page.
+
+- **A SECTION INDEX, directly under the at-a-glance strip.** One quiet chip per
+  section the report actually has, naming it and its count ("Measured 165 ·
+  Genetic 32 · Gut microbiome 10 · Findings 22 · Food sensitivity 207").
+  Deliberately smaller than the strip above it: that is the headline, this is a
+  table of contents, and an index at the strip's weight would be a second
+  headline making a different kind of claim. Small type, no fill, a hairline at
+  most, and the separation is SPACE rather than a rule. **No chip for a section
+  the report does not contain**, and **no index at all below two** — a one-item
+  table of contents says "here is a list of the one thing you can already see".
+  Every chip is a real `href="#id"` anchor to a real `<section>`; the handler
+  adds the smooth scroll and opens whatever that section keeps collapsed, since
+  landing on nine shut disclosures answers "is it in here" with "yes, somewhere
+  under this". `REPORT_SECTION_IDS` in features/patient/reportSections.ts is
+  the one list.
+- **THE SEARCH REACHES EVERY RESULT TYPE.** It used to narrow only the measured
+  markers, so typing "cod" or "APOE" produced "Nothing matches those filters"
+  over an empty grid. The page query now applies IN ADDITION to each section's
+  own field — the bar narrows the whole page, the section's field narrows
+  within it — and a section that matches opens itself and says so upward. Where
+  the grid is left empty and something below did match, the page scrolls to it:
+  once per query rather than once per keystroke, and never while the grid still
+  has results in it, so a search that found markers cannot move the page under
+  somebody's hands.
+- **"HEALTH AREA" IS "CATEGORY", and it holds result types as well.** Narrowing
+  to Food sensitivity and narrowing to Kidney health are the same kind of
+  request, and until this they had to be asked in two completely different
+  ways. Result types sit ABOVE the areas under their own heading, because one
+  names a whole section and the other names a slice through the markers in one
+  of them — grouped rather than merged, since they are not the same KIND of
+  answer. `Listbox` gained one-level groups (a real `role="group"` with its own
+  name, and every option keeps its FLAT index so arrow keys, type-ahead and
+  `aria-activedescendant` are untouched); `Select` parses `<optgroup>` for it.
+  Offered only where they can return something — an open report — which is the
+  same rule the health-area picker already followed. The chip row reads the
+  label off the CLOSED LIST rather than off what the current view offers, so a
+  filter carried out of a report still names itself.
 
 # One human gate, and it is a clinician (Aug 2026)
 

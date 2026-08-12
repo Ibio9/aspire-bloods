@@ -46,7 +46,7 @@ function childrenToText(node: ReactNode): string {
   return '';
 }
 
-function optionsFromChildren(children: ReactNode): ListboxOption[] {
+function optionsFromChildren(children: ReactNode, group?: string): ListboxOption[] {
   const options: ListboxOption[] = [];
   // Children.toArray recursively flattens nested arrays and fragments — plain `Array.isArray(children)`
   // does not, so a call site that mixes a literal <option> with `{list.map(...)}` (very common —
@@ -54,10 +54,17 @@ function optionsFromChildren(children: ReactNode): ListboxOption[] {
   // option from the .map() since it stays nested as children[1] = [opt1, opt2, ...] rather than
   // being spread into the top-level array.
   for (const child of Children.toArray(children)) {
-    if (!isValidElement<{ value?: string; children?: ReactNode; disabled?: boolean }>(child)) continue;
+    if (!isValidElement<{ value?: string; children?: ReactNode; disabled?: boolean; label?: string }>(child)) continue;
+    // `<optgroup label="…">`, exactly as with a native select: one level deep,
+    // because that is all a native select supports and a call site that wanted
+    // more would be describing a tree rather than a picker.
+    if (child.type === 'optgroup') {
+      options.push(...optionsFromChildren(child.props.children, child.props.label ?? group));
+      continue;
+    }
     const value = child.props.value != null ? String(child.props.value) : '';
     const label = childrenToText(child.props.children) || value;
-    options.push({ value, label, disabled: child.props.disabled });
+    options.push({ value, label, disabled: child.props.disabled, group });
   }
   return options;
 }

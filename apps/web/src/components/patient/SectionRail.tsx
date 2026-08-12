@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 /**
- * A VERTICAL INDEX OF THE PAGE'S OWN SECTIONS, beside the content and not in
- * the sidebar.
+ * AN INDEX OF THE PAGE'S OWN SECTIONS, IN THE GUTTER TO THE RIGHT OF IT.
  *
  * The sidebar answers "where else can I go". This answers "what is on the page
  * I am on and how far down it am I", which is a different question and belongs
@@ -10,31 +9,31 @@ import { useEffect, useRef, useState } from 'react';
  * first of them can be a long list, so the other three were previously only
  * discoverable by scrolling past it.
  *
- * ── WHY THE LABELS ARE ROTATED, AND WHAT ELSE WAS TRIED ────────────────────
+ * ── IT HAS TWO STATES, AND THE FIRST ONE IS THE POINT (Aug 2026) ───────────
  *
- * Rotated, running along the line, bottom-to-top. The alternative was a bare
- * dot that reveals its label horizontally on hover, and the reason that lost is
- * that it is not an index — it is four unlabelled dots plus a promise. A person
- * who does not already know what the dots are has no reason to hover one, a
- * touch device has no hover at all, and the whole point of the rail is to say
- * what is further down the page WITHOUT being interrogated. A hover-revealed
- * label also has to be drawn over the content beside it, which is the one thing
- * a rail in a 48px gutter must never do.
+ * AT REST it is a list of horizontal labels: ordinary text, in page order, on
+ * the right of the content. That is an index — you can read it without doing
+ * anything to it.
  *
- * Rotated text is genuinely harder to read than horizontal text, and that cost
- * is paid deliberately and bounded: these are four fixed, short, familiar
- * phrases that the reader meets again as headings the moment they arrive. It is
- * an index, not prose. What makes it affordable is that nothing depends on it —
- * every section is a heading in the document with its own id, the rail is one
- * of two ways to reach it, and it is hidden entirely below `xl`.
+ * ONCE THE READER SCROLLS it collapses to a line with one node per section.
+ * Position is the only thing it still needs to carry at that point: the reader
+ * has met the headings on the way past, and a column of labels tracking beside
+ * a page being read is a second page competing with the first.
  *
- * `writing-mode: vertical-rl` plus a 180° turn, rather than a bare
- * `rotate(-90deg)`: a rotated inline box keeps its horizontal line box, so it
- * has to be measured and positioned by hand and it does not participate in
- * layout. In a real vertical writing mode the browser lays the text out, so the
- * item's height IS the label's length and the rail spaces itself.
+ * WHAT THIS REPLACED, AND WHY THE PREVIOUS REASONING WAS WRONG. It was one
+ * column of ROTATED labels on the LEFT, and the note here argued at length that
+ * a bare dot revealing a label on hover "is not an index — it is four unlabelled
+ * dots plus a promise". That argument was right and it was an argument for the
+ * expanded state, not for rotation: rotated text is genuinely harder to read
+ * than horizontal text, and the cost was being paid permanently to solve a
+ * problem that only exists once the reader has started scrolling. So the labels
+ * are horizontal and readable when reading them is what the rail is for, and
+ * they are gone — recoverable on hover or focus — once it is a position
+ * indicator. Nothing depends on either state: every section is a heading in the
+ * document with its own id, the rail is one of two ways to reach it, and it is
+ * hidden entirely below `xl`.
  *
- * ── EVERY DOT IS A REAL LINK ───────────────────────────────────────────────
+ * ── EVERY NODE IS A REAL LINK ──────────────────────────────────────────────
  *
  * `href="#section-id"`, so with JavaScript off, or before hydration, or in a
  * reader-mode view, the rail still navigates. The click handler only upgrades
@@ -44,15 +43,27 @@ import { useEffect, useRef, useState } from 'react';
 export interface RailSection {
   /** The `id` on the `<section>` element. Also the anchor target. */
   id: string;
-  /** What the dot is labelled. Short: it is set vertically. */
+  /** What the node is labelled. Short: it has one line and a fixed gutter. */
   label: string;
 }
 
 /** Where down the viewport a section counts as "the one being read". */
 const ACTIVE_LINE = 0.3;
 
+/**
+ * How far the reader has to scroll before the rail gives up its labels.
+ *
+ * Not zero, and not a whole viewport. Zero flickers: a trackpad's rubber-band
+ * and a browser restoring a scroll position both cross it in both directions
+ * within a frame, and a label column blinking on and off is worse than either
+ * state. 24px is past every one of those and short of anything anybody would
+ * call reading.
+ */
+const COLLAPSE_AT = 24;
+
 export function SectionRail({ sections }: { sections: RailSection[] }) {
   const [active, setActive] = useState<string | null>(sections[0]?.id ?? null);
+  const [collapsed, setCollapsed] = useState(false);
   // The list, so the effect can re-run when a section appears or disappears
   // (the attention section is absent for a patient with nothing out of range)
   // without depending on the array's identity, which changes every render.
@@ -70,7 +81,7 @@ export function SectionRail({ sections }: { sections: RailSection[] }) {
      * band at some scroll positions) and more than one thing in it. Reading the
      * positions directly gives exactly one answer at every scroll offset —
      * the last section whose top has passed the line — which is what the filled
-     * dot has to be.
+     * node has to be.
      */
     function pick() {
       frame.current = null;
@@ -87,6 +98,10 @@ export function SectionRail({ sections }: { sections: RailSection[] }) {
       // the last. Being at the end of the page IS being in the last section.
       const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
       setActive(atBottom ? ids[ids.length - 1] : current);
+      // The other half of what one scroll read decides. Both are derived from
+      // the same measurement in the same frame, so the rail cannot be collapsed
+      // about one scroll position and active about another.
+      setCollapsed(window.scrollY > COLLAPSE_AT);
     }
 
     function onScroll() {
@@ -118,7 +133,7 @@ export function SectionRail({ sections }: { sections: RailSection[] }) {
 
     // The URL still ends up at the anchor, so the position is shareable and the
     // back button behaves — `replaceState` rather than a push, because four
-    // dots on one page should not fill somebody's history.
+    // nodes on one page should not fill somebody's history.
     history.replaceState(null, '', `#${id}`);
 
     // `preventScroll`, and it is the whole reason focus can move at all here: a
@@ -130,7 +145,11 @@ export function SectionRail({ sections }: { sections: RailSection[] }) {
   }
 
   return (
-    <nav className="section-rail print-hide" aria-label="Sections on this page">
+    <nav
+      className={`section-rail print-hide ${collapsed ? 'is-collapsed' : ''}`}
+      aria-label="Sections on this page"
+      data-state={collapsed ? 'collapsed' : 'expanded'}
+    >
       <ol className="section-rail__list">
         {sections.map((section) => {
           const isActive = section.id === active;
@@ -142,8 +161,13 @@ export function SectionRail({ sections }: { sections: RailSection[] }) {
                 aria-current={isActive ? 'true' : undefined}
                 className={`section-rail__link ${isActive ? 'is-active' : ''}`}
               >
-                <span className="section-rail__dot" aria-hidden="true" />
+                {/* The label leads in the DOM so the accessible name is the
+                    label and nothing else — the node is decoration and says
+                    so. It is never removed from the tree, only from view: a
+                    collapsed rail whose links have no names is four anonymous
+                    shapes to a screen reader. */}
                 <span className="section-rail__label">{section.label}</span>
+                <span className="section-rail__node" aria-hidden="true" />
               </a>
             </li>
           );

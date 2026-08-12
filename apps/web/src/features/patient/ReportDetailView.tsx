@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatDate } from '@aspire-bloods/shared';
 import type { MarkerNavState } from './markerNavState';
 import { Card } from '../../components/ui/Card';
@@ -19,6 +19,7 @@ import {
 import { AreaGroupHeading } from './ResultsSummary';
 import { MARKER_GRID_CLASS, MarkerResultCard } from './MarkerResultCard';
 import { CompositionSection, GeneticSection, QualitativeSection, SensitivitySection } from './NonMeasuredSections';
+import { REPORT_SECTION_IDS, resultTypeFilter, sectionMatchesType } from './reportSections';
 import type { ResultsArrangement, ResultsFilters } from './resultsView';
 import type { MarkerCard, ReportDetailData } from './useReportDetail';
 
@@ -48,15 +49,21 @@ export function ReportDetailView({
   filters,
   arrangement,
   onClearFilters,
+  revealed,
 }: {
   data: ReportDetailData;
   filters: ResultsFilters;
   arrangement: ResultsArrangement;
   onClearFilters: () => void;
+  /** The section the reader asked for — a chip in the index, or a hash on the URL. */
+  revealed: string | null;
 }) {
   const { report, failed, byType, categories, areaNotes } = data;
   const { query, statusFilter, categoryFilter } = filters;
   const { grouping, reportSort } = arrangement;
+  // A result-type filter names exactly one section, so the measured grid is
+  // absent under any of the other four — see sectionMatchesType.
+  const measuredShown = sectionMatchesType('MEASURED', categoryFilter);
 
   /**
    * The provenance stack under a value: the panel, the sample date, and — only
@@ -82,14 +89,17 @@ export function ReportDetailView({
   // report is whatever it is, and a marker the report doesn't contain has no
   // row to hide or show. Filtering can only ever remove cards that exist.
   const visible = useMemo(() => {
+    if (!measuredShown) return [];
     const filtered = byType.measured.filter(
       (m) =>
         matchesStatusFilter(m.status, statusFilter) &&
         matchesMarkerQuery(m, query) &&
-        (categoryFilter === 'ALL' || (m.categoryKeys ?? []).includes(categoryFilter)),
+        (categoryFilter === 'ALL' ||
+          resultTypeFilter(categoryFilter) !== null ||
+          (m.categoryKeys ?? []).includes(categoryFilter)),
     );
     return [...filtered].sort(compare);
-  }, [byType.measured, statusFilter, query, categoryFilter, compare]);
+  }, [byType.measured, statusFilter, query, categoryFilter, compare, measuredShown]);
 
   // Under health-area headings, in the catalogue's own order. A marker in four
   // areas appears under all four — see groupByHealthArea; the count above stays
@@ -109,6 +119,40 @@ export function ReportDetailView({
 
   const filtersApplied = query.trim() !== '' || statusFilter !== 'ALL' || categoryFilter !== 'ALL';
   const clearFilters = onClearFilters;
+
+  /**
+   * ---------------------------------------------------------------------
+   * A SEARCH THAT MATCHED SOMETHING 5,000 PIXELS AWAY HAS TO SAY SO.
+   * ---------------------------------------------------------------------
+   *
+   * Typing "cod" used to produce "Nothing matches those filters" over an empty
+   * marker grid while Cod sat in a collapsed food group far below the fold.
+   * The search reaches every result type now, so the section knows — and the
+   * only place that knows BOTH that the grid is empty and that something
+   * further down matched is here.
+   *
+   * Deliberately narrow, and the narrowness is the point: it fires only when
+   * the grid has nothing in it, so a search that found markers never moves the
+   * page under the reader's hands while they are still typing. And once per
+   * query rather than once per keystroke — `scrolledFor` holds the query it has
+   * already answered, so backspacing and retyping the same word does not send
+   * the page down a second time.
+   */
+  const [matchedBelow, setMatchedBelow] = useState<string | null>(null);
+  const onSectionMatched = useCallback((id: string) => setMatchedBelow((first) => first ?? id), []);
+  useEffect(() => setMatchedBelow(null), [query]);
+  const scrolledFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (query.trim() === '' || visible.length > 0 || !matchedBelow) return;
+    if (scrolledFor.current === query) return;
+    scrolledFor.current = query;
+    const el = document.getElementById(matchedBelow);
+    if (!el) return;
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    el.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'start' });
+  }, [query, visible.length, matchedBelow]);
+
+  const pageFilters = { query, categoryFilter, revealed, onReveal: onSectionMatched };
 
   // Prev/next on the marker detail page walks the list the patient is actually
   // looking at, in the order they are looking at it — so it has to be the
@@ -153,6 +197,12 @@ export function ReportDetailView({
 
   return (
     <>
+      {/* A REAL SECTION WITH A REAL ID, because the index above the control bar
+          links to it and a chip whose target does not exist is a chip that does
+          nothing. `tabIndex={-1}` so focus can land here after a scroll and the
+          next Tab continues from inside the results rather than from the top of
+          the document. */}
+      <section id={REPORT_SECTION_IDS.measured} tabIndex={-1} className="scroll-mt-24 focus:outline-none">
       {/* The live count and the way out of an over-narrow filter, directly
           above the cards they are about — the controls that produced them are
           in the bar overhead. */}
@@ -177,9 +227,15 @@ export function ReportDetailView({
               sentence is a report with no blood measurements at all, where the
               reader would otherwise think the page had failed. */}
           <EmptyState
-            title={byType.measured.length === 0 ? 'No blood measurements on this report' : 'Nothing matches those filters'}
+            title={
+              !measuredShown
+                ? 'Blood measurements are hidden by the category filter'
+                : byType.measured.length === 0
+                  ? 'No blood measurements on this report'
+                  : 'Nothing matches those filters'
+            }
             description={
-              byType.measured.length === 0
+              byType.measured.length === 0 || !measuredShown
                 ? 'Everything this report does contain is in the sections below.'
                 : undefined
             }
@@ -223,19 +279,46 @@ export function ReportDetailView({
         </div>
       )}
 
+      </section>
+
       {/* Everything that is not a blood measurement, below the results and
           clearly separated from them, each with framing that says what it is
-          and is not. Filters above do not touch these — they are answers to a
-          different question and hiding them behind a status filter they can
-          never satisfy would just make them look broken. */}
+          and is not.
+
+          THE PAGE'S SEARCH REACHES THESE NOW (Aug 2026), and its absence was
+          the same discovery bug the section index fixes, in another place: a
+          patient typing "cod" or "APOE" into the bar at the top of the page got
+          "Nothing matches those filters" over an empty grid, while the thing
+          they asked for sat 5,000px below it in a collapsed disclosure. The
+          page query is applied IN ADDITION to each section's own — the bar
+          narrows the whole page, the section's field narrows within it — and a
+          section that matches OPENS ITSELF and says so upward, so the page can
+          take the reader to it rather than leaving them on an empty grid.
+
+          The STATUS filter still does not touch them, and that is unchanged:
+          none of these has a status, and hiding a section behind a filter it
+          can never satisfy would just make it look broken. */}
       <PersonalMeasurementsSection
         measurements={report.personalMeasurements ?? []}
         note={report.personalMeasurementsNote ?? null}
+        shown={sectionMatchesType('MEASURED', categoryFilter)}
       />
-      <GeneticSection markers={byType.genetic} categories={report.categories ?? []} />
-      <CompositionSection markers={byType.composition} categories={report.categories ?? []} />
-      <QualitativeSection markers={byType.qualitative} categories={report.categories ?? []} />
-      <SensitivitySection markers={byType.sensitivity} />
+      <GeneticSection
+        markers={byType.genetic}
+        categories={report.categories ?? []}
+        page={pageFilters}
+      />
+      <CompositionSection
+        markers={byType.composition}
+        categories={report.categories ?? []}
+        page={pageFilters}
+      />
+      <QualitativeSection
+        markers={byType.qualitative}
+        categories={report.categories ?? []}
+        page={pageFilters}
+      />
+      <SensitivitySection markers={byType.sensitivity} page={pageFilters} />
     </>
   );
 }
@@ -259,16 +342,24 @@ export function ReportDetailView({
 function PersonalMeasurementsSection({
   measurements,
   note,
+  shown,
 }: {
   measurements: { key: string; name: string; value: number; unit: string }[];
   note: string | null;
+  /** False where a result-type filter names some other section — see sectionMatchesType. */
+  shown: boolean;
 }) {
   // Nothing measured, nothing rendered — never an empty section, never a
   // placeholder row. Manual entry and PDF upload carry none of these at all.
-  if (measurements.length === 0) return null;
+  if (measurements.length === 0 || !shown) return null;
 
   return (
-    <section className="mt-14" aria-labelledby="personal-measurements-heading">
+    <section
+      id={REPORT_SECTION_IDS.measurements}
+      tabIndex={-1}
+      className="mt-14 scroll-mt-24 focus:outline-none"
+      aria-labelledby="personal-measurements-heading"
+    >
       <h2 id="personal-measurements-heading" className="font-display text-xl text-espresso">
         Personal health measurements
       </h2>
