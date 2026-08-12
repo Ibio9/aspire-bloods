@@ -10,6 +10,17 @@ interface CurrentUser {
   role: UserRole;
   displayName: string;
   hasPatientProfile: boolean;
+  /**
+   * Whether this patient has been shown the first sign-in introduction.
+   *
+   * From the server, on /auth/me, and never from localStorage: a first sign-in
+   * is a fact about the person rather than about the browser, and a flag in
+   * storage brings the screen back on their phone, in a private window and
+   * after any cookie clear-out. Absent on an older payload, which reads as
+   * `undefined` and is treated as SEEN — a returning patient must never be
+   * shown an introduction because a deploy was mid-flight.
+   */
+  walkthroughSeen?: boolean;
 }
 
 interface AuthContextValue {

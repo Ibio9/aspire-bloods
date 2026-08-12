@@ -149,49 +149,78 @@ test.describe('traffic-light status', () => {
       await page.goto(`/markers/${marker.markerId}`);
       await page.waitForSelector('text=Trend over time');
 
-      // Five gradient definitions, one per band, is what the chart emits when
-      // it has drawn all five.
-      const gradients = page.locator('svg defs linearGradient[id^="band-"]');
-      await expect(gradients).toHaveCount(5, { timeout: 10_000 });
-
-      // And the bands are PAINTED at the weight the tokens computed.
+      // ─────────────────────────────────────────────────────────────────
+      // FIVE BANDS, EACH PAINTED AT ITS OWN WEIGHT (rewritten Aug 2026).
       //
-      // This is the check the gradient count above cannot make, and the one
-      // that would have caught the failure it exists for. Recharts'
-      // ReferenceArea defaults fillOpacity to 0.5, so every band was drawn at
-      // half strength — on top of a band token that is deliberately only a
-      // ~30% mix toward its hue, because that is the point at which it reads
-      // as a colour rather than as cream. Halved, all five landed in the same
-      // beige and the whole chart read as grey, while the gradients, the key,
-      // the boundary lines and the tokens themselves were all perfectly
-      // correct. Nothing short of reading the painted opacity sees it.
+      // This used to count five `linearGradient` definitions and assert every
+      // band path was drawn at fillOpacity 1, because the weight lived in the
+      // gradient's own stops. The bands are FLAT now — no gradients, hard
+      // edges — so the weight is on the element, and the check has to move
+      // with it.
+      //
+      // The PROPERTY being protected is unchanged and is the reason this
+      // exists: Recharts' ReferenceArea defaults fillOpacity to 0.5, so a band
+      // whose weight is not stated explicitly is drawn at half whatever the
+      // tokens decided. When that happened every band landed in the same beige
+      // and the whole chart read as grey — while the key, the boundary lines
+      // and the tokens themselves were all perfectly correct. Nothing short of
+      // reading the painted opacity sees it.
+      // ─────────────────────────────────────────────────────────────────
+      // The same selector e2e/chart-bands.spec.ts measures band geometry
+      // through, so the two specs cannot disagree about what a band is.
+      await page.waitForTimeout(900);
       const bandPaint = await page.evaluate(() => {
-        const paths = [...document.querySelectorAll('.recharts-reference-area path')];
-        return paths
-          .filter((p) => (p.getAttribute('fill') ?? '').includes('band-'))
-          .map((p) => Number(getComputedStyle(p as SVGElement).fillOpacity));
+        const rects = [...document.querySelectorAll('.recharts-reference-area-rect')];
+        return rects
+          // The status bands are the tall ones. Anything short is a boundary
+          // artefact rather than a band.
+          .filter((r) => Number(r.getAttribute('height')) > 8)
+          .map((r) => Number(getComputedStyle(r as SVGElement).fillOpacity));
       });
-      expect(bandPaint.length, `${theme}: no status bands were painted at all`).toBeGreaterThan(0);
+      expect(bandPaint.length, `${theme}: no status bands were painted at all`).toBeGreaterThanOrEqual(5);
+
+      // The three weights the ladder is built from — in range carries the
+      // least, out-of-range more, significantly-out most. Read from the
+      // painted element rather than from the token file, so a band drawn at
+      // the library's own 0.5 default fails here even though every token is
+      // right.
+      const WEIGHTS = [0.07, 0.12, 0.18];
       for (const opacity of bandPaint) {
-        expect(opacity, `${theme}: a status band is painted at ${opacity}, not at its token’s own weight`).toBe(1);
+        expect(
+          WEIGHTS.some((w) => Math.abs(w - opacity) < 0.001),
+          `${theme}: a status band is painted at ${opacity}, which is not one of its tokens' own weights ` +
+            `(${WEIGHTS.join(', ')}). 0.5 means the weight was never stated and Recharts supplied its default.`,
+        ).toBe(true);
       }
+      // All three weights are actually in use, so a chart that painted every
+      // band at the same value could not pass by accident.
+      expect(new Set(bandPaint.map((o) => o.toFixed(3))).size, `${theme}: every band is the same weight`).toBe(3);
+
+      // NO GRADIENTS. The flat-band decision, asserted rather than assumed: a
+      // gradient reintroduced here would restore soft edges to a plot whose
+      // entire subject is a boundary.
+      await expect(page.locator('svg defs linearGradient[id^="band-"]')).toHaveCount(0);
 
       // The band tokens themselves still carry real colour in this theme. A
-      // band drawn at full opacity is worth nothing if the value behind it has
-      // been flattened to the surface colour.
+      // band drawn at its own weight is worth nothing if the value behind it
+      // has been flattened to the surface colour. `plot` is what the chart
+      // composites now; `band` is the pre-mixed role the range bar still
+      // paints, and both have to hold.
       const hues = await page.evaluate(() => {
         const styles = getComputedStyle(document.documentElement);
-        return ['green', 'yellow', 'orange', 'red'].map((h) => ({
-          hue: h,
-          channels: styles.getPropertyValue(`--c-hue-${h}-band`).trim(),
-        }));
+        return ['green', 'yellow', 'orange', 'red'].flatMap((h) =>
+          ['band', 'plot'].map((role) => ({
+            hue: `${h}-${role}`,
+            channels: styles.getPropertyValue(`--c-hue-${h}-${role}`).trim(),
+          })),
+        );
       });
       for (const { hue, channels } of hues) {
         const [r, g, b] = channels.split(/\s+/).map(Number);
-        expect(Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b), `${theme}: --c-hue-${hue}-band is "${channels}"`).toBe(true);
+        expect(Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b), `${theme}: --c-hue-${hue} is "${channels}"`).toBe(true);
         expect(
           Math.max(r, g, b) - Math.min(r, g, b),
-          `${theme}: the ${hue} band token has no colour in it (${channels})`,
+          `${theme}: the ${hue} token has no colour in it (${channels})`,
         ).toBeGreaterThanOrEqual(8);
       }
 
@@ -213,10 +242,45 @@ test.describe('traffic-light status', () => {
       });
       expect(line.drawn, `${theme}: copy says the results are joined into a line, and none is drawn`).toBe(saysJoined);
 
-      // The key names every band in words. This is the non-colour carrier, and
-      // it is the thing that must never be dropped in favour of the shading.
-      await expect(page.getByText('Within the reference range')).toBeVisible();
-      await expect(page.getByText('Above the reference range', { exact: true })).toBeVisible();
+      // ─────────────────────────────────────────────────────────────────
+      // THE NON-COLOUR CARRIER, WHICH MOVED (Aug 2026).
+      //
+      // The key used to name every BAND in words and this asserted it. The
+      // band entries are gone: every reference bound is now printed on the
+      // left axis in figures, level with its own hairline, which is a more
+      // specific answer to "where does my range start" than a sentence beside
+      // a coloured swatch and one a greyscale reader gets in full.
+      //
+      // So the claim being protected is the same and the evidence for it is
+      // different: the bounds are on the axis as NUMBERS, and every point
+      // state is still named in WORDS in the key. What must never happen is a
+      // band with neither.
+      // ─────────────────────────────────────────────────────────────────
+      const axisBounds = await page.evaluate(() => {
+        const svg = document.querySelector('.recharts-surface');
+        if (!svg) return [];
+        return ([...svg.querySelectorAll('text')] as SVGTextElement[])
+          .filter((t) => !t.closest('.recharts-cartesian-axis'))
+          .filter((t) => (t.getAttribute('font-family') ?? '').includes('mono'))
+          .map((t) => t.textContent ?? '');
+      });
+      const numericBounds = axisBounds.filter((t) => t.trim() !== '' && Number.isFinite(Number(t)));
+      expect(
+        numericBounds.length,
+        `${theme}: the reference bounds are not printed anywhere on the axis (${JSON.stringify(axisBounds)})`,
+      ).toBeGreaterThanOrEqual(2);
+      // And none of them is a raw float. A converted range arrives with no
+      // rounding of its own and once printed 5.494444506110488 beside the plot.
+      for (const label of numericBounds) {
+        expect(label.length, `${theme}: "${label}" is a raw float, not a reference bound`).toBeLessThanOrEqual(7);
+      }
+
+      // And the point states, in words, in the key. At least one, because a
+      // series that is entirely in range has exactly one state to name.
+      const keyWords = await page
+        .getByText(/^(In range|Above range|Below range|Significantly above range|Significantly below range)$/)
+        .count();
+      expect(keyWords, `${theme}: no point state is named in words`).toBeGreaterThan(0);
 
       // Nothing evaluative anywhere on the page.
       const body = (await page.locator('body').innerText()).toLowerCase();

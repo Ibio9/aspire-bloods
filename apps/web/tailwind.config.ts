@@ -12,6 +12,7 @@ import {
   EYEBROW_TRACKING,
   MEASURE,
   PANEL_WASH_ALPHA,
+  GLASS,
   type TypeStep,
 } from '../../packages/shared/src/tokens';
 
@@ -384,6 +385,12 @@ export default {
           // amount of it. From the token package rather than written here, so
           // tokenContrast.test.ts measures the number the stylesheet uses.
           '--panel-wash': String(PANEL_WASH_ALPHA.light),
+          // The glass material: one blur and one saturation everywhere, a
+          // per-surface alpha. See GLASS in tokens.ts for why the number is a
+          // frame budget rather than a taste.
+          '--glass-wash': String(GLASS.wash.light),
+          '--glass-blur': GLASS.blur,
+          '--glass-saturate': GLASS.saturate,
           'color-scheme': 'light',
         },
         '.dark': {
@@ -391,7 +398,40 @@ export default {
           '--shadow-tight': '0.3',
           '--shadow-diffuse': '0.36',
           '--panel-wash': String(PANEL_WASH_ALPHA.dark),
+          '--glass-wash': String(GLASS.wash.dark),
+          '--glass-blur': GLASS.blur,
+          '--glass-saturate': GLASS.saturate,
           'color-scheme': 'dark',
+        },
+        /**
+         * ── PRINT IS LIGHT, WHATEVER THE SCREEN IS ────────────────────────
+         *
+         * A patient reading in dark mode who presses Ctrl+P got a near-black
+         * page: on a colour printer that is a cartridge of warm brown ink and
+         * on a mono one it is a grey slab with white text knocked out of it.
+         *
+         * It is fixed at the TOKEN layer rather than by overriding colours
+         * component by component, because every colour in this product already
+         * resolves through these custom properties — so re-emitting the light
+         * set under `@media print`, at a selector that beats `.dark`, turns the
+         * whole interface light in one place and leaves every `text-espresso`
+         * and `bg-cream-50` in the codebase untouched. Anything added later is
+         * covered by construction rather than by remembering.
+         *
+         * The shadow alphas go to zero with it: a warm drop shadow is a grey
+         * smudge on paper and costs ink to say nothing.
+         */
+        '@media print': {
+          ':root, .dark': {
+            ...asBaseVars('light'),
+            '--shadow-tight': '0',
+            '--shadow-diffuse': '0',
+            '--panel-wash': '0',
+            '--glass-wash': '0',
+            '--glass-blur': '0px',
+            '--glass-saturate': '1',
+            'color-scheme': 'light',
+          },
         },
       });
     }),

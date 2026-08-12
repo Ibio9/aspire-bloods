@@ -31,6 +31,7 @@ import {
   dismissUnmatchedResult,
 } from './linkingService.js';
 import { runDemoSeed } from './demoSeedService.js';
+import { getWorkQueue } from './workQueueService.js';
 
 export const adminRouter = Router();
 
@@ -491,6 +492,27 @@ adminRouter.get(
     const parsed = paginationSchema.safeParse(req.query);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
     res.json(await listIngestionLog(parsed.data.limit, parsed.data.offset));
+  }),
+);
+
+// THE CLINICIAN WORK QUEUE — what is waiting, and what is stuck.
+//
+// It names patients, so it is a view of patient data and is audited like the
+// patient list rather than exempted for being a queue. No targetId: the target
+// is every open report, and the count goes in the metadata so the entry says
+// how much was disclosed. CLINICIAN as well as ADMIN — it is their queue.
+adminRouter.get(
+  '/work-queue',
+  asyncHandler(async (req, res) => {
+    const queue = await getWorkQueue();
+    await recordAuditLog({
+      actorUserId: req.user!.id,
+      action: 'PATIENT_DATA_VIEWED',
+      targetType: 'Report',
+      ipAddress: req.ip ?? null,
+      metadata: { view: 'work_queue', reportCount: queue.reports.length },
+    });
+    res.json(queue);
   }),
 );
 

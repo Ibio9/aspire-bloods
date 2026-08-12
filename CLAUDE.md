@@ -123,6 +123,61 @@ neither is an escape hatch from it:
 
 Shadows are espresso-derived in both themes, never neutral grey.
 
+## Glass, not fill, is how a surface separates itself from the page (Aug 2026)
+
+**Reach for glass before you reach for a colour.** The corner glow means nothing
+may paint an opaque background over the page, and that single rule is what
+unpinned the results control bar, kept the sidebar a flat 6% wash, and made
+every sticky surface in the product a choice between "invisible" and "paints
+over the light". Glass is both at once: a translucent warm sheet over a backdrop
+blur is a surface, and the light and the content behind it still come through.
+
+**One material, three numbers, one class.** `GLASS` in tokens.ts holds the blur
+radius, the saturation and the per-theme alpha; `.glass` in globals.css is the
+only place they are applied. The blur is **14px and that is a frame budget**, not
+a taste — a backdrop filter costs a compositing pass over the area behind the
+element on every frame, and the area here is a full-width bar over a list that
+can be 350 markers long. If it ever costs frames, lower the radius; the effect
+survives 8px and does not survive being replaced by an opaque fill.
+
+**The colour is the CARD tone, never the page.** Glass the colour of the page is
+invisible against the page.
+
+**Only the alpha differs per surface, and only because what is behind them
+differs.** The sidebar keeps `--panel-wash` (6% light / 38% dark) because nothing
+passes under it but the page and the glow, and its measured contrasts are pinned
+to that number. The control bar, the chart tooltip and the download button take
+`--glass-wash` (62% / 58%) because the reader's own results pass under them, and
+a 6% wash over moving body copy is not a surface, it is a smear.
+
+**The mobile drawer keeps its opaque fill.** It is a layer over scrimmed content,
+not part of the page, and navigation read through the page it navigates is worse
+than either.
+
+**`@supports not (backdrop-filter)` goes almost solid rather than transparent.**
+Body copy legible straight through a pinned bar is worse than losing the glow on
+one browser.
+
+## The results control bar is pinned again, on glass (Aug 2026)
+
+Sticky, unboxed, and the glass **appears only once it pins** and **fades in**
+rather than snapping — a sheet of glass over the page at rest is a panel nobody
+asked for, and a surface that appears from nowhere on the first wheel click reads
+as a fault. It reaches past the content column by exactly the shell's own page
+padding, so nothing sharp shows beside it.
+
+**Only ONE boolean is written by the scroll handler and it is the glass.** The
+rule from the last time this bar was pinned stands unchanged: nothing derived
+from scroll may write the filters panel's open state. That is what made the
+disclosure fail to toggle, and the panel is the reader's.
+
+It pins to `--shell-sticky-top` (globals.css): zero on desktop, `3.5rem` below
+md, which is the patient shell's mobile header. That header carries `h-14`
+rather than vertical padding **precisely so the number can be written down** — a
+height derived from whatever the tallest child happens to be is a number that
+changes when somebody swaps an icon, and the bar would then pin a few pixels off
+with a strip of scrolling content showing through the gap.
+
 ## Traffic-light status — wanted, everywhere (changed Aug 2026)
 This overrides the old "no green, amber or red anywhere" rule. Patients expect
 traffic-light coding on a blood result and the clinic asked for it. Do not revert it.
@@ -238,6 +293,56 @@ by colour, which is why high and low share a hue and both significants share one
    significantly-out bands: below-range is a fifth visible at a typical axis
    scale, so ramping it out to orange painted the transition-into-significant
    immediately below the reference bound. The range bar keeps the full ramp.
+   **THE FINAL PASS (Aug 2026) MADE THE BANDS FLAT AND GAVE THE PLOT A FRAME.**
+   `bandEdgeFade` and `areaOpacity` are gone and both removals are one decision:
+   a band that fades at its own edges has no edge, on a plot whose entire
+   subject is a boundary, and an area fill under the line was a sixth region of
+   colour over five that were already competing. A band is a flat rectangle at
+   `BAND_WEIGHT[status]` meeting its neighbour at a hairline. **Three hues, not
+   four** — `bandPlotColour` is green / gold / gold / red / red, because a flat
+   band has one colour by definition and orange as that colour would be a region
+   whose meaning is "somewhere between the two either side". Orange survives
+   where a genuine gradient exists: the range bar.
+   **THE DARK BANDS WERE OLIVE AND BROWN AND ARE RE-SOLVED.** Measured as what
+   landed on the card: green hsl(76, 0.18, 0.17), gold hsl(43, 0.32, 0.17), red
+   hsl(11, 0.33, 0.26). A band is composited at 10–24%, so 76–90% of it is the
+   CARD — a warm near-black at hue 33 — which pulls every band's hue toward
+   itself and flattens its chroma, and the previous solve had pushed lightness
+   DOWN, which is the direction that costs the most. `PLOT_LIFT` is now the
+   output of a search maximising the COMPOSITE's saturation subject to four
+   constraints: within 17% of the light-mode weight, the ladder holding in dark
+   as well as light, the composite hue within 11° of its light counterpart, and a
+   point mark still clearing 3:1 on its own band. Composite saturation went
+   0.18 → 0.31 (green), 0.32 → 0.42 (gold), 0.33 → 0.39 (red).
+   **THE PLOT IS AN INSET PANEL.** One hairline frame, no shadow, no inner
+   border, a surface fractionally away from the card. "No box" was right while
+   the bands were slabs tiling the area edge to edge; with flat low-weight bands
+   there is real ground showing, and ground needs an edge. It is NOT a
+   `ReferenceArea` — that class is what `e2e/chart-bands.spec.ts` measures band
+   periods through, and a full-width panel drawn as one would register as an
+   extra period.
+   **THE LINE IS STRAIGHT AND HAS NO AREA UNDER IT.** `type="linear"`, never
+   `monotone`: a spline between two blood draws three months apart invents a
+   shape for the whole quarter that nobody measured.
+   **A POINT IS AN OUTLINE ON THE PLOT'S GROUND**, filled with the plot surface
+   and stroked in its status colour — so the line visibly passes behind it and
+   the interior is a hole in the band rather than more saturated colour. The
+   most recent one is a step larger with a soft halo.
+   **THE REFERENCE BOUNDS ARE PRINTED ON THE LEFT AXIS**, level with their own
+   hairline, in the mono face, with a short lead rule and in the text colour
+   against the muted ticks — a tick value is where the scale happens to be
+   marked and a reference bound is a clinical threshold, and the difference is
+   carried by weight and a mark, never by a hue. Only the CURRENT period's
+   bounds go on the axis, because the axis has one left gutter; earlier periods
+   keep their labels at the right-hand end of their own extent.
+   **THE KEY HAS NO BAND ENTRIES.** This narrows the older rule below and does
+   not break it: the bands are still never carried by colour alone, but what
+   names them is now the FIGURES on the axis rather than a coloured swatch
+   beside a sentence — which is a better answer to "where does my range start"
+   and one a greyscale reader gets in full. The key keeps the point states, in
+   words and in the marks the chart actually draws, plus the optimal band and
+   the step rule. **Never a coloured rectangle.**
+   The unit is printed ONCE above the axis rather than on every tick.
 4. Sparklines, the counts strip, the per-category summary bars.
 5. Tooltips and legends — the status word carries the colour.
 
@@ -245,8 +350,12 @@ by colour, which is why high and low share a hue and both significants share one
 - The shape-and-label layer is unchanged and still carries status on its own:
   level mark in range, chevron out, doubled chevron significantly out, plus the
   word. Colour is reinforcement, never the sole carrier — red and green are the
-  commonest confusion pair there is. Chart bands therefore always carry a
-  boundary line AND a written entry in the key.
+  commonest confusion pair there is. A chart band therefore always carries a
+  boundary hairline AND its bounds stated in figures on the axis; every POINT
+  state is named in words in the key and in the tooltip. (Until Aug 2026 the
+  bands themselves had key entries; the axis labels replaced them, which is more
+  specific and equally greyscale-legible. What may never happen is a band with
+  neither.)
 - Surfaces and marks, not body copy. A tinted card keeps its taupe border,
   espresso text and ordinary shadow. The one text that takes a status colour is
   the status word itself. No warning icons, no pulsing.
@@ -547,6 +656,99 @@ returning void or caveat codes, which confirms they come only from the Randox We
 Developer team. Production still refuses to start with `RANDOX_TRANSPORT=live`
 while the code map is the checked-in placeholder. Do not weaken it.
 
+# The web bundle is route-split, and the boundaries are load-bearing (Aug 2026)
+
+It was ONE 993 kB script, warned on every build. First load is now **81.5 kB of
+entry + 165.6 kB of react-vendor + 74.2 kB of CSS**, and every screen beyond the
+sign-in form is a chunk of its own.
+
+- **`lazyPage` (lib/lazyPage.tsx) is the only way a route is declared.** It
+  takes the module loader and the export NAME as a key of the module's own type,
+  so a renamed export is a compile error rather than a blank screen on one route.
+- **Suspense is per route, never once around `<Routes>`.** A single boundary at
+  the top suspends the shell, so the sidebar unmounts and remounts on every
+  navigation.
+- **Four things load eagerly and only these**: LoginPage, HomeRouter, the two
+  route guards, and PatientShell. AdminShell is deliberately NOT among them —
+  most people signing in are patients and will never render the console.
+  **HomeRouter must keep both its branches lazy**: it runs on "/" for everybody,
+  so a static import of AdminDashboard there is a hole straight through the
+  boundary.
+- **recharts is 386 kB with its dependency tree** (d3-*, decimal.js-light,
+  es-toolkit, and — recharts 3 keeps its state in a store — redux, react-redux,
+  reselect, immer). It is reachable from two screens and is imported ONLY by
+  `components/ui/LazyCharts.tsx`, whose prop types come through `import type` so
+  the edge is erased before Rollup sees the graph.
+- **`manualChunks` names react/react-dom/router and NOTHING else.** Naming a
+  package there OVERRIDES Rollup's own splitting and pulls it back into a chunk
+  the entry depends on, which is how a manual chunk map quietly undoes a lazy
+  boundary.
+- **`packages/shared` declares `sideEffects: false`.** Without it Rollup has to
+  assume the barrel's `export * from './schemas/auth.js'` might matter and keeps
+  it — which put the whole of zod (53 kB) in the ENTRY chunk on a path that
+  never validates anything.
+- **Splitting a feature and switching one off are different things.** With
+  booking off, `lazyPage(() => import(...))` at module scope is still reachable
+  from the graph, so Rollup emits the chunk and the flow sits at a URL on the
+  CDN — a regression on what the flag promises that is invisible in the entry
+  size. The four booking pages are declared INSIDE the `BOOKING_ENABLED`
+  ternary so the arrow function holding the import folds away with it.
+
+# The food sensitivity list is window-virtualised above 30 items (Aug 2026)
+
+The Signature report is 23,862px tall and the 207 food items are most of it.
+Virtualised **against the page's own scroll**, not inside a box: two spacers
+stand in for the rows that are not rendered, so the list keeps its natural height
+and there is no scrolling region inside a scrolling page. A virtualised row is
+invisible to Ctrl+F and absent from the accessibility tree, which is a real loss
+— so it applies only above `VIRTUALISE_ABOVE` (30), and only to a section that
+already carries its own search over the food name a patient reads. The row pitch
+is MEASURED from the first rendered row rather than hardcoded; a hardcoded pitch
+drifts the moment somebody changes a padding token. **The framing copy is
+untouched**: IgG indicates exposure, not intolerance, and no food carries a tint.
+
+# The clinician work queue (Aug 2026)
+
+`/admin/queue`. What is waiting and what is stuck: the buckets with a count and
+the oldest item in each, every open report sorted by time in its current state
+longest first, arrival-to-release median and worst over 30 days, and **the
+exception queue leading the page** — with the verification stage gone it is the
+only thing between a bad parse and a clinician's screen, and it was invisible.
+
+**Nothing here is new tracking, and that is a constraint.** Every figure comes
+from the report's own columns (`receivedDate`, `heldAt`, `reviewedAt`,
+`releasedAt`) or from audit entries the pipeline already writes. AWAITING_REVIEW
+is the one state with no column of its own — a report reaches it through parse,
+re-parse, a correction that cleared the last hold, or a re-ingest — so its entry
+time comes from the latest REPORT_PARSED / REPORT_VERIFIED audit entry.
+`updatedAt` is not that timestamp: it moves when anything on the row changes.
+The median takes the LOWER of two middles rather than averaging, so every
+duration on the screen is one a real report actually took.
+
+# Backups: verified nightly, drilled by hand (Aug 2026)
+
+`scripts/backup.sh` runs as a Railway cron service against the PRIVATE
+`DATABASE_URL` — never a publicly-exposed Postgres, which is why it is not a
+GitHub Action. **An untested backup is not a backup**, so the job now does the
+half of the test a client-only container can:
+
+1. `set -o pipefail` matters — `pg_dump | gzip` exits with gzip's status, and
+   gzip happily compresses a truncated stream.
+2. `gzip -t`, an uncompressed-size floor, and a check that the dump contains
+   `COPY public."Report" / "ReportResult" / "User"`. A dump against an empty
+   database, a wrong URL or a role with no read permission all produce a
+   perfectly valid small gzip.
+3. **It reads the object back and compares SHA-256.** `aws s3 cp` exiting 0 says
+   the CLI finished, not that the bytes on somebody else's system are the ones
+   that left.
+
+The other half is `scripts/restore-drill.sh`, run by a person: restore into a
+scratch database with `ON_ERROR_STOP` (without it psql prints errors, carries on
+and exits 0 — a half-restored database reported as a success), compare EVERY
+table's row count against the source, and hash one released report's results.
+It refuses to run unless the target database's name contains "drill" or
+"scratch". Retention is **35 days**, which matches PRIVACY.md §5 and §7.
+
 # Sessions
 - Patient idle timeout is **90 minutes**. Staff is **15** and is a separate
   constant — raising one must never raise the other, and idleSession.test.ts
@@ -775,6 +977,67 @@ while the code map is the checked-in placeholder. Do not weaken it.
   (`DEMO_ENVELOPE`) and a marker whose required excursion falls outside it is not
   chosen for that quota. Never clamped instead: a clamped value computes to a
   different status than the one it was generated for.
+- **PHYSICAL MEASUREMENTS DISPLAY WITH NO RANGE AND NO STATUS AT ALL (Aug
+  2026).** Weight, height, waist, hip, waist/hip ratio, pulse, both blood
+  pressures and oxygen saturation — `PHYSICAL_MEASUREMENT_KEYS` in
+  lib/personalMeasurements.ts is the closed list. They are not assays and have
+  no reference interval, and **blood pressure is the clearest reason rather than
+  the exception**: NICE's thresholds are DIAGNOSTIC, acted on after a repeat
+  reading and usually after ambulatory monitoring, so colouring one clinic
+  reading red against 140/90 is this product making a diagnosis in the place it
+  would do the most harm. A weight is not high or low, it is a weight. The read
+  path already supports this exactly (`status: null` → the reading, no tint, no
+  chevron, no range bar, "Not compared to a range", outside every tally).
+  `syntheticBand` THROWS for one of these keys, which is what stops the demo
+  reinventing a waist circumference of 13–38 cm.
+- **A RANGE WITH NO WIDTH IS NOT A RANGE.** `deriveStatus` refuses `high <= low`
+  before any arithmetic and returns unevaluable. Without it `computeMarkerStatus`
+  builds a severity threshold from a zero-width band and returns
+  SIGNIFICANT_HIGH for every positive number — which is how every weight, pulse
+  and blood pressure in the demo arrived on a patient's screen in a red wash
+  with the word "Significantly above range" on it.
+- **FOURTEEN ANALYTES NEED AN AGE BAND AND ZERO CARRY ONE, AND NONE IS
+  INVENTED.** `ageMin`/`ageMax` and the resolver's scoring have always been
+  there; the gap is a document. No document in the tree carries an age-banded
+  interval (the HSC5 report prints one interval per analyte and does not say
+  whose; NHS Lothian is sex-specific by title; there is no API route to ranges),
+  so `AGE_BANDED_RANGES` is EMPTY and all fourteen stay flagged. **Loading a
+  partially-right set from memory is the one change here capable of doing
+  harm** — an age-banded row is MORE specific, so the resolver prefers it, and a
+  wrong specific answer beats a right general one every time. ALP, IGF-1, Total
+  PSA and DHEAS are the four where an adult-wide band is close to meaningless.
+  The loader runs on every seed over the empty list, so adding a row is a data
+  change; `npm run audit:age-ranges` writes docs/audits/age-specific-ranges.md.
+  Unlike the sex-specific loader it does NOT delete the blanket row: a sex split
+  is exhaustive and a set of age brackets is not.
+- **THE FIRST SIGN-IN WALKTHROUGH IS TRACKED SERVER-SIDE**
+  (`User.walkthroughSeenAt`), never in localStorage — a first sign-in is a fact
+  about the person, and a flag in storage brings the screen back on their phone,
+  in a private window and after any cookie clear-out. It is a ROUTE (`/welcome`)
+  and never a modal over somebody's results; dismissing counts as seen; it is
+  reachable afterwards from Understanding results. The client reads
+  `walkthroughSeen === false` and not `!walkthroughSeen`, so an older payload's
+  `undefined` means SEEN — a returning patient shown an introduction because a
+  deploy was mid-flight is the one failure this screen cannot have.
+- **THE GP HANDOVER PDF CARRIES NOTHING INTERPRETIVE.** One page, on the
+  Documents page, clearly labelled as being for a doctor: name, date of birth,
+  sample date, and every marker outside its reference range with the range and
+  the status. No explanations, no advice, no optimal ranges. A GP does not need
+  our patient-facing copy; ~350 of those explanations have never been read by a
+  clinician; and a handover that interprets is a referral letter, which is
+  signed by a named person who has read it. Streamed rather than stored, unlike
+  the patient summary, because it is a derived view for a conversation rather
+  than a record.
+- **PRINTING IS A DOCUMENT, NOT A SCREENSHOT OF AN APP.** The theme is forced
+  LIGHT at the token layer (`@media print` in tailwind.config.ts re-emits the
+  light set at a selector that beats `.dark`), so every colour in the product
+  follows and anything written later is covered by construction. What is chrome
+  and what is content is decided per call site with Tailwind's `print:hidden`,
+  because only the component knows which it is. A card is never split across a
+  page and a heading is never left at the foot of one. **No browser engine
+  implements `@page` margin boxes**, so the `counter(page)` rule is declared
+  because it is correct and the numbering a reader actually gets is the print
+  dialog's own — do not "fix" this with JavaScript pagination.
 - Nothing auto-publishes; release is an explicit state change
 
 # One human gate, and it is a clinician (Aug 2026)

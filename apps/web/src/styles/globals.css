@@ -74,6 +74,25 @@
     @apply bg-cream text-espresso font-body;
   }
 
+  /* ── Where a sticky element inside a shell pins to ─────────────────────
+     Zero on desktop, because the patient shell has no header there — the
+     sidebar is the navigation. Below md it grows a sticky header of its own
+     (`h-14`, and that height is fixed rather than derived from its padding
+     precisely so this number can be written down), and anything pinning to
+     the top of the window has to clear it or pin underneath it.
+
+     One variable rather than a `top-14 md:top-0` pair at each call site, so
+     the two numbers cannot drift apart from the header they describe. */
+  :root {
+    --shell-sticky-top: 3.5rem;
+  }
+
+  @media (min-width: 768px) {
+    :root {
+      --shell-sticky-top: 0px;
+    }
+  }
+
   body {
     @apply text-espresso font-body;
     background-color: transparent;
@@ -384,20 +403,86 @@
      `bg-panel/[…]` because the alpha differs per theme and an opacity
      modifier is a build-time literal.
 
-     NO BACKDROP FILTER, and that is a decision rather than an omission. The
-     only thing behind this element is the page colour on `html` and the one
-     fixed radial in `.dark body::before` — no content, no texture, nothing
-     that moves. Blurring a smooth radial gradient returns the same gradient,
-     so `backdrop-filter` here buys a compositing layer on a sticky element
-     and no visible difference whatsoever. The place it would earn itself is
-     the MOBILE DRAWER, which genuinely has scrimmed content behind it — and
-     that keeps its opaque surface instead, because navigation read through
+     IT IS THE GLASS MATERIAL, AT ITS OWN ALPHA (changed Aug 2026). It used to
+     carry no backdrop filter, on the reasoning that the only thing behind it
+     is the page colour and one fixed radial — and blurring a smooth radial
+     returns the same radial, so the filter bought a compositing layer and no
+     visible difference. That reasoning is still true of this panel ON ITS OWN,
+     and it is the wrong scope: the sticky control bar and the pinned surfaces
+     beside it need the blur (the reader's own results pass under them), and
+     three surfaces in one product that are translucent in three different ways
+     are three materials. So the blur, the saturation and the fallback are
+     shared with `.glass` below, and only the ALPHA differs — 6%/38% here,
+     because nothing passes under this panel and its measured contrasts
+     (tokenContrast.test.ts) are pinned to that number.
+
+     The mobile DRAWER still keeps its opaque surface, and that is unchanged:
+     it is a floating layer over scrimmed content, and navigation read through
      the page it navigates is worse than either.
 
      Nothing depends on it: turn the wash off and the hairline still separates
      the two regions, exactly as the glow's own rule requires. */
   .panel-wash {
     background-color: rgb(var(--c-panel) / var(--panel-wash));
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  }
+
+  /* ── GLASS ─────────────────────────────────────────────────────────────
+     GLASS, NOT FILL, IS HOW A SURFACE SEPARATES ITSELF FROM THE PAGE.
+
+     This is the rule for the whole product and it exists because of the corner
+     glow: nothing may paint an opaque background over it, which is exactly
+     what made a sticky control bar impossible — a sticky element with no
+     surface has the page scrolling through it, and the only fix anybody
+     reaches for is a solid fill. Glass is both at once. It is a surface, and
+     the light and the content behind it still come through, diffused.
+
+     Where it is used: the pinned results control bar and the view switch that
+     travels with it, the trend chart's tooltip, and the download control on
+     the marker list. Plus the sidebar above, at its own alpha.
+
+     THE COLOUR IS THE CARD TONE, NOT THE PAGE — see `--c-glass` in tokens.ts.
+     Glass the colour of the page is invisible against the page.
+
+     THE FALLBACK IS NOT TRANSPARENCY. A browser with no backdrop-filter would
+     otherwise leave body copy legible straight through a pinned bar, which is
+     worse than an opaque surface — so there the alpha goes almost solid and
+     the glow loses on that browser only. */
+  .glass {
+    background-color: rgb(var(--c-glass) / var(--glass-wash));
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  }
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass {
+      background-color: rgb(var(--c-glass) / 0.96);
+    }
+  }
+
+  /* THE GLASS ARRIVES WHEN THE BAR PINS, AND FADES RATHER THAN SNAPPING.
+     Sitting in the page at the top, the bar is unboxed — there is nothing
+     behind it to separate from, and a sheet of glass over the page at rest is
+     a panel nobody asked for. `is-pinned` is set by the sentinel observer in
+     ResultsControlBar; the transition is the whole of the appearance.
+
+     Reduced motion takes the state instantly rather than more slowly: the
+     point of the fade is that a surface does not appear from nowhere, and
+     somebody who has asked for less movement is asking for exactly that. */
+  .glass-veil {
+    opacity: 0;
+    transition: opacity 180ms ease-out;
+  }
+
+  .glass-veil.is-pinned {
+    opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .glass-veil {
+      transition: none;
+    }
   }
 
   /* The value half. Fraunces at the section optical size, so a
@@ -652,5 +737,164 @@
   }
   .skip-link:focus-visible {
     @apply translate-y-0 opacity-100 outline-2 outline-offset-2 outline-bronze-300;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRINT
+   ═══════════════════════════════════════════════════════════════════════════
+
+   WHAT WAS WRONG. Pressing Ctrl+P on a results page printed the interface: the
+   dark theme (a near-black page, which on a mono printer is a grey slab with
+   white text knocked out of it), the sidebar, the mobile header, the search
+   field, the filter pickers, the view switch, the download buttons and the
+   ambient glow. A patient printing their own results to take to an appointment
+   got a screenshot of an app rather than a document.
+
+   WHAT IT PRINTS NOW. A document: a header naming the practice, the patient,
+   the report and the sample date; the results themselves with value, unit,
+   reference range and status; and a footer with the clinic's contact details
+   repeating on every page.
+
+   FOUR THINGS ARE HANDLED ELSEWHERE, deliberately:
+
+    · THE THEME is forced light at the TOKEN layer (tailwind.config.ts →
+      `@media print`), not here. Every colour in this product resolves through a
+      custom property, so re-emitting the light set under a print media query
+      turns the whole interface light in one place — and anything written later
+      is covered without anybody having to remember.
+    · WHAT IS CHROME AND WHAT IS CONTENT is decided at each call site with
+      Tailwind's own `print:hidden`, because only the component knows which it
+      is. A blanket `aside, nav, header { display: none }` here would also take
+      out an `<aside>` somebody legitimately puts a result in.
+    · STATUS IN BLACK AND WHITE needs nothing: the shape layer already carries
+      it. A level mark in range, a chevron out, a doubled chevron significantly
+      out, plus the word — all four survive greyscale, which is the whole reason
+      colour is never the sole carrier.
+    · PAGE NUMBERS are requested from `@page` below. No browser engine
+      implements @page margin boxes (Chrome, Firefox and Safari all ignore
+      them), so in a browser the numbering is the one the print dialog adds
+      itself — which is on by default and includes "page x of y". The rule is
+      declared rather than omitted because it is correct, it costs nothing, and
+      a real paged-media engine honours it. It is NOT a claim that Chrome does.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@page {
+  /* Room for the browser's own header and footer, and a margin somebody can
+     hole-punch or staple without losing a reference range. */
+  margin: 14mm;
+  @bottom-center {
+    content: 'Page ' counter(page) ' of ' counter(pages);
+  }
+}
+
+@media print {
+  /* Backgrounds and tints are INFORMATION here, not decoration: a result card's
+     wash is one of the four ways status is carried. Browsers strip backgrounds
+     by default to save ink, so ask for them — and the shape layer means the
+     page is still correct for anyone whose printer or settings refuse. */
+  html,
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    background: none !important;
+  }
+
+  /* The ambient glow is a fixed radial the size of the viewport. On paper it is
+     a gold smear across the first page and nothing at all on the rest. */
+  body::before {
+    display: none !important;
+  }
+
+  /* The shells are `min-h-viewport` flex rows with a sticky column in them, and
+     a sticky element in a paged medium is neither sticky nor a column — it is a
+     block in the flow, printed once, in the wrong place. Unpicking the layout
+     is what stops the content column starting 288px in on every page. */
+  .print-flow,
+  .print-flow > * {
+    display: block !important;
+    min-height: 0 !important;
+    position: static !important;
+    overflow: visible !important;
+  }
+
+  /* Nothing scrolls on paper. An `overflow-y-auto` list prints only the part
+     that happened to be in view — which on the food sensitivity list is four
+     items out of forty-seven, silently. */
+  .scroll-thin,
+  .overflow-y-auto,
+  .overflow-x-auto {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  /* A CARD IS NEVER SPLIT ACROSS A PAGE. A marker card cut through the middle
+     puts a value on one sheet and its reference range on the next, which is the
+     one thing a printed result must not do. */
+  .card,
+  .print-block {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    box-shadow: none !important;
+  }
+
+  /* AND A HEADING IS NEVER LEFT ALONE AT THE FOOT OF ONE. `break-after: avoid`
+     on the heading is what ties it to whatever follows. */
+  h1,
+  h2,
+  h3,
+  .section-heading,
+  .eyebrow {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  /* Glass is a compositing effect and paper has no backdrop. Left on, it prints
+     as a flat translucent panel over whatever the renderer decided was behind
+     it, which is usually nothing. */
+  .glass,
+  .panel-wash {
+    background: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  /* Every animation, transition and transform, off. A `translate-y` mid-reveal
+     prints as a card two pixels out of alignment with its neighbours for no
+     reason anybody can see on paper. */
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+
+  /* THE HEADER AND THE FOOTER. Both are `hidden` on screen and revealed here —
+     see PrintDocument.tsx. The footer is fixed to the bottom of the page box,
+     which is what makes a browser repeat it on every sheet; the header prints
+     once, at the top of the document, because a document has one masthead. */
+  .print-only {
+    display: block !important;
+  }
+
+  .print-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+  }
+
+  /* Room for the fixed footer to sit in without the last card printing under
+     it. Measured against the footer's own four lines at the small step. */
+  .print-flow {
+    padding-bottom: 26mm !important;
+  }
+
+  /* A URL in a link is noise on a printed results page — every marker name on
+     the report is a link to its own page, and printing 180 of them with
+     "https://blood.aspireshield.com/markers/…" after each is the document
+     becoming unreadable to save a lookup nobody does from paper. */
+  a[href]::after {
+    content: '' !important;
   }
 }

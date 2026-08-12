@@ -1,6 +1,5 @@
 import { useEffect, useId, useState } from 'react';
 import {
-  Area,
   ComposedChart,
   Line,
   ReferenceArea,
@@ -15,12 +14,10 @@ import {
 } from 'recharts';
 import {
   asMarkerStatus,
-  bandLabel,
   chart as chartTokens,
   statusBands,
   statusPaint,
-  bandPlotStops,
-  bandWeight,
+  bandPlotColour,
   BAND_WEIGHT,
   severityThresholdFor,
   formatOptimalRange,
@@ -108,9 +105,6 @@ function epochOf(sampleDate: string): number {
 }
 
 const DAY_MS = 86_400_000;
-
-/** Low to high, which is the order the bands stack in and the key lists them. */
-const BAND_ORDER: MarkerStatus[] = ['SIGNIFICANT_LOW', 'LOW', 'IN_RANGE', 'HIGH', 'SIGNIFICANT_HIGH'];
 
 interface TrendPoint {
   sampleDate: string;
@@ -209,21 +203,30 @@ const STATUS_SHAPE: Record<MarkerStatus, 'circle' | 'up' | 'down' | 'double-up' 
 };
 
 /**
- * A point takes its own state's colour — the same green/yellow/red the band
- * under it uses, several steps stronger so it reads as a mark ON the band
- * rather than a patch of it. It reinforces the shape; it never replaces it.
+ * A point's own state's colour — the same green/gold/red family the band under
+ * it uses, several steps stronger. It is the mark's OUTLINE rather than its
+ * fill; see StatusMark.
  */
 function markFill(status: MarkerStatus): string {
   return statusPaint(status).mark;
 }
 
 /**
- * A mark, ringed in the card's own surface colour.
+ * A mark drawn as an OUTLINE ON THE PLOT'S OWN GROUND, not a filled blob.
  *
- * The ring is what makes the line appear to pass BEHIND the point rather than
- * to stop at it — it is the colour the plot would be if nothing were drawn
- * there, so the two or three pixels around the mark read as a gap in the line
- * rather than as a halo drawn on top of one.
+ * Inverted (Aug 2026). It used to be a solid lozenge of the status colour with
+ * a ring of the surface around it, which is a fair amount of saturated colour
+ * repeated once per result — on a series of six, six more coloured objects on
+ * a plot that already has three coloured regions in it. Filled with the plot's
+ * own surface and stroked in the status colour, the same information arrives as
+ * a drawn shape: the outline carries the hue, the interior is a hole in the
+ * band, and the trend line visibly passes BEHIND the point rather than stopping
+ * at it — because the interior is genuinely opaque ground rather than a colour
+ * that happens to sit on top.
+ *
+ * `paintOrder: stroke` still applies and still for the reason below: a stroke
+ * straddles its path, and on a 5px triangle that eats half the shape from the
+ * inside.
  */
 function StatusMark({
   cx,
@@ -236,7 +239,7 @@ function StatusMark({
   cy: number;
   status: MarkerStatusInput;
   size?: number;
-  /** The VISIBLE width of the ring, in pixels — see paintOrder below. */
+  /** The VISIBLE width of the outline, in pixels — see paintOrder below. */
   ring?: number;
 }) {
   const known = asMarkerStatus(status);
@@ -245,28 +248,24 @@ function StatusMark({
   // what is unknown. Unreachable once the series is filtered below; stated so
   // the lookup cannot be the thing that throws.
   if (!known) return null;
-  const fill = markFill(known);
   const r = 5 * size;
   const common = {
-    fill,
-    stroke: chartTokens.pointRing,
-    // Doubled, because `paint-order: stroke` draws the ring FIRST and then
+    // The plot's ground, not the card's: the point sits inside the inset panel,
+    // and filling it with the card colour would make every mark read as a
+    // slightly lighter patch than the surface it is punched out of.
+    fill: chartTokens.plotSurface,
+    stroke: markFill(known),
+    // Doubled, because `paint-order: stroke` draws the outline FIRST and then
     // fills over its inner half — so half of the declared width is what shows.
     strokeWidth: ring * 2,
     strokeLinejoin: 'round' as const,
     /**
-     * THE RING GOES OUTSIDE THE MARK, NOT THROUGH IT.
+     * THE OUTLINE GOES OUTSIDE THE MARK, NOT THROUGH IT.
      *
-     * An SVG stroke straddles its path, so a 1.5px ring on a 5px triangle eats
-     * about half the triangle's own area from the inside — and that is not a
-     * theoretical amount. The below-range marks on this chart were rendering as
-     * white triangles with a thin gold edge: the shape was right, the colour
-     * was right, and what you actually saw was the ring. A circle survives it
-     * (its area grows with r²); a triangle at the same r has under half the
-     * area and does not.
-     *
-     * `paint-order: stroke` puts the stroke down first and the fill on top of
-     * it, so the mark keeps its full size and the ring is entirely outside.
+     * An SVG stroke straddles its path, so a 1.5px stroke on a 5px triangle
+     * eats about half the triangle's own area from the inside — and that is not
+     * a theoretical amount. A circle survives it (its area grows with r²); a
+     * triangle at the same r has under half the area and does not.
      */
     paintOrder: 'stroke' as const,
   };
@@ -322,35 +321,75 @@ function CustomDot(props: { cx?: number; cy?: number; payload?: PlottedPoint; la
 }
 
 /**
- * THE REFERENCE BOUNDS, LABELLED WHERE THEY ARE — AND EVERY PERIOD'S, NOT JUST
+ * ---------------------------------------------------------------------------
+ * THE PLOT AREA, AS AN INSET PANEL.
+ * ---------------------------------------------------------------------------
+ *
+ * A hairline frame and a surface fractionally away from the card, so the
+ * drawing sits INSIDE something rather than floating on the card.
+ *
+ * "No box, no frame" was the previous rule and it was right at the time: the
+ * bands were saturated slabs tiling the plot edge to edge, so an outline round
+ * them was a second outline round a filled rectangle. With the bands flat and
+ * low-weight there is real ground showing between them and the card, and
+ * ground needs an edge or it is just a lighter part of the card.
+ *
+ * NOT a ReferenceArea, deliberately. Recharts gives every ReferenceArea the
+ * class the band geometry is measured through (e2e/chart-bands.spec.ts groups
+ * `.recharts-reference-area-rect` by x-extent to count band periods), so a
+ * full-width panel drawn as one would register as an extra period spanning the
+ * whole plot and every assertion about stepping would be measuring a frame.
+ */
+function PlotPanel() {
+  const plot = usePlotArea();
+  if (!plot) return null;
+  return (
+    <rect
+      x={plot.x}
+      y={plot.y}
+      width={plot.width}
+      height={plot.height}
+      fill={chartTokens.plotSurface}
+      stroke={chartTokens.plotFrame}
+      strokeOpacity={chartTokens.plotFrameOpacity}
+      strokeWidth={1}
+      // No shadow and no inner border: one hairline, drawn once.
+      shapeRendering="crispEdges"
+      aria-hidden="true"
+    />
+  );
+}
+
+/**
+ * THE REFERENCE BOUNDS, LABELLED ON THE AXIS — AND EVERY PERIOD'S, NOT JUST
  * THE LAST ONE'S.
  *
  * A boundary line with no number on it sends the reader to the key to find out
  * what it is, and the key cannot tell them — it can say "the reference range"
  * but not "3.5 to 5.3". Printing the values level with their own lines answers
- * it in place; it is also what lets the band entries in the key stop being the
- * only place the range is stated.
+ * it in place, and it is what lets the key drop its band entries entirely.
  *
- * It used to print the LAST period's two bounds and nothing else, on the
- * reasoning that the right edge of the plot is the last period's territory. That
- * is true of the right edge and false of the chart: on a marker whose range
- * changed partway through, the earlier results sat inside a band whose bounds
- * were the one thing on screen that did not say what they were, so the reader
- * could see that the range had stepped and could not read what it stepped FROM
- * without going to the sentence below the chart.
+ * ON THE LEFT, WITH THE SCALE, AND TOLD APART FROM IT (Aug 2026). They used to
+ * print in the right-hand margin, which reads as a second axis facing the wrong
+ * way. They belong beside the scale — and therefore have to be distinguishable
+ * from it, because a tick value is where the scale happens to be marked and a
+ * reference bound is a clinical threshold. Same face, same size, and the bound
+ * is set in the text colour with a short lead rule running to its own hairline
+ * while the ticks stay muted. Weight and a mark, never a hue: a coloured axis
+ * label would be the status layer leaking into the furniture.
  *
- * So each period is labelled at the right-hand end of its OWN extent: the last
- * one in the margin outside the plot, as before, and every earlier one just
- * inside its own step rule, right-aligned against it. Same face, same size, same
- * colour; only the anchor differs, because one is outside the plot and the rest
- * are in it.
+ * ONLY THE CURRENT PERIOD'S BOUNDS GO ON THE AXIS, because the axis has one
+ * left-hand gutter and a marker whose range has changed has two sets of bounds.
+ * The earlier periods keep their labels at the right-hand end of their OWN
+ * extent, just inside their step rule — which is also the only place they can
+ * go and still say which period they belong to.
  */
 interface BoundLabel {
   value: number;
   text: string;
 }
 interface LabelColumn {
-  /** Where this period ends, in the x domain. Null for the last one, which ends at the plot edge. */
+  /** Where this period ends, in the x domain. Null for the last one, which is labelled on the axis. */
   endsAt: number | null;
   bounds: BoundLabel[];
 }
@@ -372,9 +411,9 @@ function BoundaryLabels({ columns }: { columns: LabelColumn[] }) {
         // the same column overlap into an unreadable smudge; the same two in
         // different columns are metres apart on screen and both fine.
         const placed: number[] = [];
-        const outside = column.endsAt === null;
-        const endX = outside ? null : xScale?.(column.endsAt as number);
-        if (!outside && (endX == null || !Number.isFinite(endX))) return null;
+        const onAxis = column.endsAt === null;
+        const endX = onAxis ? null : xScale?.(column.endsAt as number);
+        if (!onAxis && (endX == null || !Number.isFinite(endX))) return null;
         return (
           <g key={`bounds-${ci}`}>
             {column.bounds.map(({ value, text }) => {
@@ -386,21 +425,37 @@ function BoundaryLabels({ columns }: { columns: LabelColumn[] }) {
               // than printing over its neighbour's band. The sentence below the
               // chart still names every range and its dates, which is why this
               // can be dropped without losing the fact.
-              if (!outside && (endX as number) - labelWidth(text) - 4 < plot.x) return null;
+              if (!onAxis && (endX as number) - labelWidth(text) - 4 < plot.x) return null;
               placed.push(y);
               return (
-                <text
-                  key={text}
-                  x={outside ? plot.x + plot.width + 7 : (endX as number) - 4}
-                  y={y}
-                  dy="0.32em"
-                  textAnchor={outside ? 'start' : 'end'}
-                  fontSize={11}
-                  fontFamily="var(--font-mono)"
-                  fill={chartTokens.axisText}
-                >
-                  {text}
-                </text>
+                <g key={text}>
+                  {/* The lead rule. Four pixels of hairline from the label to
+                      the frame, so the number is attached to a boundary rather
+                      than merely level with one — which is the whole of what
+                      separates it from a tick value at a glance. */}
+                  {onAxis && (
+                    <line
+                      x1={plot.x - 5}
+                      y1={y}
+                      x2={plot.x}
+                      y2={y}
+                      stroke={chartTokens.boundLabel}
+                      strokeWidth={1}
+                      shapeRendering="crispEdges"
+                    />
+                  )}
+                  <text
+                    x={onAxis ? plot.x - 9 : (endX as number) - 4}
+                    y={y}
+                    dy="0.32em"
+                    textAnchor="end"
+                    fontSize={11}
+                    fontFamily="var(--font-mono)"
+                    fill={chartTokens.boundLabel}
+                  >
+                    {text}
+                  </text>
+                </g>
               );
             })}
           </g>
@@ -429,10 +484,15 @@ function ChartTooltip({
   const unit = point.unit ? ` ${point.unit}` : '';
 
   return (
-    // A CARD, not a browser tooltip: the product's own surface, hairline and
-    // warm espresso-derived shadow, at the popover level so it reads as lifted
-    // off the chart rather than drawn on it.
-    <div className="min-w-[11rem] rounded-card border border-taupe bg-cream-50 px-4 py-3 text-xs shadow-popover">
+    // A CARD, not a browser tooltip: the product's own hairline and warm
+    // espresso-derived shadow, at the popover level so it reads as lifted off
+    // the chart rather than drawn on it.
+    //
+    // GLASS rather than a flat surface, the same material as the pinned results
+    // control bar and the sidebar — so the plot underneath is diffused instead
+    // of covered, which is what a tooltip on a chart should do: it is a reading
+    // OF the chart and should not delete the part it is reading.
+    <div className="glass min-w-[11rem] rounded-card border border-taupe px-4 py-3 text-xs shadow-popover">
       <p className="numeric text-[11px] uppercase tracking-eyebrow text-espresso/80">{formatDate(point.sampleDate)}</p>
       <p className="numeric tabular mt-1.5 text-lg font-semibold leading-none text-espresso">
         {point.value}
@@ -507,8 +567,6 @@ export function TrendChart({
   // id would make the second one's band reference the first one's pattern.
   const uid = useId().replace(/:/g, '');
   const hatchId = `optimal-hatch-${uid}`;
-  const gradId = `band-${uid}`;
-  const areaId = `trend-area-${uid}`;
 
   /**
    * Only points that were actually placed against a range are plotted.
@@ -713,9 +771,10 @@ export function TrendChart({
     ],
   }));
 
-  // Every period's own bounds, at the right-hand end of its own extent. The last
-  // one ends at the plot edge (endsAt null) and prints in the margin; the rest
-  // end at their step rule and print just inside it.
+  // Every period's own bounds. The CURRENT one (endsAt null) prints on the left
+  // axis beside the scale, with a lead rule to its own hairline; the earlier
+  // ones end at their step rule and print just inside it, which is the only
+  // place they can go and still say which period they belong to.
   const labelColumns: LabelColumn[] = periods.map((period, i) => ({
     endsAt: i === periods.length - 1 ? null : stepBoundaries[i],
     bounds: [
@@ -787,16 +846,6 @@ export function TrendChart({
     .map((d) => `${formatDate(d.sampleDate)}: ${d.value}, ${statusLabel(d.status).toLowerCase()}`)
     .join('; ');
 
-  // Which bands are actually on screen, for the key. A marker whose results
-  // have never been near the significantly-out threshold still shows the band
-  // (the domain reaches it), but the key only names what is drawn.
-  const bandsShown: MarkerStatus[] = BAND_ORDER.filter((s) =>
-    bandSegments.some((seg) => {
-      const b = seg.bands.find((x) => x.status === s)!;
-      return (b.to ?? domainMax) > domainMin && (b.from ?? domainMin) < domainMax;
-    }),
-  );
-
   return (
     <div>
       {/* NOTHING ABOVE THE CHART in the ordinary case, and that is the change.
@@ -819,13 +868,24 @@ export function TrendChart({
         </p>
       )}
 
-      {/* REAL PADDING INSIDE THE CARD. The plot used to run to the card's own
-          edges on three sides, which is what made it read as a picture pasted
-          into a box rather than as a drawing on the card. The margins below do
-          the rest of it, and the right-hand one is also what the inline
-          boundary labels stand in. */}
+      {/* THE UNIT, ONCE, ON THE AXIS — not repeated on every tick.
+          A y-axis reading "4 mmol/L, 6 mmol/L, 8 mmol/L" states the unit three
+          times to say it once, and the repetition is the widest thing in the
+          gutter. Mono, because it is part of the numeric data rather than
+          prose. Absent where the marker has no unit, which is nine of them
+          deliberately (CLAUDE.md). */}
+      {rows[0]?.unit && (
+        <p className="numeric mb-1 pl-1 text-xs text-espresso/80">{rows[0].unit}</p>
+      )}
+
+      {/* REAL PADDING ON ALL FOUR SIDES. The plot used to run to the card's own
+          edges on three of them, which is most of what made it read as a
+          picture pasted into a box rather than as a drawing on the card. The
+          wrapper gives it room outside the SVG and the margins below give it
+          room inside — the frame needs both, since a frame drawn hard against
+          a card edge is a crop mark. */}
       <div
-        className={`tabular w-full px-0.5 sm:px-2 ${animate ? 'trend-mount ' : ''}${
+        className={`tabular w-full px-1 pb-1 sm:px-2 ${animate ? 'trend-mount ' : ''}${
           height === 'tall' ? 'h-64 sm:h-80 lg:h-[22rem]' : 'h-72 sm:h-80'
         }`}
         role="img"
@@ -835,7 +895,12 @@ export function TrendChart({
         }
       >
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={rows} margin={{ top: 14, right: 46, left: 0, bottom: 6 }}>
+          {/* Room on every side. `right` used to be 46 to hold the bound labels
+              in the margin; they are on the left axis now, so it is the same
+              breathing space as the top instead of a gutter with numbers in
+              it. `left` is 6 rather than 0 so the lead rules beside the bound
+              labels are not clipped by the SVG's own edge. */}
+          <ComposedChart data={rows} margin={{ top: 18, right: 18, left: 6, bottom: 10 }}>
             <defs>
               {/* The optimal band is told apart from the status bands by its
                   hatch, not by its hue — it is a different KIND of statement
@@ -845,48 +910,14 @@ export function TrendChart({
                 <rect width="7" height="7" fill={chartTokens.optimalBand} fillOpacity={chartTokens.optimalBandOpacity} />
                 <line x1="0" y1="0" x2="0" y2="7" stroke={chartTokens.optimalEdge} strokeWidth="1.5" strokeOpacity={0.5} />
               </pattern>
-              {/* ONE GRADIENT PER STATUS BAND, carrying BOTH the hue ramp and
-                  the band's weight.
+              {/* NO BAND GRADIENTS. The bands are flat rectangles at their own
+                  weight now — see the note on `bandPlotColour` and on the
+                  removal of `bandEdgeFade`. A band that fades at its own edges
+                  has no edge, on a plot whose whole subject is a boundary.
 
-                  Stops run top-to-bottom on screen, which is high-value-to-
-                  low-value, so the colour pair is the reverse of the
-                  value-order pair bandPlotStops returns. In range resolves to
-                  the same colour twice, i.e. flat.
-
-                  The opacity is IN THE GRADIENT rather than on the element, and
-                  that is deliberate rather than incidental: it is what lets a
-                  band fade out at each end instead of stopping at a hard step,
-                  and it keeps the element's own fillOpacity at 1 so nothing
-                  downstream can halve a weight that has already been chosen
-                  (which is exactly what Recharts' 0.5 default once did to every
-                  band in this chart). */}
-              {BAND_ORDER.map((s) => {
-                const [atLowEnd, atHighEnd] = bandPlotStops(s);
-                const weight = BAND_WEIGHT[s];
-                const fade = chartTokens.bandEdgeFade * 100;
-                return (
-                  <linearGradient key={s} id={`${gradId}-${s}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={atHighEnd} stopOpacity={0} />
-                    <stop offset={`${fade}%`} stopColor={atHighEnd} stopOpacity={weight} />
-                    <stop offset={`${100 - fade}%`} stopColor={atLowEnd} stopOpacity={weight} />
-                    <stop offset="100%" stopColor={atLowEnd} stopOpacity={0} />
-                  </linearGradient>
-                );
-              })}
-              {/* The body under the line: its own colour, fading to nothing
-                  well before the foot of the plot. It gives the series some
-                  weight without becoming another region of colour over the
-                  bands. */}
-              <linearGradient id={areaId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={chartTokens.line} stopOpacity={chartTokens.areaOpacity} />
-                {/* Gone by three quarters of the way down rather than at the
-                    foot of the plot: an area that is still faintly there where
-                    it meets the axis draws a hard bottom edge across the whole
-                    width, which is the boxed plot area coming back in through
-                    another door. */}
-                <stop offset="74%" stopColor={chartTokens.line} stopOpacity={0} />
-                <stop offset="100%" stopColor={chartTokens.line} stopOpacity={0} />
-              </linearGradient>
+                  NO AREA GRADIENT EITHER. The fill under the line was a sixth
+                  region of colour over five that were already competing, and
+                  the line is the content. */}
             </defs>
 
             <XAxis
@@ -935,39 +966,40 @@ export function TrendChart({
               width={46}
             />
 
+            {/* THE PLOT ITSELF, before anything is drawn in it: an inset panel
+                with one hairline frame. Not a ReferenceArea — see PlotPanel. */}
+            <PlotPanel />
+
             {/* The five status bands, behind everything else. A single point
                 still gets a full-width band: its one segment runs from the
                 axis minimum to the axis maximum, so the patient sees where
-                their one result sits relative to its range. */}
+                their one result sits relative to its range.
+
+                FLAT, AT ONE WEIGHT EACH, WITH HARD EDGES. */}
             {bandSegments.flatMap((seg, i) =>
               seg.bands.map((b) => (
                 <ReferenceArea
                   key={`band-${i}-${b.status}`}
                   x1={seg.x1}
                   x2={seg.x2}
-                  // CLAMPED TO THE DOMAIN, and that is not tidiness.
-                  //
-                  // Null is "open" — the outermost bands run to the edge of the
-                  // plot rather than asserting a bound the lab never gave. But a
-                  // BOUNDED band can also reach past the domain (a marker whose
-                  // range is 135–145 puts the top of its above-range band at
-                  // 160, well past a 148 axis), and `ifOverflow="hidden"` clips
-                  // the rect with a clip-path rather than shortening it — so the
-                  // gradient inside still maps over the band's full notional
-                  // height and its fade lands in the part that was clipped away.
-                  // The visible result was a band at FULL weight against the top
-                  // edge of the plot, i.e. the fade was drawn everywhere except
-                  // where it was needed, and the plot read as a filled box.
-                  // Clamping first makes the gradient span what is actually on
-                  // screen, so a band dissolves into the card at the plot edge.
+                  // CLAMPED TO THE DOMAIN. Null is "open" — the outermost bands
+                  // run to the edge of the plot rather than asserting a bound
+                  // the lab never gave — and a BOUNDED band can also reach past
+                  // the domain (a marker whose range is 135–145 puts the top of
+                  // its above-range band at 160, well past a 148 axis).
+                  // `ifOverflow="hidden"` clips with a clip-path rather than
+                  // shortening the rect, so an unclamped band is a rect the
+                  // browser has cut a hole in; clamping is what makes the
+                  // geometry equal what is on screen.
                   y1={Math.max(b.from ?? domainMin, domainMin)}
                   y2={Math.min(b.to ?? domainMax, domainMax)}
-                  fill={`url(#${gradId}-${b.status})`}
-                  // Pinned at 1 because the weight lives in the gradient's own
-                  // stops. Recharts' ReferenceArea defaults this to 0.5, which
-                  // silently halves whatever the token system decided — the
-                  // failure that once made every band on this chart invisible.
-                  fillOpacity={1}
+                  fill={bandPlotColour(b.status)}
+                  // THE WEIGHT IS HERE, on the element, now that there is no
+                  // gradient to carry it. Recharts' ReferenceArea defaults
+                  // fillOpacity to 0.5, so it has to be stated explicitly
+                  // whatever the value is — leaving it off is what once made
+                  // every band on this chart half the weight the tokens chose.
+                  fillOpacity={BAND_WEIGHT[b.status]}
                   strokeOpacity={0}
                   ifOverflow="hidden"
                   zIndex={100}
@@ -987,22 +1019,6 @@ export function TrendChart({
                 fillOpacity={1}
                 strokeOpacity={0}
                 zIndex={110}
-              />
-            )}
-
-            {connected && (
-              <Area
-                type="monotone"
-                dataKey="value"
-                stroke="none"
-                fill={`url(#${areaId})`}
-                fillOpacity={1}
-                dot={false}
-                activeDot={false}
-                isAnimationActive={animate}
-                animationDuration={620}
-                animationEasing="ease-out"
-                zIndex={150}
               />
             )}
 
@@ -1096,16 +1112,25 @@ export function TrendChart({
               cursor={{ stroke: chartTokens.cursor, strokeWidth: 1, strokeOpacity: 0.55 }}
             />
             <Line
+              // STRAIGHT SEGMENTS, NEVER A CURVE. `monotone` draws a smooth
+              // spline between the points, which is a claim about values
+              // between two blood draws that nobody measured — on a series
+              // three months apart it invents a shape for the whole quarter.
+              // `linear` says only what is known: these results, joined.
+              //
               // `connected` gates the whole line, not just its type — a single
               // point and an incomparable series both render as marks only.
-              type="monotone"
+              type="linear"
               dataKey="value"
+              // ONE DEFINITE COLOUR, and it is bronze: the product's accent,
+              // which says "this is your series" rather than borrowing a status
+              // hue and implying a verdict on the trend.
               stroke={connected ? chartTokens.line : 'none'}
-              // Thicker, with round caps and joins. A 2px line with mitred
-              // corners on a chart this size reads as a plotted path; 2.75 with
-              // round ones reads as a drawn stroke, which is what the rest of
-              // the product's marks are.
-              strokeWidth={2.75}
+              // Moderate weight with round caps and joins. A 2px line with
+              // mitred corners reads as a plotted path; 2.5 with round ones
+              // reads as a drawn stroke, which is what the rest of the
+              // product's marks are.
+              strokeWidth={2.5}
               strokeLinecap="round"
               strokeLinejoin="round"
               dot={<CustomDot latestT={tLast} />}
@@ -1128,7 +1153,6 @@ export function TrendChart({
       <ChartKey
         optimal={optimal}
         statuses={[...new Set(data.map((d) => d.status))]}
-        bands={bandsShown}
         unjoined={!connected && !singlePoint}
         stepped={stepBoundaries.length > 0}
       />
@@ -1137,7 +1161,7 @@ export function TrendChart({
 }
 
 /**
- * What the marks and the bands mean, in words.
+ * What the marks mean, in words.
  *
  * Not optional and not decoration. The chart carries status by shape and
  * reinforces it with colour; a shape with no key is a rebus, and a coloured
@@ -1149,24 +1173,20 @@ export function TrendChart({
  * risk", not "unhealthy". The chart says where the lab's range sits; it does
  * not offer an opinion on being outside it.
  *
- * EVERY SWATCH IS THE MARK IT STANDS FOR, AT THE WEIGHT IT IS DRAWN. The band
- * entries used to be saturated blocks of colour that appeared nowhere on the
- * chart — they were the most conspicuous thing in the card and they were
- * describing the faintest thing in the plot. Each one is now the band itself:
- * the same hue, composited at the same `BAND_WEIGHT`, under the same hairline.
- * A key whose swatch does not match what it names is a key you have to
- * translate.
+ * EVERY SWATCH IS THE MARK IT STANDS FOR, AT THE SIZE IT IS DRAWN — never a
+ * coloured rectangle. The band entries that used to be here are gone entirely:
+ * the reference bounds are printed on the axis now, in figures, level with
+ * their own hairlines, which is a better answer than a swatch and one a
+ * greyscale reader gets in full. See the note on `regions` below.
  */
 function ChartKey({
   optimal,
   statuses,
-  bands,
   unjoined,
   stepped,
 }: {
   optimal: OptimalRangeDTO | null;
   statuses: MarkerStatusInput[];
-  bands: MarkerStatus[];
   /**
    * The points are NOT joined because their sources aren't comparable for this
    * marker. That used to be a paragraph above the chart; it belongs here,
@@ -1201,33 +1221,25 @@ function ChartKey({
     </li>
   ));
 
+  /**
+   * NO BAND ENTRIES, AND THAT IS THE CHANGE (Aug 2026).
+   *
+   * There were five, one per region, each a coloured swatch beside a sentence
+   * — and a swatch is exactly what this key is not allowed to be made of, since
+   * the point of it is that the chart survives having its colour removed. They
+   * earned their place while the bands were the only thing saying where the
+   * range sat. They do not now: every reference bound is PRINTED ON THE AXIS,
+   * level with its own hairline, in figures. "3.5" beside the line at 3.5 is a
+   * better answer to "where does my range start" than "Within the reference
+   * range" beside a green rectangle, and it is one a greyscale reader gets in
+   * full.
+   *
+   * What remains is what the axis cannot say: the point states, in words and in
+   * the marks the chart actually draws; the optimal band, which is a different
+   * KIND of statement and whose bounds are not on the axis; and the step, which
+   * is a mark rather than a value.
+   */
   const regions = [
-    ...bands.map((s) => {
-      const [atLowEnd, atHighEnd] = bandPlotStops(s);
-      return (
-        <li key={`band-${s}`} className="flex items-center gap-2">
-          <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true" className="shrink-0">
-            {/* The band's own two-colour ramp, at the band's own weight, under
-                the band's own hairline. Painted as two halves rather than a
-                gradient: five more gradient definitions in the document for
-                18 pixels of swatch is not a trade worth making, and the pair
-                of stops is what the ramp IS. */}
-            <rect x="0" y="2" width="18" height="5" fill={atHighEnd} fillOpacity={bandWeight(s)} />
-            <rect x="0" y="7" width="18" height="5" fill={atLowEnd} fillOpacity={bandWeight(s)} />
-            <line
-              x1="0"
-              y1="2"
-              x2="18"
-              y2="2"
-              stroke={chartTokens.referenceEdge}
-              strokeWidth="1"
-              strokeOpacity={chartTokens.referenceEdgeOpacity}
-            />
-          </svg>
-          <span className="min-w-0">{bandLabel(s)}</span>
-        </li>
-      );
-    }),
     ...(optimal
       ? [
           <li key="optimal" className="flex items-center gap-2">

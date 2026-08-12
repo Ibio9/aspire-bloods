@@ -107,8 +107,43 @@ test.describe('render timing', () => {
       ].join('\n'),
     );
 
-    // The only assertion: it finished, and it finished with everything on it.
+    // ─────────────────────────────────────────────────────────────────
+    // AND THE FOOD LIST OPENED, which is the part virtualisation is about.
+    //
+    // The figures above are the page AS IT LOADS, and the food groups are
+    // collapsed by default — so the 207 items are not in the document at all
+    // and the height above is the ~165 measured marker cards plus the other
+    // sections. Worth stating, because "the food list is most of the page" is
+    // the obvious explanation for a 23,000px report and it is not the true one
+    // until somebody opens it.
+    //
+    // Typing into the section's own search opens every matching group, which
+    // is the state the list is virtualised for. A one-letter query most foods
+    // contain puts the whole list on screen at once.
+    // ─────────────────────────────────────────────────────────────────
+    const before = nav.nodes;
+    await page.getByLabel('Search', { exact: true }).last().fill('a');
+    await page.waitForTimeout(600);
+    const opened = await page.evaluate(() => ({
+      nodes: document.getElementsByTagName('*').length,
+      height: Math.round(document.body.scrollHeight),
+      rows: document.querySelectorAll('[id^="sensitivity-"] .value-row').length,
+    }));
+    console.log(
+      [
+        '─── the food list, opened ───────────────────────────────────────',
+        `  DOM nodes               ${opened.nodes}   (+${opened.nodes - before} over collapsed)`,
+        `  page height             ${opened.height} px`,
+        `  food rows in the DOM    ${opened.rows}   (of 207 matching, the rest are spacers)`,
+        '─────────────────────────────────────────────────────────────────',
+        '',
+      ].join('\n'),
+    );
+
+    // The only assertions: it finished with everything on it, and opening the
+    // food list did not put all 207 rows in the document.
     expect(detail.markers.length).toBeGreaterThan(400);
+    expect(opened.rows, 'the opened food list is not virtualised').toBeLessThan(150);
     await ctx.close();
   });
 });

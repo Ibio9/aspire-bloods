@@ -16,6 +16,7 @@ import {
   LinkingIcon,
   AuditIcon,
   IngestionIcon,
+  QueueIcon,
   SearchIcon,
   MenuIcon,
   CollapseIcon,
@@ -43,7 +44,14 @@ const NAV_ITEMS: NavItem[] = [
   // and whose accessible name doesn't mention the console. The patient
   // sidebar's first item is Overview for exactly the same reason.
   { to: '/', label: 'Console', hint: 'What is waiting for you', icon: AdminConsoleIcon },
-  { to: '/admin', label: 'Reports & entry', hint: 'Upload, verify, review, release', icon: ReportsIcon },
+  // Sits second, directly under the console, because it is the screen this
+  // console is FOR now that there is one gate: what is waiting, what is stuck,
+  // and the exception queue at the top of it.
+  { to: '/admin/queue', label: 'Work queue', hint: 'Oldest first, with the exceptions', icon: QueueIcon },
+  // "Verify" is gone from this label. It named a pipeline stage that no longer
+  // exists, and a label claiming a check nobody performs is the removed stage
+  // surviving as a word.
+  { to: '/admin', label: 'Reports & entry', hint: 'Upload, review, release', icon: ReportsIcon },
   { to: '/admin/patients', label: 'Patients', icon: PatientsIcon },
   // Sits directly under Patients: it's the same subject (who is who) at the
   // moment it matters most, not a reporting screen.

@@ -81,6 +81,10 @@ async function signInAsAdmin(page: Page) {
 }
 
 test('every admin route loads with a clean console', async ({ page }) => {
+  // Thirteen routes, each of which is loaded, settled for 800ms and read for
+  // console output. Every route split out into its own chunk (Aug 2026) adds a
+  // fetch to that, and the default 30s stopped covering the list.
+  test.setTimeout(120_000);
   await page.setViewportSize({ width: 1440, height: 1000 });
   const watcher = watchConsole(page);
   await signInAsAdmin(page);
@@ -97,6 +101,10 @@ test('every admin route loads with a clean console', async ({ page }) => {
     // HELD is a queue bucket rather than a status — PARSED covers both awaiting
     // review and held, so the two filters are separate URLs.
     { name: 'Reports filtered to the held queue', path: '/admin?queue=HELD' },
+    // The work queue: what is waiting for a clinician and what is stuck. It
+    // names patients, so it is audited like the patient list — and it is the
+    // screen the console is for now that there is one gate.
+    { name: 'Work queue', path: '/admin/queue' },
     { name: 'Patients', path: '/admin/patients' },
     { name: 'Result linking', path: '/admin/linking' },
     { name: 'Panels', path: '/admin/panels' },
@@ -114,7 +122,7 @@ test('every admin route loads with a clean console', async ({ page }) => {
     await settle(page);
     // The shell mounted at all — a thrown render leaves the document empty and
     // there would be no navigation landmark to find.
-    await expect(page.getByRole('navigation', { name: 'Admin navigation' }), `${route.name} rendered the shell`).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Clinician console navigation' }), `${route.name} rendered the shell`).toBeVisible();
     assertClean(watcher, `${route.name} (${route.path})`);
   }
 });

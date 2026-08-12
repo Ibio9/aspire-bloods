@@ -8,6 +8,7 @@ import { useAuth } from '../../lib/AuthContext';
 import { BOOKING_ENABLED } from '../../lib/features';
 import { useDialogFocus } from '../../lib/useDialogFocus';
 import { ClinicContactPanel } from '../patient/ClinicContact';
+import { PrintFooter } from '../patient/PrintDocument';
 import { MarkerSearch } from './MarkerSearch';
 import { AdminConsoleIcon, CloseIcon, CollapseIcon, MenuIcon, SearchIcon } from './icons';
 import { AccountIcon, BookTestIcon, DocumentsIcon, LibraryIcon, OverviewIcon, PanelsIcon, PhoneIcon } from './patientIcons';
@@ -403,7 +404,11 @@ export function PatientShell({ children }: { children?: ReactNode }) {
     // screen, which is the whole product. The comment in globals.css warns
     // about giving BODY a background; this is the same mistake one element
     // further down.
-    <div className="min-h-viewport flex">
+    // `print-flow` is what unpicks this layout on paper: a sticky flex
+    // column is neither sticky nor a column in a paged medium, and left alone
+    // it printed the content starting 288px in on every sheet. See the print
+    // block at the foot of globals.css.
+    <div className="print-flow min-h-viewport flex">
       {/* Sticky and exactly one viewport tall, so the panel's background runs
           edge to edge however long the page behind it is (see .h-viewport —
           100dvh with a 100vh fallback). */}
@@ -420,7 +425,7 @@ export function PatientShell({ children }: { children?: ReactNode }) {
           because it is the whole of the separation wherever the glow does not
           reach — which on a wide window is most of this column. */}
       <aside
-        className={`panel-wash h-viewport sticky top-0 hidden shrink-0 flex-col border-r border-panel-edge transition-[width] duration-200 ease-out md:flex ${
+        className={`panel-wash h-viewport sticky top-0 hidden shrink-0 flex-col border-r border-panel-edge transition-[width] duration-200 ease-out md:flex print:hidden ${
           collapsed ? 'w-[84px]' : 'w-[288px]'
         }`}
       >
@@ -470,7 +475,14 @@ export function PatientShell({ children }: { children?: ReactNode }) {
           more to come. */}
       <div className="min-h-viewport flex min-w-0 flex-1 flex-col">
         {/* Mobile only — the desktop layout is sidebar-and-content, no header. */}
-        <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-taupe bg-cream/90 px-4 py-3 backdrop-blur md:hidden">
+        {/* h-14 rather than vertical padding, and that is load-bearing: the
+            results control bar pins BELOW this header, and it does so against
+            `--shell-sticky-top` in globals.css, which is this number written
+            down. A height derived from the padding and whatever the tallest
+            child happens to be is a number that changes when somebody swaps an
+            icon, and the bar would then pin a few pixels off with a strip of
+            scrolling content showing through the gap. */}
+        <div className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-taupe bg-cream/90 px-4 backdrop-blur md:hidden print:hidden">
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
@@ -490,7 +502,10 @@ export function PatientShell({ children }: { children?: ReactNode }) {
           </div>
         </main>
 
-        <Footer className="px-5 sm:px-8 md:px-14 lg:px-20" />
+        {/* The on-screen disclaimer footer is chrome; the printed one is the
+            clinic's contact details repeating on every sheet. */}
+        <Footer className="px-5 sm:px-8 md:px-14 lg:px-20 print:hidden" />
+        <PrintFooter />
       </div>
     </div>
   );

@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes, MouseEvent } from 'react';
 import { Tooltip } from './Tooltip';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'ghost' | 'destructive' | 'primaryOnDark' | 'secondaryOnDark';
+  variant?: 'primary' | 'secondary' | 'glass' | 'ghost' | 'destructive' | 'primaryOnDark' | 'secondaryOnDark';
   loading?: boolean;
   /** Shown in a tooltip (and read by screen readers) when disabled — a greyed-out button with no
    * explanation is a dead end, not a state. */
@@ -48,6 +48,20 @@ const VARIANTS = {
     'before:shadow-[inset_0_1px_0_0_rgb(255_255_255_/_0.7)]',
     'hover:border-bronze hover:shadow-btn-hover motion-safe:hover:-translate-y-px',
     'active:bg-cream-200 active:shadow-btn-active active:translate-y-0 active:before:opacity-0',
+  ].join(' '),
+  // THE GLASS MATERIAL, as a button. Same blur, same saturation and the same
+  // per-surface alpha family as the pinned results control bar and the sidebar
+  // (see `.glass` in globals.css) — so a control sitting on a page over the
+  // corner glow is a surface without being an opaque one. `secondary` is a
+  // near-white gradient and paints straight over the light, which is fine on a
+  // card and wrong on the page itself.
+  //
+  // It keeps `secondary`'s hairline and depth, because a button is an object
+  // you press and the shadow is what says so.
+  glass: [
+    'glass text-espresso border border-taupe shadow-btn',
+    'hover:border-bronze hover:shadow-btn-hover motion-safe:hover:-translate-y-px',
+    'active:shadow-btn-active active:translate-y-0',
   ].join(' '),
   ghost: 'bg-transparent text-espresso hover:bg-cream-200 active:bg-cream-300 active:shadow-btn-active',
   destructive: [

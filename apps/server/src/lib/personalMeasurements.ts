@@ -124,3 +124,57 @@ export function personalMeasurementsOf(source: MeasurementSource | null | undefi
 
 /** The catalogue key of the health area these belong to. */
 export const PERSONAL_MEASUREMENTS_CATEGORY_KEY = 'personal-health-measurements';
+
+/**
+ * ===========================================================================
+ *  THE MARKERS THAT HAVE NO REFERENCE RANGE, AND ARE NEVER GIVEN ONE.
+ * ===========================================================================
+ *
+ * DECIDED (Aug 2026): these display with a value, a unit, and NO RANGE AND NO
+ * STATUS AT ALL. Not a published band, not a threshold, not a synthetic one.
+ *
+ * WHY NOT A PUBLISHED RANGE, INCLUDING FOR BLOOD PRESSURE. Blood pressure is
+ * the one on this list with a widely published number behind it, and it is
+ * also the clearest reason not to use one here. NICE hypertension thresholds
+ * are DIAGNOSTIC: they are acted on in a consultation, after a repeat reading
+ * and usually after ambulatory or home monitoring, because a single clinic
+ * measurement is known to be a poor estimate of somebody blood pressure.
+ * Printing 140/90 as a band beside one reading taken while a patient was
+ * sitting in a waiting room having just had blood drawn, and colouring the
+ * result red against it, is this product making a diagnosis, which is the one
+ * thing it is not allowed to do, in the place it would do the most harm.
+ *
+ * The rest do not have a reference interval in the sense the rest of the
+ * catalogue means. A weight is not high or low, it is a weight; what would make
+ * it either is height, build, age, and what the person is for. A waist
+ * threshold is a risk stratifier applied to populations, not an interval a
+ * measurement sits inside. A pulse depends on what somebody was doing five
+ * minutes earlier. Colour-coding any of them would be the portal offering an
+ * opinion on a patient body, which the non-diagnostic rule forbids in the
+ * same breath as it forbids "healthy" and "concerning".
+ *
+ * WHAT MAKES IT WORK RATHER THAN LOOK BROKEN. The read path already handles a
+ * value with no comparison, because nine analytes need it: a value with
+ * `status: null` renders the reading, takes no tint, no chevron and no range
+ * bar, is labelled "Not compared to a range", and is excluded from every tally
+ * by `countable()`. So this is not a special case, it is the case the product
+ * already supports, applied consistently.
+ *
+ * WHAT THIS LIST IS FOR. Two things, and the second is the point. The
+ * measurements that arrive through the API never become ReportResults at all
+ * (see the schema note on ReportMeasurements), so for them the question does
+ * not arise. The DEMO SEED generates results for every marker on a panel, and
+ * it invented a band for anything the catalogue had no range for, which is how
+ * waist circumference acquired a reference range of 13 to 38 cm and how weight
+ * acquired 2.5 to 7.5 kg. Naming the markers here, once, is what lets the demo
+ * refuse them (`syntheticBand` throws) rather than each generator remembering.
+ *
+ * `oxygen-saturation` is on the list and is NOT in DEFINITIONS above: it is a
+ * physical measurement with no reference interval, and Randox measurement
+ * payload has no field for it. That is a gap in the payload rather than a
+ * reason to give it a range.
+ */
+export const PHYSICAL_MEASUREMENT_KEYS: ReadonlySet<string> = new Set([
+  ...DEFINITIONS.map((d) => d.key),
+  'oxygen-saturation',
+]);

@@ -10,6 +10,8 @@ import { ErrorState } from '../../components/ui/ErrorState';
 import { Reveal } from '../../components/motion/Reveal';
 import { staggerDelay } from '../../components/motion/stagger';
 import { ArrowRightIcon } from '../../components/nav/patientIcons';
+import { MarkerExplanationBody } from '../../components/patient/MarkerExplanation';
+import { PrintHeader } from '../../components/patient/PrintDocument';
 import { apiFetch } from '../../lib/api';
 import type { LibraryEntry } from '../../lib/patientPortal';
 
@@ -113,27 +115,10 @@ function LibraryCard({ entry }: { entry: LibraryEntry }) {
           {/* One presentation for every entry. Whether a clinician has yet
               signed the wording off is recorded server-side and shown in the
               admin review queue; it changes nothing here, on purpose. */}
-          <div className="flex max-w-2xl flex-col gap-5 text-reading leading-relaxed text-espresso">
-            <p>{entry.explanation.whatItIs}</p>
-            {entry.explanation.highMeans && (
-              <div>
-                <p className="font-medium">If it’s above the usual range</p>
-                <p className="mt-1">{entry.explanation.highMeans}</p>
-              </div>
-            )}
-            {entry.explanation.lowMeans && (
-              <div>
-                <p className="font-medium">If it’s below the usual range</p>
-                <p className="mt-1">{entry.explanation.lowMeans}</p>
-              </div>
-            )}
-            {entry.explanation.lifestyleContext && (
-              <div>
-                <p className="font-medium">Lifestyle context</p>
-                <p className="mt-1">{entry.explanation.lifestyleContext}</p>
-              </div>
-            )}
-          </div>
+          {/* The same four levels as the marker page's card, from the same
+              component. These two used to be the same content styled two
+              different ways, which is two places for one hierarchy to drift. */}
+          <MarkerExplanationBody explanation={entry.explanation} labels="library" />
 
           {entry.hasResults && (
             <Link
@@ -186,7 +171,21 @@ export function MarkerLibraryPage() {
       {/* No standfirst. It said the page contained plain-English explanations,
           which is what the page visibly is, and that nothing here is a
           diagnosis, which the footer disclaimer says on every screen. */}
+      <PrintHeader
+        title="Understanding your results"
+        note="Reference material about what each marker measures. Not a result and not a diagnosis."
+      />
       <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="Understanding your results" />
+      {/* The way back to the first sign-in introduction, for anyone who skipped
+          it or wants it again. It is a link on the page rather than a setting,
+          because "show me that again" is a thing you do once and not a
+          preference you keep. */}
+      <Link
+        to="/welcome"
+        className="mt-3 inline-flex rounded-input text-sm font-medium text-bronze-700 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze print:hidden"
+      >
+        Read the introduction to your results
+      </Link>
 
       {error ? (
         <div className="mt-10">

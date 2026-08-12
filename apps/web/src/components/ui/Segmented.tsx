@@ -52,7 +52,7 @@ export function Segmented<T extends string>({
    * reason. Fill AND weight both still move, so selection is never carried by
    * colour alone.
    */
-  tone?: 'accent' | 'quiet';
+  tone?: 'accent' | 'quiet' | 'glass';
   className?: string;
 }) {
   const refs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -82,8 +82,15 @@ export function Segmented<T extends string>({
       // Scrolls rather than widening the page — three labels exceed 375px.
       // The quiet track keeps the hairline that makes it one object and drops
       // the fill, so nothing is painted over the corner glow behind it.
+      // `glass` is the tone this takes inside the results control bar, so the
+      // switch and the bar it travels with are the same material rather than a
+      // hairline pill floating on a sheet of glass. Two layers of it, which is
+      // what makes the control read as an object ON the bar rather than a hole
+      // in it. It keeps the hairline: a segmented control genuinely is one
+      // object, and that is what the rest of the bar being unboxed is measured
+      // against.
       className={`inline-flex max-w-full gap-1 overflow-x-auto rounded-input border border-taupe p-1 ${
-        tone === 'quiet' ? '' : 'bg-cream-50'
+        tone === 'accent' ? 'bg-cream-50' : tone === 'glass' ? 'glass' : ''
       } ${className}`}
     >
       {options.map((o) => {
@@ -105,9 +112,9 @@ export function Segmented<T extends string>({
               // Selected is carried by the fill AND the weight, never by colour
               // alone — same rule as the sidebar's active row.
               isActive
-                ? tone === 'quiet'
-                  ? 'bg-bronze/[0.14] font-semibold text-espresso'
-                  : 'bg-bronze font-semibold text-onaccent shadow-btn'
+                ? tone === 'accent'
+                  ? 'bg-bronze font-semibold text-onaccent shadow-btn'
+                  : 'bg-bronze/[0.14] font-semibold text-espresso'
                 : 'text-espresso/85 hover:bg-cream-200 hover:text-espresso'
             }`}
           >

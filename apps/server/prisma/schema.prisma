@@ -186,6 +186,15 @@ model User {
   deactivationReason   String?
   deactivatedAccounts  User[]    @relation("DeactivatedByStaff")
 
+  /// WHEN THIS PATIENT WAS SHOWN THE INTRODUCTION, and null until they have
+  /// been. Server-side rather than in localStorage, and that is the whole
+  /// requirement: a first sign-in is a fact about the person, not about the
+  /// browser, and a walkthrough tracked in storage reappears on their phone,
+  /// in a private window, and every time they clear their cookies — which is
+  /// the same screen being shown again to somebody who has already read it and
+  /// dismissed it. Dismissing counts as seen, so this is stamped either way.
+  walkthroughSeenAt DateTime?
+
   patientProfile    PatientProfile?
   staffProfile      StaffProfile?
   inviteTokens      InviteToken[]

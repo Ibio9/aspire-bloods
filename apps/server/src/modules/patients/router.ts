@@ -8,6 +8,7 @@ import { asyncHandler } from '../../lib/asyncHandler.js';
 import { prisma } from '../../db/client.js';
 import { generateFileToken } from '../../lib/signedUrl.js';
 import { generateAllMarkersPdf, generateAspireSummaryPdf } from '../export/pdfSummary.js';
+import { generateGpHandoverPdf } from '../export/gpHandover.js';
 import { pdfFailure, streamPdf } from '../../lib/pdfResponse.js';
 import { storageAdapter } from '../storage/LocalDiskStorageAdapter.js';
 import { buildDsarExport } from './dsarService.js';
@@ -156,6 +157,30 @@ patientsRouter.get(
   }),
 );
 
+/**
+ * THE INTRODUCTION HAS BEEN SEEN.
+ *
+ * Idempotent, and stamped only the first time: pressing "continue" twice, or
+ * opening it again later from Understanding results, must not move the date —
+ * "when were they first shown this" is the fact, and it is the one an audit
+ * would ask for. Dismissing counts as seen, which is why the client calls this
+ * from both the finish and the skip.
+ *
+ * No CSRF exemption and no special casing: it is an ordinary authenticated
+ * POST that writes one column on the caller's own row.
+ */
+patientsRouter.post(
+  '/walkthrough-seen',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    await prisma.user.updateMany({
+      where: { id: req.user!.id, walkthroughSeenAt: null },
+      data: { walkthroughSeenAt: new Date() },
+    });
+    res.json({ ok: true });
+  }),
+);
+
 patientsRouter.get(
   '/documents',
   asyncHandler(async (req, res) => {
@@ -242,6 +267,37 @@ patientsRouter.get(
     }
 
     res.json({ url: `/api/files/download?token=${generateFileToken(file.id)}` });
+  }),
+);
+
+/**
+ * THE GP HANDOVER SUMMARY — one page, for a doctor.
+ *
+ * STREAMED, NOT STORED, and that is the difference from the patient summary
+ * above. The summary letter is cached as a StoredFile because it is the
+ * patient's own copy of a released report and belongs in their DSAR export;
+ * this is a derived VIEW of the same report, generated for a conversation, and
+ * a pile of near-identical one-page extracts in somebody's data export is noise
+ * rather than a record. There is also nothing here that the report and the
+ * clinic's contact details do not already contain.
+ *
+ * Same guard as every other document route: the caller's own report, and only
+ * once it has been RELEASED. A handover summary of an unreleased report would
+ * be a route around the one human gate.
+ */
+patientsRouter.get(
+  '/reports/:id/gp-handover-pdf',
+  asyncHandler(async (req, res) => {
+    const report = await prisma.report.findUnique({ where: { id: req.params.id } });
+    if (!report || report.patientId !== req.user!.id || report.status !== 'RELEASED' || report.voidedAt) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    await auditIfAdminViewer(req, 'own_gp_handover_pdf', 'Report', report.id);
+    await streamPdf(res, {
+      filename: `aspire-gp-summary-${report.sampleDate.toISOString().slice(0, 10)}.pdf`,
+      what: `GP handover summary for report ${report.id}`,
+      generate: () => generateGpHandoverPdf(report.id),
+    });
   }),
 );
 

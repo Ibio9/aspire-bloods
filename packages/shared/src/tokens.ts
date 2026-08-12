@@ -415,12 +415,52 @@ const DARK_FILL_HUE: Record<StatusHue, number> = { green: 1, yellow: 0.82, orang
  * property worth having — a component picking its opacity from the theme is a
  * component that will drift, and the two themes' bands would part company the
  * first time anybody touched one of them.
+ *
+ * ------------------------------------------------------------------------
+ * RE-SOLVED (Aug 2026): THE DARK BANDS WERE OLIVE AND BROWN.
+ * ------------------------------------------------------------------------
+ *
+ * The equal-weight property above held and the HUE did not. Measured, as the
+ * colour that actually landed on the dark card:
+ *
+ *     green   → hsl(76, 0.18, 0.17)   the reference range, as olive
+ *     yellow  → hsl(43, 0.32, 0.17)   above range, as brown
+ *     red     → hsl(11, 0.33, 0.26)   significantly out, as maroon
+ *
+ * Two things were happening at once and only the first was accounted for. A
+ * band is composited at 10–24%, so 76–90% of what lands on screen is the CARD,
+ * which on a near-black warm surface is hue 33 at 9% saturation — it pulls
+ * every band's hue toward itself and flattens its chroma. And the lightness
+ * correction that made the weights match had pushed three of the four DOWN,
+ * which is the direction that costs the most chroma.
+ *
+ * The fix is to stop treating the plot colour as "the hue, adjusted" and solve
+ * for it as "whatever produces the intended composite". Every value below is
+ * the output of a search over (saturation, lightness) at the hue's own angle,
+ * maximising the SATURATION OF THE COMPOSITE subject to four constraints:
+ *
+ *   1. the composited band is within 17% of its light-mode weight (the test
+ *      allows 20%, so the solve keeps headroom);
+ *   2. the ladder holds in dark as well as light — in range fainter than out,
+ *      out fainter than significantly out;
+ *   3. the composite's hue is within 11° of its light-mode counterpart's, so
+ *      "green" is the same green in both themes;
+ *   4. a point mark on its own band still clears 3:1.
+ *
+ * Saturation goes to the top of the range for all four, and lightness goes UP
+ * rather than down — which is the opposite of the previous solve and is why the
+ * bands were muddy: pulling lightness down toward a near-black card is exactly
+ * how a hue is spent. What it costs is nothing, because the weight is held by
+ * constraint 1 rather than by the lightness.
+ *
+ * Composite saturation, before and after: green 0.18 → 0.31, gold 0.32 → 0.42,
+ * red 0.33 → 0.39, orange 0.43 → 0.55.
  */
 const PLOT_LIFT: Record<StatusHue, { s: number; l: number }> = {
-  green: { s: 0.58, l: 0.36 },
-  yellow: { s: 0.9, l: 0.28 },
-  orange: { s: 0.86, l: 0.38 },
-  red: { s: 0.78, l: 0.6 },
+  green: { s: 1, l: 0.5 },
+  yellow: { s: 0.98, l: 0.42 },
+  orange: { s: 1, l: 0.5 },
+  red: { s: 0.98, l: 0.61 },
 };
 
 // ---------------------------------------------------------------------------
@@ -669,6 +709,38 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
   out['--c-panel-edge'] = dark ? darkScales.taupe[600] : scales.taupe[600];
 
   /**
+   * ── GLASS ──────────────────────────────────────────────────────────────
+   *
+   * GLASS, NOT FILL, IS HOW A SURFACE SEPARATES ITSELF FROM THE PAGE HERE.
+   *
+   * The rule the whole dark theme turns on is that nothing may paint an opaque
+   * background over the corner glow — and that rule is what unpinned the
+   * results control bar, because a sticky element with no surface has the page
+   * scrolling straight through it and the only fix anybody reached for was a
+   * solid fill. Glass answers both at once: it is a surface, and the light and
+   * the content behind it still come through, diffused.
+   *
+   * THIS IS THE COLOUR, and it is the CARD surface rather than the page. A
+   * glass sheet the colour of the page is invisible against the page; the card
+   * tone is the one already established as "a thing sitting above the page",
+   * so the bar reads as the same material family as everything else on it.
+   *
+   * The alpha is GLASS.wash and the blur is GLASS.blur, both emitted by
+   * tailwind.config.ts, because an opacity and a length are not colours and
+   * everything in this map is a hex.
+   *
+   * WHY THE SIDEBAR DOES NOT TAKE THIS COLOUR AND ALPHA. Both surfaces are the
+   * same material — one blur radius, one saturation, applied by `.glass` and
+   * `.panel-wash` alike — but their alphas are chosen by what is BEHIND them,
+   * which is not the same thing. Nothing passes under the sidebar except the
+   * page and the glow, so 6%/38% of espresso is all it needs and all its
+   * measured contrasts allow (see PANEL_WASH_ALPHA and tokenContrast.test.ts).
+   * The reader's own results pass under the control bar, and a 6% wash over
+   * moving body copy is not a surface, it is a smear.
+   */
+  out['--c-glass'] = dark ? darkScales.cream[50] : mix(brand.white, brand.cream, 0.35);
+
+  /**
    * Text and icons on a FILLED accent — a bronze button, a selected option, an
    * avatar, the current step of a progress bar.
    *
@@ -757,6 +829,24 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
   out['--c-chart-gridline'] = dark ? darkScales.taupe[300] : scales.taupe[200];
   out['--c-chart-cursor'] = dark ? darkScales.taupe[700] : scales.taupe[600];
   out['--c-chart-surface'] = dark ? darkScales.cream[50] : mix(brand.white, brand.cream, 0.35);
+  /**
+   * The plot area, one step away from the card it sits on — DOWN in light and
+   * DOWN in dark, which is the same direction and not the same operation. In
+   * light the card is a warm off-white and a step down is the cream page tone.
+   * In dark the card is already near-black, and the trap recorded on
+   * `darkWhite` applies: there is no further down that measures. So dark takes
+   * a step toward the PAGE (which is darker than the card) rather than toward
+   * black, which is a real step of about 1.10:1 rather than the 1.02:1 that
+   * mixing toward black produces.
+   */
+  out['--c-chart-plot-surface'] = dark ? mix(darkPage, darkScales.cream[50], 0.55) : mix(brand.cream, brand.white, 0.35);
+  /** The plot's own hairline frame. The same neutral as every other boundary in the chart. */
+  out['--c-chart-plot-frame'] = dark ? darkScales.taupe[600] : scales.taupe[400];
+  /**
+   * A reference bound on the axis. Full text weight against the muted ticks —
+   * see chart.boundLabel for why the difference is weight rather than hue.
+   */
+  out['--c-chart-bound-label'] = dark ? darkScales.espresso[700] : scales.espresso[700];
 
   /**
    * THE RESULT MARK ON A RANGE BAR — the dot on the full bar and the pointer on
@@ -846,6 +936,34 @@ export const themeTokens = {
  * beside `--c-panel`, and tokenContrast.test.ts, which holds both ends.
  */
 export const PANEL_WASH_ALPHA = { light: 0.06, dark: 0.38 } as const;
+
+/**
+ * THE GLASS MATERIAL, in three numbers, shared by every surface that uses it.
+ *
+ * One blur radius and one saturation across the product, so the pinned control
+ * bar, the sidebar, the chart tooltip and the download button are the same
+ * material rather than four things that happen to be blurred. Only the alpha
+ * differs per surface, and only because what is behind them differs — see the
+ * note on `--c-glass`.
+ *
+ * `blur` is 14px and that number is a budget rather than a taste. A backdrop
+ * filter costs a compositing pass over the area behind the element on every
+ * frame it is on screen, and the area here is a full-width bar over a list that
+ * can be 350 markers long. 14px is where the diffusion is unambiguous — body
+ * copy underneath is a wash, not letters — while staying cheap enough to hold
+ * 60fps on the machines patients actually use. If it ever costs frames, this is
+ * the number to lower; the effect survives 8px and does not survive being
+ * replaced by an opaque fill, which is what it exists to avoid.
+ *
+ * `saturate` is barely above 1: glass that desaturates reads as fog, and glass
+ * that saturates hard reads as a colour filter. This is enough that the warm
+ * page underneath stays warm through it.
+ */
+export const GLASS = {
+  wash: { light: 0.62, dark: 0.58 },
+  blur: '14px',
+  saturate: '1.08',
+} as const;
 
 /** `#8a5e45` → `138 94 69`, the channel triplet Tailwind's `<alpha-value>` syntax needs. */
 export function hexToRgbChannels(hex: string): string {
@@ -1039,29 +1157,46 @@ export const chart = {
   stepOpacity: 0.7,
   stepWidth: 1,
   /**
-   * The fade at each end of a band, as a share of its own height.
+   * ── FLAT BANDS, HARD EDGES (Aug 2026) ────────────────────────────────
    *
-   * This is what turns four stacked blocks into four regions. Zero here is the
-   * old chart: every band a flat slab meeting its neighbour at a hard step, so
-   * the plot reads as a fill-tool bucket rather than as shading. It is a share
-   * rather than a pixel count so a thin band fades over its whole height and a
-   * tall one keeps a solid middle.
+   * `bandEdgeFade` and `areaOpacity` are GONE, and both removals are the same
+   * decision. A band that fades at its own edges has no edge, so where one
+   * region ends and the next begins became a matter of opinion — on a plot
+   * whose entire subject is a boundary. And an area fill under the line was a
+   * sixth region of colour over five that were already competing.
    *
-   * A QUARTER, not a tenth, and the number came from the dark theme. Five bands
-   * that each hold their weight to their own edge tile the plot completely —
-   * there is no unpainted ground left anywhere in it — and on a near-black card
-   * that reads as one tinted rectangle sitting on the surface rather than as
-   * shading drawn on it. At a quarter, the plot dissolves into the card at the
-   * top and bottom and each boundary is approached rather than hit, which is
-   * what a region looks like.
+   * A band is now a flat rectangle at `BAND_WEIGHT[status]`, meeting its
+   * neighbour at a hairline. The reason the old chart needed the falloff was
+   * that its bands were SATURATED SLABS and something had to soften them; with
+   * the weights unequal and low, flat is legible and the edges are the point.
    */
-  bandEdgeFade: 0.26,
   /**
-   * The area under the trend line, at the line's own colour, fading to nothing
-   * at the foot of the plot. Enough to give the line some body; far too little
-   * to become a sixth region of colour over the bands.
+   * ── THE PLOT AREA AS AN INSET PANEL ──────────────────────────────────
+   *
+   * A hairline frame and a surface fractionally away from the card, so the plot
+   * reads as a recessed panel the drawing sits inside rather than as ink
+   * floating on a card. It is the one box this chart is allowed: "no box" was
+   * the right rule when the bands were slabs tiling the whole area edge to
+   * edge, because a frame around a filled rectangle is a second outline round
+   * the first. With flat low-weight bands there is real ground showing, and
+   * ground needs an edge.
+   *
+   * No shadow and no inner border — one hairline, drawn once.
    */
-  areaOpacity: 0.12,
+  plotSurface: 'rgb(var(--c-chart-plot-surface))',
+  plotFrame: 'rgb(var(--c-chart-plot-frame))',
+  plotFrameOpacity: 0.5,
+  /**
+   * A reference bound printed on the left axis, distinct from a tick value.
+   *
+   * The tick values are the SCALE and the bounds are a CLINICAL THRESHOLD, and
+   * a reader has to be able to tell one from the other at a glance. Same mono
+   * face and the same size; the bound is set in the text colour with a short
+   * lead rule to its own hairline, and the ticks are muted. That is a weight
+   * difference and a mark, never a hue — a coloured axis label would be the
+   * status layer leaking into the furniture.
+   */
+  boundLabel: 'rgb(var(--c-chart-bound-label))',
   /** The soft halo behind the most recent point — the one the reader came for. */
   haloOpacity: 0.16,
   /** The optimal band, drawn inside/overlapping the reference band. Distinguished by a hatch, not by hue alone. */

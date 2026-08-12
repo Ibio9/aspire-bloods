@@ -13,7 +13,9 @@ import { Card } from '../../components/ui/Card';
 import { LinkButton } from '../../components/ui/LinkButton';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { RangeBar } from '../../components/ui/RangeBar';
-import { TrendChart } from '../../components/ui/TrendChart';
+import { TrendChart } from '../../components/ui/LazyCharts';
+import { MarkerExplanationBody } from '../../components/patient/MarkerExplanation';
+import { PrintHeader } from '../../components/patient/PrintDocument';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { CopyButton } from '../../components/ui/CopyButton';
 import { ClinicContactLines } from '../../components/patient/ClinicContact';
@@ -161,6 +163,9 @@ export function MarkerDetailPage() {
 
   return (
     <div className="motion-safe:animate-riseIn">
+      {/* The most recent draw this marker has a result from — the trend is
+          sorted oldest first, so the sample date is the last row's. */}
+      <PrintHeader title={detail.name} sampleDate={detail.trend[detail.trend.length - 1]?.sampleDate ?? null} />
       <Breadcrumbs
         items={
           navState
@@ -364,26 +369,11 @@ export function MarkerDetailPage() {
 
       {detail.explanation && (
         <Card className="mt-8 max-w-3xl" padding="roomy">
-          <p className="eyebrow mb-4">What this marker means</p>
-          <p className="max-w-measure text-lg leading-relaxed text-espresso">{detail.explanation.whatItIs}</p>
-          {detail.explanation.highMeans && (
-            <>
-              <p className="mt-8 font-medium text-espresso">If it’s high</p>
-              <p className="mt-2 max-w-measure text-reading leading-relaxed text-espresso/90">{detail.explanation.highMeans}</p>
-            </>
-          )}
-          {detail.explanation.lowMeans && (
-            <>
-              <p className="mt-8 font-medium text-espresso">If it’s low</p>
-              <p className="mt-2 max-w-measure text-reading leading-relaxed text-espresso/90">{detail.explanation.lowMeans}</p>
-            </>
-          )}
-          {detail.explanation.lifestyleContext && (
-            <>
-              <p className="mt-8 font-medium text-espresso">Lifestyle context</p>
-              <p className="mt-2 max-w-measure text-reading leading-relaxed text-espresso/90">{detail.explanation.lifestyleContext}</p>
-            </>
-          )}
+          {/* Heading, then the definition as the loudest thing in the card,
+              then quiet label-and-answer pairs. Four levels, one component,
+              shared with the library — see MarkerExplanation.tsx. */}
+          <p className="eyebrow mb-5">What this marker means</p>
+          <MarkerExplanationBody explanation={detail.explanation} />
         </Card>
       )}
     </div>

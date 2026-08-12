@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { RESULT_TYPE_RULES, FOOD_SENSITIVITY_GROUPS } from '@aspire-bloods/shared';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { filterCountLabelFor, matchesMarkerQuery } from '../../lib/markerCopy';
+import { useGridColumns, useWindowVirtual } from '../../lib/useWindowVirtual';
 import type { SummaryCategory } from './ResultsSummary';
 
 /**
@@ -108,7 +109,14 @@ function SectionFilters({
 }
 
 /** The result itself, in whatever form it came: a risk category, a level, a proportion. */
-function PlainResult({ marker }: { marker: NonMeasuredMarker }) {
+function PlainResult({
+  marker,
+  rowRef,
+}: {
+  marker: NonMeasuredMarker;
+  /** Set on the first row of a virtualised list, so the pitch is measured rather than assumed. */
+  rowRef?: (element: HTMLElement | null) => void;
+}) {
   const shown = marker.valueText ?? (marker.value !== null ? `${marker.value}${marker.unit ? ` ${marker.unit}` : ''}` : null);
   return (
     // The same `.value-row` grid the previous-results list uses, with the third
@@ -117,7 +125,7 @@ function PlainResult({ marker }: { marker: NonMeasuredMarker }) {
     // primitive is the point: this was a wrapping flex row, which did not
     // overlap but did let the values wander left and right down the page
     // instead of forming a column. Grid gives it the same clean right edge.
-    <div className="value-row border-b border-taupe py-2.5 last:border-transparent">
+    <div ref={rowRef} className="value-row border-b border-taupe py-2.5 last:border-transparent">
       <p className="text-sm text-espresso">{marker.name}</p>
       {/* No tint and no status badge, on purpose — there is no reference range
           behind any of these, so there is nothing for a colour to mean. */}
@@ -320,6 +328,83 @@ function CategorisedSection({
 // ---------------------------------------------------------------------------
 
 /**
+ * ---------------------------------------------------------------------------
+ * ONE OPEN FOOD GROUP, VIRTUALISED ABOVE A THRESHOLD.
+ * ---------------------------------------------------------------------------
+ *
+ * The Signature report renders 23,862 pixels tall, and this list is the reason.
+ * Three ways out were on the table and this is why it is this one:
+ *
+ *  · PAGINATION puts an interaction between a patient and a food. Nobody knows
+ *    which page "Almond" is on, so every lookup becomes a search anyway — and
+ *    the section already has a search field, so pagination would add a control
+ *    that only makes the existing one compulsory.
+ *  · SEARCH-ONLY (render nothing until asked) removes browsing. 207 foods is a
+ *    list people genuinely scan, and they paid for all of them.
+ *  · VIRTUALISATION keeps the list exactly as it reads and stops it existing
+ *    all at once. The rows near the viewport are real; the rest are two
+ *    spacers holding the same total height, so the page still scrolls as one
+ *    continuous document with no nested scrollbar.
+ *
+ * ABOVE A THRESHOLD, and that is not a hedge. A virtualised row is invisible to
+ * the browser's own Ctrl+F, which is a real loss — so a group small enough not
+ * to matter (`VIRTUALISE_ABOVE`) renders whole and behaves exactly as before.
+ * Only the two or three groups big enough to be the problem pay the cost, and
+ * the section's own search field, which matches the food name a patient reads,
+ * is what stands in for Ctrl+F there.
+ *
+ * THE FRAMING IS UNTOUCHED. IgG indicates exposure rather than intolerance, no
+ * food carries a tint or a status, and the explanatory copy above is the point
+ * of the section rather than padding around it.
+ */
+const VIRTUALISE_ABOVE = 30;
+
+/** The same breakpoints as the grid's own `sm:grid-cols-2 lg:grid-cols-3`. */
+const FOOD_GRID_BREAKPOINTS = [
+  { minWidth: 1024, columns: 3 },
+  { minWidth: 640, columns: 2 },
+  { minWidth: 0, columns: 1 },
+];
+
+/** One line: a name and a value at `py-2.5`, plus its hairline. Corrected by measurement on first paint. */
+const FOOD_ROW_HEIGHT = 41;
+
+function FoodGroupPanel({
+  panelId,
+  items,
+}: {
+  panelId: string;
+  items: { food: string; marker: NonMeasuredMarker }[];
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const columns = useGridColumns(FOOD_GRID_BREAKPOINTS);
+  const { start, end, padTop, padBottom, measureRow } = useWindowVirtual({
+    itemCount: items.length,
+    columns,
+    estimatedRowHeight: FOOD_ROW_HEIGHT,
+    containerRef,
+    enabled: items.length > VIRTUALISE_ABOVE,
+  });
+  const visible = items.slice(start, end);
+
+  return (
+    <div id={panelId} ref={containerRef} className="border-t border-taupe px-5 py-2">
+      {padTop > 0 && <div aria-hidden="true" style={{ height: padTop }} />}
+      <div className="grid grid-cols-1 gap-x-8 sm:grid-cols-2 lg:grid-cols-3">
+        {visible.map(({ food, marker }, i) => (
+          <PlainResult
+            key={marker.markerId}
+            marker={{ ...marker, name: food }}
+            rowRef={i === 0 ? measureRow : undefined}
+          />
+        ))}
+      </div>
+      {padBottom > 0 && <div aria-hidden="true" style={{ height: padBottom }} />}
+    </div>
+  );
+}
+
+/**
  * 207 items across nine food groups, collapsed by default.
  *
  * Collapsed because of the size and because of what it is: expanded, it is by
@@ -443,13 +528,7 @@ export function SensitivitySection({ markers }: { markers: NonMeasuredMarker[] }
                   </svg>
                 </span>
               </button>
-              {isOpen && (
-                <div id={panelId} className="grid grid-cols-1 gap-x-8 border-t border-taupe px-5 py-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {g.items.map(({ food, marker }) => (
-                    <PlainResult key={marker.markerId} marker={{ ...marker, name: food }} />
-                  ))}
-                </div>
-              )}
+              {isOpen && <FoodGroupPanel panelId={panelId} items={g.items} />}
             </div>
           );
         })}

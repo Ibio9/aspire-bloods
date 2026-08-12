@@ -265,16 +265,71 @@ Nightly at 03:15 UTC: `pg_dump`, gzip-compressed, uploaded to S3-compatible off-
 
 Built and ran this exact image locally before committing it: real `pg_dump` against the local Postgres, real upload/list/delete against a local MinIO instance standing in for R2 — confirmed the dump, the upload, and both branches of the prune logic (kept a recent backup, deleted an artificially-expired one) all actually work, not just that the script reads correctly.
 
-To restore:
+### What the nightly job verifies before it calls a file a backup
 
+An untested backup is not a backup, and half of that test can be done every night by the same container that takes the dump. `scripts/backup.sh` does all of this and **exits non-zero rather than uploading** if any of it fails:
+
+1. **`set -o pipefail`.** `pg_dump | gzip` exits with *gzip's* status, and gzip will happily compress a truncated stream — so without this a `pg_dump` that died halfway produces a valid `.gz` containing half a database and the script exits 0. That is the exact shape of "we had backups for eight months and none of them restored".
+2. **`gzip -t`.** The archive decompresses. Catches truncation and corruption, which is what a killed container or a full `/tmp` produces.
+3. **A size floor and a schema check.** The uncompressed dump is above `BACKUP_MIN_UNCOMPRESSED_BYTES` (256 kB default) and contains `COPY public."Report"`, `"ReportResult"` and `"User"` data sections. A dump taken against an empty database, with the wrong `DATABASE_URL`, or by a role with no read permission on the public schema, is a small perfectly-valid gzip in every one of those cases.
+4. **A round-trip hash.** The object is downloaded again from R2 and its SHA-256 compared with what was sent. `aws s3 cp` exiting 0 says the CLI finished, not that the bytes on somebody else's system are the bytes that left here — and the whole point of an off-platform backup is that the other side is somebody else's system.
+
+What it deliberately does **not** do is restore the dump: that needs a Postgres *server* and this image has only the client tools. That is the drill below.
+
+### The restore drill — run it, don't assume it
+
+`apps/server/scripts/restore-drill.sh`. Restores a real backup into a scratch database, compares **every** table's row count against a live source, and hashes one released report end to end. Run it **quarterly, and after any schema migration that rewrites data**.
+
+You need `psql`, `pg_dump`, `gzip` and (for `--from-s3`) the AWS CLI on the machine you run it from.
+
+```bash
+# 1. Get a shell somewhere that can reach both the database and R2. A Railway
+#    service shell works; so does a laptop with the public connection string.
+
+# 2. List what is actually in the bucket. If this is empty, there has never
+#    been a backup — say so plainly rather than assuming the job is fine.
+export AWS_ACCESS_KEY_ID="$BACKUP_S3_ACCESS_KEY_ID"
+export AWS_SECRET_ACCESS_KEY="$BACKUP_S3_SECRET_ACCESS_KEY"
+export AWS_DEFAULT_REGION=auto
+aws s3 ls "s3://$BACKUP_S3_BUCKET/" --endpoint-url "$BACKUP_S3_ENDPOINT"
+
+# 3. Drill the most recent one into a scratch database.
+export SOURCE_URL="$DATABASE_URL"                      # what to compare against
+export SCRATCH_URL="postgresql://user:pass@host:5432/aspire_restore_drill"
+cd apps/server
+./scripts/restore-drill.sh --from-s3 aspire-bloods-2026-08-12T03-15-00Z.sql.gz
 ```
-gunzip -c aspire-bloods-<timestamp>.sql.gz > restore.sql
-psql "<target DATABASE_URL>" < restore.sql
+
+It prints a table-by-table comparison and ends with `PASSED` or `FAILED`, and exits non-zero on failure so it can be run from cron if you ever want to.
+
+**The guard.** The script DROPS and recreates whatever `SCRATCH_URL` points at, so it refuses to run unless that database's name contains `drill` or `scratch`. It is a name check rather than a host check on purpose: a scratch database on the production server is a perfectly legitimate place to drill, and a database called `aspire_bloods` is never a legitimate place to restore over, wherever it lives.
+
+**`ON_ERROR_STOP=1` is the whole point of the restore line.** Without it `psql` prints errors, carries on, and exits 0 — which is a half-restored database reported as a successful restore.
+
+Other forms:
+
+```bash
+./scripts/restore-drill.sh --dump-file ./some-backup.sql.gz   # a file you already have
+./scripts/restore-drill.sh                                    # takes a fresh dump of SOURCE_URL
+```
+
+The last form drills the mechanism rather than a stored backup, and is what to run locally against `docker compose` before trusting the script in anger.
+
+**Verified locally, 12 August 2026**, against the development database (Postgres 16, `docker compose`): dump taken, `gzip -t` clean, restored into `aspire_restore_drill` with `ON_ERROR_STOP=1`, **41 tables compared, 0 mismatched** (including `AuditLogEntry` 5,739, `ResultReferenceRange` 3,080, `ReportResult` 2,928, `User` 540, `Report` 138), and the most recent released report's 12 results identical by MD5 over their encrypted values and statuses.
+
+### Restoring for real
+
+```bash
+gunzip -c aspire-bloods-<timestamp>.sql.gz | psql "<target DATABASE_URL>" -v ON_ERROR_STOP=1
 ```
 
 Restoring into a **new** empty database and re-pointing `DATABASE_URL` (rather than restoring over the live one) is the safer default unless you specifically intend to discard everything written since the backup.
 
+**Retention is 35 days** (`BACKUP_RETENTION_DAYS`, pruned by the same script). That matches PRIVACY.md §5, which records the consequence a patient has to be able to be told about — *an erasure carried out today remains present in every backup taken before it until those backups age out* — and PRIVACY.md §7, which lists R2 as holding a full `pg_dump` for 35 days. Change one and change all three.
+
 **You need to do, once, before backups start working**: create the R2 (or S3) bucket and an access key pair, then add the `BACKUP_S3_*` variables on the Railway backup cron service (Railway section, step above). Until those exist, the cron job will fail loudly every night (by design) instead of pretending backups are happening — check that service's logs after the first scheduled run.
+
+⚠ **Whether a backup has ever actually been taken cannot be established from this repository.** It requires listing the R2 bucket with live credentials, which nothing in the checkout has. The `aws s3 ls` in step 2 above is the check; run it before assuming the schedule is working, and treat an empty listing as "there are no backups", not as a tooling problem.
 
 ## Post-deploy smoke checklist
 
@@ -290,6 +345,8 @@ Run through this after the first production deploy, and after any deploy that to
 - [ ] **Test login in Safari specifically** — this is the one browser that's historically strictest about third-party cookies, so it's the real test of whether `COOKIE_DOMAIN` is actually working. Log in, refresh the page, confirm the session persists (not silently logged out).
 - [ ] Confirm `admin@<practice-admin-email>` has the ADMIN role and a non-admin account does not (checks `ADMIN_EMAILS` took effect)
 - [ ] Check Railway logs for the first few minutes of traffic — confirm no patient email addresses, names, or clinical values appear anywhere in the log output
+- [ ] **List the backup bucket** (`aws s3 ls`, see Database restore) and confirm last night's dump is there. An empty listing means backups have never run — not that the command is wrong.
+- [ ] **Run the restore drill** (`scripts/restore-drill.sh --from-s3 <newest key>`) into a scratch database and confirm it prints `PASSED`
 
 ## What I could not do myself
 

@@ -100,14 +100,35 @@ function FilterChip({ value, onClear }: { value: string; onClear: () => void }) 
  * control genuinely is one object but takes the quiet tone, and the separation
  * is space rather than a border.
  *
- * THE STICKINESS WENT WITH THE BAND, and that is a real trade rather than an
- * oversight. A sticky element with no surface of its own has the page scrolling
- * THROUGH it, so keeping the pin meant keeping the fill, and the fill is the
- * thing that reads as a panel — it is also the thing the corner glow is not
- * allowed to be painted over. What is left in its place is order: the summary
- * answers "is anything worth a look" before the controls are offered at all,
- * so the walk back up the page is a walk to a decision that has already been
- * made rather than to a tool.
+ * THE PIN IS BACK, ON GLASS (Aug 2026).
+ *
+ * It was unpinned because a sticky element with no surface has the page
+ * scrolling THROUGH it, and the only fix anybody reached for was a solid fill —
+ * which is the thing that read as a form panel, and also the thing the corner
+ * glow may never be painted over. Both objections are objections to a FILL, and
+ * neither survives glass: a translucent warm sheet over a backdrop blur is a
+ * surface, and the light and the content behind it still come through.
+ *
+ * Four properties, and each of them is the reason for one line below:
+ *
+ *  · UNBOXED, STILL. No border, no rounded container, nothing that reads as a
+ *    panel. The glass is the whole of the separation.
+ *  · IT APPEARS ONLY WHEN PINNED. Sitting in the page at the top there is
+ *    nothing behind the bar to separate it from, and a sheet of glass over the
+ *    page at rest is a panel nobody asked for.
+ *  · IT FADES IN. A surface that appears from nowhere on the first scroll wheel
+ *    click reads as a fault. 180ms, and instant under reduced motion.
+ *  · IT REACHES PAST THE CONTENT COLUMN. Negative insets matching the shell's
+ *    own page padding, so the sheet runs to the window edge at the widths this
+ *    is read at rather than stopping at the text and leaving a strip of sharp
+ *    content beside it.
+ *
+ * WHAT SETS `pinned`, AND WHAT IT IS ALLOWED TO TOUCH. A rAF-throttled scroll
+ * read comparing the bar's own top against its sticky offset. It writes ONE
+ * boolean and that boolean is the glass. It must never touch `open` — a scroll
+ * handler that writes the panel's state is exactly what made the disclosure
+ * fail to toggle the last time this bar was pinned, and the rule that came out
+ * of it stands: the panel is the reader's.
  *
  * Everything behaves exactly as it did — this moved the controls and changed
  * when they are on screen, it did not redesign any of them. Nothing here holds
@@ -196,6 +217,46 @@ export function ResultsControlBar({
    */
   const [open, setOpen] = useState(false);
 
+  /**
+   * Whether the bar is currently stuck to the top of the window.
+   *
+   * The ONLY thing this drives is the glass. It is deliberately not derived
+   * into anything else and nothing else derives from it — see the note above
+   * about what a scroll handler is allowed to write.
+   *
+   * Read from the element's own geometry rather than from an
+   * IntersectionObserver on a sentinel, because the sticky offset is a CSS
+   * variable (the mobile shell has a header above this and the desktop one does
+   * not) and a rootMargin would have to duplicate that number in JavaScript.
+   * Comparing the bar's measured top against its own computed `top` cannot
+   * disagree with the stylesheet.
+   */
+  const [pinned, setPinned] = useState(false);
+  useEffect(() => {
+    let frame = 0;
+    function measure() {
+      frame = 0;
+      const element = barRef.current;
+      if (!element) return;
+      const offset = Number.parseFloat(getComputedStyle(element).top) || 0;
+      // Half a pixel of tolerance: a fractional device pixel ratio otherwise
+      // toggles this on and off along one scroll, which is a flickering sheet
+      // of glass.
+      setPinned(element.getBoundingClientRect().top <= offset + 0.5);
+    }
+    function onScroll() {
+      if (!frame) frame = requestAnimationFrame(measure);
+    }
+    measure();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+    };
+  }, []);
+
   // Closed whenever the reader moves to a different arrangement. The four
   // pickers inside mean different things per view (see ArrangementScope), and
   // a panel that survives the switch is a panel showing the last view's
@@ -241,7 +302,25 @@ export function ResultsControlBar({
   const applied = filtersApplied(filters);
 
   return (
-    <div ref={barRef} className="mt-12">
+    // `top` comes from --shell-sticky-top (globals.css): zero on desktop, the
+    // height of the patient shell's own mobile header below md, so the bar
+    // never pins underneath it. z-20 keeps it under that header (z-30) and over
+    // the results.
+    <div ref={barRef} className="sticky top-[var(--shell-sticky-top)] z-20 mt-12 print:hidden">
+      {/* THE GLASS. Behind the controls, wider than the content column by
+          exactly the shell's own page padding, and taller than the bar at both
+          ends so nothing scrolls into contact with the type. Pointer events
+          off: it is a surface, not a target. */}
+      <div
+        aria-hidden="true"
+        className={`glass glass-veil pointer-events-none absolute -left-5 -right-5 -top-4 -bottom-3 sm:-left-8 sm:-right-8 md:-left-14 md:-right-14 lg:-left-20 lg:-right-20 ${
+          pinned ? 'is-pinned' : ''
+        }`}
+      />
+      {/* Everything else sits on it. `relative` with no z-index is enough —
+          a positioned sibling later in the source order paints above an
+          absolutely positioned one. */}
+      <div className="relative">
       {/* ROW ONE — search, the way into the rest, and which arrangement you
           are in. Aligned on the BASELINE rather than the box: the search
           field's hairline is its bottom edge, and the disclosure beside it
@@ -321,7 +400,9 @@ export function ResultsControlBar({
             onChange={onViewChange}
             label="Results view"
             panelId={panelId}
-            tone="quiet"
+            // Travels with the bar, so it takes the bar's material rather than
+            // reading as a hairline pill floating on a sheet of glass.
+            tone="glass"
           />
         </div>
       </div>
@@ -447,6 +528,7 @@ export function ResultsControlBar({
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

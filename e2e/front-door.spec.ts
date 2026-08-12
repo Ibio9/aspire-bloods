@@ -106,6 +106,19 @@ test('an unauthenticated visitor at / lands on sign-in, not a blank page', async
 
 test('forgotten password: request a link, spend it, sign in with the new one', async ({ page, request }) => {
   const { email, password } = await registerAndVerify(page, request);
+  // FIRST SIGN-IN LANDS ON THE INTRODUCTION, ONCE (Aug 2026). A patient who has
+  // never seen it is sent to /welcome from "/", so a spec that signs a NEW
+  // account in and then waits for the Overview greeting waits for a screen that
+  // is one press away. Pressing through it is what a real first-time patient
+  // does, and it also marks it seen — so everything after this behaves exactly
+  // as it did before the walkthrough existed.
+  const welcome = page.getByRole('button', { name: 'Go to my results' });
+  // Wait for EITHER screen before deciding. Checking visibility the instant the
+  // OTP is typed is a race against the redirect, and it loses.
+  await expect(welcome.or(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ }))).toBeVisible({
+    timeout: 15000,
+  });
+  if (await welcome.isVisible().catch(() => false)) await welcome.click();
   await expect(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })).toBeVisible({ timeout: 10000 });
 
   await page.goto('/login');
@@ -150,6 +163,19 @@ test('forgotten password: request a link, spend it, sign in with the new one', a
 
 test('a deep link followed while signed out returns you to it after signing in', async ({ page, request }) => {
   const { email, password } = await registerAndVerify(page, request);
+  // FIRST SIGN-IN LANDS ON THE INTRODUCTION, ONCE (Aug 2026). A patient who has
+  // never seen it is sent to /welcome from "/", so a spec that signs a NEW
+  // account in and then waits for the Overview greeting waits for a screen that
+  // is one press away. Pressing through it is what a real first-time patient
+  // does, and it also marks it seen — so everything after this behaves exactly
+  // as it did before the walkthrough existed.
+  const welcome = page.getByRole('button', { name: 'Go to my results' });
+  // Wait for EITHER screen before deciding. Checking visibility the instant the
+  // OTP is typed is a race against the redirect, and it loses.
+  await expect(welcome.or(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ }))).toBeVisible({
+    timeout: 15000,
+  });
+  if (await welcome.isVisible().catch(() => false)) await welcome.click();
   await expect(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })).toBeVisible({ timeout: 10000 });
 
   // Sign out, then follow a link into a guarded patient route. /results is
@@ -181,6 +207,19 @@ test('a test cannot be ordered until biological sex is on file, and the prompt e
   request,
 }) => {
   await registerAndVerify(page, request);
+  // FIRST SIGN-IN LANDS ON THE INTRODUCTION, ONCE (Aug 2026). A patient who has
+  // never seen it is sent to /welcome from "/", so a spec that signs a NEW
+  // account in and then waits for the Overview greeting waits for a screen that
+  // is one press away. Pressing through it is what a real first-time patient
+  // does, and it also marks it seen — so everything after this behaves exactly
+  // as it did before the walkthrough existed.
+  const welcome = page.getByRole('button', { name: 'Go to my results' });
+  // Wait for EITHER screen before deciding. Checking visibility the instant the
+  // OTP is typed is a race against the redirect, and it loses.
+  await expect(welcome.or(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ }))).toBeVisible({
+    timeout: 15000,
+  });
+  if (await welcome.isVisible().catch(() => false)) await welcome.click();
   await expect(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })).toBeVisible({ timeout: 10000 });
 
   // Registered without a sex (it's optional there on purpose), so the

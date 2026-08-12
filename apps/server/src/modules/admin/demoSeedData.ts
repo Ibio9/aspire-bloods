@@ -52,6 +52,7 @@ import { FOOD_SENSITIVITY_GROUPS, formatReferenceRange, sameReferenceRange } fro
 import { computeMarkerStatus } from '../../lib/markerStatus.js';
 import { prisma } from '../../db/client.js';
 import { CATALOGUE_RANGE_ORDER } from '../../lib/catalogueRanges.js';
+import { PHYSICAL_MEASUREMENT_KEYS } from '../../lib/personalMeasurements.js';
 
 /** The three panels the clinic sells. Report 4 deliberately has no panel. */
 const PANEL_KEYS = { core: 'core', insight: 'insight-360', signature: 'signature' } as const;
@@ -241,15 +242,14 @@ const DEMO_ENVELOPE: Record<string, { min: number; max: number }> = {
   egfr: { min: 20, max: 140 },
   'free-t4': { min: 4, max: 40 },
   tsh: { min: 0.02, max: 20 },
-  // Physical measurements and vital signs. The catalogue carries no reference
-  // range for any of them — Randox measure them, they are not assays — so the
-  // demo falls back to a synthetic band, and a synthetic band for a weight is
-  // meaningless (2.5–7.5 kg, which produced a "significantly above range"
-  // weight of 17.3 kg). An envelope cannot make the band sensible, but it does
-  // stop these being picked for an out-of-range quota, which is where the
-  // nonsense was actually visible. Giving them REAL ranges would mean inventing
-  // clinical thresholds, which this codebase does not do — it is on the list in
-  // docs/audits/reference-ranges.md instead.
+  // Physical measurements and vital signs. These now carry NO RANGE AND NO
+  // STATUS at all (decided Aug 2026 — see PHYSICAL_MEASUREMENT_KEYS in
+  // lib/personalMeasurements.ts), so the envelope no longer keeps a synthetic
+  // band tolerable; it is the range the demo VALUE itself is drawn from. That
+  // is all it was ever really doing: an envelope cannot make a made-up
+  // reference band sensible, and the attempt to have it try is what produced a
+  // weight of 17.3 kg reported as significantly above range against a 2.5 to
+  // 7.5 kg band, and a waist circumference measured against 13 to 38 cm.
   weight: { min: 45, max: 140 },
   height: { min: 145, max: 200 },
   'waist-circumference': { min: 60, max: 130 },
@@ -271,6 +271,32 @@ function demoEnvelope(marker: MarkerRow, band: Band): { min: number; max: number
   const explicit = DEMO_ENVELOPE[marker.key];
   if (explicit) return explicit;
   return { min: Math.max(0, band.low * 0.2), max: band.high * 3 };
+}
+
+/**
+ * A plausible reading for a physical measurement, and nothing else.
+ *
+ * These have no reference range and no status, so there is no band to place a
+ * value inside and no quota for it to satisfy — the only requirement is that
+ * the number is one a person could have, and that it is the same number on
+ * every run. Drawn from the marker's own envelope, deterministically from the
+ * key and the report index, with a little drift between reports so the trend
+ * chart has something to draw.
+ *
+ * The middle 60% of the envelope rather than the whole of it: an envelope's
+ * ends are the extremes a demo is allowed to reach, and a demo patient whose
+ * every reading sits at one is a demo patient nobody believes.
+ */
+function physicalMeasurementValue(marker: MarkerRow, reportIndex: number): number {
+  const env = DEMO_ENVELOPE[marker.key];
+  const r = mulberry32(hash32(`${marker.key}:${reportIndex}:pm`));
+  if (!env) return Number((50 + r() * 50).toFixed(1));
+  const span = env.max - env.min;
+  const value = env.min + span * 0.2 + r() * span * 0.6;
+  // Decimals the measurement is actually reported to: a pulse of 72.4 bpm and a
+  // systolic of 128.6 mmHg are numbers no instrument produces.
+  const decimals = marker.key === 'waist-hip-ratio' ? 2 : span < 5 ? 2 : span < 40 ? 1 : 0;
+  return Number(value.toFixed(decimals));
 }
 
 /** Is a value one a patient could plausibly be carrying when they walk in? */
@@ -398,6 +424,23 @@ export function canGoMildlyAbove(band: Band, marker: MarkerRow): boolean {
  * charts get realistic geometry to render.
  */
 export function syntheticBand(marker: MarkerRow): Band {
+  // A PHYSICAL MEASUREMENT HAS NO RANGE AND IS NEVER GIVEN ONE. Weight, height,
+  // the two circumferences, the ratio, pulse, both blood pressures and oxygen
+  // saturation are not assays and have no reference interval. See
+  // PHYSICAL_MEASUREMENT_KEYS in lib/personalMeasurements.ts for the decision,
+  // and for why blood pressure in particular does not take the published
+  // threshold that exists for it.
+  //
+  // A throw rather than a return, because reaching here means a caller has
+  // already decided to draw a range bar and a traffic light for one of them,
+  // and returning something harmless would let that decision stand. This is the
+  // line that stops a waist circumference of 13 to 38 cm coming back.
+  if (PHYSICAL_MEASUREMENT_KEYS.has(marker.key)) {
+    throw new Error(
+      `syntheticBand called for "${marker.key}", which is a physical measurement and has no reference range. ` +
+        'It should have been emitted with no range and no status. See PHYSICAL_MEASUREMENT_KEYS.',
+    );
+  }
   // Where the envelope knows this marker's physiological scale, the band comes
   // from there rather than from a hash of the key. Waist circumference is the
   // case: a hash-derived band gave it 13–38 cm, so the demo showed a waist
@@ -920,6 +963,8 @@ export async function buildDemoReports(opts: {
     const bands = new Map<string, Band>();
     for (const m of markers) {
       if (m.resultType !== 'MEASURED' || m.defaultUnit === '') continue;
+      // No band for a physical measurement, ever. See PHYSICAL_MEASUREMENT_KEYS.
+      if (PHYSICAL_MEASUREMENT_KEYS.has(m.key)) continue;
       const catalogue = bandByMarkerId.get(m.id);
       if (catalogue) {
         bands.set(m.id, catalogue);
@@ -932,7 +977,14 @@ export async function buildDemoReports(opts: {
 
     // --- assign statuses by quota, then make them cohere --------------------
     const numericMeasured = markers.filter(
-      (m) => m.resultType === 'MEASURED' && m.defaultUnit !== '' && !NARRATIVE[m.key]?.[index],
+      (m) =>
+        m.resultType === 'MEASURED' &&
+        m.defaultUnit !== '' &&
+        // A measurement with no range cannot be assigned a status, so it cannot
+        // fill a status quota either. Left in, the quota picker was free to
+        // choose a blood pressure as a report's significantly-above-range result.
+        !PHYSICAL_MEASUREMENT_KEYS.has(m.key) &&
+        !NARRATIVE[m.key]?.[index],
     );
     const shuffled = deterministicShuffle(numericMeasured, `statuses:${index}`);
     const intended = new Map<string, MarkerStatus>();
@@ -1073,6 +1125,28 @@ export async function buildDemoReports(opts: {
           resultType: 'MEASURED',
           value: QUALITATIVE_OUTCOMES[Math.floor(r() * QUALITATIVE_OUTCOMES.length)],
           unit: '',
+          referenceLow: 0,
+          referenceHigh: 0,
+          intendedStatus: null,
+        });
+        byResultType.MEASURED += 1;
+        nonNumericResults += 1;
+        continue;
+      }
+
+      // A PHYSICAL MEASUREMENT: a real number, its real unit, and NOTHING to
+      // compare it against. The same shape as the unit-less markers above, a
+      // 0 to 0 range and a null status, which the whole read path already
+      // renders as the reading alone: no tint, no chevron, no range bar, no
+      // "Lab reference range" line, and no place in any tally. See
+      // PHYSICAL_MEASUREMENT_KEYS for why none of them gets a band.
+      if (PHYSICAL_MEASUREMENT_KEYS.has(m.key)) {
+        results.push({
+          markerId: m.id,
+          markerKey: m.key,
+          resultType: 'MEASURED',
+          value: String(physicalMeasurementValue(m, index)),
+          unit: m.defaultUnit,
           referenceLow: 0,
           referenceHigh: 0,
           intendedStatus: null,

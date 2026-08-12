@@ -8,6 +8,7 @@ import { useToast } from '../../components/ui/Toast';
 import { downloadSignedFile } from '../../lib/download';
 import { BOOKING_ENABLED } from '../../lib/features';
 import { ReportBookingLink } from '../booking/ReportBookingLink';
+import { PrintHeader } from '../../components/patient/PrintDocument';
 import { CountsStrip } from './ResultsSummary';
 import type { ReportDetailData } from './useReportDetail';
 
@@ -82,6 +83,10 @@ export function ReportHeader({
 
   return (
     <div className="mt-12">
+      {/* The document's masthead, on paper only. On screen the sidebar says who
+          is signed in and the title is directly below; on a loose sheet in a
+          GP's hand neither of those exists. */}
+      <PrintHeader title={report.title} sampleDate={report.sampleDate} />
       <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
         <div>
           <p className="eyebrow mb-2">

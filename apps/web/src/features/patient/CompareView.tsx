@@ -6,7 +6,7 @@ import { Checkbox } from '../../components/ui/Checkbox';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
-import { MultiTrendChart } from '../../components/ui/MultiTrendChart';
+import { MultiTrendChart } from '../../components/ui/LazyCharts';
 import { Reveal } from '../../components/motion/Reveal';
 import { staggerDelay } from '../../components/motion/stagger';
 import { apiFetch } from '../../lib/api';

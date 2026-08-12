@@ -1,0 +1,377 @@
+import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { formatDate } from '@aspire-bloods/shared';
+import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
+import { Card } from '../../components/ui/Card';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { ErrorState } from '../../components/ui/ErrorState';
+import { Skeleton } from '../../components/ui/Skeleton';
+import { apiFetch } from '../../lib/api';
+import { useAuth } from '../../lib/AuthContext';
+import type { QueueState } from '../../lib/reportStatus';
+
+/**
+ * ===========================================================================
+ *  WHAT IS WAITING FOR A CLINICIAN, AND WHAT IS STUCK.
+ * ===========================================================================
+ *
+ * A WORK LIST, NOT A DASHBOARD. There are no charts on this screen and there
+ * should not be: every row is something a person opens and acts on, and every
+ * number above the rows is a count of rows or a duration a real report actually
+ * took. Nothing here is an average of things that did not happen.
+ *
+ * THE EXCEPTIONS LEAD. With the verification stage gone, the exception queue is
+ * the only thing standing between a bad parse and a clinician's screen, and it
+ * was invisible — a count on a card halfway down the console, and an unmapped
+ * analyte list on a screen only an admin ever opens. It is the first band here,
+ * and it is the one band that says nothing at all when it is empty rather than
+ * congratulating anybody.
+ *
+ * ORDER IS THE POINT. The list is sorted by time in the current state, longest
+ * first, across every bucket — because the question a queue answers is "who has
+ * been waiting", and grouping by state answers "what kind of waiting" which is
+ * the second question. The buckets are a summary OF the list, not a different
+ * arrangement of it.
+ */
+
+interface QueuedReport {
+  id: string;
+  patientId: string;
+  patientName: string;
+  title: string;
+  state: QueueState | 'RELEASED';
+  status: string;
+  holdReasons: string[];
+  inStateSince: string | null;
+  inStateMs: number | null;
+  sampleDate: string;
+  receivedDate: string;
+}
+
+interface WorkQueue {
+  buckets: {
+    state: QueueState | 'RELEASED';
+    count: number;
+    oldest: { reportId: string; inStateSince: string | null; inStateMs: number | null } | null;
+  }[];
+  reports: QueuedReport[];
+  turnaround: {
+    sampleSize: number;
+    medianMs: number | null;
+    worstMs: number | null;
+    worstReportId: string | null;
+    windowDays: number;
+  };
+  exceptions: { heldReports: number; unmappedAnalytes: number; unplacedResults: number };
+  generatedAt: string;
+}
+
+const STATE_LABEL: Record<string, string> = {
+  HELD: 'Held',
+  AWAITING_REVIEW: 'Awaiting clinician review',
+  AWAITING_RELEASE: 'Reviewed, ready to release',
+  AWAITING_PARSE: 'Results not read yet',
+  RELEASED: 'Released',
+};
+
+/** One line saying what this bucket is, for the person who has to clear it. */
+const STATE_MEANING: Record<string, string> = {
+  HELD: 'Something in the delivery needs a decision before the report is reviewed.',
+  AWAITING_REVIEW: 'A clinician has to decide the patient can see this.',
+  AWAITING_RELEASE: 'Reviewed. One press away from the patient.',
+  AWAITING_PARSE: 'The results have not been read off the delivery yet.',
+};
+
+/**
+ * A duration in the largest unit that still says something useful.
+ *
+ * Days and hours, never "2.4 days": a queue is read at a glance and a decimal
+ * in a duration is a number to parse rather than a fact to act on. Under an
+ * hour reads in minutes, because on the day a report lands that is the
+ * difference between "just arrived" and "sat there all morning".
+ */
+function formatDuration(ms: number | null): string {
+  if (ms == null) return '—';
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 48) return `${hours} h`;
+  return `${Math.floor(hours / 24)} d`;
+}
+
+/**
+ * How long is too long, said as a weight rather than as a colour.
+ *
+ * Deliberately NOT a traffic-light: red, amber and green mean a clinical
+ * finding everywhere else in this product, and reusing them for "this report is
+ * old" would make the vocabulary mean two things. An overdue row is set in the
+ * full text colour with its duration in medium weight; everything else is
+ * quieter. The sort order is what actually carries urgency.
+ */
+const OVERDUE_MS = 48 * 3_600_000;
+
+function ExceptionsBand({ exceptions }: { exceptions: WorkQueue['exceptions'] }) {
+  const items = [
+    {
+      key: 'held',
+      count: exceptions.heldReports,
+      label: 'report held on a parse question',
+      plural: 'reports held on a parse question',
+      to: '/admin?queue=HELD',
+      linkLabel: 'Open the held reports',
+      why: 'An unmapped analyte, an unrecognised code, a row that could not be filed, a disagreement with the laboratory’s own high/low flag, or a delivery that is not finished. Each report says which.',
+    },
+    {
+      key: 'analytes',
+      count: exceptions.unmappedAnalytes,
+      label: 'analyte spelling no marker answered to',
+      plural: 'analyte spellings no marker answered to',
+      to: '/admin/ingestion-log',
+      linkLabel: 'Open the ingestion log',
+      why: 'The result is recorded and is not on any report. Accepting a mapping puts it back.',
+    },
+    {
+      key: 'unplaced',
+      count: exceptions.unplacedResults,
+      label: 'result that could not be attached to a patient',
+      plural: 'results that could not be attached to a patient',
+      to: '/admin/linking',
+      linkLabel: 'Open result linking',
+      why: 'The order reference, the name and the date of birth did not agree with one record.',
+    },
+  ].filter((i) => i.count > 0);
+
+  if (items.length === 0) {
+    return (
+      <div className="mt-10">
+        <p className="eyebrow mb-4">Exceptions</p>
+        <Card className="max-w-3xl">
+          <p className="text-sm leading-relaxed text-espresso/85">
+            Nothing is held. Every delivery matched a marker for every row, every code was one we hold, and every
+            result was attached to a patient.
+          </p>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-10">
+      <p className="eyebrow mb-4">Exceptions</p>
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+        {items.map((item) => (
+          <Card key={item.key} className="flex h-full flex-col">
+            <p className="numeric tabular text-3xl font-medium leading-none text-espresso">{item.count}</p>
+            <p className="mt-2 text-sm font-medium text-espresso">{item.count === 1 ? item.label : item.plural}</p>
+            <p className="mt-2 flex-1 text-xs leading-relaxed text-espresso/80">{item.why}</p>
+            <div className="mt-4 border-t border-taupe pt-3">
+              <Link to={item.to} className="text-sm font-medium text-bronze-600 underline underline-offset-2">
+                {item.linkLabel}
+              </Link>
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TurnaroundBand({ turnaround }: { turnaround: WorkQueue['turnaround'] }) {
+  return (
+    <div className="mt-14">
+      <p className="eyebrow mb-4">Arrival to release, last {turnaround.windowDays} days</p>
+      <Card className="max-w-3xl">
+        {turnaround.sampleSize === 0 ? (
+          <p className="text-sm leading-relaxed text-espresso/85">
+            Nothing has been released in the last {turnaround.windowDays} days, so there is no turnaround to report.
+          </p>
+        ) : (
+          <>
+            <div className="flex flex-wrap gap-x-14 gap-y-5">
+              <div>
+                <p className="numeric tabular text-2xl font-medium leading-none text-espresso">
+                  {formatDuration(turnaround.medianMs)}
+                </p>
+                <p className="mt-1.5 text-sm text-espresso/85">median</p>
+              </div>
+              <div>
+                <p className="numeric tabular text-2xl font-medium leading-none text-espresso">
+                  {formatDuration(turnaround.worstMs)}
+                </p>
+                <p className="mt-1.5 text-sm text-espresso/85">worst</p>
+              </div>
+              <div>
+                <p className="numeric tabular text-2xl font-medium leading-none text-espresso">
+                  {turnaround.sampleSize}
+                </p>
+                <p className="mt-1.5 text-sm text-espresso/85">
+                  report{turnaround.sampleSize === 1 ? '' : 's'} released
+                </p>
+              </div>
+            </div>
+            <p className="mt-5 border-t border-taupe pt-3 text-xs leading-relaxed text-espresso/80">
+              Measured from the moment the results arrived to the moment they were released, on the reports actually
+              released in the window. The median is a duration one of them took, not an average of the two middles.
+              {turnaround.worstReportId && (
+                <>
+                  {' '}
+                  <Link
+                    to={`/admin/reports/${turnaround.worstReportId}`}
+                    className="font-medium text-bronze-600 underline underline-offset-2"
+                  >
+                    Open the slowest one
+                  </Link>
+                  .
+                </>
+              )}
+            </p>
+          </>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+export function WorkQueuePage() {
+  const { user } = useAuth();
+  const [queue, setQueue] = useState<WorkQueue | null>(null);
+  const [error, setError] = useState<unknown>(null);
+
+  const load = useCallback(() => {
+    setError(null);
+    setQueue(null);
+    apiFetch<WorkQueue>('/admin/work-queue').then(setQueue).catch(setError);
+  }, []);
+
+  useEffect(load, [load]);
+
+  if (error) {
+    return (
+      <>
+        <TwoTierHeading eyebrow="Aspire Clinic · Clinician console" title="Work queue" />
+        <div className="mt-10">
+          <ErrorState error={error} subject="the work queue" onRetry={load} />
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <TwoTierHeading eyebrow="Aspire Clinic · Clinician console" title="Work queue" />
+      <p className="max-w-measure text-sm leading-relaxed text-espresso/85">
+        Everything open, oldest first{user?.displayName ? `, ${user.displayName}` : ''}. Every figure comes from the
+        reports themselves and from the audit log; nothing on this screen is tracked separately.
+      </p>
+
+      {queue === null ? (
+        <div className="mt-10 grid grid-cols-1 gap-3 lg:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <Card key={i}>
+              <Skeleton className="h-8 w-16" />
+              <Skeleton className="mt-3 h-4 w-40" />
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <>
+          <ExceptionsBand exceptions={queue.exceptions} />
+
+          <div className="mt-14">
+            <p className="eyebrow mb-4">Where the open reports are</p>
+            {queue.buckets.every((b) => b.count === 0) ? (
+              <EmptyState
+                title="Nothing open"
+                description="Every report the practice holds is released or voided."
+              />
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {queue.buckets.map((bucket) => (
+                  <Link key={bucket.state} to={`/admin?queue=${bucket.state}`} className="rounded-card">
+                    <Card interactive className="flex h-full flex-col">
+                      <p className="numeric tabular text-2xl font-medium leading-none text-espresso">{bucket.count}</p>
+                      <p className="mt-2 text-sm font-medium text-espresso">{STATE_LABEL[bucket.state]}</p>
+                      <p className="mt-1.5 flex-1 text-xs leading-relaxed text-espresso/80">
+                        {STATE_MEANING[bucket.state]}
+                      </p>
+                      {bucket.oldest && (
+                        <p className="numeric mt-3 border-t border-taupe pt-2.5 text-xs text-espresso/80">
+                          oldest {formatDuration(bucket.oldest.inStateMs)}
+                        </p>
+                      )}
+                    </Card>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-14">
+            <p className="eyebrow mb-4">
+              The list{queue.reports.length > 0 ? ` (${queue.reports.length})` : ''}
+            </p>
+            {queue.reports.length === 0 ? (
+              <EmptyState title="Nothing waiting" description="No report is open." />
+            ) : (
+              <ul className="border-t border-taupe">
+                {queue.reports.map((report) => {
+                  const overdue = (report.inStateMs ?? 0) >= OVERDUE_MS;
+                  return (
+                    <li key={report.id} className="border-b border-taupe py-4">
+                      {/* An explicit grid rather than a justify-between flex row,
+                          for the reason recorded on .value-row in globals.css: a
+                          long patient name in a flex group shrinks past its own
+                          children and paints over the duration beside it. */}
+                      <div className="grid gap-x-6 gap-y-1.5 sm:grid-cols-[minmax(0,1fr)_auto]">
+                        <div className="min-w-0">
+                          <Link
+                            to={`/admin/reports/${report.id}`}
+                            className="text-sm font-medium text-bronze-600 underline underline-offset-2"
+                          >
+                            {report.patientName}
+                          </Link>
+                          <p className="mt-0.5 text-sm text-espresso">
+                            {report.title}
+                            <span className="numeric text-espresso/80"> · sampled {formatDate(report.sampleDate)}</span>
+                          </p>
+                        </div>
+                        <div className="sm:text-right">
+                          <p className={`text-sm ${overdue ? 'font-medium text-espresso' : 'text-espresso/85'}`}>
+                            {STATE_LABEL[report.state]}
+                          </p>
+                          <p
+                            className={`numeric tabular text-xs ${
+                              overdue ? 'font-medium text-espresso' : 'text-espresso/80'
+                            }`}
+                          >
+                            {formatDuration(report.inStateMs)} in this state
+                          </p>
+                        </div>
+                      </div>
+                      {report.holdReasons.length > 0 && (
+                        // The reasons themselves, not a count of them. A held
+                        // report whose reason you have to open the report to
+                        // read is a queue entry that costs a page load to
+                        // triage.
+                        <ul className="mt-2.5 space-y-1">
+                          {report.holdReasons.map((reason) => (
+                            <li key={reason} className="max-w-measure text-xs leading-relaxed text-espresso/85">
+                              {reason}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
+          <TurnaroundBand turnaround={queue.turnaround} />
+        </>
+      )}
+    </>
+  );
+}

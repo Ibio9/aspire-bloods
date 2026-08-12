@@ -4,40 +4,93 @@ import { ThemeProvider } from './lib/ThemeContext';
 import { ToastProvider } from './components/ui/Toast';
 import { PageTransition } from './components/PageTransition';
 import { LoginPage } from './features/auth/LoginPage';
-import { ActivatePage } from './features/auth/ActivatePage';
-import { SignupPage } from './features/auth/SignupPage';
-import { VerifyEmailPage } from './features/auth/VerifyEmailPage';
-import { ForgotPasswordPage } from './features/auth/ForgotPasswordPage';
-import { ResetPasswordPage } from './features/auth/ResetPasswordPage';
 import { ProtectedRoute } from './features/auth/ProtectedRoute';
-import { NotFoundPage } from './features/nav/NotFoundPage';
 import { RoleProtectedRoute } from './features/auth/RoleProtectedRoute';
 import { HomeRouter } from './features/auth/HomeRouter';
-import { AdminReportsPage } from './features/admin/AdminReportsPage';
-import { ReportDetailPage } from './features/admin/ReportDetailPage';
-import { PatientsListPage } from './features/admin/PatientsListPage';
-import { LinkingPage } from './features/admin/LinkingPage';
-import { PatientDetailPage } from './features/admin/PatientDetailPage';
-import { AuditLogPage } from './features/admin/AuditLogPage';
-import { IngestionLogPage } from './features/admin/IngestionLogPage';
-import { PanelsPage } from './features/admin/PanelsPage';
-import { AdminMarkerLibraryPage } from './features/admin/AdminMarkerLibraryPage';
-import { PatientOverview } from './features/patient/PatientOverview';
-import { ResultsPage } from './features/patient/ResultsPage';
-import { LegacyResultsRedirect } from './features/patient/LegacyResultsRedirect';
-import { MarkerLibraryPage } from './features/patient/MarkerLibraryPage';
-import { DocumentsPage } from './features/patient/DocumentsPage';
-import { MarkerDetailPage } from './features/patient/MarkerDetailPage';
-import { AccountPage } from './features/patient/AccountPage';
-import { BookingPage } from './features/booking/BookingPage';
-import { AppointmentsPage } from './features/booking/AppointmentsPage';
-import { AppointmentDetailPage } from './features/booking/AppointmentDetailPage';
-import { ReschedulePage } from './features/booking/ReschedulePage';
 import { BOOKING_ENABLED } from './lib/features';
-import { AdminShell } from './components/nav/AdminShell';
 import { PatientShell } from './components/nav/PatientShell';
 import { SessionGuard } from './components/SessionGuard';
-import { ComponentsShowcase } from './features/dev/ComponentsShowcase';
+import { lazyPage, page } from './lib/lazyPage';
+
+/**
+ * ---------------------------------------------------------------------------
+ * WHAT LOADS EAGERLY, AND WHY IT IS ONLY THIS.
+ * ---------------------------------------------------------------------------
+ *
+ * Everything below `lazyPage` is a chunk of its own, fetched when somebody
+ * actually navigates to it. Four things are NOT, and each has a reason:
+ *
+ *  - LoginPage. It is what an unauthenticated visitor sees first, and putting a
+ *    network round trip in front of the sign-in form to save bytes on a screen
+ *    they are already on is the trade backwards.
+ *  - HomeRouter and the two route guards. They run on "/" before anything is
+ *    known about the visitor and decide where they are sent; splitting them
+ *    adds a hop to every cold entry into the product.
+ *  - PatientShell. It is the frame around every patient screen, so it is
+ *    fetched on the first navigation regardless and would only ever be a chunk
+ *    that always loads with another one.
+ *
+ * AdminShell is NOT in that list, deliberately. Most people signing in here are
+ * patients and will never render it, so the clinician console — shell, pages
+ * and the whole admin feature folder — stays out of their download entirely.
+ */
+const ActivatePage = lazyPage(() => import('./features/auth/ActivatePage'), 'ActivatePage');
+const SignupPage = lazyPage(() => import('./features/auth/SignupPage'), 'SignupPage');
+const VerifyEmailPage = lazyPage(() => import('./features/auth/VerifyEmailPage'), 'VerifyEmailPage');
+const ForgotPasswordPage = lazyPage(() => import('./features/auth/ForgotPasswordPage'), 'ForgotPasswordPage');
+const ResetPasswordPage = lazyPage(() => import('./features/auth/ResetPasswordPage'), 'ResetPasswordPage');
+const NotFoundPage = lazyPage(() => import('./features/nav/NotFoundPage'), 'NotFoundPage');
+
+const AdminShell = lazyPage(() => import('./components/nav/AdminShell'), 'AdminShell');
+const AdminReportsPage = lazyPage(() => import('./features/admin/AdminReportsPage'), 'AdminReportsPage');
+const AdminReportDetailPage = lazyPage(() => import('./features/admin/ReportDetailPage'), 'ReportDetailPage');
+const PatientsListPage = lazyPage(() => import('./features/admin/PatientsListPage'), 'PatientsListPage');
+const LinkingPage = lazyPage(() => import('./features/admin/LinkingPage'), 'LinkingPage');
+const PatientDetailPage = lazyPage(() => import('./features/admin/PatientDetailPage'), 'PatientDetailPage');
+const AuditLogPage = lazyPage(() => import('./features/admin/AuditLogPage'), 'AuditLogPage');
+const IngestionLogPage = lazyPage(() => import('./features/admin/IngestionLogPage'), 'IngestionLogPage');
+const PanelsPage = lazyPage(() => import('./features/admin/PanelsPage'), 'PanelsPage');
+const AdminMarkerLibraryPage = lazyPage(() => import('./features/admin/AdminMarkerLibraryPage'), 'AdminMarkerLibraryPage');
+const WorkQueuePage = lazyPage(() => import('./features/admin/WorkQueuePage'), 'WorkQueuePage');
+
+const PatientOverview = lazyPage(() => import('./features/patient/PatientOverview'), 'PatientOverview');
+const ResultsPage = lazyPage(() => import('./features/patient/ResultsPage'), 'ResultsPage');
+const LegacyResultsRedirect = lazyPage(() => import('./features/patient/LegacyResultsRedirect'), 'LegacyResultsRedirect');
+const MarkerLibraryPage = lazyPage(() => import('./features/patient/MarkerLibraryPage'), 'MarkerLibraryPage');
+const DocumentsPage = lazyPage(() => import('./features/patient/DocumentsPage'), 'DocumentsPage');
+const MarkerDetailPage = lazyPage(() => import('./features/patient/MarkerDetailPage'), 'MarkerDetailPage');
+const AccountPage = lazyPage(() => import('./features/patient/AccountPage'), 'AccountPage');
+const WelcomePage = lazyPage(() => import('./features/patient/WelcomePage'), 'WelcomePage');
+
+/**
+ * BOOKING IS DECLARED INSIDE THE FLAG, NOT BESIDE IT.
+ *
+ * With booking off, the four routes below redirect — but a `lazyPage(() =>
+ * import(...))` at module scope is reachable from the module graph whether or
+ * not the route ever renders it, so Rollup emits the chunk and the flow is
+ * sitting at a URL on the CDN. That is a REGRESSION on what the flag promises
+ * (DEPLOYMENT.md: none of features/booking reaches the production bundle) and
+ * it is invisible in the size of the entry chunk, which is why it is worth
+ * stating: splitting a feature and switching it off are different things, and
+ * doing the first can quietly undo the second.
+ *
+ * `BOOKING_ENABLED` is a build-time constant, so with it false this ternary
+ * folds and the arrow function holding the dynamic import goes with it. Turning
+ * the flag on makes each one a lazily-loaded route in the ordinary way.
+ */
+const Redirected = () => <Navigate to="/overview" replace />;
+const BookingPage = BOOKING_ENABLED ? lazyPage(() => import('./features/booking/BookingPage'), 'BookingPage') : Redirected;
+const AppointmentsPage = BOOKING_ENABLED
+  ? lazyPage(() => import('./features/booking/AppointmentsPage'), 'AppointmentsPage')
+  : Redirected;
+const AppointmentDetailPage = BOOKING_ENABLED
+  ? lazyPage(() => import('./features/booking/AppointmentDetailPage'), 'AppointmentDetailPage')
+  : Redirected;
+const ReschedulePage = BOOKING_ENABLED
+  ? lazyPage(() => import('./features/booking/ReschedulePage'), 'ReschedulePage')
+  : Redirected;
+
+const ComponentsShowcase = lazyPage(() => import('./features/dev/ComponentsShowcase'), 'ComponentsShowcase');
 
 // Routes a patient's own data is reachable on — widened beyond PATIENT so
 // an admin who is also a patient of the practice sees their own results
@@ -70,14 +123,14 @@ export default function App() {
           <div id="main-content">
             <Routes>
               <Route path="/login" element={<PageTransition><LoginPage /></PageTransition>} />
-              <Route path="/activate" element={<PageTransition><ActivatePage /></PageTransition>} />
-              <Route path="/signup" element={<PageTransition><SignupPage /></PageTransition>} />
-              <Route path="/verify-email" element={<PageTransition><VerifyEmailPage /></PageTransition>} />
+              <Route path="/activate" element={page(<PageTransition><ActivatePage /></PageTransition>)} />
+              <Route path="/signup" element={page(<PageTransition><SignupPage /></PageTransition>)} />
+              <Route path="/verify-email" element={page(<PageTransition><VerifyEmailPage /></PageTransition>)} />
               {/* Forgotten password. Two screens, both unauthenticated: ask
                   for a link, then spend it. Neither issues a session — the
                   patient signs back in through /login and therefore 2FA. */}
-              <Route path="/forgot-password" element={<PageTransition><ForgotPasswordPage /></PageTransition>} />
-              <Route path="/reset-password" element={<PageTransition><ResetPasswordPage /></PageTransition>} />
+              <Route path="/forgot-password" element={page(<PageTransition><ForgotPasswordPage /></PageTransition>)} />
+              <Route path="/reset-password" element={page(<PageTransition><ResetPasswordPage /></PageTransition>)} />
               <Route
                 path="/"
                 element={
@@ -97,7 +150,7 @@ export default function App() {
                   </RoleProtectedRoute>
                 }
               >
-                <Route path="/overview" element={<PatientOverview />} />
+                <Route path="/overview" element={page(<PatientOverview />)} />
                 {/* Booking — the flow itself, the diary, and one appointment.
                     `/appointments/:id` doubles as the confirmation screen
                     (with ?booked=1) so the summary a patient checks before
@@ -107,55 +160,61 @@ export default function App() {
                     appointments are booked on the clinic's main website now.
                     The paths stay declared and redirect, because they are in
                     bookmarks and in at least one browser history — a redirect
-                    to somewhere real beats a 404 on a URL that used to work. */}
-                <Route path="/book" element={BOOKING_ENABLED ? <BookingPage /> : <Navigate to="/overview" replace />} />
-                <Route
-                  path="/appointments"
-                  element={BOOKING_ENABLED ? <AppointmentsPage /> : <Navigate to="/overview" replace />}
-                />
-                <Route
-                  path="/appointments/:id"
-                  element={BOOKING_ENABLED ? <AppointmentDetailPage /> : <Navigate to="/overview" replace />}
-                />
-                <Route
-                  path="/appointments/:id/reschedule"
-                  element={BOOKING_ENABLED ? <ReschedulePage /> : <Navigate to="/overview" replace />}
-                />
+                    to somewhere real beats a 404 on a URL that used to work.
+
+                    The flag is a build-time constant, so with booking off
+                    Rollup folds every branch below to the redirect and the four
+                    dynamic imports become unreachable — none of features/booking
+                    reaches the production bundle, exactly as before splitting. */}
+                <Route path="/book" element={page(<BookingPage />)} />
+                <Route path="/appointments" element={page(<AppointmentsPage />)} />
+                <Route path="/appointments/:id" element={page(<AppointmentDetailPage />)} />
+                <Route path="/appointments/:id/reschedule" element={page(<ReschedulePage />)} />
                 {/* Results — one destination, three views chosen by the
                     segmented control at the top of it. An opened report keeps
                     /reports/:id so every link already sent out still lands on
                     the report it names. */}
-                <Route path="/results" element={<ResultsPage />} />
-                <Route path="/reports/:id" element={<ResultsPage />} />
+                <Route path="/results" element={page(<ResultsPage />)} />
+                <Route path="/reports/:id" element={page(<ResultsPage />)} />
                 {/* The three destinations this replaced. Redirects rather than
                     removals: they are in bookmarks and in browser histories,
                     and /trends carries its ?markers= selection across. */}
-                <Route path="/my-results" element={<LegacyResultsRedirect view="by-report" />} />
-                <Route path="/markers" element={<LegacyResultsRedirect view="by-marker" />} />
-                <Route path="/trends" element={<LegacyResultsRedirect view="compare" />} />
-                <Route path="/library" element={<MarkerLibraryPage />} />
-                <Route path="/documents" element={<DocumentsPage />} />
+                <Route path="/my-results" element={page(<LegacyResultsRedirect view="by-report" />)} />
+                <Route path="/markers" element={page(<LegacyResultsRedirect view="by-marker" />)} />
+                <Route path="/trends" element={page(<LegacyResultsRedirect view="compare" />)} />
+                <Route path="/library" element={page(<MarkerLibraryPage />)} />
+                <Route path="/documents" element={page(<DocumentsPage />)} />
                 {/* A marker's own page is not folded into any of the three —
                     it is what somebody reads carefully when a result is out of
                     range, and it stays its own route. */}
-                <Route path="/markers/:markerId" element={<MarkerDetailPage />} />
-                <Route path="/account" element={<AccountPage />} />
+                <Route path="/markers/:markerId" element={page(<MarkerDetailPage />)} />
+                <Route path="/account" element={page(<AccountPage />)} />
+                {/* The first sign-in introduction. A ROUTE rather than a modal
+                    over somebody's results, and a permanent one: it is where
+                    HomeRouter sends a patient who has not seen it, and it is
+                    where Understanding results links back to for anyone who
+                    skipped it. */}
+                <Route path="/welcome" element={page(<WelcomePage />)} />
               </Route>
 
-              {/* Admin shell — persistent sidebar, shared across every admin/clinician screen. */}
+              {/* Clinician console — persistent sidebar, shared across every screen in it.
+                  The /admin URLs are unchanged: they are in bookmarks and in at least one
+                  server-side error message, and renaming them buys nothing a patient or a
+                  clinician can see. What a clinician READS says clinician throughout. */}
               <Route
                 element={
                   <RoleProtectedRoute roles={['ADMIN', 'CLINICIAN']}>
-                    <AdminShell />
+                    {page(<AdminShell />)}
                   </RoleProtectedRoute>
                 }
               >
-                <Route path="/admin" element={<AdminReportsPage />} />
-                <Route path="/admin/reports/:id" element={<ReportDetailPage />} />
-                <Route path="/admin/patients" element={<PatientsListPage />} />
-                <Route path="/admin/patients/:id" element={<PatientDetailPage />} />
-                <Route path="/admin/panels" element={<PanelsPage />} />
-                <Route path="/admin/markers" element={<AdminMarkerLibraryPage />} />
+                <Route path="/admin" element={page(<AdminReportsPage />)} />
+                <Route path="/admin/queue" element={page(<WorkQueuePage />)} />
+                <Route path="/admin/reports/:id" element={page(<AdminReportDetailPage />)} />
+                <Route path="/admin/patients" element={page(<PatientsListPage />)} />
+                <Route path="/admin/patients/:id" element={page(<PatientDetailPage />)} />
+                <Route path="/admin/panels" element={page(<PanelsPage />)} />
+                <Route path="/admin/markers" element={page(<AdminMarkerLibraryPage />)} />
                 {/* "Panels & content" split in two: panel configuration, and
                     the marker library that holds the analyte catalogue, the
                     explanation review queue, the explanation editor and the
@@ -169,24 +228,24 @@ export default function App() {
               <Route
                 element={
                   <RoleProtectedRoute roles={['ADMIN']}>
-                    <AdminShell />
+                    {page(<AdminShell />)}
                   </RoleProtectedRoute>
                 }
               >
-                <Route path="/admin/audit-log" element={<AuditLogPage />} />
-                <Route path="/admin/ingestion-log" element={<IngestionLogPage />} />
+                <Route path="/admin/audit-log" element={page(<AuditLogPage />)} />
+                <Route path="/admin/ingestion-log" element={page(<IngestionLogPage />)} />
                 {/* Deciding whose results these are is a records action, and
                     the one the practice most wants a single accountable
                     identity attached to — ADMIN only, like the audit log. */}
-                <Route path="/admin/linking" element={<LinkingPage />} />
+                <Route path="/admin/linking" element={page(<LinkingPage />)} />
               </Route>
 
               {/* Dev-only design system review — tree-shaken out of production builds entirely, not just hidden. */}
-              {import.meta.env.DEV && <Route path="/dev/components" element={<PageTransition><ComponentsShowcase /></PageTransition>} />}
-              {import.meta.env.DEV && <Route path="/dev/interactions" element={<PageTransition><ComponentsShowcase /></PageTransition>} />}
+              {import.meta.env.DEV && <Route path="/dev/components" element={page(<PageTransition><ComponentsShowcase /></PageTransition>)} />}
+              {import.meta.env.DEV && <Route path="/dev/interactions" element={page(<PageTransition><ComponentsShowcase /></PageTransition>)} />}
               {/* A bad URL gets an explanation and a named way on, inside the
                   viewer's own navigation — never a silent bounce to the home page. */}
-              <Route path="*" element={<NotFoundPage />} />
+              <Route path="*" element={page(<NotFoundPage />)} />
             </Routes>
           </div>
         </ToastProvider>

@@ -25,6 +25,7 @@ import { applyHouseStyle, applyVocabularyRule, sameWords } from '../src/lib/hous
 import { isRetractableApproval, retractionReason } from '../src/lib/explanationReview.js';
 import { explanationFor } from './markerExplanations.js';
 import { LOTHIAN, PUBLISHED_RANGES, WITHHELD, publishedRangeSource } from './publishedReferenceRanges.js';
+import { AGE_BANDED_RANGES, AWAITING_AGE_BAND, ageBandedRangeSource } from './ageBandedReferenceRanges.js';
 import {
   CATALOGUE_RANGE_ORDER,
   createCatalogueRange,
@@ -429,6 +430,91 @@ async function restyleStoredCopy() {
  *    the silent wrong answer being fixed, still there, now with company. With
  *    it gone the resolver refuses and says why.
  */
+/**
+ * AGE-BANDED RANGES. THE MECHANISM, RUNNING, OVER A LIST THAT IS EMPTY.
+ *
+ * Fourteen analytes in the catalogue have an interval that moves with age and
+ * none carries a bracket. `ReferenceRange.ageMin/ageMax` and the resolver's
+ * scoring have been there all along; what is missing is a document, and this
+ * writes nothing until one exists. See prisma/ageBandedReferenceRanges.ts for
+ * which documents were checked and why none of them answers.
+ *
+ * It runs anyway, on every seed, and that is deliberate. A loader that is only
+ * written when the data arrives is a loader nobody has ever run — this one
+ * takes the same write path as the sex-specific ranges (lib/catalogueRanges.ts,
+ * which asserts the row it is about to touch is a catalogue row and not a
+ * patient's own record), refuses to overwrite a RANDOX row for the same reason,
+ * and prints the count either way. Adding a row is then a data change rather
+ * than a code change.
+ *
+ * IT DOES NOT REMOVE THE BLANKET ROW, unlike the sex-specific loader. A sex
+ * split is EXHAUSTIVE — male and female between them cover everybody, so
+ * leaving the `ANY` row behind means it goes on answering for a patient with no
+ * sex on file. Age brackets are not: a set covering 18–39 and 40–59 says
+ * nothing about a 71-year-old, and deleting the blanket band would leave them
+ * with no suggestion at all. The blanket row stays as the floor under the
+ * brackets, which is exactly what `resolveReferenceRange`'s specificity scoring
+ * is for.
+ */
+async function seedAgeBandedReferenceRanges() {
+  let written = 0;
+  let skippedRandox = 0;
+  const unknownMarkers: string[] = [];
+
+  for (const range of AGE_BANDED_RANGES) {
+    const marker = await prisma.marker.findUnique({ where: { key: range.markerKey } });
+    if (!marker) {
+      unknownMarkers.push(range.markerKey);
+      continue;
+    }
+    const existing = await findCatalogueRange(prisma, {
+      markerId: marker.id,
+      sex: range.sex ?? 'ANY',
+      ageMin: range.ageMin,
+      ageMax: range.ageMax,
+    });
+    if (existing?.provenance === 'RANDOX') {
+      skippedRandox += 1;
+      continue;
+    }
+    const data = {
+      markerId: marker.id,
+      sex: (range.sex ?? 'ANY') as 'MALE' | 'FEMALE' | 'ANY',
+      ageMin: range.ageMin,
+      ageMax: range.ageMax,
+      unit: range.stored.unit,
+      low: range.stored.low,
+      high: range.stored.high,
+      source: ageBandedRangeSource(range),
+      provenance: 'PUBLISHED' as const,
+      sourceDocument: range.citation.document,
+      sourcePublisher: range.citation.publisher,
+      sourceDate: range.citation.date,
+      sourceUrl: range.citation.url,
+    };
+    if (existing) await updateCatalogueRange(prisma, existing.id, data);
+    else await createCatalogueRange(prisma, data);
+    written += 1;
+  }
+
+  if (written === 0 && AGE_BANDED_RANGES.length === 0) {
+    console.log(
+      `  Wrote 0 age-banded range(s): none is sourced. ${AWAITING_AGE_BAND.length} analyte(s) whose interval moves ` +
+        `with age carry a single adult-wide band and stay flagged, four of them unusably so ` +
+        `(${AWAITING_AGE_BAND.filter((a) => a.severity === 'UNUSABLE').map((a) => a.name).join(', ')}). ` +
+        `See prisma/ageBandedReferenceRanges.ts and docs/audits/age-specific-ranges.md.`,
+    );
+  } else {
+    console.log(
+      `  Wrote ${written} age-banded range(s) at PUBLISHED.` +
+        (skippedRandox > 0 ? ` Left ${skippedRandox} alone because a RANDOX range already covers them.` : ''),
+    );
+  }
+  if (unknownMarkers.length > 0) {
+    console.log(`  ${unknownMarkers.length} age-banded range(s) name a marker this database has no row for: ${unknownMarkers.join(', ')}`);
+  }
+}
+
 async function seedPublishedReferenceRanges() {
   let written = 0;
   let skippedRandox = 0;
@@ -828,6 +914,7 @@ async function main() {
   // them, so running this earlier would file ranges against nothing.
   console.log('Loading sourced sex-specific reference ranges...');
   await seedPublishedReferenceRanges();
+  await seedAgeBandedReferenceRanges();
 
   // Anything else still active is either an older seed's guess that predates
   // SUPERSEDED_PANEL_KEYS, or a panel an admin deliberately created. Those two

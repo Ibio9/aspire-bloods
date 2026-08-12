@@ -127,6 +127,19 @@ test('nothing patient-visible until a report is RELEASED', async ({ page, browse
   await patientPage.locator('#otp-0').click();
   await patientPage.keyboard.type(loginBody.devOtpCode);
   // Signing in lands on the portal Overview, not the panel list.
+  // FIRST SIGN-IN LANDS ON THE INTRODUCTION, ONCE (Aug 2026). A patient who has
+  // never seen it is sent to /welcome from "/", so a spec that signs a NEW
+  // account in and then waits for the Overview greeting waits for a screen that
+  // is one press away. Pressing through it is what a real first-time patient
+  // does, and it also marks it seen — so everything after this behaves exactly
+  // as it did before the walkthrough existed.
+  const welcome = patientPage.getByRole('button', { name: 'Go to my results' });
+  // Wait for EITHER screen before deciding. Checking visibility the instant the
+  // OTP is typed is a race against the redirect, and it loses.
+  await expect(
+    welcome.or(patientPage.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })),
+  ).toBeVisible({ timeout: 15000 });
+  if (await welcome.isVisible().catch(() => false)) await welcome.click();
   await expect(patientPage.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })).toBeVisible({ timeout: 10000 });
 
   // PARSED, not yet reviewed or released — Overview says a result is coming

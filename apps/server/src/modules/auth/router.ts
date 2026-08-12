@@ -361,5 +361,9 @@ authRouter.get('/me', authGuard, asyncHandler(async (req, res) => {
     // auth/service.ts signup()) — this is what lets the frontend show
     // "my results" alongside the admin console on the same account.
     hasPatientProfile: !!user.patientProfile,
+    // Whether this patient has been shown the introduction. A boolean rather
+    // than the timestamp: the client's only question is "show it or not", and
+    // sending a date invites somebody to render it.
+    walkthroughSeen: user.walkthroughSeenAt !== null,
   });
 }));

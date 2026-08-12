@@ -5,6 +5,8 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "//sideEffects": "Every module here is pure: type declarations, token objects, pure functions and zod schemas. Nothing registers a listener, patches a global or writes to a module-level singleton. Without this, Rollup has to assume `export * from './schemas/auth.js'` in the barrel might matter and keeps it — which put the whole of zod (53 kB) into the web app's ENTRY chunk, on a path that never validates anything, because the only thing importing it was the barrel itself.",
+  "sideEffects": false,
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"

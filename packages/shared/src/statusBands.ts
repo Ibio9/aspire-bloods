@@ -244,13 +244,23 @@ export function bandGradientStops(status: MarkerStatusInput): [string, string] {
  *
  * Composited, never mixed: these are alphas applied to the `plot` role, which
  * is why one ladder is right in both themes. See PLOT_LIFT in tokens.ts.
+ *
+ * EASED AGAIN WHEN THE BANDS WENT FLAT (Aug 2026). 0.10 / 0.17 / 0.24 were
+ * solved for bands that FADED OUT over a quarter of their own height at each
+ * end, so the stated weight was the peak and the average was well under it.
+ * Flat bands hold their full weight to the edge, which is more colour on screen
+ * at the same numbers — and on a plot where the in-range band routinely covers
+ * two thirds of the area, that is a green field with a line somewhere in it.
+ * Reduced by about a third, keeping the ladder and keeping ONE ladder for both
+ * themes; tokenContrast.test.ts still holds each band above 1.05:1 off the card
+ * and the two themes within 20% of each other.
  */
 export const BAND_WEIGHT: Record<MarkerStatus, number> = {
-  IN_RANGE: 0.1,
-  LOW: 0.17,
-  HIGH: 0.17,
-  SIGNIFICANT_LOW: 0.24,
-  SIGNIFICANT_HIGH: 0.24,
+  IN_RANGE: 0.07,
+  LOW: 0.12,
+  HIGH: 0.12,
+  SIGNIFICANT_LOW: 0.18,
+  SIGNIFICANT_HIGH: 0.18,
 };
 
 /** The weight of a band, total for anything that isn't one of the five. */
@@ -292,6 +302,40 @@ export function bandWeight(status: MarkerStatusInput): number {
  * `stops` run low-to-high in value space, which is TOP TO BOTTOM in a chart's
  * y-axis — the caller orients them.
  */
+/**
+ * A band's colour, flat — one hue per band, no ramp (Aug 2026).
+ *
+ * FIVE STATES, THREE HUES, and on this chart that is now literal. The bands
+ * used to carry a ramp into orange at each significantly-out threshold, which
+ * is orange doing its documented job (the transition between yellow and red).
+ * With FLAT bands there is no transition to draw: a flat band has one colour by
+ * definition, and orange as that colour would make it a fourth region of hue
+ * whose meaning is "somewhere between the two either side" — which is not a
+ * thing a band can say when it has a hard edge at both ends.
+ *
+ * So the chart's bands are green, gold, gold, red, red, and orange survives
+ * where a genuine gradient exists: the range bar, which is one continuous ramp
+ * across a marker's whole scale (`bandGradientStops` above). Orange is still
+ * the transition and still never a state.
+ *
+ * Direction is carried by the chevron and the word, exactly as before — which
+ * is why above and below can share a hue and both significants can share one.
+ */
+export function bandPlotColour(status: MarkerStatusInput): string {
+  switch (asMarkerStatus(status)) {
+    case 'SIGNIFICANT_LOW':
+    case 'SIGNIFICANT_HIGH':
+      return hueTint.red.plot;
+    case 'LOW':
+    case 'HIGH':
+      return hueTint.yellow.plot;
+    case 'IN_RANGE':
+      return hueTint.green.plot;
+    default:
+      return NO_STATUS_PAINT.plot;
+  }
+}
+
 export function bandPlotStops(status: MarkerStatusInput): [string, string] {
   switch (asMarkerStatus(status)) {
     case 'SIGNIFICANT_LOW':

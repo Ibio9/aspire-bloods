@@ -7,6 +7,18 @@
  * third of the sidebar read as one repeated item — and an icon that doesn't distinguish is worse
  * than no icon, because it actively suggests the rows are the same thing. */
 
+/** A work list: three rows, the top one marked. Not a clock — the queue is a
+ * list somebody clears, and a clock glyph beside "Work queue" reads as a
+ * scheduling screen. */
+export function QueueIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
+      <path d="M3 5.5h3M3 10h3M3 14.5h3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M8.5 5.5H17M8.5 10h6M8.5 14.5h4.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function ReportsIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>

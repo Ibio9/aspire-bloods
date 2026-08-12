@@ -129,6 +129,36 @@ export function deriveStatus(
   high: number,
   severity: SeverityConfig,
 ): DerivedStatus {
+  /**
+   * A RANGE WITH NO WIDTH IS NOT A RANGE.
+   *
+   * `resolveResultRange` above already refuses one — it requires `low < high`
+   * before it will call a range resolved — and this is the same rule one layer
+   * down, where the arithmetic actually happens. Without it, `computeMarkerStatus`
+   * is handed a floor and a ceiling of zero, computes a severity threshold from a
+   * zero-width band, and returns SIGNIFICANT_HIGH for every positive number.
+   *
+   * That is not hypothetical. A physical measurement has no reference range at
+   * all (see PHYSICAL_MEASUREMENT_KEYS in lib/personalMeasurements.ts) and is
+   * written with 0–0 to say so — and every weight, waist circumference, pulse
+   * and blood pressure in the demo came back stamped "Significantly above
+   * range", in a red wash, on a patient's own screen. The value was right, the
+   * absence of a range was recorded correctly, and the status was computed
+   * against nothing.
+   *
+   * Unevaluable, not a failure: the reading is stored and rendered as the
+   * reading, exactly as a qualitative result is. Placed FIRST so it applies to
+   * every kind of value — a comparator against a 0–0 range is no more placeable
+   * than a plain number is.
+   */
+  if (!(low < high)) {
+    return {
+      status: 'unevaluable',
+      reason:
+        'There is no reference range for this marker, so the result has no position to be measured against. Recorded as reported.',
+    };
+  }
+
   if (value.kind === 'numeric') {
     return {
       status: 'derived',

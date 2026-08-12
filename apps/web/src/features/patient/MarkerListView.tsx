@@ -125,7 +125,11 @@ function DownloadMarkersButton() {
   }
 
   return (
-    <Button variant="secondary" loading={downloading} onClick={() => void handleDownload()}>
+    // Glass rather than the near-white `secondary` fill: this control sits on
+    // the page itself, over the corner glow, and it is one of the three
+    // surfaces (with the pinned control bar and the sidebar) that are
+    // deliberately one material.
+    <Button variant="glass" loading={downloading} onClick={() => void handleDownload()}>
       Download markers (PDF)
     </Button>
   );

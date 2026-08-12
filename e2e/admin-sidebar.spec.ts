@@ -31,7 +31,7 @@ async function signInAsAdmin(page: Page) {
   }
   // The APIRequestContext and the page share the context's cookie jar.
   await page.goto('/admin');
-  await expect(page.getByRole('navigation', { name: 'Admin navigation' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Clinician console navigation' })).toBeVisible();
 }
 
 /** No two interactive rows in the panel overlap, and none is clipped by it. */
@@ -43,7 +43,7 @@ async function expectPanelIsSane(page: Page, at: string) {
     (page.viewportSize()?.height ?? 0) - 1,
   );
 
-  const nav = page.getByRole('navigation', { name: 'Admin navigation' });
+  const nav = page.getByRole('navigation', { name: 'Clinician console navigation' });
   const { scrollHeight, clientHeight } = await nav.evaluate((el) => ({
     scrollHeight: el.scrollHeight,
     clientHeight: el.clientHeight,
@@ -86,7 +86,7 @@ test('the admin sidebar is one viewport tall with nothing overlapping', async ({
   // Every destination has its own glyph. Three of them used to share one
   // shield, which is the same as having no icon at all.
   const paths = await page
-    .getByRole('navigation', { name: 'Admin navigation' })
+    .getByRole('navigation', { name: 'Clinician console navigation' })
     .locator('a svg')
     .evaluateAll((svgs) => svgs.map((s) => s.innerHTML));
   expect(new Set(paths).size, 'every nav icon is distinct').toBe(paths.length);
@@ -119,5 +119,5 @@ test('an admin who crosses into the patient portal has a way back', async ({ pag
   await expect(page.getByRole('link', { name: 'Back to the admin console' })).toBeVisible();
 
   await page.getByRole('link', { name: 'Back to the admin console' }).click();
-  await expect(page.getByRole('navigation', { name: 'Admin navigation' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Clinician console navigation' })).toBeVisible();
 });

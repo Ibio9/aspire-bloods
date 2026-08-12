@@ -12,7 +12,7 @@ import { Reveal } from '../../components/motion/Reveal';
 import { staggerDelay } from '../../components/motion/stagger';
 import { useToast } from '../../components/ui/Toast';
 import { apiFetch } from '../../lib/api';
-import { downloadSignedFile } from '../../lib/download';
+import { downloadFromApi, downloadSignedFile } from '../../lib/download';
 import { type PatientDocument } from '../../lib/patientPortal';
 
 /**
@@ -50,6 +50,29 @@ export function DocumentsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  /**
+   * The GP handover summary is STREAMED, not signed-and-linked.
+   *
+   * The other two are stored files behind a signed URL; this one is generated
+   * per request and never written to disk, for the reason recorded on the route
+   * — it is a derived view of a report for a conversation, not a record, and a
+   * pile of near-identical one-page extracts in somebody's DSAR export is noise.
+   * So it goes through downloadFromApi rather than downloadSignedFile.
+   */
+  async function downloadHandover(doc: PatientDocument) {
+    setDownloading({ reportId: doc.reportId, kind: 'gp-handover-pdf' });
+    try {
+      await downloadFromApi(
+        `/api/patient/reports/${doc.reportId}/gp-handover-pdf`,
+        `aspire-gp-summary-${doc.sampleDate}.pdf`,
+      );
+    } catch {
+      show('That download could not be prepared. Please try again.', 'error');
+    } finally {
+      setDownloading(null);
+    }
+  }
 
   async function download(doc: PatientDocument, kind: 'original-pdf-link' | 'summary-pdf-link') {
     setDownloading({ reportId: doc.reportId, kind });
@@ -97,7 +120,7 @@ export function DocumentsPage() {
         <div className="mt-10 max-w-2xl">
           <EmptyState
             title="No documents yet"
-            description="Once a report is released to you, its PDFs appear here: the laboratory’s report and an Aspire summary."
+            description="Once a report is released to you, its PDFs appear here: the laboratory’s report, an Aspire summary, and a one-page summary to take to your doctor."
             action={<LinkButton to="/overview">Back to overview</LinkButton>}
           />
         </div>
@@ -157,6 +180,28 @@ export function DocumentsPage() {
                   >
                     Original laboratory report (PDF)
                   </Button>
+                </div>
+
+                {/* THE ONE DOCUMENT HERE THAT IS NOT FOR THE PATIENT, and it
+                    says so in the label rather than only in the sentence
+                    underneath: a file called "summary" among two other
+                    summaries would be downloaded, opened, and read as more of
+                    the patient's own copy. It sits below the pair, separated by
+                    its own rule, because it belongs to a different errand. */}
+                <div className="mt-5 border-t border-taupe pt-5">
+                  <Button
+                    variant="secondary"
+                    loading={downloading?.reportId === doc.reportId && downloading.kind === 'gp-handover-pdf'}
+                    onClick={() => void downloadHandover(doc)}
+                  >
+                    Summary for your doctor (PDF)
+                  </Button>
+                  <p className="mt-3 max-w-measure text-xs leading-relaxed text-espresso/85">
+                    One page, written for a doctor rather than for you: your name and date of birth, the sample date,
+                    and every result outside the laboratory’s reference range with the range it was measured against.
+                    It carries no explanations and no advice. Take it to your GP if you would like to discuss anything
+                    on this report.
+                  </p>
                 </div>
               </Card>
               </Reveal>

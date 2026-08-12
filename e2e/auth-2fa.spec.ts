@@ -97,6 +97,19 @@ test('invite -> activate -> login -> 2FA -> session', async ({ page, request }) 
   await page.keyboard.type(loginBody.devOtpCode);
 
   // --- Lands on the portal Overview, freshly activated with no results yet ---
+  // FIRST SIGN-IN LANDS ON THE INTRODUCTION, ONCE (Aug 2026). A patient who has
+  // never seen it is sent to /welcome from "/", so a spec that signs a NEW
+  // account in and then waits for the Overview greeting waits for a screen that
+  // is one press away. Pressing through it is what a real first-time patient
+  // does, and it also marks it seen — so everything after this behaves exactly
+  // as it did before the walkthrough existed.
+  const welcome = page.getByRole('button', { name: 'Go to my results' });
+  // Wait for EITHER screen before deciding. Checking visibility the instant the
+  // OTP is typed is a race against the redirect, and it loses.
+  await expect(welcome.or(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ }))).toBeVisible({
+    timeout: 15000,
+  });
+  if (await welcome.isVisible().catch(() => false)) await welcome.click();
   await expect(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })).toBeVisible({ timeout: 10000 });
   // A brand-new patient is told what is happening and what happens next, not
   // given a tour of the sidebar.
