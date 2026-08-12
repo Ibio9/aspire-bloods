@@ -11,6 +11,7 @@ import {
   BAND_WEIGHT,
   NO_STATUS_PAINT,
   PANEL_WASH_ALPHA,
+  PANEL_SHEEN,
   type StatusKey,
 } from '@aspire-bloods/shared';
 
@@ -340,6 +341,22 @@ describe('runtime colour tokens', () => {
 });
 
 /** Composite `hex` at `alpha` over `bg` — what an opacity modifier actually renders as. */
+/**
+ * WCAG relative luminance. `contrastRatio` is the right tool for "can this be
+ * read" and the wrong one for "how much lighter is this": its +0.05 floor makes
+ * two RGB levels of white look like a whole surface against a near-black page,
+ * and a third of pure white look like nothing against a cream one. The sheen is
+ * a quantity of light, so it is measured as one.
+ */
+function luminance(hex: string): number {
+  const channel = (v: number) => {
+    const s = v / 255;
+    return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+
 function blend(hex: string, bg: string, alpha: number): string {
   const p = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
   const [r1, g1, b1] = p(hex);
@@ -396,6 +413,12 @@ describe.each(MODES)('%s sidebar panel', (mode) => {
 
   const panelOnPage = blend(wash, page, alpha);
   const panelOnGlow = blend(wash, glowCore, alpha);
+  // The specular band at its peak, over the brightest backdrop the panel has.
+  // In light that is the page (no glow is drawn); in dark it is the glow core,
+  // which is already the pessimistic case since the source is anchored at the
+  // opposite corner of the viewport from this column.
+  const sheen = tone(mode, '--c-sheen');
+  const panelSheened = blend(sheen, panelOnGlow, PANEL_SHEEN.peak[mode]);
 
   it('is the same material as every other translucent surface', () => {
     // The colour, not just the blur. The sidebar carried espresso at 6% / 38%
@@ -433,10 +456,74 @@ describe.each(MODES)('%s sidebar panel', (mode) => {
       'staff return link': tone(mode, '--c-bronze-700'),
     };
     for (const [name, colour] of Object.entries(labels)) {
-      for (const [where, bg] of [['unlit', panelOnPage], ['lit', panelOnGlow]] as const) {
+      for (const [where, bg] of [
+        ['unlit', panelOnPage],
+        ['lit', panelOnGlow],
+        // THE BRIGHTEST GROUND A LABEL EVER STANDS ON, added with the sheen
+        // (Aug 2026). The specular band is drawn over the wash and under the
+        // content, so a nav row in the top third of the column sits on the
+        // panel PLUS the highlight. Measuring only the flat wash would leave
+        // the one part of the panel the sheen changed unchecked, which is the
+        // part it was added to.
+        ['sheened', panelSheened],
+      ] as const) {
         const ratio = contrastRatio(colour, bg);
         expect(ratio, `${name} on the ${where} panel is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(WCAG_AA_TEXT);
       }
+    }
+  });
+
+  /**
+   * THE SHEEN IS A HIGHLIGHT, NOT A SECOND SURFACE.
+   *
+   * It exists because the blur cannot do the job on its own — there is nothing
+   * behind this column but a flat colour and a smooth gradient, and blurring a
+   * smooth gradient returns it unchanged (see PANEL_SHEEN in tokens.ts). But a
+   * band of light bright enough to turn the top of the column into a slab has
+   * stopped being a reflection.
+   *
+   * MEASURED IN LUMINANCE, NOT IN CONTRAST RATIO, and the first attempt at this
+   * test is why. Against a #11100e page the ratio is dominated by WCAG's +0.05
+   * floor: two RGB levels of white measure 1.26:1, a hair under a card's 1.28,
+   * so the check capped the dark sheen at about 0.022 — invisible — while
+   * waving 0.30 of PURE WHITE through in light, where the same formula moves
+   * 1.16 to 1.21. It was strict where nothing was wrong and slack where
+   * something would have been. Contrast ratio answers "can this text be read",
+   * which is the AA check above; it does not answer "how much lighter is this".
+   *
+   * The bound is per theme because the thing being bounded differs:
+   *
+   *  · DARK — A REFLECTION IS NEVER BRIGHTER THAN THE LIGHT IT REFLECTS. The
+   *    glow lifts this panel by a measurable amount where it lands on it, and
+   *    the sheen may add at most that much. Physical, self-adjusting, and it
+   *    holds the sheen to the one thing on the page it is a reflection OF.
+   *    (The panel over the glow is ALREADY brighter than a card — that is the
+   *    light doing its job, and the ladder has always been about the panel's
+   *    unlit body, which is what `separates from the page` measures.)
+   *  · LIGHT — no glow is drawn at all, so there is no light to be a reflection
+   *    of and the bound is the ladder itself: even at its peak the panel stays
+   *    below a card.
+   */
+  it('is lit by the sheen without the highlight becoming a surface', () => {
+    const flat = luminance(panelOnPage);
+    const peak = luminance(blend(sheen, panelOnPage, PANEL_SHEEN.peak[mode]));
+    // It does something. A sheen that measures identical to the flat wash is a
+    // custom property somebody set to zero, which is the failure this whole
+    // material was added to fix and would otherwise pass silently.
+    expect(peak, `the sheen lifts the panel by ${(peak - flat).toFixed(5)}, which is nothing`).toBeGreaterThan(
+      flat * 1.02,
+    );
+
+    if (mode === 'dark') {
+      const lit = luminance(panelOnGlow);
+      expect(
+        peak - flat,
+        `the sheen adds ${(peak - flat).toFixed(4)} where the glow itself adds only ${(lit - flat).toFixed(4)}`,
+      ).toBeLessThanOrEqual(lit - flat);
+    } else {
+      expect(peak, `the sheened panel is at ${peak.toFixed(4)} against a card's ${luminance(card).toFixed(4)}`).toBeLessThan(
+        luminance(card),
+      );
     }
   });
 

@@ -13,6 +13,7 @@ import {
   MEASURE,
   PANEL_WASH_ALPHA,
   GLASS,
+  PANEL_SHEEN,
   type TypeStep,
 } from '../../packages/shared/src/tokens';
 
@@ -391,6 +392,14 @@ export default {
           '--glass-wash': String(GLASS.wash.light),
           '--glass-blur': GLASS.blur,
           '--glass-saturate': GLASS.saturate,
+          // What makes the sidebar read as a PANE rather than as a wash. The
+          // blur cannot do it on its own — there is nothing behind the column
+          // but a flat colour and a smooth gradient, and blurring a smooth
+          // gradient returns it unchanged. See PANEL_SHEEN in tokens.ts.
+          '--panel-sheen': String(PANEL_SHEEN.peak.light),
+          '--panel-sheen-top': String(PANEL_SHEEN.edge.top.light),
+          '--panel-sheen-right': String(PANEL_SHEEN.edge.right.light),
+          '--panel-grain': String(PANEL_SHEEN.grain.light),
           'color-scheme': 'light',
         },
         '.dark': {
@@ -401,6 +410,10 @@ export default {
           '--glass-wash': String(GLASS.wash.dark),
           '--glass-blur': GLASS.blur,
           '--glass-saturate': GLASS.saturate,
+          '--panel-sheen': String(PANEL_SHEEN.peak.dark),
+          '--panel-sheen-top': String(PANEL_SHEEN.edge.top.dark),
+          '--panel-sheen-right': String(PANEL_SHEEN.edge.right.dark),
+          '--panel-grain': String(PANEL_SHEEN.grain.dark),
           'color-scheme': 'dark',
         },
         /**
@@ -430,6 +443,10 @@ export default {
             '--glass-wash': '0',
             '--glass-blur': '0px',
             '--glass-saturate': '1',
+            '--panel-sheen': '0',
+            '--panel-sheen-top': '0',
+            '--panel-sheen-right': '0',
+            '--panel-grain': '0',
             'color-scheme': 'light',
           },
         },

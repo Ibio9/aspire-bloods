@@ -419,15 +419,106 @@
 
      Nothing depends on it: turn the wash off and the hairline still separates
      the two regions, exactly as the glow's own rule requires. */
+  /* ── AND THE BLUR IS NOT WHAT MAKES IT GLASS (Aug 2026) ────────────────
+     The computed style has been correct for a while — `blur(10px)
+     saturate(1.08)` over `rgba(42,39,35,0.78)`, read off the element by
+     e2e/patient-sidebar.spec.ts — and the column still read as a flat panel.
+
+     It was always going to. `backdrop-filter: blur()` blurs WHAT IS BEHIND the
+     element, and behind this element there is a flat page colour and one
+     smooth radial gradient. A Gaussian blur of a smooth gradient is the same
+     smooth gradient. There is nothing back there with an edge to smear, so the
+     filter has nothing to show and no radius makes it appear — which is also
+     why a screenshot cannot tell you whether it is on.
+
+     The blur STAYS. This same material is the pinned results control bar and
+     the chart tooltip, and the reader's own results DO scroll behind those.
+
+     What is added is the three things that signal a pane without needing
+     texture behind it, all of them from PANEL_SHEEN in tokens.ts:
+       ::before  the specular sheen — one soft band of light across the column,
+                 brightest at the top-right, gone by about two thirds down.
+       inset     a hairline of light along the top and the right edge, just
+                 inside `--c-panel-edge`, so the border and the highlight read
+                 together as the thickness of the pane.
+       ::after   grain, well below the threshold of being noticed as texture,
+                 which is what stops a large flat area reading as a fill.
+
+     BOTH PSEUDO-ELEMENTS ARE `z-index: -1`, and that is load-bearing rather
+     than decorative. An absolutely-positioned pseudo-element at `auto` paints
+     in step 8 of the painting order, AFTER in-flow block and inline content —
+     so a sheen without it is a sheet of light over the navigation rather than
+     under it. At -1 it paints after the element's own background and before
+     its content, which is exactly where a reflection belongs. `isolation`
+     keeps that negative index inside the panel; the aside is already a
+     stacking context (position: sticky, and backdrop-filter besides), but the
+     rule should not depend on a property somebody could move to a parent. */
   .panel-wash {
+    position: relative;
+    isolation: isolate;
     background-color: rgb(var(--c-panel) / var(--panel-wash));
     -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
     backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    box-shadow:
+      inset 0 1px 0 0 rgb(var(--c-sheen) / var(--panel-sheen-top)),
+      inset -1px 0 0 0 rgb(var(--c-sheen) / var(--panel-sheen-right));
+  }
+
+  /* THE SHEEN. 208deg runs from the top-right corner down to the bottom-left,
+     which is the direction the light actually comes from: the glow is anchored
+     at 96% 1% of the viewport and this column is against the left edge, so its
+     own top-right corner is the part nearest the source.
+
+     Five stops rather than two, for the same reason the glow itself has eight:
+     a linear ramp across a 288px column reads as a fill with a gradient on it,
+     and a band that rises and falls reads as a reflection. It peaks a little
+     way in rather than at the very corner — a highlight pinned to a corner
+     reads as a lighting bug — and it is gone by 62%, so the bottom half of the
+     column is the panel's own flat body and the top half is lit. */
+  .panel-wash::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: linear-gradient(
+      208deg,
+      rgb(var(--c-sheen) / calc(var(--panel-sheen) * 0.55)) 0%,
+      rgb(var(--c-sheen) / var(--panel-sheen)) 14%,
+      rgb(var(--c-sheen) / calc(var(--panel-sheen) * 0.45)) 32%,
+      rgb(var(--c-sheen) / calc(var(--panel-sheen) * 0.12)) 48%,
+      rgb(var(--c-sheen) / 0) 62%
+    );
+  }
+
+  /* THE GRAIN. An SVG turbulence tile rather than a raster: it is a few hundred
+     bytes, it never blurs at a device pixel ratio, and it needs no network
+     request under the artefact CSP.
+
+     `soft-light` rather than plain opacity, and the difference is visible: a
+     grey noise laid over the panel at any opacity LIFTS it (the noise averages
+     mid-grey and the panel in dark is far below that), which is a fog over the
+     column rather than a texture in it. Soft-light darkens where the tile is
+     dark and lightens where it is light, so the mean is unchanged and only the
+     variance moves — which is what grain is. */
+  .panel-wash::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: var(--panel-grain);
+    mix-blend-mode: soft-light;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)'/%3E%3C/svg%3E");
+    background-size: 160px 160px;
   }
 
   /* Same reasoning as `.glass` below, and it matters more here: the sidebar
      carries navigation, and a browser with no backdrop filter would otherwise
-     have the page scrolling legibly through the column beside it. */
+     have the page scrolling legibly through the column beside it.
+
+     The sheen, the edges and the grain are unaffected — none of them is a
+     backdrop effect, which is the point of them. */
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     .panel-wash {
       background-color: rgb(var(--c-panel) / 0.96);
@@ -928,6 +1019,18 @@
     background: none !important;
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
+    box-shadow: none !important;
+  }
+
+  /* The sheen and the grain are reflections off a pane of glass, and there is
+     no pane on paper. Killed here as well as by their alphas going to zero in
+     the print token block, because a `display: none` cannot be re-enabled by a
+     stray custom property somebody sets later. */
+  .glass::before,
+  .glass::after,
+  .panel-wash::before,
+  .panel-wash::after {
+    display: none !important;
   }
 
   /* Every animation, transition and transform, off. A `translate-y` mid-reveal
@@ -1065,6 +1168,159 @@
   @media (prefers-reduced-motion: reduce) {
     .collapse-region,
     .collapse-region > * {
+      transition: none;
+    }
+  }
+
+  /* ── THE SECTION RAIL ───────────────────────────────────────────────────
+     A vertical index of the page's own sections, in the gutter beside the
+     content column. See components/patient/SectionRail.tsx for why the labels
+     are set vertically rather than revealed on hover.
+
+     ── IT CANNOT COLLIDE, BY CONSTRUCTION ──────────────────────────────────
+
+     It is absolutely positioned against the sections wrapper, which sits inside
+     the shell's `mx-auto max-w-5xl` content column — so its offsets are
+     measured from the COLUMN and not from the viewport. That is what makes the
+     two requirements structural rather than a set of numbers that happen to
+     work at the widths somebody checked:
+
+       · It never overlaps the CONTENT, because it occupies x from -72px to
+         -24px of a box whose content starts at 0. A 24px gutter, at every
+         width, including while the column is growing toward its max-width.
+       · It never overlaps the SIDEBAR, because those 72px come out of `main`'s
+         own left padding, which is 80px from `lg` up (px-20) and is by
+         definition empty. 8px of clearance in the worst case — the narrowest
+         window that shows the rail, with the sidebar expanded — and more at
+         every wider one, since the column then centres and the gutter grows.
+
+     Below `xl` it is `display: none`: at 1280px the padding is the whole of the
+     free space and there is nothing to spare. A phone has neither the room nor
+     the need — the page is four headings long and scrolling is the index.
+
+     `position: sticky` on the LIST rather than the nav: the nav spans the full
+     height of the sections so the sticky child has something to travel inside.
+     Near the top (6rem) rather than centred, so the rail reads as an index of
+     the page rather than as a floating widget. */
+  .section-rail {
+    display: none;
+  }
+
+  @media (min-width: 1280px) {
+    .section-rail {
+      display: block;
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: -72px;
+      width: 48px;
+    }
+  }
+
+  /* 8rem, and it is measured rather than chosen: the sidebar's collapse toggle
+     is pinned at `top-24` (96px) and hangs 12px past the panel's own edge, so
+     it ends at 124px and it overlaps the rail's x range. The line starts below
+     it. At 6rem the two cleared each other only because the first label
+     happened to be long enough to push its dot past the button — which is a
+     coincidence about the word "Worth", not a layout. */
+  .section-rail__list {
+    position: sticky;
+    top: 8rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1.75rem;
+  }
+
+  /* The line. Drawn behind the dots and centred on them — `left` is the dot's
+     own centre, so moving the dot moves the line with it. It runs only as far
+     as the dots do, which is what makes it an index of four things rather than
+     a rule down the side of the page. */
+  .section-rail__list::before {
+    content: '';
+    position: absolute;
+    top: 0.35rem;
+    bottom: 0.35rem;
+    left: 3.5px;
+    width: 1px;
+    background-color: rgb(var(--c-taupe) / 0.5);
+  }
+
+  .section-rail__link {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    border-radius: 0.625rem;
+    color: rgb(var(--c-taupe-900));
+    transition:
+      color 150ms ease-out,
+      opacity 150ms ease-out;
+  }
+
+  .section-rail__link:hover {
+    color: rgb(var(--c-espresso));
+  }
+
+  .section-rail__link.is-active {
+    color: rgb(var(--c-espresso));
+  }
+
+  /* An outline until it is the section you are in, and then filled. Shape as
+     well as weight, so the state is not carried by brightness alone. */
+  .section-rail__dot {
+    box-sizing: border-box;
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    border: 1.5px solid rgb(var(--c-taupe-900));
+    background-color: rgb(var(--c-cream));
+    transition:
+      background-color 150ms ease-out,
+      border-color 150ms ease-out,
+      transform 150ms ease-out;
+  }
+
+  .section-rail__link:hover .section-rail__dot {
+    border-color: rgb(var(--c-bronze));
+  }
+
+  .section-rail__link.is-active .section-rail__dot {
+    border-color: rgb(var(--c-bronze));
+    background-color: rgb(var(--c-bronze));
+    transform: scale(1.25);
+  }
+
+  /* Bottom-to-top. `vertical-rl` gives the browser a real vertical writing mode
+     — so the anchor's HEIGHT is the label's length and the list spaces itself —
+     and the half turn is what makes it read upward rather than down. */
+  /* `sideways`, not the default `mixed`, and the apostrophe is why. In a
+     vertical writing mode `mixed` rotates only the glyphs whose scripts are
+     horizontal-only and leaves the rest UPRIGHT — and U+2019 is one of the
+     rest. "What’s changed" set vertically therefore came out as "What· s
+     changed": the apostrophe standing on its own in the middle of the word
+     with the line broken either side of it. `sideways` turns the whole run,
+     punctuation included, so the label is the same string it is everywhere
+     else in the product. */
+  .section-rail__label {
+    writing-mode: vertical-rl;
+    text-orientation: sideways;
+    transform: rotate(180deg);
+    font-size: 0.75rem;
+    line-height: 1;
+    font-weight: 500;
+    letter-spacing: 0.045em;
+    white-space: nowrap;
+  }
+
+  .section-rail__link.is-active .section-rail__label {
+    font-weight: 600;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .section-rail__link,
+    .section-rail__dot {
       transition: none;
     }
   }

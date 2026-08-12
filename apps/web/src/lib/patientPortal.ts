@@ -65,12 +65,6 @@ export interface ChangeItem {
   movement: MarkerMovement;
 }
 
-export interface NextStep {
-  kind: string;
-  title: string;
-  body: string;
-}
-
 export interface PatientOverview {
   firstName: string | null;
   lastTestedDate: string | null;
@@ -92,8 +86,6 @@ export interface PatientOverview {
   } | null;
   attention: AttentionItem[];
   changes: ChangeItem[];
-  nextSteps: NextStep[];
-  outOfRangeNotice: string | null;
 }
 
 export interface SparkPoint {

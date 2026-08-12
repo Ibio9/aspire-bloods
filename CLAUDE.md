@@ -864,6 +864,29 @@ half of the test a client-only container can:
    saying to bump it, which is why the fix is a CHECK: `STAGE="VERSION"` reads
    `server_version_num` and `pg_dump --version` before dumping and fails with
    both numbers and the file to edit named. Railway will upgrade again.
+0b. **IT RUNS ON BUSYBOX, NOT ON GNU COREUTILS, AND THAT COST A SECOND NIGHT
+   (Aug 2026).** bash is installed, so the SHELL is real bash — but every
+   ordinary command is a BusyBox applet with a reduced flag set. `gzip -l`
+   does not exist there. It printed a usage string to stderr, the uncompressed
+   size came back as the EMPTY STRING, the empty string lost the numeric
+   comparison, and a perfectly good 324 kB dump was refused with "The dump is
+   bytes uncompressed, below the 262144 floor" — a sentence with a hole in it
+   describing a data-loss scenario that had not happened. The size is
+   `gzip -dc | wc -c` now, which both implementations have and which is also
+   right about an archive over 4 GB, and every command in the file is audited
+   in a block at the top. **An empty value is a FAILED MEASUREMENT and never a
+   small number**: `is_positive_integer` guards each one and says "could not
+   determine the size" rather than printing a message with a blank in it.
+   Three secondary fixes came out of the same pass. `grep -q` under `pipefail`
+   is a LIVE BUG rather than a portability one — grep exits on the first match,
+   the gzip upstream takes SIGPIPE, pipefail reports 141, so
+   `if ! gzip -dc … | grep -q …` was true exactly when the table WAS found;
+   confirmed in the real image and never reached before because the job had
+   never got past VERIFY. It is `grep -c` (reads to EOF) now. The prune
+   validates its cutoff date's shape and SKIPS rather than deleting on a date
+   nobody could parse. And a handled command's stderr is captured and attached
+   to the failure under its stage name, instead of leaking three raw lines into
+   the log ABOVE a sentence that does not mention them.
 1. `set -o pipefail` matters — `pg_dump | gzip` exits with gzip's status, and
    gzip happily compresses a truncated stream. **This is what made the version
    failure safe**: gzip turns an empty stream into a valid 20-byte archive, so
@@ -893,6 +916,40 @@ It refuses to run unless the target database's name contains "drill" or
   5 minutes for a patient, 3 for staff (`idleWarningLeadMsForRole`).
 
 # The sidebar (Aug 2026)
+
+- **THE BLUR IS NOT WHAT MAKES IT GLASS, AND NO RADIUS WILL BE. STOP TUNING IT.**
+  The computed style was right — `blur(10px) saturate(1.08)` over
+  `rgba(42,39,35,0.78)`, read off the element — and the column still read as a
+  flat panel, because `backdrop-filter` blurs WHAT IS BEHIND, and behind this
+  column there is a flat page colour and one smooth radial. A Gaussian blur of
+  a smooth gradient is the same smooth gradient. Nothing back there has an edge
+  to smear. A previous session diagnosed exactly this and was overruled; it was
+  right. The blur STAYS, because the same material is the pinned control bar and
+  the chart tooltip and the reader's own results DO scroll behind those.
+  What makes it a pane is `PANEL_SHEEN` (tokens.ts), applied only in
+  `.panel-wash`: a **specular sheen** (one soft 208deg band brightest at the
+  top-right corner, the one nearest the glow, gone by 62%), an **inner
+  highlight** along the top and right edges as an inset box-shadow just inside
+  `--c-panel-edge`, and **grain** — an SVG turbulence tile at `soft-light`,
+  because a grey noise at any plain opacity LIFTS the panel instead of texturing
+  it. Both pseudo-elements are `z-index: -1`: at `auto` an absolutely-positioned
+  pseudo paints AFTER in-flow content, so the sheen would be a sheet of light
+  over the navigation rather than under it.
+  **WHAT WAS ASKED FOR AND DELIBERATELY NOT DONE:** varying the panel's own
+  ALPHA across its height. Taken literally that is backwards in dark —
+  `--c-panel` is a PALE tone over a near-black page, so more of it away from the
+  light makes the far end lighter than the lit end — and it walks the unlit
+  panel up toward the card, which the page/panel/card ladder forbids.
+  `PANEL_WASH_ALPHA` is untouched and every pinned number still describes the
+  panel at its darkest point.
+  **THE SHEEN IS BOUNDED IN LUMINANCE, NOT IN CONTRAST RATIO.** The first
+  version of that test used `contrastRatio` and was nonsense in both directions:
+  against a #11100e page WCAG's +0.05 floor makes two RGB levels of white
+  measure 1.26:1 (a card is 1.28), so it capped the dark sheen at ~0.022 —
+  invisible — while waving 0.30 of PURE WHITE through in light. The bound is
+  now per theme and physical: in dark **a reflection is never brighter than the
+  light it reflects** (the sheen may add at most what the glow itself adds), and
+  in light, where no glow is drawn at all, it stays below a card.
 
 - **IT IS THE GLASS MATERIAL, AND SINCE Aug 2026 THE GLASS COLOUR TOO.** The
   blur and the saturation were shared with `.glass` already; the COLOUR was
@@ -1262,19 +1319,29 @@ It refuses to run unless the target database's name contains "drill" or
 - **"WORTH A CONVERSATION" COLLAPSES, AND THE FACT DOES NOT.** Open by default;
   the heading and the count line stay on the page when it is shut, because
   collapsing hides the CARDS, not that there are results outside the range.
-  Only the list is inside the region — the "Talk to someone" card is a sibling
-  in its own grid column, so it neither moves nor resizes. Persisted per
+  Only the list is inside the region. Persisted per
   PATIENT (`aspire_overview_attention_open:<userId>`), because an admin who is
   also a patient shares a browser with their own account. Escape closes it only
   when focus is inside, and returns focus to the disclosure. Every out-of-range
   result stays in the list: no cap, no "show more".
-  **THE COLUMNS GO WITH THE LIST (Aug 2026).** The grid was two-plus-one at lg
-  whether or not there was a list in the two, so collapsing left the left two
-  thirds empty and the contact card floating in the third — a card beside
-  nothing, which reads as a rendering fault rather than a folded section.
-  Collapsed it is one column, and because a single-column grid puts the card in
-  the row BELOW the collapsing region rather than beside it, the card rides up
-  as the list folds instead of jumping: the reflow IS the animation.
+  **THE SECOND COLUMN IS GONE WITH THE CARD THAT WAS IN IT (Aug 2026).** The
+  grid was two-plus-one at lg so "Talk to someone" could travel beside the list.
+  That card is removed from the Overview entirely — the clinic's details are in
+  the sidebar on every screen and this was their third appearance on one page —
+  so there is nothing left to put in a second column and the list is the
+  section's full width, which is also what the range bars in it wanted (a
+  two-thirds column at 1440 drew a scale into about 380px).
+  **AND THE NON-DIAGNOSTIC FRAMING MOVED IN RATHER THAN OUT.** It used to be
+  `outOfRangeNotice` — the seeded `out_of_range_prompt` block — in a card BELOW
+  the list, where its opening sentence restated the count line above it. It is
+  two sentences now (`ATTENTION_FRAMING` in PatientOverview.tsx), inside the
+  section, outside the collapsing region, and ABOVE the results, so a reader
+  meets "This is not a diagnosis" on the way in rather than as a footnote. Both
+  lines outside the region are asserted visible open AND shut.
+  **The copy block itself is untouched** and is still read in full by the two
+  surfaces where nothing else says it — the marker detail page and the "Next
+  steps" block of both PDFs — so it is not shortened for them. It is no longer
+  on the Overview DTO at all; `nextSteps` went with it.
   **`.collapse-region` animates `grid-template-rows` from `0fr` to `1fr`**, so
   the browser interpolates to the content's own height without anybody
   measuring it — and `visibility: hidden` (delayed by the duration on the way
@@ -1288,6 +1355,44 @@ It refuses to run unless the target database's name contains "drill" or
   sentence used to read "37 of your results sit outside the usual reference
   range" with nothing saying which set it meant. It now says markers rather than
   results, and names the scope in the same breath.
+- **THE OVERVIEW IS FOUR SECTIONS IN ONE ORDER, AND "NEXT STEPS" IS NOT ONE OF
+  THEM (Aug 2026).** After the header: **Worth a conversation, Your most recent
+  panel, Go deeper, What's changed** — nothing between them. That is the order a
+  patient asks the questions in: is anything worth worrying about, what did my
+  last test say, where do I look next, what has moved. "Next steps" was three
+  cards whose load-bearing one was TITLED "Worth a conversation" and said in a
+  paragraph what that section says with the actual results in it; the other two
+  were a pending-results notice the empty state and the reports list both carry,
+  and a retest prompt, which is a booking affordance on a portal whose booking
+  flow is deliberately off. Removed from the DTO as well as the page: a computed
+  field nothing renders is one autocomplete away from bringing the section back.
+- **A SECTION RAIL, IN THE GUTTER, ANCHORED TO THE CONTENT COLUMN (Aug 2026).**
+  A dot per section on a hairline, sticky at `8rem`, labels set VERTICALLY along
+  the line. Rotated rather than revealed on hover, and the reason is that a bare
+  dot is not an index — it is a promise, invisible to touch and useless to
+  somebody who does not already know what is down there; a hover-revealed label
+  also has to be drawn over the content beside it, which a 48px gutter cannot
+  do. `writing-mode: vertical-rl` + `text-orientation: sideways` + a 180° turn,
+  and **`sideways` is load-bearing**: under the default `mixed` the apostrophe
+  stays upright and "What’s changed" reads "What· s changed".
+  **IT CANNOT COLLIDE, BY CONSTRUCTION rather than by numbers that happened to
+  work.** It is positioned against the SECTIONS WRAPPER — inside the shell's
+  `mx-auto max-w-5xl` column — so it is measured from the column and not the
+  viewport: 24px of gutter to the content at every width, and its 72px come out
+  of `main`'s own 80px of padding, which is empty by definition, so 8px clears
+  the sidebar in the worst case (1280, expanded) and more at every wider one.
+  Below `xl` it is `display: none`. The sticky top is 8rem because the sidebar's
+  collapse toggle hangs past the panel edge and ends at 124px; at 6rem the two
+  cleared each other only because the first label happened to be long.
+  Every dot is a REAL `href="#id"` anchor, so it works before hydration; the
+  handler only upgrades it to a smooth scroll (`auto` under reduced motion),
+  `replaceState`s the hash and moves focus with `preventScroll` — a plain
+  `focus()` jumps the viewport and cancels the scroll it was intercepting for.
+  Active is picked from scroll POSITION (the last section whose top has passed
+  30% of the viewport, and the last section outright at the bottom of the
+  document) rather than from an IntersectionObserver, which has both a
+  nothing-in-the-band state and a two-in-the-band state and a filled dot has
+  neither. `e2e/overview-rail.spec.ts` measures the boxes.
 - Nothing auto-publishes; release is an explicit state change
 
 # One human gate, and it is a clinician (Aug 2026)

@@ -312,32 +312,35 @@ export async function getPatientOverview(patientId: string) {
     ? new Date(new Date(lastSampleDate).setMonth(new Date(lastSampleDate).getMonth() + RETEST_INTERVAL_MONTHS))
     : null;
 
-  const nextSteps: { kind: string; title: string; body: string }[] = [];
-  if (pendingReports.length > 0) {
-    nextSteps.push({
-      kind: 'RESULTS_PENDING',
-      title: pendingReports.length === 1 ? 'A result is on its way' : `${pendingReports.length} results are on their way`,
-      body: 'Your sample is with the clinical team. We’ll email you once it has been reviewed and released.',
-    });
-  }
-  if (attention.length > 0) {
-    nextSteps.push({
-      kind: 'DISCUSS_RESULTS',
-      title: 'Worth a conversation',
-      body: 'Some of your results sit outside the usual reference range. Your GP or the Aspire Clinic clinical team can talk you through them in the context of your own history.',
-    });
-  }
-  if (retestDueDate && retestDueDate <= new Date()) {
-    nextSteps.push({
-      kind: 'RETEST_DUE',
-      title: 'A repeat test is due',
-      body: `It has been over ${RETEST_INTERVAL_MONTHS} months since your last sample. Get in touch when you’d like the next one.`,
-    });
-  }
-
-  const outOfRangeNotice =
-    attention.length > 0 ? (await prisma.copyBlock.findUnique({ where: { slug: 'out_of_range_prompt' } }))?.body ?? null : null;
-
+  /**
+   * ── "NEXT STEPS" AND `outOfRangeNotice` ARE BOTH GONE FROM THIS PAYLOAD ──
+   *
+   * `nextSteps` was three cards, and the load-bearing one was titled "Worth a
+   * conversation" and said in a paragraph what the SECTION of that name says
+   * with the reader's actual results in it. The other two were a "results are
+   * on their way" notice, which the empty state and the reports list both
+   * carry, and a retest prompt, which is a booking affordance on a portal whose
+   * booking flow is deliberately off.
+   *
+   * `outOfRangeNotice` was the seeded `out_of_range_prompt` block, rendered on
+   * the Overview in a card below the list — where its opening sentence restated
+   * the count line above it and the contact details under it were the third
+   * copy of the same four lines on one screen. The non-diagnostic framing it
+   * carried has NOT gone anywhere: it is two sentences inside the section now,
+   * above the results rather than after them (`ATTENTION_FRAMING` in
+   * PatientOverview.tsx).
+   *
+   * THE COPY BLOCK ITSELF IS UNTOUCHED and is still read, in full, by the two
+   * surfaces where nothing else on the page says it — the marker detail page
+   * (patients/service.ts) and the "Next steps" block of both PDFs
+   * (export/pdfSummary.ts). It is not shortened for them: there it is the only
+   * framing there is.
+   *
+   * Both are removed from the DTO rather than left computed and unrendered. A
+   * field nothing reads is one autocomplete away from a section somebody
+   * removed on purpose coming back, and this one costs a database round trip
+   * per overview load to produce.
+   */
   return {
     firstName: profile?.firstName ?? null,
     lastTestedDate: latestReport ? latestReport.sampleDate.toISOString().slice(0, 10) : null,
@@ -359,8 +362,6 @@ export async function getPatientOverview(patientId: string) {
       : null,
     attention,
     changes,
-    nextSteps,
-    outOfRangeNotice,
   };
 }
 

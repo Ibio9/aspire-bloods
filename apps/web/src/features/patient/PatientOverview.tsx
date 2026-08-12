@@ -6,7 +6,7 @@ import { LinkButton } from '../../components/ui/LinkButton';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { RangeBar } from '../../components/ui/RangeBar';
-import { ClinicContactCard, ClinicContactLines } from '../../components/patient/ClinicContact';
+import { SectionRail, type RailSection } from '../../components/patient/SectionRail';
 import { AnimatedNumber } from '../../components/motion/AnimatedNumber';
 import { Reveal } from '../../components/motion/Reveal';
 import { staggerDelay } from '../../components/motion/stagger';
@@ -130,6 +130,60 @@ const QUICK_ROUTES = [
 const ATTENTION_OPEN_KEY = 'aspire_overview_attention_open';
 /** Named once so `aria-controls` and the region it points at cannot drift apart. */
 const ATTENTION_REGION_ID = 'attention-results';
+
+/**
+ * ── THE FOUR SECTIONS, IN ORDER, AND THEIR IDS ────────────────────────────
+ *
+ * Worth a conversation, then the most recent panel, then Go deeper, then
+ * What's changed — and nothing between them. The order answers the questions a
+ * patient opens this screen with in the order they actually ask them: is
+ * anything worth worrying about, what did my last test say, where do I look
+ * next, and what has moved.
+ *
+ * The ids are here rather than inline because three things must agree on them
+ * and nothing else can check that they do: the `<section>` element, the anchor
+ * in the rail beside it, and the `#fragment` in the URL after a dot is clicked.
+ * A section that renders under an id the rail does not know about is a dot that
+ * scrolls nowhere, and there is no type that catches it.
+ *
+ * NOT the same strings as the `aria-labelledby` heading ids, which name the
+ * HEADING. These name the SECTION, which is the thing being scrolled to.
+ */
+const SECTION_IDS = {
+  attention: 'worth-a-conversation',
+  latest: 'recent-panel',
+  explore: 'go-deeper',
+  changes: 'whats-changed',
+} as const;
+
+/**
+ * THE NON-DIAGNOSTIC FRAMING, WHICH IS NOT OPTIONAL AND IS NO LONGER A CARD.
+ *
+ * It used to be `outOfRangeNotice` — a seeded copy block — rendered in a card
+ * of its own below the list, with the clinic's contact details under it. Three
+ * things were wrong with that and only one of them was the card. Its opening
+ * sentence ("One or more of your results falls outside the usual reference
+ * range") restated, less precisely, the count line four inches above it; the
+ * contact details under it were the third appearance of the same four lines on
+ * one screen; and a paragraph of framing set apart in its own box below the
+ * results reads as a footnote to them rather than as part of how they are to be
+ * read.
+ *
+ * So it is two sentences, in the section, immediately under the count and above
+ * the cards — where somebody meets it BEFORE the results rather than after
+ * them. The middle sentence is preserved word for word, because it is the
+ * sentence the whole product rests on.
+ *
+ * WHY IT IS WRITTEN HERE AND NOT FETCHED. The copy block still exists and is
+ * still rendered, unchanged, in the two places where nothing else on the page
+ * says it: the marker detail page and the "Next steps" block of both PDFs. It
+ * is not shortened for them, because there it is the only framing there is.
+ * What the Overview needed was the same idea at the length this section has
+ * room for, and slicing sentences off a clinician-editable block at render time
+ * would silently eat an edit the first time somebody made one.
+ */
+const ATTENTION_FRAMING =
+  'This is not a diagnosis. Many things affect a single result, and only a clinician who knows your full history can interpret it properly. Your GP or the Aspire Clinic clinical team can talk you through it.';
 
 export function PatientOverview() {
   const { user } = useAuth();
@@ -260,6 +314,17 @@ export function PatientOverview() {
 
   const hasAnything = data.releasedReportCount > 0 || data.pendingReportCount > 0;
 
+  // Only the sections that actually render. A rail entry pointing at a section
+  // a patient does not have is a dot that scrolls nowhere, and the conditions
+  // are already written once each below — so they are read from the same data
+  // here rather than restated.
+  const railSections: RailSection[] = [
+    data.attention.length > 0 && { id: SECTION_IDS.attention, label: 'Worth a conversation' },
+    data.latest && { id: SECTION_IDS.latest, label: 'Your most recent panel' },
+    hasAnything && { id: SECTION_IDS.explore, label: 'Go deeper' },
+    data.changes.length > 0 && { id: SECTION_IDS.changes, label: 'What’s changed' },
+  ].filter(Boolean) as RailSection[];
+
   return (
     // The header sits outside the section column on purpose. Inside it, the
     // gap that separates one whole section from the next — deliberately large,
@@ -304,7 +369,13 @@ export function PatientOverview() {
         )}
       </header>
 
-      <div className="mt-14 flex flex-col gap-16 md:gap-24">
+      {/* `relative` is what the rail positions against — see .section-rail in
+          globals.css, where the whole of "it cannot collide with anything" is
+          derived from this box being the content column rather than the
+          viewport. */}
+      <div className="relative mt-14 flex flex-col gap-16 md:gap-24">
+      <SectionRail sections={railSections} />
+
       {/* ---------------------------------------------------------------
           Anything booked comes first. It is the only thing on this screen
           with a deadline attached — a fast has to be started the night
@@ -344,7 +415,10 @@ export function PatientOverview() {
                 clinician reviews every one before it’s published, and we’ll email you when yours is ready.
               </p>
             </Card>
-            <ClinicContactCard />
+            {/* No contact card here either. The sidebar carries the clinic's
+                details on every screen, one action away, and a third copy of
+                them on the emptiest page in the product was the least useful
+                of the three. */}
           </div>
         </section>
       )}
@@ -354,7 +428,17 @@ export function PatientOverview() {
           to a human sitting immediately beside it.
           --------------------------------------------------------------- */}
       {data.attention.length > 0 && (
-        <section aria-labelledby="attention-heading" onKeyDown={onAttentionKeyDown}>
+        <section
+          id={SECTION_IDS.attention}
+          // `tabIndex={-1}` so the rail can move focus here after a smooth
+          // scroll: without it, focus() does nothing and a keyboard user is
+          // scrolled to a section while their focus stays in the rail, so the
+          // next Tab walks the rail instead of the section they just chose.
+          tabIndex={-1}
+          className="scroll-mt-24 outline-none"
+          aria-labelledby="attention-heading"
+          onKeyDown={onAttentionKeyDown}
+        >
           {/* THE HEADING ROW IS THE TOGGLE, and the whole row is the target.
               A chevron on its own is a 12px hit area beside a 38px heading, and
               the heading is what somebody reaches for. `aria-expanded` on the
@@ -397,6 +481,12 @@ export function PatientOverview() {
           {/* OUTSIDE the collapsing region on purpose. Collapsing hides the
               cards, not the fact — a patient who folds this away should still
               see, on the page, that there are results outside the range. */}
+          {/* OUTSIDE the collapsing region, both of them. Collapsing hides the
+              CARDS; it must not hide that there are results outside the range,
+              and it must not hide how they are to be read. The framing comes
+              second and sits above the list rather than below it, so somebody
+              meets "this is not a diagnosis" on the way IN to their results
+              rather than as a footnote after them. */}
           <p className="mt-4 max-w-measure text-reading leading-relaxed text-espresso/90">
             {data.attention.length === 1
               ? 'One of your markers sits'
@@ -404,29 +494,23 @@ export function PatientOverview() {
             outside the usual reference range. That is the most recent result for each marker you have, across every
             report, rather than only your latest panel.
           </p>
+          <p className="mt-3 max-w-measure text-sm leading-relaxed text-espresso/80">{ATTENTION_FRAMING}</p>
 
-          {/* THE COLUMNS GO WITH THE LIST (Aug 2026). The grid was two-plus-one
-              at lg whether or not there was a list in the two, so collapsing
-              left the left two thirds empty and the contact card floating in
-              the third — a card beside nothing, which reads as a rendering
-              fault rather than as a folded section.
+          {/* ONE COLUMN, and the second one is gone with the contact card that
+              used to be in it (Aug 2026). The grid was two-plus-one at lg so
+              that "Talk to someone" could travel beside the list; with the
+              clinic's details in the sidebar on every screen, that card was
+              their third appearance on this page and the column existed only
+              to hold it.
 
-              Collapsed, it is one column: the card lands under the count line
-              at its own width. And because a single-column grid puts the card
-              in the row BELOW the collapsing region rather than beside it, it
-              rides up as the list folds instead of jumping — the reflow is the
-              animation rather than something that happens despite it. */}
-          <div className={`mt-8 grid grid-cols-1 gap-6 ${attentionOpen ? 'lg:grid-cols-3' : ''}`}>
-            {/* ONLY THE LIST COLLAPSES, and that is what keeps "Talk to
-                someone" still while the section is open. It sits in its own
-                grid column, `self-start`, so its width comes from the column
-                and its height from its own content — neither of which the
-                list's height touches. Put the whole grid inside the region and
-                the card would ride the animation up the page and land
-                somewhere else. */}
+              What is left is the list, collapsing on its own, at the section's
+              full width — which is also what the cards inside it wanted: a
+              range bar in a two-thirds column at 1440px was drawing a scale
+              into about 380px. */}
+          <div className="mt-8">
             <div
               id={ATTENTION_REGION_ID}
-              className={`collapse-region ${attentionOpen ? 'is-open lg:col-span-2' : ''}`}
+              className={`collapse-region ${attentionOpen ? 'is-open' : ''}`}
             >
             <ul className="flex flex-col gap-5">
               {data.attention.map((item, i) => (
@@ -476,59 +560,21 @@ export function PatientOverview() {
               ))}
             </ul>
             </div>
-
-            {/* Sticky only while there is a list to travel beside. Collapsed,
-                it is capped rather than stretched: a contact card the full
-                width of the page is a banner, and this is deliberately the
-                calmest thing in the section. */}
-            <div className={attentionOpen ? 'lg:sticky lg:top-8 lg:self-start' : 'max-w-md'}>
-              <ClinicContactCard />
-            </div>
           </div>
-
-          {/* No coloured outline. The card carried a red border, on the
-              reasoning that an out-of-range result should be marked as such —
-              but every card above it is already tinted, chevroned and worded,
-              and a red box around the calmest paragraph on the page reads as
-              an escalation of it. Hairline taupe, like every other card, with
-              the clinic's details one item per line beneath. */}
-          {data.outOfRangeNotice && (
-            <Card className="mt-8 max-w-3xl">
-              <p className="max-w-measure whitespace-pre-line text-sm leading-relaxed text-espresso">
-                {data.outOfRangeNotice}
-              </p>
-              <ClinicContactLines className="mt-7" />
-            </Card>
-          )}
         </section>
       )}
 
       {/* ---------------------------------------------------------------
-          What's changed — improvements carry exactly the same weight as
-          declines. Someone whose vitamin D has climbed out of deficiency
-          should see that as prominently as someone whose ferritin fell.
+          The last panel, second. What a patient came for after "is anything
+          worth worrying about" is "what did my last test say".
           --------------------------------------------------------------- */}
-      {data.changes.length > 0 && (
-        <section aria-labelledby="changes-heading">
-          <h2 id="changes-heading" className="section-heading">
-            What’s changed
-          </h2>
-          {/* No standfirst: every card below carries its own movement label and
-              the date it is compared with, which is the whole of what the
-              sentence said. */}
-          <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {data.changes.map((change, i) => (
-              <Reveal key={change.markerId} delay={staggerDelay(i)} className="h-full">
-                <ChangeCard change={change} />
-              </Reveal>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* --------------------------------------------------------------- */}
       {data.latest && (
-        <section aria-labelledby="latest-heading">
+        <section
+          id={SECTION_IDS.latest}
+          tabIndex={-1}
+          className="scroll-mt-24 outline-none"
+          aria-labelledby="latest-heading"
+        >
           <h2 id="latest-heading" className="section-heading">
             Your most recent panel
           </h2>
@@ -584,26 +630,27 @@ export function PatientOverview() {
         </section>
       )}
 
-      {data.nextSteps.length > 0 && (
-        <section aria-labelledby="next-heading">
-          <h2 id="next-heading" className="section-heading">
-            Next steps
-          </h2>
-          <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
-            {data.nextSteps.map((step, i) => (
-              <Reveal key={step.kind} delay={staggerDelay(i)} className="h-full">
-                <Card className="h-full">
-                  <p className="font-display opsz-small text-lg leading-tight text-espresso">{step.title}</p>
-                  <p className="mt-3 max-w-measure text-reading leading-relaxed text-espresso/90">{step.body}</p>
-                </Card>
-              </Reveal>
-            ))}
-          </div>
-        </section>
-      )}
+      {/* ---------------------------------------------------------------
+          "NEXT STEPS" IS GONE (Aug 2026), not moved. Three cards, of which
+          the load-bearing one was titled "Worth a conversation" and said, in
+          a paragraph, what the section of that name three screens above
+          already says with the actual results in it. The other two were a
+          "results are on their way" notice — which the empty state and the
+          reports list both carry — and a retest prompt, which is a booking
+          affordance on a portal whose booking flow is deliberately off.
+
+          The server no longer computes it either: a DTO field nothing renders
+          is the next screen's accidental resurrection of a section somebody
+          removed on purpose.
+          --------------------------------------------------------------- */}
 
       {hasAnything && (
-        <section aria-labelledby="explore-heading">
+        <section
+          id={SECTION_IDS.explore}
+          tabIndex={-1}
+          className="scroll-mt-24 outline-none"
+          aria-labelledby="explore-heading"
+        >
           <h2 id="explore-heading" className="section-heading">
             Go deeper
           </h2>
@@ -620,6 +667,37 @@ export function PatientOverview() {
                     </p>
                   </Card>
                 </Link>
+              </Reveal>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ---------------------------------------------------------------
+          What's changed — improvements carry exactly the same weight as
+          declines. Someone whose vitamin D has climbed out of deficiency
+          should see that as prominently as someone whose ferritin fell.
+
+          Last, because it is the only section that is about the past rather
+          than about the panel in front of the reader.
+          --------------------------------------------------------------- */}
+      {data.changes.length > 0 && (
+        <section
+          id={SECTION_IDS.changes}
+          tabIndex={-1}
+          className="scroll-mt-24 outline-none"
+          aria-labelledby="changes-heading"
+        >
+          <h2 id="changes-heading" className="section-heading">
+            What’s changed
+          </h2>
+          {/* No standfirst: every card below carries its own movement label and
+              the date it is compared with, which is the whole of what the
+              sentence said. */}
+          <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {data.changes.map((change, i) => (
+              <Reveal key={change.markerId} delay={staggerDelay(i)} className="h-full">
+                <ChangeCard change={change} />
               </Reveal>
             ))}
           </div>

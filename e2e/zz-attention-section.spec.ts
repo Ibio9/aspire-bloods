@@ -12,12 +12,26 @@ import path from 'node:path';
  *
  * CROPPED TO THE SECTION rather than fullPage. A 36,000px strip is unreadable
  * at any size somebody will open it at, and what is being reviewed here is the
- * heading row, the count line, the chevron and whether the "Talk to someone"
- * card moved — all of which are in the first screen of it.
+ * heading row, the count line, the framing and the chevron — all of which are
+ * in the first screen of it.
  *
- * It also ASSERTS the two things a picture cannot show: that the contact card
- * does not move or resize when the list folds away, and that the preference
- * survives a reload.
+ * It also ASSERTS the things a picture cannot show: that BOTH of the two lines
+ * outside the region survive the fold, that the contact card is gone, and that
+ * the preference survives a reload.
+ *
+ * WHAT CHANGED, AND WHY THE ASSERTIONS DID (Aug 2026). The section used to be a
+ * two-plus-one grid so that a "Talk to someone" card could travel beside the
+ * list, and most of this file measured where that card went when the list
+ * folded. The card is gone — the clinic's details are in the sidebar on every
+ * screen and this was their third appearance on one page — so the grid is gone
+ * with it and the list is full width.
+ *
+ * What replaced those assertions is the thing the card's removal could actually
+ * break: the non-diagnostic framing. It used to sit in a card BELOW the list
+ * (as `outOfRangeNotice`) and it is now two sentences inside the section, above
+ * the results and outside the collapsing region. "This is not a diagnosis" must
+ * be on screen whether the list is open or shut, and that is what is checked in
+ * both states.
  *
  * SKIPPED UNLESS ASKED FOR. `E2E_SCREENSHOTS=1`.
  */
@@ -83,56 +97,43 @@ test.describe('worth a conversation', () => {
           clip: { x: 0, y: 0, width: size.width, height: Math.min(size.height, 900) },
         });
 
-        // WHERE THE CONTACT CARD IS, before and after — and the requirement
-        // CHANGED (Aug 2026), so this measures the new one.
-        //
-        // It used to be "the card must not move or resize when the list
-        // folds", which the card being a sibling in its own grid column made
-        // structurally true. What that produced on screen was a card sitting
-        // alone in the right-hand third with the left two thirds empty, which
-        // reads as a rendering fault rather than as a folded section. So the
-        // grid drops to ONE column when the section is collapsed, and what has
-        // to hold instead is: the card moves LEFT (no empty column beside it)
-        // and does not stretch to the width of the page (a full-width contact
-        // card is a banner, and this is the calmest thing in the section).
-        const contact = page.getByText('Talk to someone').first();
-        const before = await contact.boundingBox();
+        // THE CONTACT CARD IS GONE FROM THIS PAGE ENTIRELY (Aug 2026). Not
+        // moved, not collapsed with the list — removed, because the sidebar
+        // carries the clinic's details on every screen and this was the third
+        // place they appeared. Asserted rather than assumed: a card that comes
+        // back because somebody restored a component import would otherwise
+        // reintroduce it silently.
+        await expect(page.getByText('Talk to someone')).toHaveCount(0);
+
+        // BOTH LINES ARE OUTSIDE THE REGION, so both are on screen open AND
+        // shut. The count is the fact; the framing is how the fact is to be
+        // read, and hiding either behind a fold is what collapsing must not do.
+        const count = page.getByText(/of your markers sit|One of your markers sits/);
+        const framing = page.getByText(/This is not a diagnosis/);
+        await expect(count).toBeVisible();
+        await expect(framing).toBeVisible();
 
         await toggle.click();
         // Past the 220ms height transition.
         await page.waitForTimeout(700);
         await expect(toggle).toHaveAttribute('aria-expanded', 'false');
 
-        // THE FACT STAYS. The heading and the count line are outside the region.
-        await expect(page.getByText(/of your markers sit\s+outside the usual reference range|One of your markers sits/)).toBeVisible();
+        await expect(count, 'the count line went with the list').toBeVisible();
+        await expect(framing, 'the non-diagnostic framing went with the list').toBeVisible();
 
-        const after = await contact.boundingBox();
-        expect(before, 'no contact card to measure').not.toBeNull();
-        expect(after, 'the contact card vanished when the list collapsed').not.toBeNull();
-
+        // The list is the section's full width now that there is no second
+        // column beside it — which is also what the range bars inside it
+        // wanted.
         const sectionBox = await section.boundingBox();
-        if (size.width >= 1024) {
-          // NO EMPTY COLUMN. The card starts where the section does, give or
-          // take the card's own padding — not two thirds of the way across it.
-          expect(
-            Math.round(after!.x),
-            `${theme}: the contact card is still in the right-hand column, with nothing beside it`,
-          ).toBeLessThan(Math.round(before!.x));
-          // Measured on the card's own copy rather than its border box, so
-          // the allowance is the card's padding (28px) plus a little.
-          expect(
-            Math.abs(after!.x - sectionBox!.x),
-            `${theme}: the card is ${Math.round(after!.x - sectionBox!.x)}px from the start of the section, not at it`,
-          ).toBeLessThan(48);
-          // And not a banner: it keeps a card's width rather than the page's.
-          expect(after!.width, `${theme}: the contact card stretched to the full width`).toBeLessThan(sectionBox!.width * 0.75);
-        } else {
-          // On a phone the grid is one column open OR shut, so the card is
-          // where it always was and only rises as the list folds away.
-          expect(Math.round(after!.x), `${theme}-mobile: the card moved sideways on a one-column layout`).toBe(
-            Math.round(before!.x),
-          );
-        }
+        await toggle.click();
+        await page.waitForTimeout(700);
+        const listBox = await page.locator('#attention-results').boundingBox();
+        expect(
+          listBox!.width,
+          `${theme}: the list is ${Math.round(listBox!.width)}px inside a ${Math.round(sectionBox!.width)}px section`,
+        ).toBeGreaterThan(sectionBox!.width - 4);
+        await toggle.click();
+        await page.waitForTimeout(700);
 
         await page.screenshot({
           path: path.join(OUT, `attention-collapsed-${theme}${size.key}.png`),

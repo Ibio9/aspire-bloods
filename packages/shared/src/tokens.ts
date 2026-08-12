@@ -939,6 +939,19 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    */
   out['--c-glow'] = mix(brand.bronze, '#f0bd6a', 0.72);
 
+  /**
+   * ── THE COLOUR OF LIGHT ON A PANE ──────────────────────────────────────
+   *
+   * What the specular sheen and the two edge highlights on the sidebar are
+   * drawn in (see `PANEL_SHEEN` and `.panel-wash` in globals.css). It is not
+   * `--c-glow`, which is the light SOURCE and is a saturated gold: a gold
+   * streak down a 288px column reads as a stain rather than as a highlight.
+   * It is a warm white — white in light, and white carried a little way toward
+   * the glow in dark, so a reflection on this page picks up the colour of the
+   * one thing lighting it without becoming that colour.
+   */
+  out['--c-sheen'] = dark ? mix('#ffffff', out['--c-glow'], 0.34) : brand.white;
+
   return out;
 }
 
@@ -1022,6 +1035,65 @@ export const GLASS = {
   wash: { light: 0.62, dark: 0.58 },
   blur: '10px',
   saturate: '1.08',
+} as const;
+
+/**
+ * ── GLASS IS NOT THE BLUR. THE BLUR IS DOING NOTHING HERE (Aug 2026) ───────
+ *
+ * The sidebar's computed style has been right for a while — `blur(10px)
+ * saturate(1.08)`, `rgba(42,39,35,0.78)`, measured off the element by
+ * e2e/patient-sidebar.spec.ts — and the column still read as a flat panel. It
+ * was going to keep reading as one, and the reason is physical rather than a
+ * matter of finding the right number.
+ *
+ * `backdrop-filter: blur()` blurs WHAT IS BEHIND THE ELEMENT. Behind this
+ * element there is a flat page colour and one smooth radial gradient, and a
+ * Gaussian blur of a smooth gradient is the same smooth gradient. There is
+ * nothing with an edge back there to smear, so the filter has nothing to show
+ * and no radius makes it appear. A previous session diagnosed exactly this and
+ * was overruled; it was right. (The blur STAYS: content does scroll behind the
+ * pinned control bar and the chart tooltip, which share this material, and
+ * removing it there would cost something real.)
+ *
+ * So the panel is made to read as glass by the things that actually signal a
+ * pane, none of which depend on there being texture behind it:
+ *
+ *   `peak`   A SPECULAR SHEEN. One soft diagonal band of light across the
+ *            column, brightest at its top-right — the corner nearest the
+ *            glow — and gone by roughly two thirds of the way down. This is
+ *            the largest of the four effects and the one that does most of
+ *            the work: a flat surface with a highlight travelling across it
+ *            is read as reflective before anything else is considered.
+ *   `edge`   AN INNER HIGHLIGHT ALONG THE TOP AND THE RIGHT EDGE. A hairline
+ *            of light just inside the border, as though the cut edge of the
+ *            pane catches the light. The right edge is stronger than the top:
+ *            it is the edge that faces the room, and it sits immediately
+ *            inside `--c-panel-edge`, so the two together read as thickness.
+ *   `grain`  A VERY FAINT NOISE. What stops a large flat area reading as a
+ *            fill; it is below the threshold of being noticed as texture and
+ *            above the threshold of being noticed as absent.
+ *
+ * WHAT WAS ASKED FOR AND NOT DONE, AND WHY. The brief also said to raise the
+ * panel's own translucency toward the glow and lower it away, so the wash has
+ * a gradient rather than one value. Taken literally that is backwards in dark
+ * mode: `--c-panel` is a PALE tone over a near-black page, so more of it away
+ * from the light makes the far end LIGHTER than the lit end and the gradient
+ * runs the wrong way — and it walks the unlit panel up toward the card, which
+ * the ladder in tokenContrast.test.ts (page, then panel, then card) forbids.
+ * The same intent from the other side is what is implemented: the pane is
+ * brighter where the light reaches it and returns to its flat body value where
+ * it does not, so the surface does have a gradient across it, drawn in light
+ * rather than in opacity. `PANEL_WASH_ALPHA` is untouched and every number the
+ * token tests pin still describes the panel at its darkest point.
+ *
+ * The peaks are held under what the AA check allows on top of the lit panel —
+ * see `keeps every label on it at AA` in tokenContrast.test.ts, which now
+ * composites the sheen into the brightest backdrop a nav label ever stands on.
+ */
+export const PANEL_SHEEN = {
+  peak: { light: 0.2, dark: 0.07 },
+  edge: { top: { light: 0.45, dark: 0.14 }, right: { light: 0.65, dark: 0.24 } },
+  grain: { light: 0.035, dark: 0.055 },
 } as const;
 
 /** `#8a5e45` → `138 94 69`, the channel triplet Tailwind's `<alpha-value>` syntax needs. */
