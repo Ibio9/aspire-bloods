@@ -306,6 +306,7 @@ export function MarkerDetailPage() {
                 status={latestStatus}
                 severityThreshold={detail.latest.severityThreshold}
                 optimal={detail.optimal}
+                unit={detail.latest.unit}
               />
             </div>
           )}

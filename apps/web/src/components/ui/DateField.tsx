@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Listbox } from './Listbox';
 import {
   formatDisplayDate,
   formatTypedDate,
@@ -35,9 +36,6 @@ const MONTH_LABELS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
-const MONTH_SHORT = MONTH_LABELS.map((m) => m.slice(0, 3));
-/** Years shown per page of the year grid — a 3×4 block, one tap per decade-ish. */
-const YEARS_PER_PAGE = 12;
 
 /** Monday-first grid of Date objects covering the full weeks of the given month. */
 function buildMonthGrid(year: number, month: number): Date[] {
@@ -47,8 +45,6 @@ function buildMonthGrid(year: number, month: number): Date[] {
   return Array.from({ length: 42 }, (_, i) => new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i));
 }
 
-type PanelView = 'day' | 'month' | 'year';
-
 /**
  * Replaces the native <input type="date"> (brief §3.5) — its calendar icon
  * and dd/mm/yyyy placeholder read as unfinished.
@@ -57,21 +53,40 @@ type PanelView = 'day' | 'month' | 'year';
  * this app asks for:
  *
  *  1. Type it. 14/03/1985 (or 14-03-1985, or 14031985, or ISO) parses straight
- *     into the field without the popover ever opening. For a date of birth
+ *     into the field without the calendar ever opening. For a date of birth
  *     this is the fast path and always will be — nobody wants to *browse* to
  *     their own birthday.
- *  2. Pick it. The popover drills rather than pages: the header is a button,
- *     so month grid → year grid → any date in three taps. Previously it opened
- *     on the current month with only ±1-month arrows, which put someone born
- *     in 1985 about five hundred clicks from their birthday.
+ *  2. Pick it. THE MONTH AND THE YEAR ARE DROPDOWNS in the header, so any
+ *     date is two choices and a tap.
+ *
+ * ── WHY THE DRILL-DOWN WENT (Aug 2026) ────────────────────────────────────
+ *
+ * The header used to be a BUTTON that zoomed out a level — day grid to a
+ * 12-month grid to a 12-year grid — which is three taps to any date and was a
+ * genuine improvement on the ±1-month arrows it replaced (someone born in 1985
+ * was about five hundred clicks from their birthday). It is still three taps,
+ * and it is three taps nobody finds: a header that reads "March 1985" looks
+ * like a caption, and the affordance saying otherwise is a hover state. Two
+ * dropdowns say what they do while sitting still. They are the product's own
+ * Listbox, so there is no native select here either.
+ *
+ * ── AND IT OPENS IN FLOW, NOT OVER THE FORM ───────────────────────────────
+ *
+ * It was an absolutely-positioned popover, so opening it covered whatever was
+ * underneath — on the registration form, the two fields after it. A calendar
+ * that hides the form it is part of makes a person close it to check what they
+ * were doing. In flow it pushes the rest of the form down instead, which is
+ * only affordable because the auth page is now allowed to scroll (see
+ * AuthSplitLayout). Every other DateField in the product is in a form column
+ * too; none is in a table row.
  *
  * Bounds and the opening view come from `preset` (see lib/dateInput.ts), so a
- * sample date offers recent dates and a date of birth offers historic ones,
- * and neither offers the future.
+ * sample date offers recent dates and a date of birth opens on a plausible
+ * birth year, and neither offers the future.
  *
- * Keyboard throughout: arrows move within the current view, PageUp/PageDown
- * step a month (a year with Shift), Home/End jump to the ends of the week,
- * Enter selects or drills in, Escape closes.
+ * Keyboard throughout: arrows move a day, PageUp/PageDown step a month (a year
+ * with Shift), Home/End jump to the ends of the week, Enter selects, Escape
+ * closes.
  */
 export function DateField({
   label,
@@ -87,7 +102,6 @@ export function DateField({
   disabled,
 }: DateFieldProps) {
   const [open, setOpen] = useState(false);
-  const [view, setView] = useState<PanelView>('day');
   /** Non-null once the field has been typed in; null means "derive it from the value". */
   const [draft, setDraft] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -126,7 +140,6 @@ export function DateField({
   useEffect(() => {
     if (!open) return;
     const base = selected ?? openingDate;
-    setView('day');
     setViewDate(base);
     setFocusedDate(base);
 
@@ -138,9 +151,28 @@ export function DateField({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  /**
+   * The keyboard cursor and the DOM's focus are two things, and this is what
+   * keeps them together: arrowing around the grid moves `focusedDate`, and the
+   * cell holding it is the only one with `tabIndex=0`, so it has to actually
+   * receive focus or the next arrow key goes nowhere.
+   *
+   * SUPPRESSED WHEN THE HEADER MOVED THE MONTH. Choosing a year from the
+   * dropdown also moves the cursor (it must — otherwise no cell in the month
+   * now on screen is reachable), and without this the focus would be yanked out
+   * of the header into the grid on the way to choosing a month. The ref is
+   * cleared by this effect rather than by the handler, so it can only ever skip
+   * the one update it was set for.
+   */
+  const skipFocusRef = useRef(false);
   useEffect(() => {
-    if (open) panelRef.current?.querySelector<HTMLElement>('[data-focused="true"]')?.focus();
-  }, [open, view, focusedDate, viewDate]);
+    if (!open) return;
+    if (skipFocusRef.current) {
+      skipFocusRef.current = false;
+      return;
+    }
+    panelRef.current?.querySelector<HTMLElement>('[data-focused="true"]')?.focus();
+  }, [open, focusedDate, viewDate]);
 
   function close(returnFocus = true) {
     setOpen(false);
@@ -167,10 +199,6 @@ export function DateField({
 
   function shiftMonths(months: number) {
     moveFocus(new Date(focusedDate.getFullYear(), focusedDate.getMonth() + months, focusedDate.getDate()));
-  }
-
-  function shiftYears(years: number) {
-    moveFocus(new Date(focusedDate.getFullYear() + years, focusedDate.getMonth(), focusedDate.getDate()));
   }
 
   // --- Typing ------------------------------------------------------------
@@ -271,46 +299,11 @@ export function DateField({
     }
   }
 
-  function handleMonthKeyDown(e: React.KeyboardEvent) {
-    switch (e.key) {
-      case 'ArrowRight': e.preventDefault(); shiftMonths(1); break;
-      case 'ArrowLeft': e.preventDefault(); shiftMonths(-1); break;
-      case 'ArrowDown': e.preventDefault(); shiftMonths(3); break;
-      case 'ArrowUp': e.preventDefault(); shiftMonths(-3); break;
-      case 'PageUp': e.preventDefault(); shiftYears(-1); break;
-      case 'PageDown': e.preventDefault(); shiftYears(1); break;
-      case 'Enter':
-      case ' ':
-        e.preventDefault();
-        setView('day');
-        break;
-      case 'Escape': e.preventDefault(); close(); break;
-    }
-  }
-
-  function handleYearKeyDown(e: React.KeyboardEvent) {
-    switch (e.key) {
-      case 'ArrowRight': e.preventDefault(); shiftYears(1); break;
-      case 'ArrowLeft': e.preventDefault(); shiftYears(-1); break;
-      case 'ArrowDown': e.preventDefault(); shiftYears(3); break;
-      case 'ArrowUp': e.preventDefault(); shiftYears(-3); break;
-      case 'PageUp': e.preventDefault(); shiftYears(-YEARS_PER_PAGE); break;
-      case 'PageDown': e.preventDefault(); shiftYears(YEARS_PER_PAGE); break;
-      case 'Enter':
-      case ' ':
-        e.preventDefault();
-        setView('month');
-        break;
-      case 'Escape': e.preventDefault(); close(); break;
-    }
-  }
-
   // --- Render -------------------------------------------------------------
 
   const grid = buildMonthGrid(viewDate.getFullYear(), viewDate.getMonth());
   const today = new Date();
   const todayISO = toISODate(today);
-  const yearPageStart = Math.floor(viewDate.getFullYear() / YEARS_PER_PAGE) * YEARS_PER_PAGE;
   const shownError = error ?? typeError;
   const errorId = shownError ? `${fieldId}-error` : undefined;
   const hintId = hint ? `${fieldId}-hint` : undefined;
@@ -320,26 +313,37 @@ export function DateField({
   // holding the date that was selected a moment ago.
   const inputText = draft ?? (editing ? formatTypedDate(value) : value ? formatDisplayDate(value) : '');
 
-  /** Steps the header arrows a page in whichever unit the current view is in. */
+  /** Steps the calendar a month. Still worth keeping beside the dropdowns:
+   *  "the month before the one I'm looking at" is one tap and two choices
+   *  otherwise, and it is how a keyboard user pages as well. */
   function page(direction: -1 | 1) {
-    if (view === 'day') setViewDate((d) => new Date(d.getFullYear(), d.getMonth() + direction, 1));
-    else if (view === 'month') setViewDate((d) => new Date(d.getFullYear() + direction, d.getMonth(), 1));
-    else setViewDate((d) => new Date(d.getFullYear() + direction * YEARS_PER_PAGE, d.getMonth(), 1));
+    setViewDate((d) => new Date(d.getFullYear(), d.getMonth() + direction, 1));
   }
 
-  const headerLabel =
-    view === 'day'
-      ? `${MONTH_LABELS[viewDate.getMonth()]} ${viewDate.getFullYear()}`
-      : view === 'month'
-        ? `${viewDate.getFullYear()}`
-        : `${yearPageStart}–${yearPageStart + YEARS_PER_PAGE - 1}`;
+  /**
+   * THE YEARS OFFERED, and it is the field's own range rather than a fixed
+   * span. `preset="birthdate"` bounds it to the last 120 years, a sample date
+   * to the recent past — so the list can never contain a year every day of
+   * which this field would refuse.
+   *
+   * Newest first for a birthdate as well as for a sample date: a list of 120
+   * years opens at the top, and the top of an ascending list is 1906.
+   */
+  const years = useMemo(() => {
+    const first = minDate ? minDate.getFullYear() : new Date().getFullYear() - 120;
+    const last = maxDate ? maxDate.getFullYear() : new Date().getFullYear() + 5;
+    const all: number[] = [];
+    for (let y = last; y >= first; y -= 1) all.push(y);
+    return all;
+  }, [minDate, maxDate]);
 
-  const pageLabels =
-    view === 'day'
-      ? { prev: 'Previous month', next: 'Next month' }
-      : view === 'month'
-        ? { prev: 'Previous year', next: 'Next year' }
-        : { prev: 'Earlier years', next: 'Later years' };
+  /** Moves the calendar without moving the selection — nothing is committed until a day is picked. */
+  function showMonth(year: number, month: number) {
+    const target = new Date(year, month, Math.min(focusedDate.getDate(), 28));
+    skipFocusRef.current = true;
+    setViewDate(target);
+    setFocusedDate(clamp(target));
+  }
 
   return (
     <div ref={containerRef} className="relative flex flex-col gap-1.5">
@@ -404,41 +408,45 @@ export function DateField({
           ref={panelRef}
           role="dialog"
           aria-label="Choose a date"
-          className="absolute left-0 top-[calc(100%+6px)] z-40 w-72 rounded-card border border-taupe bg-cream-50 p-3 shadow-popover motion-safe:animate-riseIn"
+          // IN FLOW, not absolute — see the note at the top. `mt-2` rather than
+          // a `top-` offset, and no z-index, because there is nothing to sit on
+          // top of: it takes its own room and pushes the form down.
+          className="mt-2 w-full max-w-[20rem] rounded-card border border-taupe bg-cream-50 p-3 shadow-popover motion-safe:animate-riseIn"
         >
-          <div className="mb-2 flex items-center justify-between">
+          <div className="mb-2.5 flex items-center gap-1.5">
             <button
               type="button"
-              aria-label={pageLabels.prev}
+              aria-label="Previous month"
               onClick={() => page(-1)}
-              className="rounded-full p-1.5 text-espresso transition duration-150 ease-out hover:bg-cream-200"
+              className="shrink-0 rounded-full p-1.5 text-espresso transition duration-150 ease-out hover:bg-cream-200"
             >
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
                 <path d="M7 1L2 5l5 4" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
-            {/* The header is the navigation. Tapping it zooms out a level —
-                month grid, then year grid — which is what turns "back 492
-                months" into three taps. */}
+            {/* THE HEADER IS TWO DROPDOWNS. Directly selectable, and the year
+                one is searchable because 120 of them is a scroll otherwise —
+                typing "1985" is faster than any calendar. */}
+            <Listbox
+              aria-label="Month"
+              value={String(viewDate.getMonth())}
+              onChange={(v) => showMonth(viewDate.getFullYear(), Number(v))}
+              options={MONTH_LABELS.map((m, i) => ({ value: String(i), label: m }))}
+              className="min-w-0 flex-1"
+            />
+            <Listbox
+              aria-label="Year"
+              searchable
+              value={String(viewDate.getFullYear())}
+              onChange={(v) => showMonth(Number(v), viewDate.getMonth())}
+              options={years.map((y) => ({ value: String(y), label: String(y) }))}
+              className="w-[5.75rem] shrink-0"
+            />
             <button
               type="button"
-              onClick={() => setView((v) => (v === 'day' ? 'month' : v === 'month' ? 'year' : 'day'))}
-              aria-label={
-                view === 'day'
-                  ? `${headerLabel}: choose a month`
-                  : view === 'month'
-                    ? `${headerLabel}: choose a year`
-                    : `${headerLabel}: back to days`
-              }
-              className="rounded-input px-2 py-1 text-sm font-medium tabular text-espresso transition duration-150 ease-out hover:bg-cream-200"
-            >
-              {headerLabel}
-            </button>
-            <button
-              type="button"
-              aria-label={pageLabels.next}
+              aria-label="Next month"
               onClick={() => page(1)}
-              className="rounded-full p-1.5 text-espresso transition duration-150 ease-out hover:bg-cream-200"
+              className="shrink-0 rounded-full p-1.5 text-espresso transition duration-150 ease-out hover:bg-cream-200"
             >
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
                 <path d="M3 1l5 4-5 4" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
@@ -446,15 +454,13 @@ export function DateField({
             </button>
           </div>
 
-          {view === 'day' && (
-            <>
-              <div className="grid grid-cols-7 gap-y-1 text-center">
-                {WEEKDAY_LABELS.map((d) => (
-                  <span key={d} className="text-xs font-medium text-espresso/80">
-                    {d}
-                  </span>
-                ))}
-              </div>
+          <div className="grid grid-cols-7 gap-y-1 text-center">
+            {WEEKDAY_LABELS.map((d) => (
+              <span key={d} className="text-xs font-medium text-espresso/80">
+                {d}
+              </span>
+            ))}
+          </div>
               <div role="grid" onKeyDown={handleDayKeyDown} className="grid grid-cols-7 gap-y-1 text-center">
                 {grid.map((d) => {
                   const iso = toISODate(d);
@@ -492,84 +498,6 @@ export function DateField({
                   );
                 })}
               </div>
-            </>
-          )}
-
-          {view === 'month' && (
-            <div role="grid" onKeyDown={handleMonthKeyDown} className="grid grid-cols-3 gap-1 py-1 text-center">
-              {MONTH_SHORT.map((labelText, monthIndex) => {
-                const year = viewDate.getFullYear();
-                // A month is out of range only when every day in it is.
-                const monthDisabled =
-                  isDisabled(new Date(year, monthIndex + 1, 0)) && isDisabled(new Date(year, monthIndex, 1));
-                const isFocused = focusedDate.getFullYear() === year && focusedDate.getMonth() === monthIndex;
-                const isSelected = !!selected && selected.getFullYear() === year && selected.getMonth() === monthIndex;
-                return (
-                  <button
-                    key={labelText}
-                    type="button"
-                    role="gridcell"
-                    data-focused={isFocused}
-                    tabIndex={isFocused ? 0 : -1}
-                    aria-selected={isSelected}
-                    disabled={monthDisabled}
-                    onClick={() => {
-                      moveFocus(new Date(year, monthIndex, Math.min(focusedDate.getDate(), 28)));
-                      setView('day');
-                    }}
-                    className={`flex h-9 items-center justify-center rounded-input text-sm transition-colors duration-100 ${
-                      monthDisabled
-                        ? 'cursor-not-allowed text-espresso/25'
-                        : isSelected
-                          ? 'bg-bronze text-onaccent'
-                          : isFocused
-                            ? 'bg-cream-300 text-espresso'
-                            : 'text-espresso hover:bg-cream-200'
-                    }`}
-                  >
-                    {labelText}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {view === 'year' && (
-            <div role="grid" onKeyDown={handleYearKeyDown} className="grid grid-cols-3 gap-1 py-1 text-center">
-              {Array.from({ length: YEARS_PER_PAGE }, (_, i) => yearPageStart + i).map((year) => {
-                const yearDisabled = isDisabled(new Date(year, 11, 31)) && isDisabled(new Date(year, 0, 1));
-                const isFocused = focusedDate.getFullYear() === year;
-                const isSelected = !!selected && selected.getFullYear() === year;
-                return (
-                  <button
-                    key={year}
-                    type="button"
-                    role="gridcell"
-                    data-focused={isFocused}
-                    tabIndex={isFocused ? 0 : -1}
-                    aria-selected={isSelected}
-                    disabled={yearDisabled}
-                    onClick={() => {
-                      moveFocus(new Date(year, focusedDate.getMonth(), Math.min(focusedDate.getDate(), 28)));
-                      setView('month');
-                    }}
-                    className={`flex h-9 items-center justify-center rounded-input text-sm tabular transition-colors duration-100 ${
-                      yearDisabled
-                        ? 'cursor-not-allowed text-espresso/25'
-                        : isSelected
-                          ? 'bg-bronze text-onaccent'
-                          : isFocused
-                            ? 'bg-cream-300 text-espresso'
-                            : 'text-espresso hover:bg-cream-200'
-                    }`}
-                  >
-                    {year}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
           <div className="mt-2 flex justify-between border-t border-taupe pt-2">
             <button
               type="button"

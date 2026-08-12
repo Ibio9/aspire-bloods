@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { pressThroughWalkthrough } from './walkthrough';
 
 /**
  * The patient sidebar's job is navigation, and it has to be able to do it —
@@ -51,29 +52,21 @@ async function registerAndSignIn(page: import('@playwright/test').Page, request:
   // this is waiting for. Same fix as self-signup.spec.ts already has.
   await expect(page.getByRole('heading', { level: 2, name: 'Confirm your email' })).toBeVisible();
 
+  // One code, once — see the note in front-door.spec.ts. Entering it signs in.
   const [verifyResponse] = await Promise.all([
     page.waitForResponse(
       (r) => r.url().includes('/api/auth/verify-email') && !r.url().includes('resend') && r.request().method() === 'POST',
     ),
     page.locator('#otp-0').click().then(() => page.keyboard.type(code)),
   ]);
-  const otp = (await verifyResponse.json()).devOtpCode as string;
-  await page.locator('#otp-0').click();
-  await page.keyboard.type(otp);
+  expect((await verifyResponse.json()).status).toBe('authenticated');
   // FIRST SIGN-IN LANDS ON THE INTRODUCTION, ONCE (Aug 2026). A patient who has
   // never seen it is sent to /welcome from "/", so a spec that signs a NEW
   // account in and then waits for the Overview greeting waits for a screen that
   // is one press away. Pressing through it is what a real first-time patient
   // does, and it also marks it seen — so everything after this behaves exactly
   // as it did before the walkthrough existed.
-  const welcome = page.getByRole('button', { name: 'Go to my results' });
-  // Wait for EITHER screen before deciding. Checking visibility the instant the
-  // OTP is typed is a race against the redirect, and it loses.
-  await expect(welcome.or(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ }))).toBeVisible({
-    timeout: 15000,
-  });
-  if (await welcome.isVisible().catch(() => false)) await welcome.click();
-  await expect(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })).toBeVisible({ timeout: 15000 });
+  await pressThroughWalkthrough(page, /Good (morning|afternoon|evening)/);
 }
 
 // One registration for all three checks. Each of these is a layout question
@@ -296,3 +289,68 @@ test('the profile row opens Account and privacy, and Sign out stays separate', a
   await page.getByRole('navigation', { name: 'Patient portal' }).getByRole('link', { name: /Account/ }).click();
   await expect(page).toHaveURL(/\/account$/);
 });
+
+/**
+ * THE SIDEBAR IS ACTUALLY MADE OF GLASS — READ OFF THE ELEMENT, NOT THE
+ * STYLESHEET.
+ *
+ * This exists because the material was asked for twice and looked the same
+ * both times, and a screenshot cannot settle it: blurring a smooth radial
+ * returns the same radial, so "is the backdrop filter there" is not a question
+ * a picture can answer. Two things have to be true on the element itself:
+ *
+ *  1. `backdrop-filter` resolves to a real blur. It is declared as
+ *     `blur(var(--glass-blur)) saturate(var(--glass-saturate))`, and if either
+ *     custom property is ever missing the WHOLE declaration is invalid and the
+ *     browser drops it — computed `none`, no warning, no console message. That
+ *     failure mode is the reason this is measured rather than reviewed.
+ *  2. The background is the GLASS colour at the sidebar's own alpha, and not
+ *     the near-transparent espresso wash it used to be. An alpha under a half
+ *     here means the column has gone back to being a tinted piece of page.
+ *
+ * Both themes, because the alpha differs per theme and only one of them has a
+ * glow to be in front of.
+ */
+for (const theme of ['light', 'dark'] as const) {
+  test(`the sidebar is glass in ${theme} mode, measured on the element`, async ({ page, request }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await registerAndSignIn(page, request);
+    await page.evaluate((t) => {
+      localStorage.setItem('aspire-theme', t);
+      document.documentElement.classList.toggle('dark', t === 'dark');
+      document.documentElement.setAttribute('data-theme', t);
+    }, theme);
+    await page.goto('/overview');
+    await page.waitForTimeout(200);
+
+    const panel = page.locator('aside').first();
+    const style = await panel.evaluate((el) => {
+      const s = getComputedStyle(el);
+      return {
+        backdropFilter: s.backdropFilter || (s as unknown as Record<string, string>).webkitBackdropFilter,
+        backgroundColor: s.backgroundColor,
+        borderRightColor: s.borderRightColor,
+      };
+    });
+    // Printed so a person reading the run can see the actual values rather
+    // than only that an assertion passed.
+    console.log(`[sidebar/${theme}] backdrop-filter: ${style.backdropFilter}`);
+    console.log(`[sidebar/${theme}] background-color: ${style.backgroundColor}`);
+    console.log(`[sidebar/${theme}] border-right-color: ${style.borderRightColor}`);
+
+    expect(style.backdropFilter, 'the backdrop filter was dropped — check --glass-blur is emitted').toMatch(
+      /blur\(10px\)/,
+    );
+    expect(style.backdropFilter).toMatch(/saturate\(1\.08\)/);
+
+    const rgba = /rgba?\(([^)]+)\)/.exec(style.backgroundColor);
+    expect(rgba, `the sidebar has no background at all (${style.backgroundColor})`).not.toBeNull();
+    const parts = rgba![1].split(',').map((v) => Number(v.trim()));
+    const alpha = parts.length > 3 ? parts[3] : 1;
+    expect(alpha, `the sidebar wash is ${alpha}, which is a tint rather than a surface`).toBeGreaterThan(0.5);
+
+    // The hairline is a real colour and not the page's own — it is the whole
+    // of the separation wherever the glow does not reach.
+    expect(style.borderRightColor).not.toBe('rgba(0, 0, 0, 0)');
+  });
+}

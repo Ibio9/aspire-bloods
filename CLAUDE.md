@@ -203,7 +203,27 @@ by colour, which is why high and low share a hue and both significants share one
 **Where it appears, and it must appear in all of them:**
 1. Result cards and rows — soft background wash (`bg-tint-*`).
 2. The range bar — green across the reference range, shading out through yellow
-   and orange to red. **The MARK on it is NOT a status colour (Aug 2026).** It
+   and orange to red.
+   **THE SCALE IS NOT THE REFERENCE RANGE, AND THE PRINTED ENDS SAY WHICH IT
+   IS (Aug 2026).** The two numbers under the bar were `low` and `high`
+   whatever scale had actually been drawn, so the picture was right and the
+   axis on it was false — the worst of the three available combinations. Two
+   live examples in opposite directions: 122 against 0–41 drew the mark hard
+   against the right-hand end under a label reading "41" (a patient reads that
+   as "just at the top of my range"; it is three times the upper limit), and 65
+   against 125–375 drew the mark INSIDE a bar labelled 125 to 375, a range the
+   value is entirely below. `rangeBarScale` (apps/web/src/lib/rangeScale.ts) is
+   the one derivation, shared by both bars: it always contains the value with
+   headroom, always contains the reference range, rounds its ends OUTWARD to a
+   1/2/2.5/5 ladder so the printed number is one somebody would have chosen,
+   and the reference bounds are marked and labelled WITHIN it — muted ends, the
+   bounds in the text colour on a tick, and a scale end dropped where a bound
+   would print over it. **THE MARK IS NEVER CLAMPED**; the scale is built to
+   contain it, so there is no edge to pin it to. Where the value is so far out
+   that the reference range would be under 5% of the bar, NOTHING IS DRAWN and
+   the fact is said in words instead. `rangeScale.test.ts` pins both live
+   examples by their own numbers.
+   **The MARK on it is NOT a status colour (Aug 2026).** It
    is the `rangemark` token: pure white in dark, espresso in light, always
    inside a ring of the opposite tone. A mark drawn in its own state's colour is
    a mark drawn in the shade of the segment it is standing on — a green dot on
@@ -217,7 +237,21 @@ by colour, which is why high and low share a hue and both significants share one
    the same ring.
 3. Trend charts — the reference range as a soft green band, yellow immediately
    above and below, red beyond the significantly-out thresholds, orange as the
-   transition. Bands sit behind the data at low weight. Points take their own
+   transition.
+   **THE OPTIMAL RANGE IS A NARROWING OF IN-RANGE AND IS DRAWN AS ONE (Aug
+   2026).** It was a hatched bronze band with a dashed edge and its own key
+   entry, over a green reference band — two overlapping green things in two
+   textures, reading as two systems making competing claims about one result.
+   It is one region now, on the bar and on the chart alike: the same green
+   taken a step deeper (`OPTIMAL_DEEPEN`) over the INTERSECTION with the
+   reference range, bounded by the same neutral hairline every other boundary
+   uses. Drawn as the intersection deliberately — a published band whose
+   ceiling sits above the lab's has no narrowing to draw past that point, and
+   green painted over the gold segment is the two-systems problem in a worse
+   form. `chart.optimalBand` / `optimalBandOpacity` / `optimalEdge` are GONE.
+   It is named ONCE, inline, where the value already says "outside optimal":
+   the chart tooltip and the line above the chart. **No key entry, no hatch,
+   no second texture.** Bands sit behind the data at low weight. Points take their own
    state's colour. Band boundaries come from THAT result's reference range and
    THAT marker's severity threshold (sent as `severityThreshold` on the DTO,
    see `statusBands()` in packages/shared) — never a fixed scale.
@@ -304,27 +338,58 @@ by colour, which is why high and low share a hue and both significants share one
    significantly-out bands: below-range is a fifth visible at a typical axis
    scale, so ramping it out to orange painted the transition-into-significant
    immediately below the reference bound. The range bar keeps the full ramp.
-   **THE FINAL PASS (Aug 2026) MADE THE BANDS FLAT AND GAVE THE PLOT A FRAME.**
-   `bandEdgeFade` and `areaOpacity` are gone and both removals are one decision:
-   a band that fades at its own edges has no edge, on a plot whose entire
-   subject is a boundary, and an area fill under the line was a sixth region of
-   colour over five that were already competing. A band is a flat rectangle at
-   `BAND_WEIGHT[status]` meeting its neighbour at a hairline. **Three hues, not
-   four** — `bandPlotColour` is green / gold / gold / red / red, because a flat
-   band has one colour by definition and orange as that colour would be a region
-   whose meaning is "somewhere between the two either side". Orange survives
-   where a genuine gradient exists: the range bar.
-   **THE DARK BANDS WERE OLIVE AND BROWN AND ARE RE-SOLVED.** Measured as what
-   landed on the card: green hsl(76, 0.18, 0.17), gold hsl(43, 0.32, 0.17), red
-   hsl(11, 0.33, 0.26). A band is composited at 10–24%, so 76–90% of it is the
-   CARD — a warm near-black at hue 33 — which pulls every band's hue toward
-   itself and flattens its chroma, and the previous solve had pushed lightness
-   DOWN, which is the direction that costs the most. `PLOT_LIFT` is now the
-   output of a search maximising the COMPOSITE's saturation subject to four
-   constraints: within 17% of the light-mode weight, the ladder holding in dark
-   as well as light, the composite hue within 11° of its light counterpart, and a
-   point mark still clearing 3:1 on its own band. Composite saturation went
-   0.18 → 0.31 (green), 0.32 → 0.42 (gold), 0.33 → 0.39 (red).
+   **THE GRADIENTS ARE BACK, AND FLAT WAS THE WRONG CALL (Aug 2026).** For a
+   while a band was a flat rectangle at `BAND_WEIGHT[status]` meeting its
+   neighbour at a hairline, green / gold / gold / red / red, on the reasoning
+   that a flat band has one colour by definition and orange as that colour
+   would be a region meaning "somewhere between the two either side". That
+   reasoning was right about a flat band and wrong about the band: the region
+   between "just above the range" and "significantly above it" IS a transition,
+   the system draws one everywhere else, and five hard-edged slabs is a fill
+   tool rather than a chart. `bandPlotGradient` is the one derivation and it
+   ramps HUE AND WEIGHT TOGETHER — gold at the reference bound out to ORANGE at
+   the threshold, orange carrying on into red beyond it, and the in-range green
+   flat through its middle and easing only at its own two edges so the resting
+   state still reads as one region. Orange keeps exactly its documented job:
+   the hinge between yellow and red, never a state.
+   **TWO PROPERTIES HOLD AT EVERY POINT ON THE PLOT, not merely between three
+   sampled numbers.** The faintest part of an out-of-range band (at the
+   reference bound) is still heavier than in-range's flat weight, so "further
+   out is more strongly marked" is continuous; and `SIGNIFICANT_AT_THRESHOLD`
+   is DERIVED from the two weights rather than written down, so the two bands
+   meet at one value and the ramp cannot develop a step in the middle of
+   itself. `markerCopy.test.ts` pins both.
+   **THE GRADIENT IS PLACED BY VALUE, NOT BY THE RECT.** A band can reach past
+   the domain and the outer two are open-ended, so the rect is clamped — and a
+   gradient laid out across the clamped rect finishes its ramp early, putting
+   orange somewhere in the middle of the above-range region rather than at the
+   threshold where orange means something. Every stop is placed by its value
+   and converted onto the rect's own extent, which is why there is ONE GRADIENT
+   PER DRAWN BAND rather than one per status.
+   **`BAND_WEIGHT` IS NOW A PEAK, AND PLOT_LIFT AND BAND_WEIGHT ARE ONE
+   DECISION.** The dark bands went olive and brown for a SECOND time with
+   nothing in tokens.ts touched, and the cause is that `PLOT_LIFT` is solved AT
+   A WEIGHT: when the bands went flat, `BAND_WEIGHT` was cut by about a third
+   (0.10/0.17/0.24 → 0.07/0.12/0.18) to hold the same average ink, which is
+   correct arithmetic and silently invalidated the solve, because a band is
+   76–93% CARD and its saturation is very nearly linear in that number.
+   Measured at the reduced weights: green hsl(80, 0.24, …), gold hsl(43, 0.33,
+   …) — the exact figures the previous re-solve existed to fix. Weights are
+   0.11 / 0.21 / 0.28 and `PLOT_LIFT` is re-solved at them, by a search
+   maximising the COMPOSITE's saturation subject to five constraints: within
+   17% of the light-mode weight, the ladder holding in DARK as well as light
+   (which is what forces red's lightness up — a saturated brick red is the
+   darkest of the four and sits below gold otherwise), the composite hue within
+   11° of its light counterpart, and a point mark still clearing 3:1 on its own
+   band. Composite saturation 0.24 → 0.33 (green), 0.33 → 0.45 (gold),
+   0.34 → 0.46 (red). **Change either number and this has to be solved again.**
+   **A TICK IS DROPPED WHERE IT WOULD PRINT ON A REFERENCE BOUND**, because the
+   bound is the number that means something. `TICK_BOUND_GAP` is 8% of the
+   domain — 16px on the shortest plot this chart is drawn at — and it is a
+   share of the DOMAIN standing in for a distance on screen, which is why 2%
+   let a tick at 400 land on a bound at 375. Dropping one reruns the ladder at
+   a finer step rather than falling back to the unfiltered set, which is what
+   used to put the collision straight back.
    **THE PLOT IS AN INSET PANEL.** One hairline frame, no shadow, no inner
    border, a surface fractionally away from the card. "No box" was right while
    the bands were slabs tiling the area edge to edge; with flat low-weight bands
@@ -777,7 +842,7 @@ comparison with this database's own history catches the one that actually
 happens: a valid, restorable dump a third the size it was last night. That one
 **warns and still uploads**, because refusing it would turn a suspicion into a
 night with no backup at all. curl + python3 in the image, because it is
-postgres:16-alpine and has no Node.
+postgres:18-alpine and has no Node.
 
 **Never `CLINIC_CONTACT_EMAIL`** — a backup failure is not something a patient
 is told about.
@@ -789,8 +854,21 @@ is told about.
 GitHub Action. **An untested backup is not a backup**, so the job now does the
 half of the test a client-only container can:
 
+0. **THE CLIENT MAJOR VERSION MUST BE >= THE SERVER'S, AND THAT IS CHECKED AT
+   RUNTIME (Aug 2026).** `pg_dump` refuses outright to dump a server newer than
+   itself. The image was pinned at `postgres:16-alpine` to match
+   `docker-compose.yml` — the LOCAL database, which is not the one this
+   container dumps — and Railway's Postgres is 18.4, so the first real run
+   failed at the DUMP stage having uploaded nothing. The pin follows the SERVER
+   and it is `postgres:18-alpine`. The Dockerfile already carried a comment
+   saying to bump it, which is why the fix is a CHECK: `STAGE="VERSION"` reads
+   `server_version_num` and `pg_dump --version` before dumping and fails with
+   both numbers and the file to edit named. Railway will upgrade again.
 1. `set -o pipefail` matters — `pg_dump | gzip` exits with gzip's status, and
-   gzip happily compresses a truncated stream.
+   gzip happily compresses a truncated stream. **This is what made the version
+   failure safe**: gzip turns an empty stream into a valid 20-byte archive, so
+   without it the job would have uploaded that and recorded SUCCEEDED. Do not
+   remove it as redundant.
 2. `gzip -t`, an uncompressed-size floor, and a check that the dump contains
    `COPY public."Report" / "ReportResult" / "User"`. A dump against an empty
    database, a wrong URL or a role with no read permission all produce a
@@ -816,35 +894,43 @@ It refuses to run unless the target database's name contains "drill" or
 
 # The sidebar (Aug 2026)
 
-- **It is a TRANSLUCENT WASH, in both shells (changed Aug 2026).** It went
-  `bg-cream-50` → nothing → `.panel-wash`, and the middle state is the one
-  worth remembering: an opaque fill drew a 288px vertical slab across the
-  corner glow, and removing it entirely fixed the seam by removing the panel —
-  the column became the same tone as the page, so a signed-in screen read as
-  one undifferentiated dark field with a title floating in it. `.panel-wash`
-  (globals.css) is a panel in FRONT of the light rather than on top of it.
-  One colour and one alpha, both tokens: `--c-panel` is BRAND ESPRESSO IN BOTH
-  THEMES and `--panel-wash` is `PANEL_WASH_ALPHA` (6% light, 38% dark). The
-  single colour is what makes it work in both directions — espresso dims a
-  cream page and LIFTS a #110F0D one, which is the only direction available in
-  dark, because a darker wash on a near-black page measures 1.02:1 however far
-  it is pushed (the same trap recorded on `darkWhite`). Measured: 1.10:1 and
-  1.17:1 against the page, which sits it between the page and a card (1.44:1) —
-  page, panel, card. Over the glow it knocks the core back to 1.10:1 of itself
-  while the lit part of the panel stays 1.78:1 above the unlit part, so the
-  light is visibly still there and continuous across the seam.
-- **The hairline is `border-panel-edge`, not `border-taupe`.** One step
-  stronger: 1.88:1 against the light page (was 1.40) and 3.40:1 against the
-  dark one (was 2.17). It is the whole of the separation wherever the glow does
-  not reach — which on a wide window is most of the column, since the glow's
-  ellipse ends well before x=288px at 1440.
-- **NO BACKDROP BLUR, and that is a decision.** The only thing behind the panel
-  is the page colour on `html` and one fixed radial. Blurring a smooth gradient
-  returns the same gradient, so `backdrop-filter` buys a compositing layer on a
-  sticky element and no visible difference at all. The place it would earn
-  itself is the MOBILE DRAWER, which has scrimmed content behind it — and that
-  keeps its opaque surface instead, because navigation read through the page it
-  navigates is worse than either.
+- **IT IS THE GLASS MATERIAL, AND SINCE Aug 2026 THE GLASS COLOUR TOO.** The
+  blur and the saturation were shared with `.glass` already; the COLOUR was
+  not, and that is what kept the column reading as a flat piece of page rather
+  than a surface in front of one. It was brand espresso at 6% / 38% — a faint
+  tint of a colour far from every surface around it — measuring 1.10:1 off the
+  light page and 1.17:1 off the dark one, against a card's 1.30 / 1.28. A tenth
+  of the way to being a panel. `--c-panel` is now set from the SAME EXPRESSION
+  as `--c-glass` (the card tone) so the two cannot drift, and `PANEL_WASH_ALPHA`
+  is 75% / 78% against the control bar's 62% / 58%. One material, one look, a
+  per-surface alpha — which was always the stated intent and was being
+  contradicted by the colour. Measured after: 1.16:1 light (and the column now
+  sits ABOVE the page rather than below it, the same direction as the control
+  bar's glass) and 1.20:1 dark, with the glow knocked back to 1.58:1 of itself
+  and the lit part still 1.20:1 above the unlit part.
+  **THE CEILING IS THE GLOW, NOT THE CARD.** Past about 80% in dark the panel
+  stops transmitting — its lit and unlit halves converge and it becomes a lid —
+  and that binds before "stays below a card" does. `stillLit` in
+  tokenContrast.test.ts is what holds it.
+  **THE MATERIAL IS MEASURED ON THE ELEMENT, NOT REVIEWED.** A screenshot
+  cannot settle whether the backdrop filter is there: blurring a smooth radial
+  returns the same radial. And the failure mode is silent — the declaration is
+  `blur(var(--glass-blur)) saturate(var(--glass-saturate))`, so one missing
+  custom property makes the WHOLE declaration invalid and the browser drops it
+  to `none` with no warning. `e2e/patient-sidebar.spec.ts` reads
+  `backdrop-filter` and `background-color` off the aside in both themes and
+  prints them.
+- **The hairline is `border-panel-edge`, not `border-taupe`, and it is PER
+  THEME.** One step of the taupe scale is worth very different amounts against
+  a cream page and a near-black one, so light takes `taupe[700]` (2.58:1, was
+  1.88 at taupe[600] and 1.40 at bare taupe) and dark stays at `taupe[600]`
+  (3.40:1) — a further step there measures 5.12:1, which is a line of light
+  down the side of the page rather than a hairline. It is the whole of the
+  separation wherever the glow does not reach, which on a wide window is most
+  of the column, since the glow's ellipse ends well before x=288px at 1440.
+- **THE MOBILE DRAWER KEEPS ITS OPAQUE SURFACE.** It is a floating layer over
+  scrimmed content, and navigation read through the page it navigates is worse
+  than either.
 - `apps/server/tests/tokenContrast.test.ts` holds all of it: separation from
   the page, that it stays below a card, that it dims the light without blocking
   it, that every label on it clears AA lit AND unlit, and that the hairline
@@ -921,8 +1007,42 @@ It refuses to run unless the target database's name contains "drill" or
   invent a unit to clear that list.
 - Markers group by health area (MarkerCategory), many-to-many — one Albumin record
   in four areas, never four Albumin records
-- Auth cards never scroll internally at any viewport. If a step doesn't fit,
-  restructure the step; never add a scrollbar.
+- **Auth cards never scroll internally at any viewport, and the PAGE now may
+  (changed Aug 2026).** These were one rule and they are two. A scrollbar
+  inside the card is still forbidden — it is the moment somebody stops trusting
+  they have seen the whole form they are about to agree to — but that was being
+  enforced by pinning the whole shell to exactly one viewport at md+, which
+  made every screen's height a hard budget, and the registration form paid for
+  it in field widths and the gaps between them. A first-name box that clips
+  "Ibrahi" is the same failure the no-scrollbar rule exists to prevent. So: the
+  page scrolls when a screen needs more than a viewport, the card grows to its
+  content and never scrolls, and the dark panel is `sticky` at md+ so it stays
+  the fixed half of the composition. Every screen that fits is unchanged —
+  `min-h-screen` plus `my-auto` still centres it in one viewport.
+- **The name row is TWO ACROSS, and Title is on its own capped line.** Three
+  equal columns gave "Mr" as much room as a surname and a first name about
+  150px, which clips at six characters. The gap BETWEEN fields is 1.35
+  `--auth-step` against roughly 6px inside one — it was 0.9, which at a 720px
+  laptop is 12.6px against 6px, near enough the same number that the form read
+  as one undifferentiated stack of boxes.
+- **THE DATE PICKER'S MONTH AND YEAR ARE DROPDOWNS, and it opens IN FLOW (Aug
+  2026).** The header used to be a button that zoomed out a level — day grid to
+  a 12-month grid to a 12-year grid, three taps to any date, and a genuine
+  improvement on the ±1-month arrows it replaced. It is still three taps and it
+  is three taps nobody finds: a header reading "March 1985" looks like a
+  caption and the affordance saying otherwise is a hover state. Two Listboxes
+  (never a native select) say what they do while sitting still, the year one
+  searchable because 120 of them is a scroll otherwise. And the panel is no
+  longer absolutely positioned: it pushed the two fields after it out of sight,
+  and a calendar that hides the form it is part of makes a person close it to
+  check what they were doing. In flow it takes its own room, which is only
+  affordable because the auth page scrolls now.
+- **The biological-sex explanation belongs to the CONTROL.** Full-width helper
+  text under the label, with the control itself capped — it used to sit in the
+  right-hand half of a two-column row, so one sentence wrapped every three or
+  four words. `BIOLOGICAL_SEX_PURPOSE` no longer names ferritin and
+  haemoglobin: that is a fact about which analytes are sex-dependent offered to
+  somebody who has not yet had a blood test.
 - Optimal ranges: published guidance with a named source, or an explicit entry with
   low/high null and the reason. Never invent one, never extrapolate from a related
   marker.
@@ -1067,6 +1187,27 @@ It refuses to run unless the target database's name contains "drill" or
   change; `npm run audit:age-ranges` writes docs/audits/age-specific-ranges.md.
   Unlike the sex-specific loader it does NOT delete the blanket row: a sex split
   is exhaustive and a set of age brackets is not.
+- **THE FIRST SIGN-IN WALKTHROUGH IS A SEQUENCE, NOT A DOCUMENT (Aug 2026).**
+  One heading at a time, forward and back, arrow keys, Skip on every step, and
+  the SAME progress bar the registration form uses — a person arriving here has
+  filled that form in ten seconds ago. Not one word of the copy changed and it
+  is still not a tour: nothing points at parts of an interface they have not
+  seen. **EVERY STEP IS IN THE DOM AT ALL TIMES** and one is shown, via
+  `.welcome-step` in globals.css — a display toggle rather than a conditional
+  render, so `@media print` reveals all four in order and Ctrl+F finds copy on
+  a step that is not on screen. `display: none` specifically, so a hidden step
+  is not a tab stop.
+- **REGISTRATION ASKS FOR ONE CODE, ONCE (Aug 2026).** Verifying the email used
+  to answer with a fresh OTP challenge, so a new patient read one six-digit
+  code out of an email and then a SECOND one out of a second email on a screen
+  that looked identical. Both are one-time codes to the same mailbox and the
+  second proved nothing the first had not; what a patient experienced was one
+  step repeating itself, which reads as a fault. `verifyEmail` issues the
+  session directly. **Nothing is relaxed:** the account still cannot become
+  ACTIVE without the emailed code, `login()` still refuses
+  PENDING_VERIFICATION, no device is trusted at enrolment, and two-factor
+  sign-in is untouched and mandatory from the next sign-in onwards —
+  `self-signup.spec.ts` has a test whose entire job is to hold that.
 - **THE FIRST SIGN-IN WALKTHROUGH IS TRACKED SERVER-SIDE**
   (`User.walkthroughSeenAt`), never in localStorage — a first sign-in is a fact
   about the person, and a flag in storage brings the screen back on their phone,
@@ -1127,6 +1268,13 @@ It refuses to run unless the target database's name contains "drill" or
   also a patient shares a browser with their own account. Escape closes it only
   when focus is inside, and returns focus to the disclosure. Every out-of-range
   result stays in the list: no cap, no "show more".
+  **THE COLUMNS GO WITH THE LIST (Aug 2026).** The grid was two-plus-one at lg
+  whether or not there was a list in the two, so collapsing left the left two
+  thirds empty and the contact card floating in the third — a card beside
+  nothing, which reads as a rendering fault rather than a folded section.
+  Collapsed it is one column, and because a single-column grid puts the card in
+  the row BELOW the collapsing region rather than beside it, the card rides up
+  as the list folds instead of jumping: the reflow IS the animation.
   **`.collapse-region` animates `grid-template-rows` from `0fr` to `1fr`**, so
   the browser interpolates to the content's own height without anybody
   measuring it — and `visibility: hidden` (delayed by the duration on the way

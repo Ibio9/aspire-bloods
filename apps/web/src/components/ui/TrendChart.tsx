@@ -15,10 +15,12 @@ import {
 import {
   asMarkerStatus,
   chart as chartTokens,
+  hueTint,
   statusBands,
   statusPaint,
-  bandPlotColour,
+  bandPlotGradient,
   BAND_WEIGHT,
+  OPTIMAL_DEEPEN,
   severityThresholdFor,
   formatOptimalRange,
   formatReferenceBound,
@@ -71,18 +73,22 @@ import { statusColor, statusLabel } from '../../lib/markerCopy';
  * Four changes, and they are one change:
  *
  *  1. WEIGHT. A band is composited at `BAND_WEIGHT` (statusBands.ts) rather
- *     than painted at full strength, and the five weights are unequal: in range
+ *     than painted at full strength, and the weights are unequal: in range
  *     carries almost nothing, out-of-range a little, significantly-out a little
  *     more. The reader meets the line first.
- *  2. FALLOFF. Each band fades out over `bandEdgeFade` of its own height at
- *     both ends, so it reads as a region rather than as a block. What used to
- *     be a hard step between two saturated fields is now two soft edges with a
- *     hairline between them.
+ *  2. THE RAMP. Each band is a GRADIENT rather than a slab, in hue and in
+ *     weight together (`bandPlotGradient`): gold at the reference bound running
+ *     out to orange at the significantly-out threshold, orange carrying on into
+ *     red beyond it, and the in-range green flat through its middle and easing
+ *     at its own two edges. So "further out" is drawn as a continuous statement
+ *     rather than as three sampled ones, and orange keeps the job the design
+ *     rules give it: the hinge between yellow and red, never a state.
  *  3. HAIRLINES. The boundaries are 1px strokes at low opacity — and the
- *     reference bounds are LABELLED INLINE at the right edge of the plot, so
- *     "where does my range actually start" is answered on the chart instead of
- *     in the key.
- *  4. AXES. Round tick values only, four of them, no gridlines, no box.
+ *     reference bounds are LABELLED INLINE on the left axis, so "where does my
+ *     range actually start" is answered on the chart instead of in the key.
+ *  4. AXES. Round tick values only, four of them, no gridlines, no box — and a
+ *     tick that would print on top of a reference bound is dropped, because the
+ *     bound is the number that means something.
  *
  * WHY THAT IS STILL SAFE. Colour is the last thing carrying status, never the
  * first — and softening it takes nothing away from the layers that do. The
@@ -170,6 +176,33 @@ function decimalsOf(value: number): number {
  * chart is read for its shape; the axis is there to give that shape a scale,
  * and every extra label is furniture competing with the data.
  */
+/**
+ * HOW CLOSE A TICK MAY GET TO A REFERENCE BOUND BEFORE IT IS DROPPED, as a
+ * share of the y domain.
+ *
+ * It was 2%, which is not a distance on screen — it is a distance in the
+ * marker's own units, and the two are only related through the plot's height.
+ * On a marker whose domain spans ~500 units over a ~200px plot, 2% is 10 units
+ * and therefore 4px: a round tick at 400 and a reference bound at 375 cleared
+ * it comfortably and then printed on top of each other.
+ *
+ * 8%. On the SHORTEST plot this chart is ever drawn at (the `h-64` case, less
+ * the margins and the x-axis, so roughly 200px) that is 16px — comfortably
+ * more than the 12px `BoundaryLabels` uses to resolve its own collisions,
+ * because these two labels are not merely near each other, they are in the
+ * same gutter and one of them has a lead rule attached.
+ *
+ * 6% was tried first and is the arithmetic answer (12px, the same figure);
+ * rendered, it left ALT's tick at 50 sitting directly on its reference bound
+ * at 41, which is the collision this exists to prevent. Nothing is lost by the
+ * extra room: dropping a tick reruns the ladder at a finer step, so the axis
+ * ends up with the same number of labels somewhere else.
+ *
+ * The BOUND always wins, never the tick: a tick value is where the scale
+ * happens to be marked and a bound is a clinical threshold.
+ */
+const TICK_BOUND_GAP = 0.08;
+
 function niceTicks(min: number, max: number, target = 4): number[] {
   if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return [];
   const step = niceStep((max - min) / target);
@@ -357,6 +390,95 @@ function PlotPanel() {
       shapeRendering="crispEdges"
       aria-hidden="true"
     />
+  );
+}
+
+/**
+ * THE OPTIMAL RANGE, AS A NARROWING OF IN-RANGE AND NOT A SECOND SYSTEM.
+ *
+ * It used to be a hatched band with a dashed edge and its own line in the key,
+ * drawn over a green reference band — two overlapping green regions in two
+ * textures, which reads as two schemes making competing claims about the same
+ * result. An optimal range is not a parallel concept: it is a NARROWING of the
+ * lab's range, and it is drawn as one now. The same green, taken a step deeper
+ * over the part of the reference range that is also optimal, with a neutral
+ * hairline where the narrowing starts.
+ *
+ * DRAWN AS THE INTERSECTION WITH THE REFERENCE RANGE, and per period, which is
+ * two decisions:
+ *  · Intersection, because a published band whose ceiling sits above the lab's
+ *    has no narrowing to draw past that point, and green painted over the gold
+ *    segment would be the two-systems problem again in a worse form. The band's
+ *    own figures are stated in words — in the tooltip and above the chart — so
+ *    nothing is lost by not drawing them.
+ *  · Per period, because the reference range can change partway through a
+ *    series and the intersection changes with it.
+ *
+ * NOT a ReferenceArea, for the same reason PlotPanel is not: Recharts gives
+ * every ReferenceArea the class e2e/chart-bands.spec.ts groups by x-extent to
+ * count band periods, and a region that is not a status band must not be
+ * counted as one.
+ */
+interface OptimalRegion {
+  x1: number;
+  x2: number;
+  from: number;
+  to: number;
+  /** The edges of the narrowing that are NOT already a reference bound — a bound has a hairline of its own. */
+  edges: number[];
+}
+
+function OptimalRegions({ regions }: { regions: OptimalRegion[] }) {
+  const plot = usePlotArea();
+  const xScale = useXAxisScale();
+  const yScale = useYAxisScale();
+  if (!plot || !xScale || !yScale) return null;
+  return (
+    <g aria-hidden="true">
+      {regions.map((region, i) => {
+        const px = [xScale(region.x1), xScale(region.x2)];
+        const py = [yScale(region.from), yScale(region.to)];
+        if ([...px, ...py].some((v) => v == null || !Number.isFinite(v))) return null;
+        const left = Math.max(plot.x, Math.min(px[0] as number, px[1] as number));
+        const right = Math.min(plot.x + plot.width, Math.max(px[0] as number, px[1] as number));
+        const top = Math.max(plot.y, Math.min(py[0] as number, py[1] as number));
+        const bottom = Math.min(plot.y + plot.height, Math.max(py[0] as number, py[1] as number));
+        if (right <= left || bottom <= top) return null;
+        return (
+          <g key={`optimal-${i}`}>
+            <rect
+              x={left}
+              y={top}
+              width={right - left}
+              height={bottom - top}
+              fill={hueTint.green.plot}
+              fillOpacity={OPTIMAL_DEEPEN}
+            />
+            {region.edges.map((value) => {
+              const y = yScale(value);
+              if (y == null || !Number.isFinite(y)) return null;
+              return (
+                <line
+                  key={`optimal-edge-${value}`}
+                  x1={left}
+                  x2={right}
+                  y1={y}
+                  y2={y}
+                  // The same neutral every other boundary in this chart is drawn
+                  // in, at the lighter of the two weights: a reference bound is
+                  // heavier because it is what the chart is about. A hue here
+                  // would be the second system coming back as a line.
+                  stroke={chartTokens.referenceEdge}
+                  strokeOpacity={chartTokens.severityEdgeOpacity}
+                  strokeWidth={1}
+                  shapeRendering="crispEdges"
+                />
+              );
+            })}
+          </g>
+        );
+      })}
+    </g>
   );
 }
 
@@ -566,7 +688,6 @@ export function TrendChart({
   // Pattern ids are document-global; two marker charts on one page sharing an
   // id would make the second one's band reference the first one's pattern.
   const uid = useId().replace(/:/g, '');
-  const hatchId = `optimal-hatch-${uid}`;
 
   /**
    * Only points that were actually placed against a range are plotted.
@@ -798,10 +919,17 @@ export function TrendChart({
    * still has a scale on the left rather than an empty gutter.
    */
   const yTicks = (() => {
-    const all = niceTicks(domainMin, domainMax);
-    const span = domainMax - domainMin;
-    const kept = all.filter((tick) => !boundaryLabels.some((b) => Math.abs(b.value - tick) < span * 0.02));
-    return kept.length >= 2 ? kept : all;
+    const gap = (domainMax - domainMin) * TICK_BOUND_GAP;
+    const clear = (ticks: number[]) => ticks.filter((t) => !boundaryLabels.some((b) => Math.abs(b.value - t) < gap));
+    // Asking for more ticks and clearing again, rather than falling back to the
+    // unfiltered set. The old fallback put the collision straight back: on a
+    // marker whose bounds swallow most of a four-tick ladder, "keep them all"
+    // means keeping the two that print over a bound.
+    for (const target of [4, 6, 8, 10]) {
+      const kept = clear(niceTicks(domainMin, domainMax, target));
+      if (kept.length >= 2) return kept;
+    }
+    return [];
   })();
   const tickDecimals = yTicks.reduce((most, tick) => Math.max(most, decimalsOf(tick)), 0);
 
@@ -832,15 +960,76 @@ export function TrendChart({
           })
           .join(', then ');
 
-  // A one-sided optimal band ("below 5.0 mmol/L") has to end somewhere on
-  // screen. Running it to the edge of the plot would shade impossible
-  // territory — negative cholesterol — so the open side stops at the
-  // reference band's own bound, or at the furthest observed value if a result
-  // sits beyond it, and never past the plot edge.
-  const refLow = Math.min(...allLows);
-  const refHigh = Math.max(...allHighs);
-  const optimalLow = optimal ? (optimal.low ?? Math.max(domainMin, Math.min(refLow, ...values))) : null;
-  const optimalHigh = optimal ? (optimal.high ?? Math.min(domainMax, Math.max(refHigh, ...values))) : null;
+  /**
+   * THE BAND RECTS AND THEIR GRADIENTS, computed together because the gradient
+   * has to be mapped from the band's TRUE extent onto the rect that is actually
+   * drawn.
+   *
+   * A band can reach past the domain — a marker whose range is 135–145 puts the
+   * top of its above-range band at 160, well past a 148 axis — and the outermost
+   * two are open-ended by design. So the rect is clamped, and if the gradient
+   * were laid out across the clamped rect its ramp would finish early: gold
+   * would reach orange somewhere in the middle of the above-range region rather
+   * than at the threshold where orange means something. Every stop is therefore
+   * placed by its VALUE and then converted, so the colour at a given value is
+   * the same whatever the axis happens to be showing.
+   *
+   * An open band has no true extent to map from, so it takes the drawn one —
+   * which is the only thing defined for "everything above this line".
+   */
+  const bandRects = bandSegments.flatMap((seg, i) =>
+    seg.bands.map((band) => {
+      const y1 = Math.max(band.from ?? domainMin, domainMin);
+      const y2 = Math.min(band.to ?? domainMax, domainMax);
+      const peak = BAND_WEIGHT[band.status];
+      const drawnSpan = y2 - y1 || 1;
+      const trueFrom = band.from ?? y1;
+      const trueTo = band.to ?? y2;
+      const trueSpan = trueTo - trueFrom || 1;
+      const stops = bandPlotGradient(band.status)
+        .map((stop) => {
+          const value = trueFrom + stop.offset * trueSpan;
+          // SVG's y grows downward and a value grows upward, so a band's
+          // HIGH-value end is the gradient's offset 0.
+          return {
+            offset: Math.max(0, Math.min(1, 1 - (value - y1) / drawnSpan)),
+            colour: stop.colour,
+            opacity: peak * stop.weight,
+          };
+        })
+        .sort((a, b) => a.offset - b.offset);
+      return {
+        key: `band-${i}-${band.status}`,
+        gradientId: `band-${uid}-${i}-${band.status}`,
+        x1: seg.x1,
+        x2: seg.x2,
+        y1,
+        y2,
+        stops,
+      };
+    }),
+  );
+
+  // The optimal range as a narrowing of each period's own reference range — see
+  // OptimalRegions. A one-sided band ("below 5.0 mmol/L") takes the reference
+  // bound as its open end, which is what makes it a narrowing rather than a
+  // region running off into territory no result can occupy.
+  const optimalRegions: OptimalRegion[] = optimal
+    ? bandSegments.flatMap((seg) => {
+        const from = Math.max(seg.low, optimal.low ?? seg.low, domainMin);
+        const to = Math.min(seg.high, optimal.high ?? seg.high, domainMax);
+        if (!(to > from)) return [];
+        return [
+          {
+            x1: seg.x1,
+            x2: seg.x2,
+            from,
+            to,
+            edges: [...(from > seg.low ? [from] : []), ...(to < seg.high ? [to] : [])],
+          },
+        ];
+      })
+    : [];
 
   const summary = data
     .map((d) => `${formatDate(d.sampleDate)}: ${d.value}, ${statusLabel(d.status).toLowerCase()}`)
@@ -902,22 +1091,27 @@ export function TrendChart({
               labels are not clipped by the SVG's own edge. */}
           <ComposedChart data={rows} margin={{ top: 18, right: 18, left: 6, bottom: 10 }}>
             <defs>
-              {/* The optimal band is told apart from the status bands by its
-                  hatch, not by its hue — it is a different KIND of statement
-                  (advisory guidance, not the lab's range) and must not look
-                  like a sixth status. */}
-              <pattern id={hatchId} width="7" height="7" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
-                <rect width="7" height="7" fill={chartTokens.optimalBand} fillOpacity={chartTokens.optimalBandOpacity} />
-                <line x1="0" y1="0" x2="0" y2="7" stroke={chartTokens.optimalEdge} strokeWidth="1.5" strokeOpacity={0.5} />
-              </pattern>
-              {/* NO BAND GRADIENTS. The bands are flat rectangles at their own
-                  weight now — see the note on `bandPlotColour` and on the
-                  removal of `bandEdgeFade`. A band that fades at its own edges
-                  has no edge, on a plot whose whole subject is a boundary.
+              {/* ONE GRADIENT PER DRAWN BAND. Not one per status: the stops are
+                  placed by VALUE and converted onto each rect's own clamped
+                  extent, so two periods with different ranges cannot share a
+                  definition — see `bandRects`.
 
-                  NO AREA GRADIENT EITHER. The fill under the line was a sixth
-                  region of colour over five that were already competing, and
-                  the line is the content. */}
+                  Both the hue and the weight ramp, which is why this is a
+                  gradient rather than a fill plus a fillOpacity: a band is
+                  faintest where a result is barely outside its range and
+                  strongest where it is furthest out, and that has to be one
+                  continuous statement rather than three sampled ones.
+
+                  NO AREA GRADIENT. The fill under the line was a sixth region
+                  of colour over five that were already competing, and the line
+                  is the content. */}
+              {bandRects.map((rect) => (
+                <linearGradient key={rect.gradientId} id={rect.gradientId} x1="0" y1="0" x2="0" y2="1">
+                  {rect.stops.map((stop, i) => (
+                    <stop key={i} offset={stop.offset} stopColor={stop.colour} stopOpacity={stop.opacity} />
+                  ))}
+                </linearGradient>
+              ))}
             </defs>
 
             <XAxis
@@ -975,52 +1169,31 @@ export function TrendChart({
                 axis minimum to the axis maximum, so the patient sees where
                 their one result sits relative to its range.
 
-                FLAT, AT ONE WEIGHT EACH, WITH HARD EDGES. */}
-            {bandSegments.flatMap((seg, i) =>
-              seg.bands.map((b) => (
-                <ReferenceArea
-                  key={`band-${i}-${b.status}`}
-                  x1={seg.x1}
-                  x2={seg.x2}
-                  // CLAMPED TO THE DOMAIN. Null is "open" — the outermost bands
-                  // run to the edge of the plot rather than asserting a bound
-                  // the lab never gave — and a BOUNDED band can also reach past
-                  // the domain (a marker whose range is 135–145 puts the top of
-                  // its above-range band at 160, well past a 148 axis).
-                  // `ifOverflow="hidden"` clips with a clip-path rather than
-                  // shortening the rect, so an unclamped band is a rect the
-                  // browser has cut a hole in; clamping is what makes the
-                  // geometry equal what is on screen.
-                  y1={Math.max(b.from ?? domainMin, domainMin)}
-                  y2={Math.min(b.to ?? domainMax, domainMax)}
-                  fill={bandPlotColour(b.status)}
-                  // THE WEIGHT IS HERE, on the element, now that there is no
-                  // gradient to carry it. Recharts' ReferenceArea defaults
-                  // fillOpacity to 0.5, so it has to be stated explicitly
-                  // whatever the value is — leaving it off is what once made
-                  // every band on this chart half the weight the tokens chose.
-                  fillOpacity={BAND_WEIGHT[b.status]}
-                  strokeOpacity={0}
-                  ifOverflow="hidden"
-                  zIndex={100}
-                />
-              )),
-            )}
-
-            {optimal && optimalLow != null && optimalHigh != null && (
-              // fillOpacity pinned for the same reason as the status bands
-              // above: the hatch pattern carries its own opacity internally
-              // (chartTokens.optimalBandOpacity), and the library's 0.5 default
-              // was quietly halving it a second time.
+                GRADIENTS AGAIN, AND THE WEIGHT IS IN THE STOPS. The rects are
+                clamped to the domain: `ifOverflow="hidden"` clips with a
+                clip-path rather than shortening the rect, so an unclamped band
+                is a rect the browser has cut a hole in, and clamping is what
+                makes the geometry equal what is on screen. */}
+            {bandRects.map((rect) => (
               <ReferenceArea
-                y1={optimalLow}
-                y2={optimalHigh}
-                fill={`url(#${hatchId})`}
+                key={rect.key}
+                x1={rect.x1}
+                x2={rect.x2}
+                y1={rect.y1}
+                y2={rect.y2}
+                fill={`url(#${rect.gradientId})`}
+                // Pinned at 1 because the weight lives in each stop's own
+                // stop-opacity. Recharts' ReferenceArea defaults fillOpacity to
+                // 0.5, so leaving it off would halve every band a second time —
+                // which it once did to every band on this chart.
                 fillOpacity={1}
                 strokeOpacity={0}
-                zIndex={110}
+                ifOverflow="hidden"
+                zIndex={100}
               />
-            )}
+            ))}
+
+            <OptimalRegions regions={optimalRegions} />
 
             {/* Every band boundary, drawn — and drawn as a HAIRLINE now that
                 the bands themselves are a wash. These used to be near-solid
@@ -1049,26 +1222,13 @@ export function TrendChart({
               )),
             )}
 
-            {/* Dashed edges, so the optimal band has a boundary you can point
-                at even where it sits inside the reference band. */}
-            {optimal?.low != null && (
-              <ReferenceLine
-                y={optimal.low}
-                stroke={chartTokens.optimalEdge}
-                strokeDasharray="4 3"
-                strokeWidth={1.2}
-                zIndex={210}
-              />
-            )}
-            {optimal?.high != null && (
-              <ReferenceLine
-                y={optimal.high}
-                stroke={chartTokens.optimalEdge}
-                strokeDasharray="4 3"
-                strokeWidth={1.2}
-                zIndex={210}
-              />
-            )}
+            {/* The optimal range's own edges are drawn by OptimalRegions, per
+                period and inside its own extent, rather than as two dashed
+                ReferenceLines across the whole plot. A dashed rule spanning the
+                plot is the mark this chart uses for "the reference range
+                changed here", and two marks that differ only in their dash
+                pattern while meaning completely different things is exactly the
+                confusion the cursor was made solid to avoid. */}
 
             {/* The step itself, drawn. The bands already change height here,
                 but a horizontal edge that jumps is easy to read as noise; a
@@ -1151,7 +1311,6 @@ export function TrendChart({
       )}
 
       <ChartKey
-        optimal={optimal}
         statuses={[...new Set(data.map((d) => d.status))]}
         unjoined={!connected && !singlePoint}
         stepped={stepBoundaries.length > 0}
@@ -1180,12 +1339,10 @@ export function TrendChart({
  * greyscale reader gets in full. See the note on `regions` below.
  */
 function ChartKey({
-  optimal,
   statuses,
   unjoined,
   stepped,
 }: {
-  optimal: OptimalRangeDTO | null;
   statuses: MarkerStatusInput[];
   /**
    * The points are NOT joined because their sources aren't comparable for this
@@ -1234,23 +1391,20 @@ function ChartKey({
    * range" beside a green rectangle, and it is one a greyscale reader gets in
    * full.
    *
-   * What remains is what the axis cannot say: the point states, in words and in
-   * the marks the chart actually draws; the optimal band, which is a different
-   * KIND of statement and whose bounds are not on the axis; and the step, which
-   * is a mark rather than a value.
+   * AND NO OPTIMAL ENTRY EITHER (Aug 2026). "Optimal range (hatched)" beside a
+   * hatched swatch was the second half of the two-competing-systems problem:
+   * the hatch existed so the optimal band could be told apart from the
+   * reference band, and the key existed to explain the hatch. With the optimal
+   * range drawn as a NARROWING of the green rather than as a second region,
+   * there is no second texture to name. It is named where it is read instead —
+   * in the tooltip on the point, and in the line above the chart that already
+   * says "Optimal 50–125 nmol/L · outside optimal".
+   *
+   * What remains is what neither the axis nor the copy can say: the point
+   * states, in words and in the marks the chart actually draws; and the step,
+   * which is a mark rather than a value.
    */
   const regions = [
-    ...(optimal
-      ? [
-          <li key="optimal" className="flex items-center gap-2">
-            <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true" className="shrink-0">
-              <rect x="0" y="2" width="18" height="8" fill={chartTokens.optimalBand} fillOpacity={chartTokens.optimalBandOpacity} />
-              <path d="M2 10 L6 2 M7 10 L11 2 M12 10 L16 2" stroke={chartTokens.optimalEdge} strokeWidth="1.2" strokeOpacity="0.6" />
-            </svg>
-            <span className="min-w-0">Optimal range (hatched)</span>
-          </li>,
-        ]
-      : []),
     ...(stepped
       ? [
           <li key="stepped" className="flex items-center gap-2">

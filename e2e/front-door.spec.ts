@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { pressThroughWalkthrough } from './walkthrough';
 
 /**
  * The entry path, for someone who has never been here before.
@@ -48,16 +49,17 @@ async function registerAndVerify(page: import('@playwright/test').Page, request:
   // this is waiting for. Same fix as self-signup.spec.ts already has.
   await expect(page.getByRole('heading', { level: 2, name: 'Confirm your email' })).toBeVisible();
 
+  // ONE CODE, ONCE (Aug 2026). This used to be followed by a second six-digit
+  // code on a second screen — verifying the address opened a 2FA enrolment
+  // challenge, which emailed another one-time code to the same mailbox to
+  // prove the same thing. The response here is a session now.
   const [verifyResponse] = await Promise.all([
     page.waitForResponse(
       (r) => r.url().includes('/api/auth/verify-email') && !r.url().includes('resend') && r.request().method() === 'POST',
     ),
     page.locator('#otp-0').click().then(() => page.keyboard.type(code)),
   ]);
-  const otp = (await verifyResponse.json()).devOtpCode as string;
-  await expect(page.getByRole('heading', { name: 'Set up two-factor sign-in' })).toBeVisible();
-  await page.locator('#otp-0').click();
-  await page.keyboard.type(otp);
+  expect((await verifyResponse.json()).status).toBe('authenticated');
 
   return { email, password };
 }
@@ -112,14 +114,7 @@ test('forgotten password: request a link, spend it, sign in with the new one', a
   // is one press away. Pressing through it is what a real first-time patient
   // does, and it also marks it seen — so everything after this behaves exactly
   // as it did before the walkthrough existed.
-  const welcome = page.getByRole('button', { name: 'Go to my results' });
-  // Wait for EITHER screen before deciding. Checking visibility the instant the
-  // OTP is typed is a race against the redirect, and it loses.
-  await expect(welcome.or(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ }))).toBeVisible({
-    timeout: 15000,
-  });
-  if (await welcome.isVisible().catch(() => false)) await welcome.click();
-  await expect(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })).toBeVisible({ timeout: 10000 });
+  await pressThroughWalkthrough(page, /Good (morning|afternoon|evening)/);
 
   await page.goto('/login');
   await page.getByRole('link', { name: 'Forgotten your password?' }).click();
@@ -169,14 +164,7 @@ test('a deep link followed while signed out returns you to it after signing in',
   // is one press away. Pressing through it is what a real first-time patient
   // does, and it also marks it seen — so everything after this behaves exactly
   // as it did before the walkthrough existed.
-  const welcome = page.getByRole('button', { name: 'Go to my results' });
-  // Wait for EITHER screen before deciding. Checking visibility the instant the
-  // OTP is typed is a race against the redirect, and it loses.
-  await expect(welcome.or(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ }))).toBeVisible({
-    timeout: 15000,
-  });
-  if (await welcome.isVisible().catch(() => false)) await welcome.click();
-  await expect(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })).toBeVisible({ timeout: 10000 });
+  await pressThroughWalkthrough(page, /Good (morning|afternoon|evening)/);
 
   // Sign out, then follow a link into a guarded patient route. /results is
   // inside RoleProtectedRoute — the guard that used to forget where you were
@@ -213,14 +201,7 @@ test('a test cannot be ordered until biological sex is on file, and the prompt e
   // is one press away. Pressing through it is what a real first-time patient
   // does, and it also marks it seen — so everything after this behaves exactly
   // as it did before the walkthrough existed.
-  const welcome = page.getByRole('button', { name: 'Go to my results' });
-  // Wait for EITHER screen before deciding. Checking visibility the instant the
-  // OTP is typed is a race against the redirect, and it loses.
-  await expect(welcome.or(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ }))).toBeVisible({
-    timeout: 15000,
-  });
-  if (await welcome.isVisible().catch(() => false)) await welcome.click();
-  await expect(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })).toBeVisible({ timeout: 10000 });
+  await pressThroughWalkthrough(page, /Good (morning|afternoon|evening)/);
 
   // Registered without a sex (it's optional there on purpose), so the
   // account page should be asking for it — with a reason, not a nag.

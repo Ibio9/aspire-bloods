@@ -245,23 +245,74 @@ export function bandGradientStops(status: MarkerStatusInput): [string, string] {
  * Composited, never mixed: these are alphas applied to the `plot` role, which
  * is why one ladder is right in both themes. See PLOT_LIFT in tokens.ts.
  *
- * EASED AGAIN WHEN THE BANDS WENT FLAT (Aug 2026). 0.10 / 0.17 / 0.24 were
- * solved for bands that FADED OUT over a quarter of their own height at each
- * end, so the stated weight was the peak and the average was well under it.
- * Flat bands hold their full weight to the edge, which is more colour on screen
- * at the same numbers — and on a plot where the in-range band routinely covers
- * two thirds of the area, that is a green field with a line somewhere in it.
- * Reduced by about a third, keeping the ladder and keeping ONE ladder for both
- * themes; tokenContrast.test.ts still holds each band above 1.05:1 off the card
- * and the two themes within 20% of each other.
+ * ── THIS NUMBER IS NOW A PEAK, NOT A FLAT WEIGHT (Aug 2026) ───────────────
+ *
+ * The bands carry gradients again (`bandPlotGradient` below), so a band's
+ * weight varies across its own height and BAND_WEIGHT is the STRONGEST point
+ * in it — at the far end of an out-of-range band, furthest from the reference
+ * range. Every stop is a share of it. That is also the worst case for
+ * everything tokenContrast.test.ts measures at these numbers: the faintest a
+ * band ever gets is not what makes it hard to see through, and a point mark
+ * standing off its own band has to clear the heaviest part of it.
+ *
+ * ── AND IT WENT BACK UP, BECAUSE THE BANDS HAD GONE MUDDY ─────────────────
+ *
+ * 0.10 / 0.17 / 0.24 were solved for bands that FADED OUT at their own edges,
+ * so the stated weight was a peak and the average was well under it. When the
+ * bands went flat those numbers were cut by about a third, to 0.07 / 0.12 /
+ * 0.18 — correct arithmetic for keeping the same average, and it quietly
+ * undid the dark-mode solve in PLOT_LIFT, which had been done AT the old
+ * weights. A band is 76–93% card, so its saturation is very nearly linear in
+ * this number. Measured, as the colour that landed on the dark card at 0.07 /
+ * 0.12: green hsl(80, 0.24, 0.17) and gold hsl(43, 0.33, 0.18) — the olive and
+ * the brown the redesign had already been through once.
+ *
+ * 0.11 / 0.21 / 0.28 with PLOT_LIFT re-solved at those weights: green
+ * hsl(85, 0.33, ...), gold hsl(44, 0.45, ...), red hsl(11, 0.46, ...). The
+ * gradient is what pays for the extra: a band's mean weight is well below its
+ * peak now, so there is more colour where the band is SAYING something and
+ * less where it is merely present.
  */
 export const BAND_WEIGHT: Record<MarkerStatus, number> = {
-  IN_RANGE: 0.07,
-  LOW: 0.12,
-  HIGH: 0.12,
-  SIGNIFICANT_LOW: 0.18,
-  SIGNIFICANT_HIGH: 0.18,
+  IN_RANGE: 0.11,
+  LOW: 0.21,
+  HIGH: 0.21,
+  SIGNIFICANT_LOW: 0.28,
+  SIGNIFICANT_HIGH: 0.28,
 };
+
+/**
+ * Where an out-of-range band starts, as a share of its own peak, AT THE
+ * REFERENCE BOUND.
+ *
+ * 0.62 of 0.21 is 0.130, which is just above in-range's flat 0.11 — so a
+ * result barely outside its range is barely marked, and the band strengthens
+ * as it goes out. The ladder still holds at every point on the plot rather
+ * than only between three representative numbers.
+ */
+const OUT_AT_BOUND = 0.62;
+
+/**
+ * How far the in-range green eases off at its OWN two edges.
+ *
+ * It is flat across the middle — the resting state has to read as one region,
+ * not as a vignette — and gives up a little at the boundary so the step into
+ * gold is a transition rather than a wall. The hairline and the figure on the
+ * axis are what say exactly where the bound is; this is only what stops the
+ * colour claiming to.
+ */
+const GREEN_EDGE_EASE = 0.86;
+
+/**
+ * Where a significantly-out band starts, as a share of ITS peak — DERIVED, so
+ * the two bands meet at exactly one weight and cannot drift apart.
+ *
+ * The out-of-range band ends at its own full weight at the threshold and the
+ * significantly-out band begins there. Written as a literal, one edit to
+ * either weight would put a visible step in the middle of what is meant to be
+ * a continuous ramp, and nothing would fail.
+ */
+const SIGNIFICANT_AT_THRESHOLD = BAND_WEIGHT.HIGH / BAND_WEIGHT.SIGNIFICANT_HIGH;
 
 /** The weight of a band, total for anything that isn't one of the five. */
 export function bandWeight(status: MarkerStatusInput): number {
@@ -302,56 +353,110 @@ export function bandWeight(status: MarkerStatusInput): number {
  * `stops` run low-to-high in value space, which is TOP TO BOTTOM in a chart's
  * y-axis — the caller orients them.
  */
+/** One stop in a band's fill. */
+export interface BandGradientStop {
+  /** 0 at the band's LOW-value end, 1 at its high-value end. The caller orients it: value space is BOTTOM-to-TOP in a chart. */
+  offset: number;
+  /** The hue, in the `plot` role — meant to be composited, never painted. */
+  colour: string;
+  /** A share of this band's own `BAND_WEIGHT`, which is the band's peak. */
+  weight: number;
+}
+
 /**
- * A band's colour, flat — one hue per band, no ramp (Aug 2026).
+ * A BAND'S FILL ACROSS ITS OWN HEIGHT — AND THE GRADIENTS ARE BACK (Aug 2026).
  *
- * FIVE STATES, THREE HUES, and on this chart that is now literal. The bands
- * used to carry a ramp into orange at each significantly-out threshold, which
- * is orange doing its documented job (the transition between yellow and red).
- * With FLAT bands there is no transition to draw: a flat band has one colour by
- * definition, and orange as that colour would make it a fourth region of hue
- * whose meaning is "somewhere between the two either side" — which is not a
- * thing a band can say when it has a hard edge at both ends.
+ * The bands were briefly five flat rectangles meeting at hairlines, on the
+ * reasoning that a flat band has one colour by definition and orange as that
+ * colour would be a region meaning "somewhere between the two either side".
+ * That reasoning was sound about a flat band and wrong about the band: the
+ * region between "just above the range" and "significantly above it" IS a
+ * transition, the system already says so everywhere else it draws one, and
+ * five hard-edged slabs of colour is a fill tool rather than a chart.
  *
- * So the chart's bands are green, gold, gold, red, red, and orange survives
- * where a genuine gradient exists: the range bar, which is one continuous ramp
- * across a marker's whole scale (`bandGradientStops` above). Orange is still
- * the transition and still never a state.
+ * So the ramp is the same ramp the range bar's track has always carried, and
+ * orange keeps exactly the job the design rules give it — the hinge between
+ * yellow and red, never a state a result can be in:
  *
- * Direction is carried by the chevron and the word, exactly as before — which
- * is why above and below can share a hue and both significants can share one.
+ *   IN RANGE          green, flat across the middle, easing at its own edges
+ *   ABOVE / BELOW     gold at the reference bound → ORANGE at the threshold
+ *   SIGNIFICANTLY OUT orange at the threshold → red, outward
+ *
+ * TWO PROPERTIES HOLD AT EVERY POINT ON THE PLOT, not merely between three
+ * sampled numbers:
+ *
+ *  1. THE LADDER. The faintest part of an out-of-range band (`OUT_AT_BOUND`,
+ *     at the reference bound) is still heavier than in-range's flat weight, and
+ *     the heaviest part of it is where significantly-out begins. So "further
+ *     out is more strongly marked" is true continuously, which is the honest
+ *     version of what three fixed weights were approximating.
+ *  2. CONTINUITY. `SIGNIFICANT_AT_THRESHOLD` is derived from the two weights
+ *     rather than written down, so the two bands meet at one value and the
+ *     ramp cannot develop a step in the middle of itself.
+ *
+ * The DIRECTION is the caller's problem and is stated here rather than assumed:
+ * offsets run low value to high value, which is bottom-to-top in a chart whose
+ * y-axis grows upward and left-to-right along a range bar.
  */
-export function bandPlotColour(status: MarkerStatusInput): string {
+export function bandPlotGradient(status: MarkerStatusInput): BandGradientStop[] {
+  const g = hueTint.green.plot;
+  const y = hueTint.yellow.plot;
+  const o = hueTint.orange.plot;
+  const r = hueTint.red.plot;
   switch (asMarkerStatus(status)) {
     case 'SIGNIFICANT_LOW':
-    case 'SIGNIFICANT_HIGH':
-      return hueTint.red.plot;
+      return [
+        { offset: 0, colour: r, weight: 1 },
+        { offset: 1, colour: o, weight: SIGNIFICANT_AT_THRESHOLD },
+      ];
     case 'LOW':
-    case 'HIGH':
-      return hueTint.yellow.plot;
+      return [
+        { offset: 0, colour: o, weight: 1 },
+        { offset: 0.5, colour: y, weight: 0.82 },
+        { offset: 1, colour: y, weight: OUT_AT_BOUND },
+      ];
     case 'IN_RANGE':
-      return hueTint.green.plot;
+      return [
+        { offset: 0, colour: g, weight: GREEN_EDGE_EASE },
+        { offset: 0.12, colour: g, weight: 1 },
+        { offset: 0.88, colour: g, weight: 1 },
+        { offset: 1, colour: g, weight: GREEN_EDGE_EASE },
+      ];
+    case 'HIGH':
+      return [
+        { offset: 0, colour: y, weight: OUT_AT_BOUND },
+        { offset: 0.5, colour: y, weight: 0.82 },
+        { offset: 1, colour: o, weight: 1 },
+      ];
+    case 'SIGNIFICANT_HIGH':
+      return [
+        { offset: 0, colour: o, weight: SIGNIFICANT_AT_THRESHOLD },
+        { offset: 1, colour: r, weight: 1 },
+      ];
     default:
-      return NO_STATUS_PAINT.plot;
+      // Flat neutral. Total by construction, for the same reason every other
+      // lookup in this file is: a `undefined` reaching an SVG stop is not a
+      // colour, and the browser drops it silently.
+      return [
+        { offset: 0, colour: NO_STATUS_PAINT.plot, weight: 1 },
+        { offset: 1, colour: NO_STATUS_PAINT.plot, weight: 1 },
+      ];
   }
 }
 
-export function bandPlotStops(status: MarkerStatusInput): [string, string] {
-  switch (asMarkerStatus(status)) {
-    case 'SIGNIFICANT_LOW':
-      return [hueTint.red.plot, hueTint.orange.plot];
-    case 'LOW':
-      return [hueTint.yellow.plot, hueTint.yellow.plot];
-    case 'IN_RANGE':
-      return [hueTint.green.plot, hueTint.green.plot];
-    case 'HIGH':
-      return [hueTint.yellow.plot, hueTint.yellow.plot];
-    case 'SIGNIFICANT_HIGH':
-      return [hueTint.orange.plot, hueTint.red.plot];
-    default:
-      return [NO_STATUS_PAINT.plot, NO_STATUS_PAINT.plot];
-  }
-}
+/**
+ * HOW MUCH FURTHER THE OPTIMAL PORTION OF THE REFERENCE RANGE IS TAKEN.
+ *
+ * Composited ON TOP of the in-range band, so the optimal region lands at
+ * 0.11 + 0.09 — a deepening of one green rather than a second region in a
+ * second texture. That is the whole change: an optimal range is a NARROWING of
+ * in-range, and until now it was drawn as a hatched band with its own key
+ * entry, which reads as a parallel system making a competing claim.
+ *
+ * Small on purpose. It has to be visible as a shift and must not be mistaken
+ * for a band boundary, which is what the hairlines are for.
+ */
+export const OPTIMAL_DEEPEN = 0.09;
 
 /**
  * What a band is, in words. Present on every band in every chart key, because

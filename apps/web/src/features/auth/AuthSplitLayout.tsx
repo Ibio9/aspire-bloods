@@ -20,31 +20,34 @@ interface AuthSplitLayoutProps {
  * Login and signup share this exact left panel; only the copy on it and the
  * width of the right-hand form column differ per caller.
  *
- * Viewport-fit at md+: the shell is exactly one viewport tall and the page
- * never scrolls. Both panels fill that height and centre their own content,
- * and the vertical scale (--auth-step, see .auth-screen in globals.css)
- * shrinks with the viewport so a 720px-tall laptop gets a smaller version of
- * the same composition rather than a cropped one.
+ * THE CARD NEVER SCROLLS INTERNALLY, AND THE PAGE NOW MAY (changed Aug 2026).
  *
- * THE CARD NEVER SCROLLS INTERNALLY. Not the page, and not the card — the
- * form column used to carry `overflow-y-auto`, which meant the registration
- * form on a 720px laptop grew a scrollbar inside the most-looked-at surface
- * in the product. A scrollbar there is not a small blemish: it is the moment
- * someone stops trusting that they have seen the whole form they are about to
- * agree to. So the column and the card are both `overflow-hidden` at md+, and
- * any step whose content cannot fit is restructured until it does (see
- * RegistrationForm, which is a sequence of steps for exactly this reason)
- * rather than being allowed to overflow.
+ * These were one rule and they are two. A scrollbar inside the card is still
+ * forbidden — it is the moment someone stops trusting that they have seen the
+ * whole form they are about to agree to — but that was being enforced by
+ * pinning the whole shell to exactly one viewport at md+, which made every
+ * screen's height a hard budget. The registration form paid for it in the only
+ * currency it had: field widths and the gaps between them. A first name box
+ * that clips "Ibrahi" is a worse failure than a page that scrolls, and it is
+ * the same failure the no-scrollbar rule exists to prevent — someone unable to
+ * see what they have entered.
  *
- * Below md the split collapses to a single naturally-scrolling column — the
- * PAGE scrolls there, the card still does not. Pinning a phone to 100vh breaks
- * the moment the on-screen keyboard opens and steals half the viewport, so
- * overflow is only ever locked at md+.
+ * So the page scrolls when a screen needs more than a viewport, the card grows
+ * to its content and never scrolls, and the dark panel STICKS at md+ so it
+ * remains the fixed half of the composition rather than sliding away. A screen
+ * that fits — every one but registration — is unchanged: `min-h-screen` plus
+ * `my-auto` still centres the card in exactly one viewport.
+ *
+ * --auth-step (see .auth-screen in globals.css) still scales the vertical
+ * rhythm with the viewport, so a 720px laptop gets a smaller version of the
+ * same composition rather than a cropped one.
  */
 export function AuthSplitLayout({ children, eyebrow, headline, supporting, wide }: AuthSplitLayoutProps) {
   return (
-    <main className="auth-screen min-h-screen md:flex md:h-screen md:min-h-0 md:overflow-hidden">
-      <div className="relative flex min-h-[300px] flex-col overflow-hidden bg-gradient-to-br from-night-soft via-night-soft to-night px-7 py-[calc(var(--auth-step)*2)] text-oncolor sm:px-10 md:h-full md:min-h-0 md:w-[44%] md:px-14 lg:px-16">
+    <main className="auth-screen min-h-screen md:flex md:items-start">
+      {/* Sticky rather than `h-full`: the composition on this side is fixed and
+          should stay put while a long form scrolls past it. */}
+      <div className="relative flex min-h-[300px] flex-col overflow-hidden bg-gradient-to-br from-night-soft via-night-soft to-night px-7 py-[calc(var(--auth-step)*2)] text-oncolor sm:px-10 md:sticky md:top-0 md:h-screen md:w-[44%] md:px-14 lg:px-16">
         {/* Barely-there texture, per "the subtle background texture is barely there and better for it" */}
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.04]"
@@ -92,13 +95,13 @@ export function AuthSplitLayout({ children, eyebrow, headline, supporting, wide 
           floats rather than sitting flush. Padding stays generous — this is the most-looked-at
           surface in the product — but it scales with the viewport instead of being fixed.
 
-          Neither the column nor the card scrolls at md+. `max-h-full` bounds the card to the
-          column, `overflow-hidden` makes an overflow visible in development rather than
-          silently absorbed by a scrollbar, and each screen is composed to fit inside that
-          bound. my-auto centres it in whatever height is left. */}
-      <div className="flex flex-1 justify-center bg-cream px-5 py-[calc(var(--auth-step)*2)] sm:px-8 md:h-full md:min-h-0 md:overflow-hidden md:px-10 lg:px-16">
+          THE CARD STILL NEVER SCROLLS: no `max-h`, no `overflow`, so it takes the height its
+          content needs and the PAGE is what moves when that is more than a viewport.
+          `min-h-screen` plus `my-auto` keeps a short screen centred in exactly one viewport,
+          which is every screen but registration. */}
+      <div className="flex flex-1 justify-center bg-cream px-5 py-[calc(var(--auth-step)*2)] sm:px-8 md:min-h-screen md:px-10 lg:px-16">
         <div
-          className={`my-auto flex w-full flex-col rounded-card border border-taupe bg-cream-50 p-[calc(var(--auth-step)*2)] shadow-float motion-safe:animate-riseIn md:max-h-full md:overflow-hidden ${
+          className={`my-auto flex w-full flex-col rounded-card border border-taupe bg-cream-50 p-[calc(var(--auth-step)*2)] shadow-float motion-safe:animate-riseIn ${
             wide ? 'max-w-4xl' : 'max-w-md'
           }`}
         >
@@ -112,25 +115,24 @@ export function AuthSplitLayout({ children, eyebrow, headline, supporting, wide 
 /**
  * The body of the two long auth screens — registration and invite activation.
  *
- * Stacked, the introduction (eyebrow, heading, the paragraph explaining what
- * registering does) plus the first form step plus the cross-link came to
- * roughly 1050px, which overflows a 720px laptop by a third even with the form
- * split into steps. There was nothing left to cut: every line of that copy is
- * doing work, and the brief is explicit that the answer to "it doesn't fit" is
- * to restructure rather than to scroll.
+ * Two columns at md+ — the introduction on the left, the form on the right —
+ * which is the same content at half the height as the stacked version. Below
+ * md it stacks. Not one word of copy changed to make this fit.
  *
- * So at md+ it becomes two columns inside the wide card — the introduction on
- * the left, the form on the right — which is the same content at half the
- * height. Below md it stacks exactly as it did, where the page scrolls anyway.
- * Not one word of copy changed to make this fit.
+ * THE FORM COLUMN TAKES THE LARGER SHARE, AND IT GOT LARGER (Aug 2026).
+ * 0.8fr / 1.2fr split a max-w-4xl card so that a three-across name row landed
+ * at about 150px a field, which clips an ordinary first name. The introduction
+ * is four short lines and a link and reads perfectly well narrower; the form
+ * is the thing being filled in. 0.68fr / 1.32fr, and the name row is two
+ * across rather than three (see RegistrationForm).
  */
 export function AuthWideBody({ intro, children }: { intro: ReactNode; children: ReactNode }) {
   return (
-    <div className="grid min-h-0 grid-cols-1 gap-x-[calc(var(--auth-step)*2.2)] gap-y-[calc(var(--auth-step)*1.4)] md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+    <div className="grid grid-cols-1 gap-x-[calc(var(--auth-step)*2.2)] gap-y-[calc(var(--auth-step)*1.4)] md:grid-cols-[minmax(0,0.68fr)_minmax(0,1.32fr)]">
       {/* The cross-link sits at the foot of this column (it uses mt-auto via
           its own top border), so the two columns end level. */}
-      <div className="flex min-h-0 flex-col">{intro}</div>
-      <div className="flex min-h-0 flex-col">{children}</div>
+      <div className="flex flex-col">{intro}</div>
+      <div className="flex flex-col">{children}</div>
     </div>
   );
 }

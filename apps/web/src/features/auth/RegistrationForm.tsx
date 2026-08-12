@@ -196,6 +196,13 @@ export function RegistrationForm({ showEmailField, variant = 'full', submitLabel
   // Spacing here is driven by the auth vertical rhythm (--auth-step) and the
   // section cards drop to tight padding: this form is nested inside the auth
   // card, so its own generous padding was compounding with the card's.
+  //
+  // THE GAP BETWEEN FIELDS IS 1.35 STEPS AND THE GAP INSIDE ONE IS ~6px (see
+  // Input). It was 0.9 steps, which at a 720px laptop's --auth-step of 14px is
+  // 12.6px between two fields against 6px between a label and its own box —
+  // near enough the same number that a form read as one undifferentiated stack
+  // of boxes. Grouping is what the difference buys, and it is cheap now that
+  // the page is allowed to scroll (see AuthSplitLayout).
   return (
     <form
       onSubmit={(e) => {
@@ -208,7 +215,7 @@ export function RegistrationForm({ showEmailField, variant = 'full', submitLabel
         }
         void handleSubmit(e);
       }}
-      className="flex min-h-0 flex-col gap-[calc(var(--auth-step)*1.4)]"
+      className="flex flex-col gap-[calc(var(--auth-step)*1.6)]"
       noValidate
     >
       {/* Where you are, without a sentence of copy: one mark per step, the
@@ -226,7 +233,7 @@ export function RegistrationForm({ showEmailField, variant = 'full', submitLabel
       </ol>
 
       {step === 'details' && (
-      <Card padding="tight" className="flex flex-col gap-[calc(var(--auth-step)*0.9)]">
+      <Card padding="tight" className="flex flex-col gap-[calc(var(--auth-step)*1.35)]">
         <p className="eyebrow">Your details</p>
         {showEmailField && (
           <Input
@@ -239,12 +246,19 @@ export function RegistrationForm({ showEmailField, variant = 'full', submitLabel
             validate={validateEmail}
           />
         )}
-        <div className="grid grid-cols-1 gap-[calc(var(--auth-step)*0.9)] sm:grid-cols-3">
+        {/* TITLE ON ITS OWN LINE, NARROW; THE NAMES TWO ACROSS.
+            Three equal columns gave every one of them a third of the form
+            column, so "Mr" got as much room as a surname and a first name got
+            about 150px — which clips at six characters, measured on a real
+            one. Title is two or three letters and is capped at the width it
+            needs; the names take half each of the full row. */}
+        <div className="sm:max-w-[9rem]">
           <Input label="Title" name="title" optional value={form.title} onChange={(e) => set('title', e.target.value)} />
+        </div>
+        <div className="grid grid-cols-1 gap-[calc(var(--auth-step)*1.35)] sm:grid-cols-2">
           <Input
             label="First name"
             name="firstName"
-            className="sm:col-span-1"
             value={form.firstName}
             onChange={(e) => set('firstName', e.target.value)}
             validate={required('First name')}
@@ -261,34 +275,42 @@ export function RegistrationForm({ showEmailField, variant = 'full', submitLabel
       )}
 
       {step === 'details-contact' && (
-      <Card padding="tight" className="flex flex-col gap-[calc(var(--auth-step)*0.9)]">
+      <Card padding="tight" className="flex flex-col gap-[calc(var(--auth-step)*1.35)]">
         {/* Same heading as the step before it on purpose: this is the second
             half of one thing, not a second thing. */}
         <p className="eyebrow">Your details</p>
-        <div className="grid grid-cols-1 gap-[calc(var(--auth-step)*0.9)] sm:grid-cols-2">
-          {/* preset carries the range and the opening view — no future
-              dates, nothing implausibly old, and the calendar opens on a
-              plausible birth year instead of this month. */}
+        {/* preset carries the range and the opening view — no future
+            dates, nothing implausibly old, and the calendar opens on a
+            plausible birth year instead of this month. */}
+        <div className="sm:max-w-[18rem]">
           <DateField label="Date of birth" name="dob" preset="birthdate" value={form.dob} onChange={(v) => set('dob', v)} />
-          {/* Optional here on purpose — registration stays frictionless, and
-              a brand-new account holds no results for a range to apply to.
-              But it isn't decoration either, so the label says what it's
-              actually for; it's asked for again later at the two points it
-              genuinely matters (before a test is ordered, and on the account
-              page), rather than being made mandatory here. */}
-          <Select
-            label="Biological sex"
-            name="sex"
-            optional
-            hint={BIOLOGICAL_SEX_PURPOSE}
-            value={form.sex}
-            onChange={(e) => set('sex', e.target.value)}
-          >
-            <option value="">Prefer not to say for now</option>
-            <option value="FEMALE">Female</option>
-            <option value="MALE">Male</option>
-          </Select>
         </div>
+        {/* FULL WIDTH BECAUSE OF THE HINT, not because the control needs it.
+            This sat in the right-hand half of a two-column row, so its one
+            sentence of helper text was set in a column about 24 characters
+            wide and wrapped every three or four words — a wall of text beside
+            a control rather than an explanation attached to it. The control
+            itself is capped below; the hint gets the full row.
+
+            Optional here on purpose — registration stays frictionless, and a
+            brand-new account holds no results for a range to apply to. But it
+            isn't decoration either, so the hint says what it's for; it's asked
+            for again at the two points it genuinely matters (before a test is
+            ordered, and on the account page) rather than being made mandatory
+            here. */}
+        <Select
+          label="Biological sex"
+          name="sex"
+          optional
+          hint={BIOLOGICAL_SEX_PURPOSE}
+          className="sm:max-w-[18rem]"
+          value={form.sex}
+          onChange={(e) => set('sex', e.target.value)}
+        >
+          <option value="">Prefer not to say for now</option>
+          <option value="FEMALE">Female</option>
+          <option value="MALE">Male</option>
+        </Select>
         <Input
           label="Contact number"
           name="contactNumber"
@@ -304,7 +326,7 @@ export function RegistrationForm({ showEmailField, variant = 'full', submitLabel
         {full && (
           // Side by side rather than stacked: two more full-width rows was the
           // difference between this step fitting a 720px viewport and not.
-          <div className="grid grid-cols-1 gap-[calc(var(--auth-step)*0.9)] sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-[calc(var(--auth-step)*1.35)] sm:grid-cols-2">
             <Input
               label="Home address"
               name="address"
@@ -325,13 +347,13 @@ export function RegistrationForm({ showEmailField, variant = 'full', submitLabel
       )}
 
       {step === 'gp' && (
-      <Card padding="tight" className="flex flex-col gap-[calc(var(--auth-step)*0.9)]">
+      <Card padding="tight" className="flex flex-col gap-[calc(var(--auth-step)*1.35)]">
         <p className="eyebrow">GP &amp; medical details</p>
         <p className="text-sm text-espresso -mt-2">
           If a result comes back outside the usual range we’ll point you to your GP, so it helps to have these on
           file.
         </p>
-        <div className="grid grid-cols-1 gap-[calc(var(--auth-step)*0.9)] sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-[calc(var(--auth-step)*1.35)] sm:grid-cols-2">
           <Input label="GP name" name="gpName" optional value={form.gpName} onChange={(e) => set('gpName', e.target.value)} />
           <Input
             label="GP address"
@@ -359,9 +381,9 @@ export function RegistrationForm({ showEmailField, variant = 'full', submitLabel
       )}
 
       {step === 'emergency' && (
-      <Card padding="tight" className="flex flex-col gap-[calc(var(--auth-step)*0.9)]">
+      <Card padding="tight" className="flex flex-col gap-[calc(var(--auth-step)*1.35)]">
         <p className="eyebrow">Emergency contact</p>
-        <div className="grid grid-cols-1 gap-[calc(var(--auth-step)*0.9)] sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-[calc(var(--auth-step)*1.35)] sm:grid-cols-2">
           <Input
             label="Name"
             name="emergencyContactName"
@@ -381,7 +403,7 @@ export function RegistrationForm({ showEmailField, variant = 'full', submitLabel
       )}
 
       {step === 'password' && (
-      <Card padding="tight" className="flex flex-col gap-[calc(var(--auth-step)*0.9)]">
+      <Card padding="tight" className="flex flex-col gap-[calc(var(--auth-step)*1.35)]">
         <p className="eyebrow">Set your password</p>
         <Input
           label="Password"

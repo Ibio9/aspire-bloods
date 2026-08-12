@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import PDFDocument from 'pdfkit';
+import { pressThroughWalkthrough } from './walkthrough';
 
 /**
  * The single most safety-critical behaviour in this app (brief §5):
@@ -133,14 +134,7 @@ test('nothing patient-visible until a report is RELEASED', async ({ page, browse
   // is one press away. Pressing through it is what a real first-time patient
   // does, and it also marks it seen — so everything after this behaves exactly
   // as it did before the walkthrough existed.
-  const welcome = patientPage.getByRole('button', { name: 'Go to my results' });
-  // Wait for EITHER screen before deciding. Checking visibility the instant the
-  // OTP is typed is a race against the redirect, and it loses.
-  await expect(
-    welcome.or(patientPage.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })),
-  ).toBeVisible({ timeout: 15000 });
-  if (await welcome.isVisible().catch(() => false)) await welcome.click();
-  await expect(patientPage.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })).toBeVisible({ timeout: 10000 });
+  await pressThroughWalkthrough(patientPage, /Good (morning|afternoon|evening)/);
 
   // PARSED, not yet reviewed or released — Overview says a result is coming
   // and nothing about its contents.

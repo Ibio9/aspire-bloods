@@ -405,16 +405,28 @@ export function PatientOverview() {
             report, rather than only your latest panel.
           </p>
 
-          <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
+          {/* THE COLUMNS GO WITH THE LIST (Aug 2026). The grid was two-plus-one
+              at lg whether or not there was a list in the two, so collapsing
+              left the left two thirds empty and the contact card floating in
+              the third — a card beside nothing, which reads as a rendering
+              fault rather than as a folded section.
+
+              Collapsed, it is one column: the card lands under the count line
+              at its own width. And because a single-column grid puts the card
+              in the row BELOW the collapsing region rather than beside it, it
+              rides up as the list folds instead of jumping — the reflow is the
+              animation rather than something that happens despite it. */}
+          <div className={`mt-8 grid grid-cols-1 gap-6 ${attentionOpen ? 'lg:grid-cols-3' : ''}`}>
             {/* ONLY THE LIST COLLAPSES, and that is what keeps "Talk to
-                someone" still. It sits in its own grid column, `self-start`,
-                so its width comes from the column and its height from its own
-                content — neither of which the list's height touches. Put the
-                whole grid inside the region and the card would ride the
-                animation up the page and land somewhere else. */}
+                someone" still while the section is open. It sits in its own
+                grid column, `self-start`, so its width comes from the column
+                and its height from its own content — neither of which the
+                list's height touches. Put the whole grid inside the region and
+                the card would ride the animation up the page and land
+                somewhere else. */}
             <div
               id={ATTENTION_REGION_ID}
-              className={`collapse-region lg:col-span-2 ${attentionOpen ? 'is-open' : ''}`}
+              className={`collapse-region ${attentionOpen ? 'is-open lg:col-span-2' : ''}`}
             >
             <ul className="flex flex-col gap-5">
               {data.attention.map((item, i) => (
@@ -438,6 +450,7 @@ export function PatientOverview() {
                           high={item.referenceHigh}
                           status={item.status}
                           severityThreshold={item.severityThreshold}
+                          unit={item.unit}
                         />
                       </div>
                       {/* Panels are optional, so the panel name is a segment
@@ -464,7 +477,11 @@ export function PatientOverview() {
             </ul>
             </div>
 
-            <div className="lg:sticky lg:top-8 lg:self-start">
+            {/* Sticky only while there is a list to travel beside. Collapsed,
+                it is capped rather than stretched: a contact card the full
+                width of the page is a banner, and this is deliberately the
+                calmest thing in the section. */}
+            <div className={attentionOpen ? 'lg:sticky lg:top-8 lg:self-start' : 'max-w-md'}>
               <ClinicContactCard />
             </div>
           </div>

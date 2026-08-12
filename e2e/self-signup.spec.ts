@@ -1,9 +1,11 @@
 import { test, expect } from '@playwright/test';
+import { pressThroughWalkthrough } from './walkthrough';
 
 /**
- * Open registration, end to end: anyone can create an account, the account
- * is inert until the emailed code is entered, and entering it leads straight
- * into mandatory 2FA rather than into a session.
+ * Open registration, end to end: anyone can create an account, the account is
+ * inert until the emailed code is entered, and entering that ONE code is what
+ * signs them in. Two-factor sign-in is unchanged and mandatory from the next
+ * sign-in onwards, which the second test here is what holds.
  *
  * The registration form itself is posted through the API rather than the UI —
  * this test is about the flow, not about the fields. Everything from the
@@ -89,13 +91,21 @@ test('self-signup -> email verification -> 2FA -> empty portal', async ({ page, 
     // Auto-submits on the sixth digit, exactly like the 2FA step.
     page.locator('#otp-0').click().then(() => page.keyboard.type(signupBody.devVerificationCode)),
   ]);
+  // ONE CODE, ONCE (Aug 2026), and this is the assertion that pins it.
+  //
+  // This step used to answer `otp_required` and hand back a SECOND six-digit
+  // code, which the patient then read out of a second email and typed into a
+  // screen that looked identical to the one they had just used. Both are
+  // one-time codes to the same mailbox and the second proved nothing the first
+  // had not, so it read as one step repeating itself. Verifying the address is
+  // the sign-in now.
+  //
+  // What this must NOT become is a relaxation of two-factor sign-in, and the
+  // test below ("signing in again asks for a 2FA code") is what holds that.
   const verifyBody = await verifyResponse.json();
-  expect(verifyBody.status).toBe('otp_required');
-  expect(verifyBody.devOtpCode).toBeTruthy();
-
-  await expect(page.getByRole('heading', { name: 'Set up two-factor sign-in' })).toBeVisible();
-  await page.locator('#otp-0').click();
-  await page.keyboard.type(verifyBody.devOtpCode);
+  expect(verifyBody.status).toBe('authenticated');
+  expect(verifyBody.devOtpCode, 'no second code should be issued at registration').toBeUndefined();
+  await expect(page.getByRole('heading', { name: 'Set up two-factor sign-in' })).toHaveCount(0);
 
   // --- Signed in, on a warm empty portal rather than a blank one ---
   // FIRST SIGN-IN LANDS ON THE INTRODUCTION, ONCE (Aug 2026). A patient who has
@@ -104,14 +114,7 @@ test('self-signup -> email verification -> 2FA -> empty portal', async ({ page, 
   // is one press away. Pressing through it is what a real first-time patient
   // does, and it also marks it seen — so everything after this behaves exactly
   // as it did before the walkthrough existed.
-  const welcome = page.getByRole('button', { name: 'Go to my results' });
-  // Wait for EITHER screen before deciding. Checking visibility the instant the
-  // OTP is typed is a race against the redirect, and it loses.
-  await expect(welcome.or(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ }))).toBeVisible({
-    timeout: 15000,
-  });
-  if (await welcome.isVisible().catch(() => false)) await welcome.click();
-  await expect(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })).toBeVisible({ timeout: 10000 });
+  await pressThroughWalkthrough(page, /Good (morning|afternoon|evening)/);
   await expect(page.getByRole('heading', { name: 'What happens next' })).toBeVisible();
   await expect(page.getByText('A new account starts empty')).toBeVisible();
 
@@ -125,4 +128,55 @@ test('self-signup -> email verification -> 2FA -> empty portal', async ({ page, 
   await expect(page).toHaveURL(/\/results\?view=by-report$/);
   await expect(page.getByText("Nothing here yet, and that’s exactly right")).toBeVisible();
   await expect(page.getByText('the clinic matches the result to you')).toBeVisible();
+});
+
+/**
+ * THE SECOND HALF OF "ONE CODE, ONCE", AND THE MORE IMPORTANT HALF.
+ *
+ * Registration stopped asking for a second code because the first one proved
+ * the same thing. What must not have quietly happened alongside it is
+ * two-factor sign-in becoming optional — so this registers an account, signs
+ * out, and signs in again through the real screens. The second sign-in must
+ * meet the OTP challenge.
+ */
+test('signing in again asks for a 2FA code, which registration no longer duplicates', async ({ page, request }) => {
+  const email = `e2e-2fa-again-${Date.now()}@example.com`;
+  const password = 'E2eSecondSignIn123!';
+
+  const signup = await request.post('/api/auth/signup', {
+    data: {
+      email,
+      password,
+      profile: { firstName: 'Robin', lastName: 'Return', dob: '1988-02-02', contactNumber: '+44 7700 900555' },
+      consents: { dataProcessing: true, resultsStorage: true, commsEmail: false, commsSms: false },
+    },
+  });
+  expect(signup.ok()).toBeTruthy();
+  const code = (await signup.json()).devVerificationCode as string;
+
+  // One code, and it is the whole of registration.
+  const verified = await request.post('/api/auth/verify-email', { data: { email, code } });
+  expect(verified.ok()).toBeTruthy();
+  expect((await verified.json()).status).toBe('authenticated');
+
+  // Signing in again is unchanged: password, then a code.
+  const login = await request.post('/api/auth/login', { data: { email, password } });
+  expect(login.ok()).toBeTruthy();
+  const loginBody = await login.json();
+  expect(loginBody.status, 'the second sign-in must still be challenged').toBe('otp_required');
+  expect(loginBody.devOtpCode).toBeTruthy();
+
+  await page.goto('/login');
+  await page.getByLabel('Email address').fill(email);
+  await page.getByLabel('Password').fill(password);
+  const [loginResponse] = await Promise.all([
+    page.waitForResponse((r) => r.url().includes('/api/auth/login') && r.request().method() === 'POST'),
+    page.getByRole('button', { name: 'Sign in' }).click(),
+  ]);
+  const body = await loginResponse.json();
+  expect(body.status).toBe('otp_required');
+  await expect(page.getByRole('heading', { level: 2, name: 'Verify it’s you' })).toBeVisible();
+  await page.locator('#otp-0').click();
+  await page.keyboard.type(body.devOtpCode);
+  await pressThroughWalkthrough(page, /Good (morning|afternoon|evening)/);
 });

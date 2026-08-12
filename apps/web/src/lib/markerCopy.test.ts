@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest';
 import {
   asMarkerStatus,
   bandGradientStops,
+  bandPlotGradient,
+  BAND_WEIGHT,
   bandLabel,
   countable,
   hasResultValue,
   MARKER_STATUSES,
   NO_STATUS_LABEL,
   statusPaint,
+  type MarkerStatus,
   type MarkerStatusInput,
 } from '@aspire-bloods/shared';
 import {
@@ -175,6 +178,7 @@ describe('every lookup keyed on status is total', () => {
       expect(() => attentionRank(s), where).not.toThrow();
       expect(() => statusPaint(s), where).not.toThrow();
       expect(() => bandGradientStops(s), where).not.toThrow();
+      expect(() => bandPlotGradient(s), where).not.toThrow();
       expect(() => bandLabel(s), where).not.toThrow();
     }
   });
@@ -221,10 +225,68 @@ describe('every lookup keyed on status is total', () => {
       for (const stop of bandGradientStops(s)) {
         expect(stop, `bandGradientStops(${String(s)})`).toMatch(/^rgb\(var\(--c-[a-z0-9-]+\)\)$/);
       }
+      // The chart's band gradient, same claim. A stop-opacity of `undefined`
+      // is not an error either — SVG falls back to 1 and paints the band at
+      // full strength, which is the loudest possible failure to be silent.
+      const stops = bandPlotGradient(s);
+      expect(stops.length, `bandPlotGradient(${String(s)})`).toBeGreaterThanOrEqual(2);
+      for (const stop of stops) {
+        expect(stop.colour, `bandPlotGradient(${String(s)}).colour`).toMatch(/^rgb\(var\(--c-[a-z0-9-]+\)\)$/);
+        expect(stop.offset).toBeGreaterThanOrEqual(0);
+        expect(stop.offset).toBeLessThanOrEqual(1);
+        expect(stop.weight).toBeGreaterThan(0);
+        expect(stop.weight).toBeLessThanOrEqual(1);
+      }
+      // Offsets run low value to high, in order — the caller reverses them for
+      // a chart's y-axis, and an unsorted list would reverse into nonsense.
+      expect([...stops].sort((a, b) => a.offset - b.offset)).toEqual(stops);
       // A band with no words beside it is the "colour alone" failure the key
       // exists to prevent, so the label is never empty either.
       expect(bandLabel(s).length, `bandLabel(${String(s)})`).toBeGreaterThan(0);
     }
+  });
+
+  /**
+   * The two properties the chart's ramp is built on. Both are about points
+   * BETWEEN the sampled weights, which is exactly what tokenContrast.test.ts
+   * cannot see: it measures three representative numbers and the reader sees a
+   * continuous surface.
+   */
+  describe('the chart band ramp', () => {
+    /** The composited weight of a band at one of its own stops. */
+    const at = (status: MarkerStatus, offset: number) => {
+      const stop = bandPlotGradient(status).find((s) => s.offset === offset);
+      if (!stop) throw new Error(`no stop at ${offset} for ${status}`);
+      return { weight: BAND_WEIGHT[status] * stop.weight, colour: stop.colour };
+    };
+
+    it('never draws an out-of-range region fainter than in range, even at the reference bound', () => {
+      // The faintest an above-range band ever gets is where it meets the
+      // reference bound. If that dipped below the flat green beside it, the
+      // ladder would invert for every result that is only just outside.
+      const green = at('IN_RANGE', 0.12).weight;
+      for (const status of ['HIGH', 'LOW'] as const) {
+        const bound = status === 'HIGH' ? at(status, 0) : at(status, 1);
+        expect(bound.weight, `${status} at the reference bound`).toBeGreaterThan(green);
+      }
+    });
+
+    it('hands over between the two out-of-range bands at exactly one weight', () => {
+      // A visible step in the middle of a ramp that is meant to be continuous.
+      // Derived rather than written down in the source, and asserted here so
+      // that changing either weight cannot quietly reintroduce it.
+      expect(at('HIGH', 1).weight).toBeCloseTo(at('SIGNIFICANT_HIGH', 0).weight, 10);
+      expect(at('LOW', 0).weight).toBeCloseTo(at('SIGNIFICANT_LOW', 1).weight, 10);
+    });
+
+    it('hands over in orange, which is the transition and never a state', () => {
+      expect(at('HIGH', 1).colour).toBe(at('SIGNIFICANT_HIGH', 0).colour);
+      expect(at('LOW', 0).colour).toBe(at('SIGNIFICANT_LOW', 1).colour);
+      // And in range is one hue from end to end: the resting state reads as one
+      // region, so nothing in it ramps toward the colour of being outside it.
+      const green = new Set(bandPlotGradient('IN_RANGE').map((s) => s.colour));
+      expect(green.size).toBe(1);
+    });
   });
 
   it('sorts a list containing an unrecognised status instead of leaving it unsorted', () => {

@@ -87,9 +87,21 @@ export function Listbox({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // NOT `[query, open]`, and that is the whole of a real bug.
+  //
+  // Filtering has to put the cursor back on the first match, which is what
+  // this is for. With `open` in the deps it ALSO ran on every open, one tick
+  // after the effect above had carefully set the cursor to the SELECTED
+  // option — so every listbox in the product opened on its first option
+  // instead. Invisible on a five-item picker and not at all invisible on the
+  // date field's year list, which opens 120 deep: the menu appeared at 2026
+  // with the year actually selected nowhere on screen.
+  //
+  // Keyed on the query alone. The open effect sets it to '' before this can
+  // see anything, so the two no longer race.
   useEffect(() => {
-    if (open) setActiveIndex(0);
-  }, [query, open]);
+    setActiveIndex(0);
+  }, [query]);
 
   useEffect(() => {
     if (!open) return;

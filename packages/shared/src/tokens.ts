@@ -453,14 +453,41 @@ const DARK_FILL_HUE: Record<StatusHue, number> = { green: 1, yellow: 0.82, orang
  * how a hue is spent. What it costs is nothing, because the weight is held by
  * constraint 1 rather than by the lightness.
  *
- * Composite saturation, before and after: green 0.18 → 0.31, gold 0.32 → 0.42,
- * red 0.33 → 0.39, orange 0.43 → 0.55.
+ * ------------------------------------------------------------------------
+ * RE-SOLVED AGAIN (Aug 2026), BECAUSE THE WEIGHTS MOVED UNDER IT.
+ * ------------------------------------------------------------------------
+ *
+ * The bands went olive and brown a second time, and nothing in this file had
+ * been touched. The cause is the sentence at the top of the solve: THIS IS
+ * SOLVED AT A WEIGHT. When the chart's bands went flat, `BAND_WEIGHT` was cut
+ * by about a third (0.10/0.17/0.24 → 0.07/0.12/0.18) to keep the same average
+ * ink on the plot — correct arithmetic, and it silently invalidated every
+ * number below, because a band is 76–93% CARD and its saturation is very
+ * nearly linear in that weight. Measured, as what landed on the dark card at
+ * the reduced weights: green hsl(80, 0.24, ...), gold hsl(43, 0.33, ...) —
+ * the exact figures the previous re-solve was written to fix.
+ *
+ * So the pairing is the thing to remember: PLOT_LIFT AND BAND_WEIGHT ARE ONE
+ * DECISION. Change either and this has to be solved again. It is a search, not
+ * a judgement — the same four constraints, at the weight each hue is actually
+ * checked at, plus a fifth that was previously enforced by hand and is now part
+ * of the solve (the ladder must hold in DARK, where a saturated red is darker
+ * than a gold and will sit below it unless its lightness is raised for it).
+ *
+ * Solved at 0.11 / 0.21 / 0.28. Composite saturation on the dark card, against
+ * the reduced weights it replaces: green 0.24 → 0.33, gold 0.33 → 0.45,
+ * red 0.34 → 0.46, orange 0.47 → 0.60.
  */
 const PLOT_LIFT: Record<StatusHue, { s: number; l: number }> = {
-  green: { s: 1, l: 0.5 },
-  yellow: { s: 0.98, l: 0.42 },
-  orange: { s: 1, l: 0.5 },
-  red: { s: 0.98, l: 0.61 },
+  green: { s: 0.98, l: 0.49 },
+  yellow: { s: 0.96, l: 0.39 },
+  orange: { s: 1, l: 0.49 },
+  // Lightness well above the others, and it is the ladder that puts it there:
+  // a fully saturated brick red is the darkest of the four, so at equal
+  // lightness the significantly-out band measures FAINTER off a near-black card
+  // than the gold band below it — which inverts the one thing the weights exist
+  // to say.
+  red: { s: 1, l: 0.59 },
 };
 
 // ---------------------------------------------------------------------------
@@ -662,51 +689,54 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
   out['--c-page'] = surface;
 
   /**
-   * THE SIDEBAR PANEL — a translucent warm wash, not a surface colour.
+   * ── THE SIDEBAR IS THE GLASS MATERIAL NOW, NOT A WASH OF ITS OWN ────────
    *
-   * Both shells' sidebars went fully transparent so the corner glow could run
-   * under them as one continuous field, and that solved the seam by removing
-   * the panel: the column ended up the same tone as the page, so a signed-in
-   * screen read as one undifferentiated dark field with a page title floating
-   * in it. What is wanted is the middle answer — a panel in FRONT of a light
-   * source. It knocks the light back without blocking it.
+   * It was `brand.espresso` at 6% / 38%, which is a different colour from
+   * every other translucent surface in the product, and the reason given was
+   * that a sidebar has nothing but the page and the glow behind it while a
+   * pinned control bar has the reader's own results. That reasoning is about
+   * ALPHA and it was applied to the COLOUR, which is what made the column read
+   * as a slightly-tinted piece of page rather than as a panel in front of one.
+   * Measured: 1.10:1 off the light page and 1.17:1 off the dark one. A card is
+   * 1.30:1 and 1.28:1. So a "panel" that is a tenth of the way to being a
+   * surface, on a page whose surfaces are subtle to begin with.
    *
-   * So this is a colour plus an alpha (`--panel-wash`, emitted per theme by
-   * tailwind.config.ts) applied over whatever happens to be behind, and the
-   * colour is brand espresso in BOTH themes rather than a per-theme surface.
-   * That one choice is what makes it work in both directions:
+   * Same colour as `--c-glass` now — the CARD tone — set from one expression so
+   * the two cannot drift, and kept under its own name because Tailwind's
+   * `panel` colour resolves through it. The alpha is still the sidebar's own
+   * (`PANEL_WASH_ALPHA`), because that part of the old reasoning was right.
    *
-   *  · In light, espresso is far darker than the cream page, so the wash dims
-   *    the column a little. 6% → 1.10:1 against the page.
-   *  · In dark, espresso is far LIGHTER than the #110F0D page, so the same
-   *    construction lifts the column instead. 38% → 1.17:1 against the page,
-   *    which sits it between the page and a card (1.44:1) — page, then panel,
-   *    then card, which is the hierarchy that was missing.
+   * WHAT THAT CHANGES, MEASURED. Light 1.10 → 1.16:1, and the column now sits
+   * ABOVE the page rather than below it, which is the same direction the
+   * control bar's glass and the dark theme's panel both go. Dark 1.17 → 1.20:1,
+   * with the glow knocked back to 1.58:1 of itself and the lit part of the
+   * panel still 1.20:1 above the unlit part — light through it, dimmer,
+   * continuous across the seam.
    *
-   * Lifting in dark rather than dimming is not a stylistic preference, it is
-   * the only direction available: the page is already near-black, so a darker
-   * wash measures 1.02–1.04:1 against it however far it is pushed. Exactly the
-   * trap recorded on `darkWhite` above — there is no further down to go.
-   *
-   * And lifting still DIMS the glow, because the wash colour sits below the
-   * glow's core and above the page. Over the bright corner the wash knocks the
-   * core back to 1.10:1 of itself while the lit part of the panel stays 1.78:1
-   * brighter than the unlit part — the light is visibly still there, still
-   * continuous across the seam, just dimmer on the panel's side of it.
+   * THE CEILING IS THE GLOW, NOT THE CARD. Past about 80% in dark, the panel
+   * stops transmitting: the lit and unlit halves converge and it becomes a lid.
+   * That is what `stillLit` in tokenContrast.test.ts holds, and it binds before
+   * the "stays below a card" rule does.
    */
-  out['--c-panel'] = brand.espresso;
+  const glassColour = dark ? darkScales.cream[50] : mix(brand.white, brand.cream, 0.35);
+  out['--c-panel'] = glassColour;
   // The alpha itself is PANEL_WASH_ALPHA below rather than a variable here,
   // because it is an opacity and not a colour: everything in this map is a hex
   // that themeCssVars turns into channels.
 
   /**
-   * The sidebar's right-hand hairline, one step stronger than the `taupe`
-   * border it used to take: 1.88:1 against the light page (was 1.40) and
-   * 3.40:1 against the dark one (was 2.17). It is the only thing separating
-   * the panel from the content area where the glow does not reach, and at
-   * `taupe` it was doing that job at a contrast the wash could not back up.
+   * The sidebar's right-hand hairline — and it is PER THEME, which the `taupe`
+   * step it replaced was not.
+   *
+   * It is the whole of the separation wherever the glow does not reach, which
+   * on a wide window is most of the column, so it has to hold on its own. One
+   * step of the taupe scale is worth very different amounts against a cream
+   * page and a near-black one: taupe[600] measures 1.88:1 in light and 3.40:1
+   * in dark. So light takes another step (taupe[700], 2.58:1) and dark stays
+   * where it is — a further step there would be 5.12:1, which is a line of
+   * light down the side of the page rather than a hairline.
    */
-  out['--c-panel-edge'] = dark ? darkScales.taupe[600] : scales.taupe[600];
+  out['--c-panel-edge'] = dark ? darkScales.taupe[600] : scales.taupe[700];
 
   /**
    * ── GLASS ──────────────────────────────────────────────────────────────
@@ -729,16 +759,14 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * tailwind.config.ts, because an opacity and a length are not colours and
    * everything in this map is a hex.
    *
-   * WHY THE SIDEBAR DOES NOT TAKE THIS COLOUR AND ALPHA. Both surfaces are the
-   * same material — one blur radius, one saturation, applied by `.glass` and
-   * `.panel-wash` alike — but their alphas are chosen by what is BEHIND them,
-   * which is not the same thing. Nothing passes under the sidebar except the
-   * page and the glow, so 6%/38% of espresso is all it needs and all its
-   * measured contrasts allow (see PANEL_WASH_ALPHA and tokenContrast.test.ts).
-   * The reader's own results pass under the control bar, and a 6% wash over
-   * moving body copy is not a surface, it is a smear.
+   * THE SIDEBAR TAKES THIS COLOUR TOO, at its own alpha (changed Aug 2026 —
+   * see `--c-panel` above, which is now set from the same expression). It used
+   * to take espresso, on the reasoning that its alpha is decided by what is
+   * behind it. Its ALPHA is; its colour is not, and giving one translucent
+   * surface in the product a colour of its own is what stopped the column
+   * reading as the same material as everything else pinned to the page.
    */
-  out['--c-glass'] = dark ? darkScales.cream[50] : mix(brand.white, brand.cream, 0.35);
+  out['--c-glass'] = glassColour;
 
   /**
    * Text and icons on a FILLED accent — a bronze button, a selected option, an
@@ -924,18 +952,24 @@ export const themeTokens = {
 } as const;
 
 /**
- * How much of `--c-panel` survives on the sidebar, per theme. Emitted as
+ * How much of the glass colour survives on the sidebar, per theme. Emitted as
  * `--panel-wash` by tailwind.config.ts and consumed by `.panel-wash` in
  * globals.css.
  *
- * Two different numbers for one wash because it works in two directions: the
- * same espresso dims a cream page and lifts a near-black one, and 6% of it is
- * as much as a light page will take before the column stops being a wash and
- * starts being a surface, while a near-black page needs 38% to move at all.
- * Measured against the page at 1.10:1 and 1.17:1 respectively — see the note
- * beside `--c-panel`, and tokenContrast.test.ts, which holds both ends.
+ * 0.06 / 0.38 OF ESPRESSO → 0.75 / 0.78 OF THE CARD TONE (Aug 2026). The two
+ * are not comparable numbers: the old pair was a faint tint of a colour far
+ * from the surfaces around it, and this is most of a colour close to them. It
+ * is the same alpha family as the control bar's 0.62 / 0.58, which is the
+ * point — one material, one look, a per-surface alpha.
+ *
+ * SOLVED RATHER THAN CHOSEN, against the four things tokenContrast.test.ts
+ * holds, and the binding constraint is not the one anybody expects. It is not
+ * "stay below a card": it is that past roughly 0.80 in dark the panel stops
+ * TRANSMITTING — its lit and unlit halves converge and the glow reads as
+ * having stopped at the seam. So the alpha is set just under that, which is
+ * also comfortably under the card.
  */
-export const PANEL_WASH_ALPHA = { light: 0.06, dark: 0.38 } as const;
+export const PANEL_WASH_ALPHA = { light: 0.75, dark: 0.78 } as const;
 
 /**
  * THE GLASS MATERIAL, in three numbers, shared by every surface that uses it.
@@ -1224,10 +1258,19 @@ export const chart = {
   boundLabel: 'rgb(var(--c-chart-bound-label))',
   /** The soft halo behind the most recent point — the one the reader came for. */
   haloOpacity: 0.16,
-  /** The optimal band, drawn inside/overlapping the reference band. Distinguished by a hatch, not by hue alone. */
-  optimalBand: 'rgb(var(--c-chart-optimal-band))',
-  optimalBandOpacity: 0.34,
-  optimalEdge: 'rgb(var(--c-chart-optimal-edge))',
+  /**
+   * THE OPTIMAL BAND HAS NO TOKENS OF ITS OWN ANY MORE (Aug 2026), and their
+   * absence is the point.
+   *
+   * `optimalBand` / `optimalBandOpacity` / `optimalEdge` were a bronze fill, a
+   * bronze hatch and a bronze dashed rule — a whole second visual vocabulary
+   * for a region that overlaps the reference range, which on screen read as two
+   * competing systems making two claims about one result. An optimal range is a
+   * NARROWING of in-range, so it is drawn as one: the same green taken a step
+   * deeper (`OPTIMAL_DEEPEN` in statusBands.ts) over the part of the lab's
+   * range that is also optimal, bounded by the same neutral `referenceEdge`
+   * every other boundary in this chart uses. Nothing here needs to name it.
+   */
   /** Axis rule and ticks. */
   axisLine: 'rgb(var(--c-chart-axis-line))',
   axisText: 'rgb(var(--c-chart-axis-text))',

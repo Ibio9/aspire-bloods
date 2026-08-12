@@ -261,18 +261,26 @@ Nightly at 03:15 UTC: `pg_dump`, gzip-compressed, uploaded to S3-compatible off-
 
 Built and ran this exact image locally before committing it: real `pg_dump` against the local Postgres, real upload/list/delete against a local MinIO instance standing in for R2 — confirmed the dump, the upload, and both branches of the prune logic (kept a recent backup, deleted an artificially-expired one) all actually work, not just that the script reads correctly.
 
-> ## ⚠ AS OF 12 AUGUST 2026 THIS HAS NEVER RUN
+> ## ⚠ 12 AUGUST 2026 — THE SERVICE NOW EXISTS AND ITS FIRST RUN FAILED
 >
-> The R2 bucket `aspire-bloods-backups` exists and is **0 bytes, empty, zero
-> Class B operations**, and there is **no backup service in the Railway
-> project** — only the API and Postgres. The Dockerfile and the script have
-> been in the repository the whole time. Nothing deployed them and nothing
-> scheduled them, so there has never been an off-platform copy of this
-> database.
+> Standing it up found a second fault behind the first. The service is
+> deployed, the schedule is set, the variables are in place, and the first run
+> stopped at the DUMP stage on a **Postgres version mismatch**: Railway's
+> Postgres is 18.4 and the image was pinned at `postgres:16-alpine`, and
+> `pg_dump` refuses to dump a server newer than itself. Fixed by bumping the
+> image to 18 — see [The client major version](#the-client-major-version-must-be-at-least-the-servers)
+> for the failure, why it was safe, and what to do the next time Railway
+> upgrades.
 >
-> Work through "Standing up the backup cron service" below. Take the manual
-> backup at the end of this section **today**, before anything else, so at
-> least one copy exists while the service is being created.
+> **The bucket was still 0 bytes at that point.** Before this, there was no
+> backup service in the Railway project at all — only the API and Postgres —
+> while the Dockerfile and the script sat in the repository for months with
+> nothing deploying or scheduling them.
+>
+> Until a run has both succeeded and been drilled, treat the practice as having
+> no off-platform backup. Take the manual backup at the end of this section
+> now, so at least one copy exists, then redeploy the backup service and work
+> through step 5 and step 6 below.
 
 ### What was missing, exactly
 
@@ -389,6 +397,11 @@ You need the **public** `DATABASE_URL`: Railway → Postgres service → **Varia
 → `DATABASE_PUBLIC_URL` (the `.proxy.rlwy.net` one, *not* `.railway.internal` —
 your laptop is outside Railway's private network).
 
+**Use a client image at least as new as the server** — `postgres:18-alpine`
+below, because Railway's Postgres is 18.4. See the note under
+[The client major version](#the-client-major-version-must-be-at-least-the-servers);
+`postgres:16-alpine` fails outright against it.
+
 ```powershell
 # 1. Paste the public connection string. It stays in this shell only.
 $env:PGURL = "postgresql://postgres:PASSWORD@HOST.proxy.rlwy.net:PORT/railway"
@@ -399,10 +412,11 @@ $outDir = "$env:USERPROFILE\aspire-backups"
 New-Item -ItemType Directory -Force $outDir | Out-Null
 $out = Join-Path $outDir "aspire-bloods-$stamp.sql"
 
-# 3. Dump it, using the same Postgres 16 client the backup image uses.
+# 3. Dump it, using the same Postgres 18 client the backup image uses.
+#    The client major must be >= the server's or pg_dump refuses outright.
 #    --no-owner --no-privileges so it restores into a database with different
 #    role names, which a scratch database always has.
-docker run --rm -e PGURL=$env:PGURL postgres:16-alpine `
+docker run --rm -e PGURL=$env:PGURL postgres:18-alpine `
   sh -c 'pg_dump "$PGURL" --format=plain --no-owner --no-privileges' | Set-Content -Path $out -Encoding utf8
 
 # 4. Look at it before believing it. A dump that failed is often a small file
@@ -432,10 +446,53 @@ stay encrypted inside the dump; everything else — names, dates of birth, conta
 details, results — does not. It belongs on an encrypted disk, and it should be
 deleted once the scheduled backups are confirmed working.
 
+### The client major version must be at least the server's
+
+**This is what broke the first real run of the backup, on 12 August 2026.**
+
+```
+Dumping database...
+pg_dump: error: aborting because of server version mismatch
+pg_dump: detail: server version: 18.4 (Debian 18.4-1.pgdg13+1);
+         pg_dump version: 16.14
+pg_dump failed, or the compressed stream was truncated. Nothing was uploaded.
+```
+
+`pg_dump` refuses to dump a server whose major version is newer than its own.
+It is not a warning and there is no flag for it. Railway's Postgres is **18.4**;
+`backup.Dockerfile` was pinned at `postgres:16-alpine`, so every run would have
+failed exactly this way.
+
+**The pin follows Railway's Postgres, not `docker-compose.yml`.** The local
+development database (still 16) is not the database this container dumps, and
+the two are free to diverge. Newer than the server is fine and is the intended
+direction — `pg_dump` supports servers back to 9.2, so a client ahead costs
+nothing and a client behind costs the backup.
+
+**The failure was safe, and that is worth knowing before anybody simplifies the
+script.** `set -o pipefail` is what made it safe: `pg_dump | gzip` exits with
+*gzip's* status, and gzip compresses an empty stream into a perfectly valid
+20-byte `.gz` without complaint. Without `pipefail` this run would have uploaded
+that file, recorded `SUCCEEDED`, and the work queue would have shown a green
+backup band over an empty archive. Instead the job stopped at the DUMP stage,
+uploaded nothing, wrote a `FAILED` row and emailed. Do not remove that line.
+
+**When Railway upgrades Postgres again**, `backup.sh` now reads both versions at
+the start of every run (`STAGE="VERSION"`) and fails with both numbers and the
+fix named, rather than leaving it to a comment nobody reads. On that alert:
+change the `FROM` line in `apps/server/backup.Dockerfile` to
+`postgres:<server major>-alpine` and redeploy the backup service. The same
+applies to the manual PowerShell backup above and to any machine you run
+`scripts/restore-drill.sh` from.
+
 ### What the nightly job verifies before it calls a file a backup
 
 An untested backup is not a backup, and half of that test can be done every night by the same container that takes the dump. `scripts/backup.sh` does all of this and **exits non-zero rather than uploading** if any of it fails:
 
+0. **The client is not older than the server.** Read from the server itself
+   (`server_version_num`) and from `pg_dump --version`, before anything is
+   dumped, so an image that cannot possibly work says so with both numbers
+   rather than producing a stack trace at 3am. See the section above.
 1. **`set -o pipefail`.** `pg_dump | gzip` exits with *gzip's* status, and gzip will happily compress a truncated stream — so without this a `pg_dump` that died halfway produces a valid `.gz` containing half a database and the script exits 0. That is the exact shape of "we had backups for eight months and none of them restored".
 2. **`gzip -t`.** The archive decompresses. Catches truncation and corruption, which is what a killed container or a full `/tmp` produces.
 3. **A size floor and a schema check.** The uncompressed dump is above `BACKUP_MIN_UNCOMPRESSED_BYTES` (256 kB default) and contains `COPY public."Report"`, `"ReportResult"` and `"User"` data sections. A dump taken against an empty database, with the wrong `DATABASE_URL`, or by a role with no read permission on the public schema, is a small perfectly-valid gzip in every one of those cases.
@@ -502,8 +559,8 @@ Restoring into a **new** empty database and re-pointing `DATABASE_URL` (rather t
 
 Run through this after the first production deploy, and after any deploy that touches auth, storage, or the release pipeline:
 
-- [ ] Sign up a fresh patient account, complete profile + consents
-- [ ] Log in, confirm mandatory 2FA (OTP email actually arrives — this also confirms `RESEND_API_KEY` is real and working)
+- [ ] Sign up a fresh patient account, complete profile + consents. **Exactly ONE emailed code** — registration confirms the address and signs you in on that one code (Aug 2026); a second code on a second screen is the bug this replaced
+- [ ] Sign out and log in again: confirm mandatory 2FA still fires (OTP email actually arrives — this also confirms `RESEND_API_KEY` is real and working, and that registration's single code did not quietly relax the second factor)
 - [ ] Admin: upload a PDF report for that patient, verify the parsed rows, release it through to `RELEASED`
 - [ ] Admin: create a manual-entry report for the same patient on a different date, same marker, confirm it also releases
 - [ ] Patient: see both reports, open the marker detail page, confirm the trend graph renders with both points and the reference band

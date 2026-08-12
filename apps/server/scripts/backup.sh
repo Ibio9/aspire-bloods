@@ -63,7 +63,7 @@ num_or_null() {
 }
 
 # ---------------------------------------------------------------------------
-# EMAIL. Resend over curl, because this image is postgres:16-alpine plus the
+# EMAIL. Resend over curl, because this image is postgres:18-alpine plus the
 # AWS CLI and has no Node runtime to reuse the app's provider.
 #
 # ESCALATION_EMAIL is the STAFF address and is read here and in exactly two
@@ -169,6 +169,54 @@ export AWS_SECRET_ACCESS_KEY="$BACKUP_S3_SECRET_ACCESS_KEY"
 # R2 (and most S3-compatible services) don't use AWS regions, but the
 # CLI requires one to be set to something.
 export AWS_DEFAULT_REGION="${BACKUP_S3_REGION:-auto}"
+
+# ---------------------------------------------------------------------------
+# THE CLIENT MUST NOT BE OLDER THAN THE SERVER.
+#
+# pg_dump refuses, outright and with no flag to override it, to dump a server
+# whose major version is newer than its own:
+#
+#   pg_dump: error: aborting because of server version mismatch
+#   pg_dump: detail: server version: 18.4 (Debian 18.4-1.pgdg13+1);
+#            pg_dump version: 16.14
+#
+# That is the first real run of this job, on 12 August 2026. The image was
+# pinned at postgres:16-alpine to match docker-compose.yml — the LOCAL
+# database, which is not the one this container dumps — and Railway's Postgres
+# had moved to 18.4.
+#
+# THE COMMENT IN THE DOCKERFILE ALREADY SAID "bump this if Railway provisions a
+# different major version", and a comment is not a check: nobody was told about
+# the upgrade, so nothing bumped it. Railway will upgrade Postgres again. This
+# reads both numbers at the start of every run so that the next time it happens
+# the failure names both versions and says which one to change, instead of
+# being a stack trace in a 3am log nobody is watching.
+#
+# It is FATAL rather than a warning, and deliberately so: pg_dump is going to
+# refuse a few lines further down regardless. Failing here means the email and
+# the BackupRun row carry the two version numbers, which is the whole fix.
+#
+# Only the MAJOR version matters, and only in one direction. A client ahead of
+# the server is supported all the way back to 9.2 and is the intended state.
+# ---------------------------------------------------------------------------
+STAGE="VERSION"
+SERVER_VERSION_NUM=$(psql "$DATABASE_URL" -At -c "SELECT current_setting('server_version_num')" 2>/dev/null || echo "")
+if [ -z "$SERVER_VERSION_NUM" ]; then
+  fail "Could not read the server version from DATABASE_URL. The database is unreachable, or the credentials are wrong — either way there is nothing to dump."
+fi
+# server_version_num is MMmmmm (180004 for 18.4), and has been since Postgres 10.
+SERVER_MAJOR=$(( SERVER_VERSION_NUM / 10000 ))
+# `pg_dump (PostgreSQL) 18.4` -> `18.4` -> `18`. The sed strips a suffix as well
+# as the minor, so a beta or rc tag (`18beta1`) still yields its major.
+CLIENT_VERSION=$(pg_dump --version | awk '{print $NF}')
+CLIENT_MAJOR=$(printf '%s' "$CLIENT_VERSION" | sed 's/[^0-9].*//')
+if [ -z "$CLIENT_MAJOR" ]; then
+  fail "Could not read pg_dump's own version (\`pg_dump --version\` printed '${CLIENT_VERSION}'). Refusing to run a dump that cannot be version-checked."
+fi
+echo "Postgres server ${SERVER_MAJOR}, pg_dump client ${CLIENT_MAJOR}."
+if [ "$CLIENT_MAJOR" -lt "$SERVER_MAJOR" ]; then
+  fail "pg_dump is version ${CLIENT_MAJOR} and the server is version ${SERVER_MAJOR}. pg_dump refuses to dump a server newer than itself, so NO BACKUP CAN BE TAKEN by this image. Fix: change the FROM line in apps/server/backup.Dockerfile to postgres:${SERVER_MAJOR}-alpine (or newer) and redeploy the backup service."
+fi
 
 STAMP=$(date -u +%Y-%m-%dT%H-%M-%SZ)
 DUMP_FILE="aspire-bloods-${STAMP}.sql.gz"

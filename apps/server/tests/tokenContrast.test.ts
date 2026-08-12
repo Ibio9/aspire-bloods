@@ -364,7 +364,12 @@ function kebab(s: string): string {
  * to be behind" is the page in most of the column and the corner glow in the
  * top-right of it. So each pair is composited here first and then measured.
  *
- * Three properties, and the panel is wrong if any one of them goes:
+ * `--c-panel` IS `--c-glass` (tokens.ts sets both from one expression), which
+ * is asserted below rather than assumed: the sidebar and the pinned control bar
+ * are one material, and two names for one colour is one edit away from being
+ * two colours.
+ *
+ * Four properties, and the panel is wrong if any one of them goes:
  *
  *  1. It reads as a panel against the plain page — the far corner, where there
  *     is no glow at all and the wash is the only thing distinguishing the two
@@ -391,6 +396,14 @@ describe.each(MODES)('%s sidebar panel', (mode) => {
 
   const panelOnPage = blend(wash, page, alpha);
   const panelOnGlow = blend(wash, glowCore, alpha);
+
+  it('is the same material as every other translucent surface', () => {
+    // The colour, not just the blur. The sidebar carried espresso at 6% / 38%
+    // while the control bar carried the card tone at 62% / 58% — one material
+    // in name and two on screen, which is what made the column read as a
+    // slightly-tinted piece of page.
+    expect(wash).toBe(tone(mode, '--c-glass'));
+  });
 
   it('separates from the page without becoming a card', () => {
     const fromPage = contrastRatio(panelOnPage, page);

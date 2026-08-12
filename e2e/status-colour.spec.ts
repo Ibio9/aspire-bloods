@@ -150,21 +150,22 @@ test.describe('traffic-light status', () => {
       await page.waitForSelector('text=Trend over time');
 
       // ─────────────────────────────────────────────────────────────────
-      // FIVE BANDS, EACH PAINTED AT ITS OWN WEIGHT (rewritten Aug 2026).
+      // FIVE BANDS, EACH PAINTED AT ITS OWN WEIGHT — AND THE WEIGHT MOVED
+      // BACK INTO THE GRADIENT STOPS (rewritten again, Aug 2026).
       //
-      // This used to count five `linearGradient` definitions and assert every
-      // band path was drawn at fillOpacity 1, because the weight lived in the
-      // gradient's own stops. The bands are FLAT now — no gradients, hard
-      // edges — so the weight is on the element, and the check has to move
-      // with it.
+      // The history is worth keeping because the check has now followed the
+      // implementation twice: the weight lived in gradient stops, then on the
+      // element when the bands went flat, and now in the stops again because
+      // the bands ramp in hue AND weight together (`bandPlotGradient`).
       //
-      // The PROPERTY being protected is unchanged and is the reason this
-      // exists: Recharts' ReferenceArea defaults fillOpacity to 0.5, so a band
-      // whose weight is not stated explicitly is drawn at half whatever the
-      // tokens decided. When that happened every band landed in the same beige
-      // and the whole chart read as grey — while the key, the boundary lines
-      // and the tokens themselves were all perfectly correct. Nothing short of
-      // reading the painted opacity sees it.
+      // THE PROPERTY BEING PROTECTED IS UNCHANGED. Recharts' ReferenceArea
+      // defaults fillOpacity to 0.5, so a band whose weight is not stated is
+      // drawn at half whatever the tokens decided. When that happened every
+      // band landed in the same beige and the whole chart read as grey — while
+      // the key, the boundary lines and the tokens themselves were all
+      // perfectly correct. Nothing short of reading the painted opacity sees
+      // it. So: the element must be at exactly 1 (stated, not defaulted), and
+      // every stop-opacity inside must be one the tokens actually produce.
       // ─────────────────────────────────────────────────────────────────
       // The same selector e2e/chart-bands.spec.ts measures band geometry
       // through, so the two specs cannot disagree about what a band is.
@@ -175,31 +176,70 @@ test.describe('traffic-light status', () => {
           // The status bands are the tall ones. Anything short is a boundary
           // artefact rather than a band.
           .filter((r) => Number(r.getAttribute('height')) > 8)
-          .map((r) => Number(getComputedStyle(r as SVGElement).fillOpacity));
+          .map((r) => {
+            const el = r as SVGElement;
+            const fill = getComputedStyle(el).fill;
+            const id = /url\(["']?#([^"')]+)/.exec(fill)?.[1] ?? null;
+            const gradient = id ? document.getElementById(id) : null;
+            return {
+              fillOpacity: Number(getComputedStyle(el).fillOpacity),
+              gradientId: id,
+              stops: gradient
+                ? [...gradient.querySelectorAll('stop')].map((s) => Number(getComputedStyle(s).stopOpacity))
+                : [],
+            };
+          });
       });
       expect(bandPaint.length, `${theme}: no status bands were painted at all`).toBeGreaterThanOrEqual(5);
 
-      // The three weights the ladder is built from — in range carries the
-      // least, out-of-range more, significantly-out most. Read from the
-      // painted element rather than from the token file, so a band drawn at
-      // the library's own 0.5 default fails here even though every token is
-      // right.
-      const WEIGHTS = [0.07, 0.12, 0.18];
-      for (const opacity of bandPaint) {
+      for (const band of bandPaint) {
+        // The element carries no weight of its own. 0.5 here is the library's
+        // default showing through, which is the failure this test exists for.
         expect(
-          WEIGHTS.some((w) => Math.abs(w - opacity) < 0.001),
-          `${theme}: a status band is painted at ${opacity}, which is not one of its tokens' own weights ` +
-            `(${WEIGHTS.join(', ')}). 0.5 means the weight was never stated and Recharts supplied its default.`,
-        ).toBe(true);
+          band.fillOpacity,
+          `${theme}: a band's own fill-opacity is ${band.fillOpacity}; the weight belongs in the stops and this must be exactly 1`,
+        ).toBeCloseTo(1, 5);
+        expect(band.gradientId, `${theme}: a band is not painted with a gradient at all`).not.toBeNull();
+        expect(band.stops.length, `${theme}: gradient ${band.gradientId} has no stops`).toBeGreaterThanOrEqual(2);
       }
-      // All three weights are actually in use, so a chart that painted every
-      // band at the same value could not pass by accident.
-      expect(new Set(bandPaint.map((o) => o.toFixed(3))).size, `${theme}: every band is the same weight`).toBe(3);
 
-      // NO GRADIENTS. The flat-band decision, asserted rather than assumed: a
-      // gradient reintroduced here would restore soft edges to a plot whose
-      // entire subject is a boundary.
-      await expect(page.locator('svg defs linearGradient[id^="band-"]')).toHaveCount(0);
+      // EVERY STOP IS A WEIGHT THE TOKENS PRODUCE. The three peaks and the two
+      // handover fractions between them, computed here from the same numbers
+      // rather than transcribed — a stop at 0.5 could not survive this, and
+      // neither could a band drawn at a weight nobody chose.
+      const PEAK = { inRange: 0.11, out: 0.21, significant: 0.28 };
+      const ALLOWED = [
+        PEAK.inRange,
+        PEAK.inRange * 0.86, // the green easing off at its own edges
+        PEAK.out,
+        PEAK.out * 0.62, // an out-of-range band where it meets the reference bound
+        PEAK.out * 0.82,
+        PEAK.significant,
+        PEAK.out, // and where significantly-out begins, which is the same weight
+      ];
+      for (const band of bandPaint) {
+        for (const stop of band.stops) {
+          expect(
+            ALLOWED.some((w) => Math.abs(w - stop) < 0.002),
+            `${theme}: a band stop is painted at ${stop}, which is not a weight these tokens produce ` +
+              `(${ALLOWED.map((w) => w.toFixed(3)).join(', ')}).`,
+          ).toBe(true);
+        }
+      }
+
+      // THE LADDER IS ON SCREEN, not merely in the token file: the heaviest
+      // stop anywhere is the significantly-out peak and the lightest is inside
+      // the in-range band, so a chart that painted every band at one value
+      // could not pass by accident.
+      const allStops = bandPaint.flatMap((b) => b.stops);
+      expect(Math.max(...allStops)).toBeCloseTo(PEAK.significant, 2);
+      expect(Math.min(...allStops)).toBeLessThan(PEAK.out * 0.62 + 0.001);
+      expect(new Set(allStops.map((o) => o.toFixed(3))).size, `${theme}: every band stop is the same weight`).toBeGreaterThanOrEqual(3);
+
+      // ONE GRADIENT PER DRAWN BAND, not one per status: the stops are placed
+      // by value and mapped onto each rect's own clamped extent, so two bands
+      // sharing a definition would mean one of them had the wrong geometry.
+      expect(new Set(bandPaint.map((b) => b.gradientId)).size).toBe(bandPaint.length);
 
       // The band tokens themselves still carry real colour in this theme. A
       // band drawn at its own weight is worth nothing if the value behind it

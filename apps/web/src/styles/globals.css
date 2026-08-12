@@ -394,27 +394,24 @@
   }
 
   /* ── The sidebar panel, in both shells ─────────────────────────────────
-     A TRANSLUCENT WARM WASH, not a surface. The panel is in front of the
-     corner glow rather than on top of it: the light still comes through,
-     dimmer on this side of the seam and continuous across it.
+     IT IS THE GLASS MATERIAL, AND NOW IT IS THE GLASS COLOUR TOO (Aug 2026).
 
-     One colour and one alpha, both tokens (see --c-panel in tokens.ts and
-     --panel-wash in tailwind.config.ts). It cannot be a Tailwind
-     `bg-panel/[…]` because the alpha differs per theme and an opacity
-     modifier is a build-time literal.
+     The blur and the saturation have been shared with `.glass` for a while;
+     the COLOUR was not, and that is what kept the column reading as a flat
+     piece of page rather than as a surface in front of one. It was brand
+     espresso at 6% / 38% — a faint tint of a colour far from every surface
+     around it — which measured 1.10:1 off the light page and 1.17:1 off the
+     dark one against a card's 1.30 / 1.28. A tenth of the way to being a
+     panel.
 
-     IT IS THE GLASS MATERIAL, AT ITS OWN ALPHA (changed Aug 2026). It used to
-     carry no backdrop filter, on the reasoning that the only thing behind it
-     is the page colour and one fixed radial — and blurring a smooth radial
-     returns the same radial, so the filter bought a compositing layer and no
-     visible difference. That reasoning is still true of this panel ON ITS OWN,
-     and it is the wrong scope: the sticky control bar and the pinned surfaces
-     beside it need the blur (the reader's own results pass under them), and
-     three surfaces in one product that are translucent in three different ways
-     are three materials. So the blur, the saturation and the fallback are
-     shared with `.glass` below, and only the ALPHA differs — 6%/38% here,
-     because nothing passes under this panel and its measured contrasts
-     (tokenContrast.test.ts) are pinned to that number.
+     Same colour as the pinned control bar and the download button, at the
+     sidebar's own alpha: `--c-panel` is set from the same expression as
+     `--c-glass` in tokens.ts, and `--panel-wash` is 75% / 78% against the
+     bar's 62% / 58%. One material, one look, a per-surface alpha — which was
+     always the intent and was being contradicted by the colour.
+
+     It cannot be a Tailwind `bg-panel/[…]`: the alpha differs per theme and an
+     opacity modifier is a build-time literal.
 
      The mobile DRAWER still keeps its opaque surface, and that is unchanged:
      it is a floating layer over scrimmed content, and navigation read through
@@ -426,6 +423,15 @@
     background-color: rgb(var(--c-panel) / var(--panel-wash));
     -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
     backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  }
+
+  /* Same reasoning as `.glass` below, and it matters more here: the sidebar
+     carries navigation, and a browser with no backdrop filter would otherwise
+     have the page scrolling legibly through the column beside it. */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .panel-wash {
+      background-color: rgb(var(--c-panel) / 0.96);
+    }
   }
 
   /* ── GLASS ─────────────────────────────────────────────────────────────
@@ -483,6 +489,26 @@
     .glass-veil {
       transition: none;
     }
+  }
+
+  /* ── The first-sign-in sequence ─────────────────────────────────────────
+     One step on screen at a time, and every step in the DOM at all times.
+
+     `display` rather than a conditional render, for two reasons that are the
+     same reason: the page has to still BE the single document it used to be.
+     @media print below shows all four in order, and Ctrl+F finds copy on a
+     step that is not currently on screen — which matters on a page whose
+     entire content is four screens of prose that somebody may be trying to
+     find one sentence in.
+
+     display:none is deliberate rather than opacity or visibility: a hidden
+     step must not be a tab stop, and its links must not be reachable. */
+  .welcome-step {
+    display: none;
+  }
+
+  .welcome-step.is-current {
+    display: block;
   }
 
   /* The value half. Fraunces at the section optical size, so a
@@ -852,6 +878,15 @@
     min-height: 0 !important;
     position: static !important;
     overflow: visible !important;
+  }
+
+  /* THE WHOLE INTRODUCTION PRINTS, not the step somebody happened to be on.
+     A sequence is a way of pacing a screen; paper has no next button, and a
+     printout of step 3 of 4 is a document with three quarters missing. The
+     progress bar and the controls carry `print:hidden` at the call site,
+     because they are chrome and only the component knows that. */
+  .welcome-step {
+    display: block !important;
   }
 
   /* Nothing scrolls on paper. An `overflow-y-auto` list prints only the part

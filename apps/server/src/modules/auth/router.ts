@@ -122,9 +122,13 @@ authRouter.post('/signup', signupRateLimiter, asyncHandler(async (req, res) => {
   }
 }));
 
-// Step two of registration: the emailed six-digit code is submitted here, and
-// the response is the same otp_required shape /login returns, so the client
-// reuses the exact same 2FA step component either way.
+// The LAST step of registration, and it is the only code a new patient enters.
+//
+// It used to answer with a second OTP challenge, so registering meant reading
+// one six-digit code out of an email and then a second one out of a second
+// email, on a screen that looked identical — the same proof, asked for twice.
+// See verifyEmail(): this now issues the session, and two-factor sign-in is
+// unchanged and still mandatory on every subsequent login.
 //
 // Shares otpRateLimiter's budget deliberately — it is the same thing being
 // guessed (a six-digit code) at the same stakes, and giving it its own bucket
@@ -134,8 +138,17 @@ authRouter.post('/verify-email', otpRateLimiter, asyncHandler(async (req, res) =
   if (!parsed.success) return res.status(400).json({ error: 'Enter the 6-digit code we emailed you.' });
 
   try {
-    const result = await verifyEmail(parsed.data.email, parsed.data.code, clientIp(req));
-    res.json(otpChallengeResponse(result));
+    const result = await verifyEmail(
+      parsed.data.email,
+      parsed.data.code,
+      clientIp(req),
+      req.header('user-agent') ?? null,
+    );
+    setAccessTokenCookie(res, result.accessToken);
+    setRefreshTokenCookie(res, result.refreshTokenRaw);
+    setCsrfCookie(res, generateCsrfToken());
+    setIdleDeadlineCookie(res, result.userId, effectiveRole(result.email, result.role));
+    res.json({ status: 'authenticated' });
   } catch (e) {
     if (e instanceof AuthError) return res.status(e.status).json({ error: e.message });
     throw e;

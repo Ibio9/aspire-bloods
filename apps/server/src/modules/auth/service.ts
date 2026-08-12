@@ -362,21 +362,44 @@ const VERIFICATION_REJECTED = 'That code is incorrect or has expired. Please req
 
 /**
  * Entering the emailed code. This is the moment the account becomes real:
- * PENDING_VERIFICATION → ACTIVE, and immediately an OTP challenge in the
- * same { challengeId, devOtpCode } shape login() returns, verified through
- * the same POST /auth/otp/verify endpoint.
+ * PENDING_VERIFICATION → ACTIVE, and signed in.
  *
- * Email verification first, 2FA enrolment second, and no terminal state in
- * between — this function cannot return a session, and verifyOtp() is the
- * only thing that can. Enrolment isn't an optional follow-up step the
- * patient could wander away from; it's structurally the only way the flow
- * ends in anything other than being signed out.
+ * ── ONE CODE, ONCE (changed Aug 2026) ──────────────────────────────────────
+ *
+ * It used to answer with a fresh OTP challenge, so registering meant typing a
+ * six-digit code out of an email, and then typing a SECOND six-digit code out
+ * of a second email that had arrived thirty seconds later, on a screen that
+ * looked the same as the first. Patients read that as one step repeated and
+ * assumed something had gone wrong — which is the correct reading, because the
+ * two codes prove exactly the same thing. Both are one-time codes delivered to
+ * the same mailbox; the second establishes nothing the first has not.
+ *
+ * So this issues the session directly. What is NOT relaxed:
+ *
+ *  · The account still cannot become ACTIVE without the emailed code, and
+ *    login() still refuses PENDING_VERIFICATION. There is no route to a
+ *    session that skips proving control of the address.
+ *  · Two-factor sign-in is still MANDATORY on every subsequent login. Nothing
+ *    in login() or verifyOtp() changes; a patient meets the OTP screen the
+ *    next time they sign in, which is where a second factor is doing work
+ *    (a password has been entered and the mailbox is the second proof).
+ *  · No device is trusted here. Enrolment is not the moment to offer "trust
+ *    this device for 30 days".
+ *
+ * A password was set moments ago in the same session, so the code plus that
+ * password is the same two-of-two the OTP screen asks for — it is only the
+ * SECOND email that has gone.
  *
  * Keyed on (email, code) rather than a challenge id, which is what lets
  * signup() answer identically for a fresh address and one already registered:
  * its response carries nothing this step needs.
  */
-export async function verifyEmail(email: string, code: string, ip: string | null): Promise<LoginResult> {
+export async function verifyEmail(
+  email: string,
+  code: string,
+  ip: string | null,
+  userAgent: string | null,
+): Promise<OtpVerifyResult> {
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user || (user.status !== 'PENDING_VERIFICATION' && user.status !== 'ACTIVE')) {
     throw new AuthError(VERIFICATION_REJECTED, 400);
@@ -424,8 +447,20 @@ export async function verifyEmail(email: string, code: string, ip: string | null
     ipAddress: ip,
   });
 
-  const challenge = await createOtpChallenge(user, ip);
-  return { trustedDeviceSkippedOtp: false, ...challenge };
+  const session = await issueSession(user.id, user.email, user.role, ip, userAgent);
+  // The same entry the OTP path writes, because this IS the sign-in: the audit
+  // trail must show a login here rather than an account that verified its
+  // address and then appeared to be signed in from nowhere.
+  await recordAuditLog({
+    actorUserId: user.id,
+    action: 'LOGIN_SUCCESS',
+    targetType: 'User',
+    targetId: user.id,
+    ipAddress: ip,
+  });
+  // No `deviceIdToTrust`: a brand-new account is not where "trust this device
+  // for 30 days" belongs.
+  return { ...session, userId: user.id, email: user.email, role: user.role };
 }
 
 export interface ResendVerificationResult {

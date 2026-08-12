@@ -66,6 +66,14 @@ export function biologicalSexLabel(sex: string | null | undefined): string {
  * asks — registration, the account page, and the booking gate. Three
  * different phrasings of the same clinical reason would read as three
  * different reasons.
+ *
+ * SHORTENED (Aug 2026), and the cut is the examples. It used to name ferritin
+ * and haemoglobin, which is a fact about which analytes are sex-dependent
+ * offered to somebody who has not yet had a blood test — two marker names to
+ * carry no decision, in a sentence that had to fit under a form field. It is
+ * the same reason in half the words; the account page, where a patient reads
+ * this having actually seen some results, has room for the fuller version if
+ * one is ever wanted and does not have it yet.
  */
 export const BIOLOGICAL_SEX_PURPOSE =
-  'Some reference ranges differ for men and women, ferritin and haemoglobin among them, so this is what decides which range your results are read against.';
+  'Some reference ranges differ for men and women, so this decides which range your results are read against.';

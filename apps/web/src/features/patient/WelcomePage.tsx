@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -22,17 +22,30 @@ import { AccountIcon, DocumentsIcon, LibraryIcon, PanelsIcon } from '../../compo
  *    one thing a person signing in for the first time is here to look at. This
  *    is a page they arrive on and leave; their results are one press away and
  *    the sidebar is where it always is.
- *  · NO CAROUSEL, NO TOUR. No dots, no "1 of 4", no arrows pointing at parts
- *    of an interface they have not seen yet. A tour is a thing you sit through;
- *    this is a thing you read.
+ *  · A SEQUENCE, NOT A SCROLL (changed Aug 2026). It was one long document,
+ *    which is four headings' worth of reading with no sense of how much is
+ *    left and no moment where anything is finished. One heading at a time,
+ *    forward and back, with the same progress bar the registration form uses —
+ *    a person arriving here has just filled that form in, so the mark for
+ *    "where am I in this" is one they met ten seconds ago. Not one word of the
+ *    copy changed, and it is still not a tour: nothing points at parts of an
+ *    interface they have not seen, and every step is a thing you read rather
+ *    than a thing you sit through.
  *  · THE ACTUAL MARKS, NOT AN ILLUSTRATION. The five states are shown using
  *    the product's own StatusBadge and RangeBar — the same components, the same
  *    tokens, the same shapes. A separate diagram of what a status looks like is
  *    a second source of truth, and it is wrong the first time either one
  *    changes.
- *  · DISMISSIBLE AT ANY POINT, and dismissing counts as seen. Both controls at
- *    the foot call the same endpoint. Somebody who skips has decided, and
- *    showing it to them again tomorrow is not respecting that.
+ *  · DISMISSIBLE AT ANY POINT, and dismissing counts as seen. Skip is on every
+ *    step and calls the same endpoint as finishing. Somebody who skips has
+ *    decided, and showing it to them again tomorrow is not respecting that.
+ *
+ * EVERY STEP IS IN THE DOM AT ALL TIMES, and one is shown. That is what makes
+ * it print as the single document it used to be: `.welcome-step` is a display
+ * toggle in globals.css that `@media print` overrides, so a patient who prints
+ * this gets all four sections in order and none of the controls. It also means
+ * Ctrl+F finds copy on a step that is not on screen, which is the right
+ * trade for a page whose whole content is four screens of prose.
  *
  * SEEN IS RECORDED SERVER-SIDE (User.walkthroughSeenAt). Not localStorage: a
  * first sign-in is a fact about the person, and a flag in storage brings this
@@ -82,44 +95,19 @@ const DESTINATIONS = [
   },
 ];
 
-export function WelcomePage() {
-  const { user, refresh } = useAuth();
-  const navigate = useNavigate();
-  const [finishing, setFinishing] = useState(false);
-  const firstName = user?.displayName?.split(' ')[0] ?? '';
+/** One step of the sequence. `id` is the heading's id, so the section is labelled by its own heading. */
+interface WelcomeStep {
+  id: string;
+  title: string;
+  body: ReactNode;
+}
 
-  async function finish() {
-    setFinishing(true);
-    try {
-      await apiFetch('/patient/walkthrough-seen', { method: 'POST' });
-      // Re-read /auth/me so `walkthroughSeen` is true in this session too —
-      // otherwise HomeRouter would send them straight back here on the next
-      // visit to "/", which is the screen refusing to be dismissed.
-      await refresh();
-    } catch {
-      // A failed write is not a reason to trap somebody on this page. They go
-      // to their results; the worst case is that they see this once more.
-    } finally {
-      setFinishing(false);
-      navigate('/overview', { replace: true });
-    }
-  }
-
-  return (
-    <div className="motion-safe:animate-riseIn">
-      <TwoTierHeading
-        eyebrow="Aspire Clinic · Patient portal"
-        title={firstName ? `Welcome, ${firstName}` : 'Welcome'}
-      />
-      <p className="mt-4 max-w-measure text-reading leading-relaxed text-espresso/90">
-        A minute on how to read what is here, and then you need never see this page again.
-      </p>
-
-      {/* ── What the five states mean ────────────────────────────────────── */}
-      <section className="mt-14" aria-labelledby="welcome-states">
-        <h2 id="welcome-states" className="font-display opsz-section text-xl leading-tight text-espresso">
-          Each result is placed against a range
-        </h2>
+const STEPS: WelcomeStep[] = [
+  {
+    id: 'welcome-states',
+    title: 'Each result is placed against a range',
+    body: (
+      <>
         <p className="mt-3 max-w-measure text-reading leading-relaxed text-espresso/90">
           The laboratory publishes a reference range for every marker it measures: the interval most people’s results
           fall in, for that test on that analyser. Your result is shown against that range, in one of five states.
@@ -136,6 +124,7 @@ export function WelcomePage() {
             high={EXAMPLE.high}
             status="IN_RANGE"
             severityThreshold={(EXAMPLE.high - EXAMPLE.low) * 1.5}
+            unit={EXAMPLE.unit}
           />
           <p className="numeric mt-4 text-xs text-espresso/80">
             {EXAMPLE.value} {EXAMPLE.unit} · reference range {EXAMPLE.low}–{EXAMPLE.high} {EXAMPLE.unit}
@@ -154,61 +143,60 @@ export function WelcomePage() {
             ))}
           </ul>
         </Card>
-      </section>
-
-      {/* ── Outside the range is common ──────────────────────────────────── */}
-      <section className="mt-14" aria-labelledby="welcome-outside">
-        <h2 id="welcome-outside" className="font-display opsz-section text-xl leading-tight text-espresso">
-          A result outside the range is common, and is not a diagnosis
-        </h2>
-        <div className="mt-3 max-w-measure text-reading leading-relaxed text-espresso/90">
-          <p>
-            A reference range is built so that most healthy people fall inside it, which means some healthy people
-            fall outside it. On a panel of a hundred markers, one or two sitting outside is the ordinary case rather
-            than a finding.
-          </p>
-          <p className="mt-4">
-            A single result is a measurement of one moment. What it means depends on your history, how you were on the
-            day, what else was measured, and things a blood test does not see. That is a conversation with a doctor,
-            not something this portal can answer.
-          </p>
-          <p className="mt-4">
-            Wherever a result sits outside its range, the page says so plainly and points you at your GP, with our
-            contact details beside it. Nothing here is a diagnosis and nothing here is advice.
-          </p>
-        </div>
-      </section>
-
-      {/* ── Where things are ─────────────────────────────────────────────── */}
-      <section className="mt-14" aria-labelledby="welcome-where">
-        <h2 id="welcome-where" className="font-display opsz-section text-xl leading-tight text-espresso">
-          Where things are
-        </h2>
-        <ul className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {DESTINATIONS.map((d) => {
-            const Icon = d.icon;
-            return (
-              <li key={d.to}>
-                <Link to={d.to} className="block h-full rounded-card">
-                  <Card interactive className="h-full">
-                    <p className="flex items-center gap-2.5 font-medium text-espresso">
-                      <Icon className="h-[18px] w-[18px] shrink-0 text-bronze-700" />
-                      {d.label}
-                    </p>
-                    <p className="mt-2 text-sm leading-relaxed text-espresso/85">{d.body}</p>
-                  </Card>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
-
-      {/* ── Where to ask ─────────────────────────────────────────────────── */}
-      <section className="mt-14" aria-labelledby="welcome-ask">
-        <h2 id="welcome-ask" className="font-display opsz-section text-xl leading-tight text-espresso">
-          Where to ask a question
-        </h2>
+      </>
+    ),
+  },
+  {
+    id: 'welcome-outside',
+    title: 'A result outside the range is common, and is not a diagnosis',
+    body: (
+      <div className="mt-3 max-w-measure text-reading leading-relaxed text-espresso/90">
+        <p>
+          A reference range is built so that most healthy people fall inside it, which means some healthy people fall
+          outside it. On a panel of a hundred markers, one or two sitting outside is the ordinary case rather than a
+          finding.
+        </p>
+        <p className="mt-4">
+          A single result is a measurement of one moment. What it means depends on your history, how you were on the
+          day, what else was measured, and things a blood test does not see. That is a conversation with a doctor, not
+          something this portal can answer.
+        </p>
+        <p className="mt-4">
+          Wherever a result sits outside its range, the page says so plainly and points you at your GP, with our
+          contact details beside it. Nothing here is a diagnosis and nothing here is advice.
+        </p>
+      </div>
+    ),
+  },
+  {
+    id: 'welcome-where',
+    title: 'Where things are',
+    body: (
+      <ul className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {DESTINATIONS.map((d) => {
+          const Icon = d.icon;
+          return (
+            <li key={d.to}>
+              <Link to={d.to} className="block h-full rounded-card">
+                <Card interactive className="h-full">
+                  <p className="flex items-center gap-2.5 font-medium text-espresso">
+                    <Icon className="h-[18px] w-[18px] shrink-0 text-bronze-700" />
+                    {d.label}
+                  </p>
+                  <p className="mt-2 text-sm leading-relaxed text-espresso/85">{d.body}</p>
+                </Card>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    ),
+  },
+  {
+    id: 'welcome-ask',
+    title: 'Where to ask a question',
+    body: (
+      <>
         <p className="mt-3 max-w-measure text-reading leading-relaxed text-espresso/90">
           If anything here needs explaining, or a result needs discussing, contact the clinic. The same details are at
           the bottom of the sidebar on every screen.
@@ -216,14 +204,116 @@ export function WelcomePage() {
         <Card className="mt-6 max-w-2xl">
           <ClinicContactLines />
         </Card>
-      </section>
+      </>
+    ),
+  },
+];
 
-      {/* Both controls mark it seen. Skipping is a decision, and showing this
-          again tomorrow to somebody who has made it is not respecting it. */}
-      <div className="mt-14 flex flex-wrap items-center gap-4 border-t border-taupe pt-8">
-        <Button loading={finishing} onClick={() => void finish()}>
-          Go to my results
-        </Button>
+export function WelcomePage() {
+  const { user, refresh } = useAuth();
+  const navigate = useNavigate();
+  const [finishing, setFinishing] = useState(false);
+  const [index, setIndex] = useState(0);
+  const firstName = user?.displayName?.split(' ')[0] ?? '';
+  const isLast = index === STEPS.length - 1;
+
+  async function finish() {
+    setFinishing(true);
+    try {
+      await apiFetch('/patient/walkthrough-seen', { method: 'POST' });
+      // Re-read /auth/me so `walkthroughSeen` is true in this session too —
+      // otherwise HomeRouter would send them straight back here on the next
+      // visit to "/", which is the screen refusing to be dismissed.
+      await refresh();
+    } catch {
+      // A failed write is not a reason to trap somebody on this page. They go
+      // to their results; the worst case is that they see this once more.
+    } finally {
+      setFinishing(false);
+      navigate('/overview', { replace: true });
+    }
+  }
+
+  /**
+   * Left and right move through the sequence.
+   *
+   * Ignored when the key went to something that has its own use for it — a
+   * text field, or a control that has opened a listbox. Nothing on these four
+   * steps is a text field today, and a page that steals an arrow key from one
+   * added later is a page that broke silently.
+   */
+  function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    const target = e.target as HTMLElement;
+    if (target.closest('input, textarea, select, [role="listbox"], [role="combobox"], [aria-expanded="true"]')) return;
+    e.preventDefault();
+    setIndex((i) => Math.min(STEPS.length - 1, Math.max(0, i + (e.key === 'ArrowRight' ? 1 : -1))));
+  }
+
+  return (
+    // `key` on the step wrapper replays the entrance on every move rather than
+    // only on mount; `motion-safe` strips it entirely under reduced motion, so
+    // the step is simply there. Both are the product's ordinary conventions.
+    <div onKeyDown={onKeyDown}>
+      <TwoTierHeading
+        eyebrow="Aspire Clinic · Patient portal"
+        title={firstName ? `Welcome, ${firstName}` : 'Welcome'}
+      />
+      <p className="mt-4 max-w-measure text-reading leading-relaxed text-espresso/90">
+        A minute on how to read what is here, and then you need never see this page again.
+      </p>
+
+      {/* The same mark as the registration form's: one bar per step, filled
+          behind, current in accent. Hidden from print, where every step is on
+          the page and "where am I" has no meaning. */}
+      <ol
+        className="mt-8 flex max-w-md items-center gap-2 print:hidden"
+        aria-label={`Step ${index + 1} of ${STEPS.length}`}
+      >
+        {STEPS.map((s, i) => (
+          <li
+            key={s.id}
+            aria-hidden="true"
+            className={`h-1.5 flex-1 rounded-full transition duration-150 ease-out ${
+              i < index ? 'bg-bronze-700' : i === index ? 'bg-bronze' : 'bg-taupe'
+            }`}
+          />
+        ))}
+      </ol>
+
+      <div key={index} className="motion-safe:animate-riseIn">
+        {STEPS.map((step, i) => (
+          <section
+            key={step.id}
+            // `.welcome-step` is display:none; `.is-current` shows it, and
+            // @media print shows all of them. See globals.css.
+            className={`welcome-step mt-12 ${i === index ? 'is-current' : ''}`}
+            aria-labelledby={step.id}
+          >
+            <h2 id={step.id} className="font-display opsz-section text-xl leading-tight text-espresso">
+              {step.title}
+            </h2>
+            {step.body}
+          </section>
+        ))}
+      </div>
+
+      {/* Skip is on every step and marks it seen, exactly as finishing does.
+          Skipping is a decision, and showing this again tomorrow to somebody
+          who has made it is not respecting it. */}
+      <div className="mt-14 flex flex-wrap items-center gap-4 border-t border-taupe pt-8 print:hidden">
+        {index > 0 && (
+          <Button variant="secondary" onClick={() => setIndex((i) => i - 1)} disabled={finishing}>
+            Back
+          </Button>
+        )}
+        {isLast ? (
+          <Button loading={finishing} onClick={() => void finish()}>
+            Go to my results
+          </Button>
+        ) : (
+          <Button onClick={() => setIndex((i) => i + 1)}>Continue</Button>
+        )}
         <button
           type="button"
           onClick={() => void finish()}
@@ -232,7 +322,7 @@ export function WelcomePage() {
           Skip this
         </button>
         <p className="basis-full text-xs text-espresso/80">
-          You can read this again at any time from Understanding results.
+          You can read this again at any time from Understanding results. Left and right arrow keys move between steps.
         </p>
       </div>
     </div>

@@ -7,7 +7,6 @@ import { authErrorMessage } from '../../lib/authErrors';
 import { useAuth } from '../../lib/AuthContext';
 import { CLINIC_PHONE, CLINIC_PHONE_HREF, CLINIC_EMAIL } from '../../lib/clinicContact';
 import { consumeRedirect } from '../../lib/redirectAfterLogin';
-import { OtpStep, type OtpChallenge } from './OtpStep';
 
 interface EmailCodeStepProps {
   /** The address the code went to — needed to submit the code and to ask for another. */
@@ -25,17 +24,20 @@ const FALLBACK_COOLDOWN_SECONDS = 30;
 const MAX_RESENDS = 3;
 
 /**
- * Confirming a new account's email address — a six-digit code, entered the
- * same way as the 2FA code the patient meets thirty seconds later.
+ * Confirming a new account's email address — a six-digit code, and THE ONLY
+ * ONE a new patient enters (changed Aug 2026).
  *
- * It was a link before. Two differently-shaped proofs for two adjacent steps
- * meant two things to explain and two ways to get stuck; a code for both is
- * one mental model, and it drops the day-long token that a link needs in
- * order to survive a trip to someone's inbox.
+ * It was a link before, then a code — and then, for a while, a code followed
+ * immediately by a SECOND code on a screen that looked the same, because
+ * verifying the address opened a 2FA enrolment challenge that emailed another
+ * one. Two one-time codes to the same mailbox prove the same thing once, and
+ * what a patient actually experienced was one step apparently repeating
+ * itself, which reads as a fault. The server now issues the session when this
+ * code is accepted (see verifyEmail), and two-factor sign-in is untouched and
+ * still mandatory the next time they sign in.
  *
- * The whole run lives here — code, then 2FA — because verification must not
- * be able to end anywhere except signed in or signed out. Nothing in between
- * is a state a patient could wander away from mid-registration.
+ * So this component ends in exactly one place: signed in. It cannot end
+ * anywhere a patient could wander away from mid-registration.
  *
  * Resend mirrors OtpStep's rules (cooldown, cap, previous code retired on
  * reissue) but counts down against a constant rather than a per-account
@@ -57,7 +59,6 @@ export function EmailCodeStep({ email, sentTo, expiresInMinutes, cooldownSeconds
   const [resending, setResending] = useState(false);
   const [cooldown, setCooldown] = useState(cooldownSeconds ?? FALLBACK_COOLDOWN_SECONDS);
   const [resendAttempts, setResendAttempts] = useState(0);
-  const [challenge, setChallenge] = useState<OtpChallenge | null>(null);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -71,27 +72,29 @@ export function EmailCodeStep({ email, sentTo, expiresInMinutes, cooldownSeconds
       setError(null);
       setSubmitting(true);
       try {
-        const result = await apiFetch<{ status: string } & Partial<OtpChallenge>>('/auth/verify-email', {
+        const result = await apiFetch<{ status: string }>('/auth/verify-email', {
           method: 'POST',
           body: JSON.stringify({ email, code: submittedCode }),
         });
-        if (!result.challengeId) {
+        if (result.status !== 'authenticated') {
           setError('We could not finish confirming your email. Please request a new code.');
           return;
         }
-        setChallenge({
-          challengeId: result.challengeId,
-          sentTo: result.sentTo,
-          channel: result.channel,
-          expiresInMinutes: result.expiresInMinutes,
-        });
+        await refresh();
+        // Same rule as the sign-in screen: if a deep link was followed while
+        // signed out, land on the thing that was clicked. A patient who opened
+        // a result link, hit the login wall, registered, and confirmed their
+        // email should arrive at that result — not at the home page having
+        // lost it. A brand-new account has nothing to deep-link to, so this is
+        // almost always the walkthrough at '/'.
+        navigate(consumeRedirect() ?? '/');
       } catch (e) {
         setError(authErrorMessage(e));
       } finally {
         setSubmitting(false);
       }
     },
-    [email, submitting],
+    [email, submitting, refresh, navigate],
   );
 
   const exhausted = resendAttempts >= MAX_RESENDS;
@@ -124,33 +127,9 @@ export function EmailCodeStep({ email, sentTo, expiresInMinutes, cooldownSeconds
     }
   }
 
-  const handleVerified = useCallback(async () => {
-    await refresh();
-    // Same rule as the sign-in screen: if a deep link was followed while
-    // signed out, land on the thing that was clicked. A patient who opened a
-    // result link, hit the login wall, registered, and confirmed their email
-    // should arrive at that result — not at the home page having lost it.
-    navigate(consumeRedirect() ?? '/');
-  }, [refresh, navigate]);
-
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     void submitCode(code);
-  }
-
-  if (challenge) {
-    return (
-      <OtpStep
-        challenge={challenge}
-        onVerified={handleVerified}
-        eyebrow="Last step"
-        heading="Set up two-factor sign-in"
-        // Brand new account: "trust this device for 30 days" is a decision
-        // for someone who already knows the account is theirs and working,
-        // not a checkbox to tick during enrolment.
-        allowTrustDevice={false}
-      />
-    );
   }
 
   return (
@@ -160,7 +139,8 @@ export function EmailCodeStep({ email, sentTo, expiresInMinutes, cooldownSeconds
       <p className="mt-[var(--auth-step)] text-sm leading-relaxed text-espresso/80">
         We’ve sent a 6-digit code to{' '}
         <span className="font-medium text-espresso">{maskedAddress ?? 'your email address'}</span>. It’s valid for{' '}
-        {expiry} minutes. Two-factor sign-in comes next.
+        {expiry} minutes, and it’s the only code you’ll need today — next time you sign in, we’ll send one to confirm
+        it’s you.
       </p>
 
       <form
@@ -194,7 +174,7 @@ export function EmailCodeStep({ email, sentTo, expiresInMinutes, cooldownSeconds
         )}
 
         <Button type="submit" loading={submitting} className="w-full">
-          Confirm email
+          Confirm email and sign in
         </Button>
       </form>
 

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { pressThroughWalkthrough } from './walkthrough';
 
 /**
  * Covers the full patient journey the brief calls out as the thing to
@@ -103,14 +104,7 @@ test('invite -> activate -> login -> 2FA -> session', async ({ page, request }) 
   // is one press away. Pressing through it is what a real first-time patient
   // does, and it also marks it seen — so everything after this behaves exactly
   // as it did before the walkthrough existed.
-  const welcome = page.getByRole('button', { name: 'Go to my results' });
-  // Wait for EITHER screen before deciding. Checking visibility the instant the
-  // OTP is typed is a race against the redirect, and it loses.
-  await expect(welcome.or(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ }))).toBeVisible({
-    timeout: 15000,
-  });
-  if (await welcome.isVisible().catch(() => false)) await welcome.click();
-  await expect(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })).toBeVisible({ timeout: 10000 });
+  await pressThroughWalkthrough(page, /Good (morning|afternoon|evening)/);
   // A brand-new patient is told what is happening and what happens next, not
   // given a tour of the sidebar.
   await expect(page.getByRole('heading', { name: 'What happens next' })).toBeVisible();
