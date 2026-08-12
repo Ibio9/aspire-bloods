@@ -324,7 +324,7 @@ export async function getPatientOverview(patientId: string) {
     nextSteps.push({
       kind: 'DISCUSS_RESULTS',
       title: 'Worth a conversation',
-      body: 'Some of your results sit outside the usual reference range. Your GP or the Aspire clinical team can talk you through them in the context of your own history.',
+      body: 'Some of your results sit outside the usual reference range. Your GP or the Aspire Clinic clinical team can talk you through them in the context of your own history.',
     });
   }
   if (retestDueDate && retestDueDate <= new Date()) {

@@ -24,7 +24,7 @@ const LABELS: Record<string, string> = {
    * renders nothing at all rather than an empty row.
    */
   aspire_inhouse: '',
-  manual_entry: 'Recorded by the Aspire clinical team',
+  manual_entry: 'Recorded by the Aspire Clinic clinical team',
 };
 
 export function sourceLabel(sourceKey: string, sourceName: string): string {

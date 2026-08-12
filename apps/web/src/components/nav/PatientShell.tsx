@@ -425,7 +425,7 @@ export function PatientShell({ children }: { children?: ReactNode }) {
           because it is the whole of the separation wherever the glow does not
           reach — which on a wide window is most of this column. */}
       <aside
-        className={`panel-wash h-viewport sticky top-0 hidden shrink-0 flex-col border-r border-panel-edge transition-[width] duration-200 ease-out md:flex print:hidden ${
+        className={`panel-wash h-viewport sticky top-0 hidden shrink-0 flex-col border-r border-panel-edge transition-[width] duration-200 ease-out md:flex print-hide ${
           collapsed ? 'w-[84px]' : 'w-[288px]'
         }`}
       >
@@ -482,7 +482,7 @@ export function PatientShell({ children }: { children?: ReactNode }) {
             child happens to be is a number that changes when somebody swaps an
             icon, and the bar would then pin a few pixels off with a strip of
             scrolling content showing through the gap. */}
-        <div className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-taupe bg-cream/90 px-4 backdrop-blur md:hidden print:hidden">
+        <div className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-taupe bg-cream/90 px-4 backdrop-blur md:hidden print-hide">
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
@@ -504,7 +504,7 @@ export function PatientShell({ children }: { children?: ReactNode }) {
 
         {/* The on-screen disclaimer footer is chrome; the printed one is the
             clinic's contact details repeating on every sheet. */}
-        <Footer className="px-5 sm:px-8 md:px-14 lg:px-20 print:hidden" />
+        <Footer className="px-5 sm:px-8 md:px-14 lg:px-20 print-hide" />
         <PrintFooter />
       </div>
     </div>

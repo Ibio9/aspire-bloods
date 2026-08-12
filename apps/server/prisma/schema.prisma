@@ -1099,6 +1099,50 @@ model AuditLogEntry {
 // Retention & erasure
 // ---------------------------------------------------------------------------
 
+/// WHETHER A BACKUP ACTUALLY RAN, AND WHEN.
+///
+/// The off-platform nightly dump is the one job in this system with no user
+/// and no screen: it runs in a container of its own, at 03:15, and until this
+/// table existed the only evidence it produced was a log line in a service
+/// nobody opens. That is not a hypothetical failure mode — the R2 bucket was
+/// found EMPTY, 0 B, 0 operations, because the cron service had never been
+/// created at all. The script was correct and unemployed, for months.
+///
+/// So the job records itself HERE, over the same private DATABASE_URL it
+/// already uses to take the dump. Deliberately not an API call with a shared
+/// secret and not a marker object in the bucket: both are a second credential
+/// and a second network path to go wrong, and psql is already in the image and
+/// already connected.
+///
+/// A FAILED row is as important as a succeeded one. "No row since Tuesday" and
+/// "a row every night saying it failed" are different problems with different
+/// causes, and a table that only records successes cannot tell them apart.
+enum BackupOutcome {
+  SUCCEEDED
+  FAILED
+}
+
+model BackupRun {
+  id         String        @id @default(uuid())
+  startedAt  DateTime      @default(now())
+  finishedAt DateTime?
+  outcome    BackupOutcome
+  /// The object as it was written to R2. Null on a run that failed before upload.
+  objectKey  String?
+  /// The compressed artefact, and the dump inside it. Both, because a plausible
+  /// .gz around an empty dump is the failure this pair is here to make visible.
+  sizeBytes         BigInt?
+  uncompressedBytes BigInt?
+  /// Of the local file, compared against the object read back from R2.
+  sha256     String?
+  /// Which step gave way: DUMP, VERIFY, UPLOAD, READBACK, PRUNE.
+  failureStage String?
+  errorMessage String?
+
+  @@index([startedAt])
+  @@index([outcome, startedAt])
+}
+
 model RetentionPolicy {
   id                  String    @id @default(uuid())
   dataType            String    @unique

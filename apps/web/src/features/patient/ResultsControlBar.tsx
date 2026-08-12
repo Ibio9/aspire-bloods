@@ -306,7 +306,7 @@ export function ResultsControlBar({
     // height of the patient shell's own mobile header below md, so the bar
     // never pins underneath it. z-20 keeps it under that header (z-30) and over
     // the results.
-    <div ref={barRef} className="sticky top-[var(--shell-sticky-top)] z-20 mt-12 print:hidden">
+    <div ref={barRef} className="sticky top-[var(--shell-sticky-top)] z-20 mt-12 print-hide">
       {/* THE GLASS. Behind the controls, wider than the content column by
           exactly the shell's own page padding, and taller than the bar at both
           ends so nothing scrolls into contact with the type. Pointer events

@@ -48,7 +48,24 @@ interface QueuedReport {
   receivedDate: string;
 }
 
+interface BackupStatus {
+  neverRun: boolean;
+  lastSuccessAt: string | null;
+  hoursSinceSuccess: number | null;
+  overdue: boolean;
+  overdueAfterHours: number;
+  lastRun: {
+    startedAt: string;
+    finishedAt: string | null;
+    outcome: 'SUCCEEDED' | 'FAILED';
+    objectKey: string | null;
+    failureStage: string | null;
+    errorMessage: string | null;
+  } | null;
+}
+
 interface WorkQueue {
+  backup: BackupStatus;
   buckets: {
     state: QueueState | 'RELEASED';
     count: number;
@@ -110,6 +127,103 @@ function formatDuration(ms: number | null): string {
  * quieter. The sort order is what actually carries urgency.
  */
 const OVERDUE_MS = 48 * 3_600_000;
+
+/**
+ * IS THERE A COPY OF THE DATABASE ANYWHERE ELSE.
+ *
+ * First band on the page, above the exceptions, and that ordering is the whole
+ * point of it. On 12 August 2026 the R2 bucket was inspected for the first time:
+ * 0 bytes, empty, zero operations. The script was correct, the verification
+ * logic was good, and no Railway service had ever been created to run it — so
+ * the practice had been operating with no off-platform backup for months and
+ * nothing anywhere could have said so.
+ *
+ * The failure mode of a backup job is not crashing, it is being ABSENT, and
+ * absence is silent by construction. This is the thing that makes it loud.
+ *
+ * THREE STATES, NOT TWO. "Never run" and "last succeeded four days ago" are
+ * different problems: the first means the cron service does not exist or has
+ * never fired, the second means it exists and has stopped. And a run that
+ * FAILED last night is a third — the job is alive and the backup is not — which
+ * a panel showing only the last success would render as ordinary staleness.
+ *
+ * NOT A TRAFFIC LIGHT. Red, amber and green mean a clinical finding everywhere
+ * else in this product and reusing them here would make the vocabulary mean two
+ * things. An overdue backup is carried by the word, by full text weight against
+ * the muted default, and by leading the page.
+ */
+function BackupBand({ backup }: { backup: BackupStatus }) {
+  const failedLast = backup.lastRun?.outcome === 'FAILED';
+
+  const headline = backup.neverRun
+    ? 'never'
+    : backup.hoursSinceSuccess === null
+      ? 'never'
+      : backup.hoursSinceSuccess < 1
+        ? 'under an hour ago'
+        : backup.hoursSinceSuccess < 48
+          ? `${backup.hoursSinceSuccess} h ago`
+          : `${Math.floor(backup.hoursSinceSuccess / 24)} d ago`;
+
+  return (
+    <div className="mt-10">
+      <p className="eyebrow mb-4">Off-platform backup</p>
+      <Card className="max-w-3xl">
+        <div className="flex flex-wrap items-baseline gap-x-10 gap-y-3">
+          <div>
+            <p
+              className={`numeric tabular text-2xl font-medium leading-none ${
+                backup.overdue ? 'text-espresso' : 'text-espresso/85'
+              }`}
+            >
+              {headline}
+            </p>
+            <p className="mt-1.5 text-sm text-espresso/85">last successful backup</p>
+          </div>
+          {backup.lastRun && (
+            <div>
+              <p className="text-sm font-medium text-espresso">
+                {backup.lastRun.outcome === 'SUCCEEDED' ? 'Last run succeeded' : 'Last run FAILED'}
+              </p>
+              <p className="numeric mt-1 text-xs text-espresso/80">{formatDate(backup.lastRun.startedAt)}</p>
+            </div>
+          )}
+        </div>
+
+        {backup.neverRun && (
+          // The state that was live for months, said in as many words. Not
+          // "unknown" and not "no data": there has never been a backup.
+          <p className="mt-5 max-w-measure border-t border-taupe pt-4 text-sm font-medium leading-relaxed text-espresso">
+            No backup has ever run. There is no off-platform copy of this database. The backup script exists in the
+            repository; what is missing is a Railway cron service to run it. See DEPLOYMENT.md, “Standing up the backup
+            cron service”.
+          </p>
+        )}
+
+        {!backup.neverRun && backup.overdue && (
+          <p className="mt-5 max-w-measure border-t border-taupe pt-4 text-sm font-medium leading-relaxed text-espresso">
+            The last successful backup is more than {backup.overdueAfterHours} hours old. The job runs nightly, so two
+            missed nights means it has stopped rather than stumbled. Check the backup service’s own logs in Railway.
+          </p>
+        )}
+
+        {failedLast && backup.lastRun && (
+          <p className="mt-4 max-w-measure text-sm leading-relaxed text-espresso/85">
+            The last run failed
+            {backup.lastRun.failureStage ? ` at the ${backup.lastRun.failureStage.toLowerCase()} stage` : ''}.
+            {backup.lastRun.errorMessage ? ` ${backup.lastRun.errorMessage}` : ''}
+          </p>
+        )}
+
+        {!backup.overdue && !failedLast && backup.lastRun?.objectKey && (
+          <p className="numeric mt-5 border-t border-taupe pt-4 text-xs text-espresso/80">
+            {backup.lastRun.objectKey}
+          </p>
+        )}
+      </Card>
+    </div>
+  );
+}
 
 function ExceptionsBand({ exceptions }: { exceptions: WorkQueue['exceptions'] }) {
   const items = [
@@ -276,6 +390,7 @@ export function WorkQueuePage() {
         </div>
       ) : (
         <>
+          <BackupBand backup={queue.backup} />
           <ExceptionsBand exceptions={queue.exceptions} />
 
           <div className="mt-14">

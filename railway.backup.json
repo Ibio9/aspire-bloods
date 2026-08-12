@@ -1,0 +1,37 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "//": [
+    "CONFIG-AS-CODE FOR THE NIGHTLY BACKUP CRON SERVICE.",
+    "",
+    "Not railway.json — that one is the API service, and a Railway project's",
+    "services each read their own config path (Settings -> Config-as-code).",
+    "Point the backup service at 'railway.backup.json' and it builds the right",
+    "Dockerfile with the right schedule; leave it unset and it would build the",
+    "API's Dockerfile and run as an always-on web service, which is how you get",
+    "a second copy of the API billed by the hour and still no backups.",
+    "",
+    "THE CRON SCHEDULE IS THE PART THAT WAS MISSING. Everything else in this",
+    "file existed as a Dockerfile and a script; what did not exist was anything",
+    "that ran them. 15 3 * * * is 03:15 UTC daily. Railway runs a cron service",
+    "to completion on that schedule instead of keeping it up, so it is billed",
+    "for the ~40 seconds it takes rather than for 24 hours.",
+    "",
+    "restartPolicyType is NEVER on purpose. A failed backup has already emailed",
+    "ESCALATION_EMAIL and written a FAILED row to BackupRun; restarting it would",
+    "send the same alert three more times at 3am for a cause that is not going",
+    "to resolve itself in ten seconds. Tomorrow's run is the retry.",
+    "",
+    "Environment variables are NOT here and cannot be: they are secrets. See",
+    "DEPLOYMENT.md -> Standing up the backup cron service for the full list and",
+    "where each one comes from."
+  ],
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "apps/server/backup.Dockerfile"
+  },
+  "deploy": {
+    "startCommand": "/backup.sh",
+    "cronSchedule": "15 3 * * *",
+    "restartPolicyType": "NEVER"
+  }
+}

@@ -261,17 +261,39 @@ const copyBlocks: { slug: string; body: string; supersedes?: string[] }[] = [
      * same four lines in the PDF. This block says the thing only a clinician
      * can say; nothing in it has to be edited when the clinic moves.
      */
-    body: 'One or more of your results falls outside the usual reference range. This is not a diagnosis. Many things affect a single result, and only a clinician who knows your full history can interpret it properly. Please contact your GP or the Aspire clinical team to discuss it.',
+    body: 'One or more of your results falls outside the usual reference range. This is not a diagnosis. Many things affect a single result, and only a clinician who knows your full history can interpret it properly. Please contact your GP or the Aspire Clinic clinical team to discuss it.',
+    /**
+     * EVERY BODY THIS BLOCK HAS EVER SHIPPED, VERBATIM.
+     *
+     * `supersedes` is matched EXACTLY against what is stored, and that is what
+     * makes it safe: the seed may replace a body it recognises as its own and
+     * must never touch one a human reworded. So these strings are history and
+     * are not editable — a find-and-replace across this file that "tidied" them
+     * would silently strand every database still holding the old text, which
+     * would then be left alone for ever on the grounds that somebody must have
+     * written it by hand.
+     *
+     * The first two still say "the Aspire clinical team" and still carry the
+     * comma-joined address, because that is what they said. The third is the
+     * body this block shipped between then and the naming correction (Aug 2026,
+     * "Aspire clinical team" -> "Aspire Clinic clinical team"), and it is here
+     * so an existing database actually receives that correction.
+     */
     supersedes: [
       'One or more of your results falls outside the usual reference range. This is not a diagnosis. Many things affect a single result, and only a clinician who knows your full history can interpret it properly. Please contact your GP or the Aspire clinical team to discuss it.\n\nAspire Clinic, Aspire Group of Companies, 27 Mortimer Street, London\nClinical team: clinical-team@aspireshield.com',
       'One or more of your results falls outside the expected reference range. This is not a diagnosis. Many things can affect a single result, and only a clinician who knows your full history can interpret it properly. Please contact your GP or the Aspire clinical team to discuss these results and next steps.\n\nAspire Clinic, Aspire Group of Companies, 27 Mortimer Street, London\nClinical team: clinical-team@aspireshield.com',
+      'One or more of your results falls outside the usual reference range. This is not a diagnosis. Many things affect a single result, and only a clinician who knows your full history can interpret it properly. Please contact your GP or the Aspire clinical team to discuss it.',
     ],
   },
   {
     slug: 'footer_disclaimer',
-    body: 'This portal is for information only and does not constitute a diagnosis or medical advice. If you have concerns about your results, contact your GP or the Aspire clinical team. In a medical emergency, call 999 or NHS 111.',
+    body: 'This portal is for information only and does not constitute a diagnosis or medical advice. If you have concerns about your results, contact your GP or the Aspire Clinic clinical team. In a medical emergency, call 999 or NHS 111.',
+    // History, verbatim — see the note on out_of_range_prompt's list above. The
+    // second entry is what this block said before the naming correction, so an
+    // existing database receives it rather than being left alone.
     supersedes: [
       'The information in this portal is provided for your information and does not constitute a diagnosis or medical advice. If you have concerns about your results, please contact your GP or the Aspire clinical team. In a medical emergency, call 999 or NHS 111.',
+      'This portal is for information only and does not constitute a diagnosis or medical advice. If you have concerns about your results, contact your GP or the Aspire clinical team. In a medical emergency, call 999 or NHS 111.',
     ],
   },
 ];

@@ -86,7 +86,7 @@ export function ReportHeader({
       {/* The document's masthead, on paper only. On screen the sidebar says who
           is signed in and the title is directly below; on a loose sheet in a
           GP's hand neither of those exists. */}
-      <PrintHeader title={report.title} sampleDate={report.sampleDate} />
+      <PrintHeader sampleDate={report.sampleDate} />
       <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
         <div>
           <p className="eyebrow mb-2">
@@ -127,7 +127,9 @@ export function ReportHeader({
         className="mt-10"
       />
 
-      <div className="mt-10 flex flex-wrap justify-center gap-3">
+      {/* `print-hide`: a download control is a thing you press. On paper it is
+          a pill with a verb in it that does nothing. */}
+      <div className="mt-10 flex flex-wrap justify-center gap-3 print-hide">
         <Button
           variant="secondary"
           loading={downloading === 'summary-pdf-link'}

@@ -299,7 +299,7 @@ export const LOCATIONS: BookingLocation[] = [
  * never reads as picking a different standard of care.
  */
 export const SHARED_LOCATION_TRUTH =
-  'Wherever your sample is taken, it comes back to the Aspire clinical team first. A clinician reviews every result before it appears in your portal.';
+  'Wherever your sample is taken, it comes back to the Aspire Clinic clinical team first. A clinician reviews every result before it appears in your portal.';
 
 export function findPanel(panels: Panel[], id: string | null): Panel | null {
   return panels.find((p) => p.id === id) ?? null;

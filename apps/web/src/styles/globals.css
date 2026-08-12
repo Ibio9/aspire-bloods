@@ -763,10 +763,20 @@
       custom property, so re-emitting the light set under a print media query
       turns the whole interface light in one place — and anything written later
       is covered without anybody having to remember.
-    · WHAT IS CHROME AND WHAT IS CONTENT is decided at each call site with
-      Tailwind's own `print:hidden`, because only the component knows which it
-      is. A blanket `aside, nav, header { display: none }` here would also take
-      out an `<aside>` somebody legitimately puts a result in.
+    · WHAT IS CHROME AND WHAT IS CONTENT is decided at each call site, because
+      only the component knows which it is. A blanket
+      `aside, nav, header { display: none }` here would also take out an
+      `<aside>` somebody legitimately puts a result in.
+
+      IT IS `.print-hide` AND NOT TAILWIND'S `print:hidden`, and that is a
+      correction rather than a preference. Tailwind emits the `print` variant
+      BEFORE the responsive ones, so at equal specificity `md:flex` wins on
+      source order — and A4 at 96dpi is 794px wide, which is above the `md`
+      breakpoint. The sidebar carried `hidden md:flex print:hidden` and printed
+      on every page of every document, in full, because the paper is wider than
+      768px. Found by rendering an actual print and counting what was still
+      visible (e2e/zz-print.spec.ts), which is exactly the thing reading the
+      stylesheet cannot tell you.
     · STATUS IN BLACK AND WHITE needs nothing: the shape layer already carries
       it. A level mark in range, a chevron out, a doubled chevron significantly
       out, plus the word — all four survive greyscale, which is the whole reason
@@ -779,9 +789,17 @@
       a real paged-media engine honours it. It is NOT a claim that Chrome does.
    ═══════════════════════════════════════════════════════════════════════════ */
 @page {
-  /* Room for the browser's own header and footer, and a margin somebody can
-     hole-punch or staple without losing a reference range. */
-  margin: 14mm;
+  /* Room for the browser's own header and footer, a margin somebody can
+     hole-punch or staple without losing a reference range, and — at the bottom
+     — the band the repeating footer sits in.
+     
+     24mm at the foot rather than 14mm, and that is the mechanism rather than a
+     preference: Chromium places a `position: fixed` element at the bottom of
+     the PAGE on every sheet, which is what makes a running footer possible at
+     all, and content flows to the bottom of the CONTENT AREA. If the two are
+     the same line, the footer prints over the last row of cards on every page.
+     The margin is what separates them. See .print-footer below. */
+  margin: 14mm 14mm 24mm;
   @bottom-center {
     content: 'Page ' counter(page) ' of ' counter(pages);
   }
@@ -796,7 +814,13 @@
   body {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
-    background: none !important;
+    /* WHITE, EXPLICITLY, not `none`. `background: none` leaves the canvas
+       transparent — which a printer renders as paper and is therefore correct
+       on paper, and which every capture, preview pane and PDF viewer with a
+       dark chrome renders as BLACK. The point of forcing light is that the
+       document is light everywhere it is looked at, and "correct once printed"
+       is not that. */
+    background: #ffffff !important;
   }
 
   /* The ambient glow is a fixed radial the size of the viewport. On paper it is
@@ -805,12 +829,25 @@
     display: none !important;
   }
 
+  /* CHROME. `!important` beats any responsive utility whatever the source
+     order, which is the whole reason this exists rather than `print:hidden`. */
+  .print-hide {
+    display: none !important;
+  }
+
   /* The shells are `min-h-viewport` flex rows with a sticky column in them, and
      a sticky element in a paged medium is neither sticky nor a column — it is a
      block in the flow, printed once, in the wrong place. Unpicking the layout
      is what stops the content column starting 288px in on every page. */
+  /* `:not(.print-hide)` is load-bearing, not tidiness. The sidebar is a DIRECT
+     CHILD of the shell root, so `.print-flow > * { display: block !important }`
+     landed on it after `.print-hide { display: none !important }` and, at equal
+     specificity and equal importance, source order won — this rule was
+     un-hiding the navigation it was written to make room for. The whole
+     sidebar printed on every page of every document until an actual print was
+     rendered and the visible elements counted. */
   .print-flow,
-  .print-flow > * {
+  .print-flow > *:not(.print-hide) {
     display: block !important;
     min-height: 0 !important;
     position: static !important;
@@ -869,6 +906,26 @@
     transform: none !important;
   }
 
+  /* ── ANYTHING WAITING TO BE SCROLLED INTO VIEW IS VISIBLE ON PAPER ──────
+     THE BUG THIS FIXES PRINTED HALF A REPORT AS BLANK PAGES.
+
+     `.reveal` starts at `opacity: 0` and is set to 1 by an IntersectionObserver
+     the first time it enters the viewport. Printing does not scroll: the browser
+     lays the whole document out at once from wherever the reader happened to be,
+     so every card below the fold had never intersected, was still at zero
+     opacity, and printed as white space — several pages of it, in the middle of
+     a results report, with the page numbers and the footer all correct.
+
+     The rule above turned off the transition and the transform and left the
+     OPACITY, which is the one of the three that was hiding anything.
+
+     `.reveal` specifically rather than a blanket `* { opacity: 1 }`: a chart
+     band at 7% and a muted label at 80% are deliberate, and flattening every
+     opacity on the page would be a far larger change than the one needed. */
+  .reveal {
+    opacity: 1 !important;
+  }
+
   /* THE HEADER AND THE FOOTER. Both are `hidden` on screen and revealed here —
      see PrintDocument.tsx. The footer is fixed to the bottom of the page box,
      which is what makes a browser repeat it on every sheet; the header prints
@@ -884,10 +941,37 @@
     right: 0;
   }
 
-  /* Room for the fixed footer to sit in without the last card printing under
-     it. Measured against the footer's own four lines at the small step. */
+  /* ROOM FOR THE FIXED FOOTER, AND IT HAS TO BE MORE THAN THE FOOTER IS TALL.
+     26mm was a guess and the footer is taller than that: name, one sentence and
+     four contact lines came to about 150px against 98mm-worth of reserved
+     space, so the last card on every page printed underneath it. Rendered, seen,
+     measured — e2e/zz-print.spec.ts now asserts the footer fits in the gap
+     rather than leaving the two numbers to drift apart again.
+
+     Reserving MORE was the wrong fix and was tried first: the footer was 290px
+     of a 1017px page, so 42mm of padding bought a correct layout at the price
+     of 28% of every sheet, repeated across all 56 pages of the library. What
+     actually had to change was the footer — see PrintDocument.tsx, where the
+     full contact block moved out of the repeating strip and into the end of
+     the document, once. 16mm is the two lines that are left, plus air. */
   .print-flow {
-    padding-bottom: 26mm !important;
+    /* Small, because @page's bottom margin above is what actually reserves the
+       footer's band on every sheet. This is the last page's own breathing
+       room. */
+    padding-bottom: 8mm !important;
+  }
+
+  /* The footer itself, compacted to fit that gap. The contact details keep ONE
+     ITEM PER LINE (never comma-joined — see CLAUDE.md), so what gives is the
+     decoration around them: no icons, no uppercase labels, and the small step
+     throughout. */
+  .print-footer {
+    font-size: 0.75rem;
+    line-height: 1.35;
+  }
+
+  .print-footer svg {
+    display: none !important;
   }
 
   /* A URL in a link is noise on a printed results page — every marker name on
@@ -896,5 +980,57 @@
      becoming unreadable to save a lookup nobody does from paper. */
   a[href]::after {
     content: '' !important;
+  }
+}
+
+@layer components {
+  /* ── A collapsible region that animates its own height ──────────────────
+     THE GRID-ROWS TRICK, not a measured pixel height. `grid-template-rows`
+     interpolates between `0fr` and `1fr`, so the browser animates from nothing
+     to the content's natural height without anybody measuring it — which
+     matters here because the content is an unbounded list of a patient's
+     out-of-range results and a measured height would be wrong the moment one
+     card wrapped to an extra line.
+
+     `visibility` is the other half and it is not decoration. `overflow: hidden`
+     at zero height leaves every link inside still focusable, so a collapsed
+     section is a tab stop trap: you press Tab and focus disappears into a
+     region nobody can see. `visibility: hidden` takes them out of the tab order
+     — and its transition is DELAYED by the duration when closing, so the
+     content stays visible while the height animates and vanishes at the end,
+     rather than blinking out on the first frame.
+
+     A little bottom padding on the inner wrapper because `overflow: hidden`
+     would otherwise crop the last card's shadow against the fold. */
+  .collapse-region {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 220ms ease-out;
+  }
+
+  .collapse-region > * {
+    min-height: 0;
+    overflow: hidden;
+    visibility: hidden;
+    padding-bottom: 0.5rem;
+    transition: visibility 0s linear 220ms;
+  }
+
+  .collapse-region.is-open {
+    grid-template-rows: 1fr;
+  }
+
+  .collapse-region.is-open > * {
+    visibility: visible;
+    transition-delay: 0s;
+  }
+
+  /* Instant in both directions rather than slower. Somebody who has asked for
+     less movement is asking for exactly this. */
+  @media (prefers-reduced-motion: reduce) {
+    .collapse-region,
+    .collapse-region > * {
+      transition: none;
+    }
   }
 }

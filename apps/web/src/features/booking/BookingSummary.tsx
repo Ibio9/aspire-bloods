@@ -109,7 +109,7 @@ export function BookingSummary({ panel, addOns, location, date, time, durationMi
       {/* ── after ───────────────────────────────────────────────────────── */}
       <Section title="Afterwards">
         <p className="text-reading leading-relaxed text-espresso">
-          Expect your results {expectedResultsLabel(panel, addOns, date)}. They come back to the Aspire clinical team
+          Expect your results {expectedResultsLabel(panel, addOns, date)}. They come back to the Aspire Clinic clinical team
           first. A clinician reviews every result before it appears in your portal, and we’ll email you the moment it
           does.
         </p>

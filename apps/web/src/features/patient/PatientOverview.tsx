@@ -1,5 +1,5 @@
 import { formatDate, formatReportHeading } from '@aspire-bloods/shared';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Card } from '../../components/ui/Card';
 import { LinkButton } from '../../components/ui/LinkButton';
@@ -12,6 +12,7 @@ import { Reveal } from '../../components/motion/Reveal';
 import { staggerDelay } from '../../components/motion/stagger';
 import { ArrowRightIcon, LibraryIcon, MarkersIcon, TrendsIcon } from '../../components/nav/patientIcons';
 import { apiFetch } from '../../lib/api';
+import { useAuth } from '../../lib/AuthContext';
 import { formatRelativeDate, type ChangeItem, type PatientOverview as Overview } from '../../lib/patientPortal';
 import { MOVEMENT_COPY } from '../../lib/markerCopy';
 import { BOOKING_ENABLED } from '../../lib/features';
@@ -125,9 +126,97 @@ const QUICK_ROUTES = [
   { to: '/library', label: 'Understanding your results', body: 'What each marker measures.', icon: LibraryIcon },
 ];
 
+/** The collapsed/expanded preference, per patient. See the note beside it. */
+const ATTENTION_OPEN_KEY = 'aspire_overview_attention_open';
+/** Named once so `aria-controls` and the region it points at cannot drift apart. */
+const ATTENTION_REGION_ID = 'attention-results';
+
 export function PatientOverview() {
+  const { user } = useAuth();
   const [data, setData] = useState<Overview | null>(null);
   const [failed, setFailed] = useState(false);
+
+  /**
+   * ── WHETHER THE OUT-OF-RANGE LIST IS OPEN ───────────────────────────────
+   *
+   * OPEN BY DEFAULT. A patient with results outside the usual range should see
+   * them without asking; the fold is for somebody who has read them and wants
+   * the rest of their overview back, which is a decision they make once.
+   *
+   * PERSISTED PER PATIENT, not per browser. The sidebar's contact panel keys on
+   * nothing because it is a chrome preference; this one is about a particular
+   * person's results, and an admin who is also a patient of the practice shares
+   * a browser with their own account. Keyed on the user id, so a preference
+   * cannot follow the machine onto somebody else's overview.
+   *
+   * A try/catch around every access: a locked-down browser losing the
+   * preference is not worth a broken render, which is the same reasoning the
+   * sidebar's collapse state carries.
+   */
+  const storageKey = user ? `${ATTENTION_OPEN_KEY}:${user.id}` : null;
+  const [attentionOpen, setAttentionOpen] = useState(true);
+  /**
+   * WHETHER THE STORED PREFERENCE HAS BEEN READ YET, and this flag is the whole
+   * of why the persistence works.
+   *
+   * Without it the two effects below fight on mount and the write wins. They
+   * run in declaration order in the same commit: the read sets state to
+   * `false`, and then the write — still holding the `true` the state was
+   * initialised with, because the re-render has not happened — puts 'true' back
+   * in storage. The preference was overwritten by its own default every single
+   * time the page loaded, so it survived navigation (no remount) and never
+   * survived a reload. Caught by asserting the reload rather than by clicking
+   * about, which is exactly the sort of thing a click-through misses.
+   */
+  const [hydrated, setHydrated] = useState(false);
+
+  // Read AFTER mount rather than in the initialiser, because `user` is null on
+  // the first render while /auth/me is in flight — an initialiser would key on
+  // nothing and then never re-read.
+  useEffect(() => {
+    if (!storageKey) return;
+    try {
+      const stored = localStorage.getItem(storageKey);
+      // Only an explicit 'false' closes it. Absent means "never chosen", which
+      // is open — the default has to survive a browser with no storage at all.
+      if (stored !== null) setAttentionOpen(stored !== 'false');
+    } catch {
+      /* no stored preference is the same as never having set one */
+    }
+    setHydrated(true);
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (!storageKey || !hydrated) return;
+    try {
+      localStorage.setItem(storageKey, String(attentionOpen));
+    } catch {
+      /* a locked-down browser losing the preference is not worth a broken render */
+    }
+  }, [storageKey, hydrated, attentionOpen]);
+
+  /**
+   * Escape closes it, but ONLY when focus is inside the section.
+   *
+   * Bound to the section rather than to the document, so Escape pressed
+   * anywhere else on the overview does nothing — a global handler would fold
+   * this away while somebody was dismissing a toast at the other end of the
+   * page. React's synthetic keydown bubbles from whatever is focused, so being
+   * on the section IS the "focus is inside" test.
+   *
+   * Focus is then moved to the disclosure. Collapsing the region takes the
+   * focused element out of the tab order (see .collapse-region's visibility
+   * rule), and focus left on a hidden element lands on <body> — so the next Tab
+   * starts from the top of the document.
+   */
+  const attentionToggleRef = useRef<HTMLButtonElement>(null);
+  function onAttentionKeyDown(e: ReactKeyboardEvent<HTMLElement>) {
+    if (e.key !== 'Escape' || !attentionOpen) return;
+    e.stopPropagation();
+    setAttentionOpen(false);
+    attentionToggleRef.current?.focus();
+  }
+
 
   useEffect(() => {
     apiFetch<Overview>('/patient/overview')
@@ -251,7 +340,7 @@ export function PatientOverview() {
             <Card>
               <p className="eyebrow mb-3">After your test</p>
               <p className="max-w-measure text-reading leading-relaxed text-espresso">
-                Your sample goes to the laboratory and the results come back to the Aspire clinical team. A
+                Your sample goes to the laboratory and the results come back to the Aspire Clinic clinical team. A
                 clinician reviews every one before it’s published, and we’ll email you when yours is ready.
               </p>
             </Card>
@@ -265,17 +354,69 @@ export function PatientOverview() {
           to a human sitting immediately beside it.
           --------------------------------------------------------------- */}
       {data.attention.length > 0 && (
-        <section aria-labelledby="attention-heading">
+        <section aria-labelledby="attention-heading" onKeyDown={onAttentionKeyDown}>
+          {/* THE HEADING ROW IS THE TOGGLE, and the whole row is the target.
+              A chevron on its own is a 12px hit area beside a 38px heading, and
+              the heading is what somebody reaches for. `aria-expanded` on the
+              control, `aria-controls` pointing at the region it opens.
+
+              A <button> inside the <h2> rather than around it: the heading has
+              to stay a heading in the accessibility tree, and wrapping it in a
+              button would make the page's outline read "button" where a section
+              title should be. */}
           <h2 id="attention-heading" className="section-heading">
-            Worth a conversation
+            <button
+              ref={attentionToggleRef}
+              type="button"
+              onClick={() => setAttentionOpen((o) => !o)}
+              aria-expanded={attentionOpen}
+              aria-controls={ATTENTION_REGION_ID}
+              // BESIDE THE HEADING, not at the far edge of the page. `w-full
+              // justify-between` put the chevron a thousand pixels from the
+              // words it belongs to, which reads as an unrelated control that
+              // happens to share a row. `inline-flex` keeps the whole row a
+              // target (the button is still as wide as its content, and its
+              // content is the heading) while the mark stays attached to it.
+              className="group inline-flex max-w-full items-center gap-3 rounded-input text-left transition-colors duration-150 ease-out hover:text-bronze focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-bronze"
+            >
+              <span>Worth a conversation</span>
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 16 16"
+                fill="none"
+                aria-hidden="true"
+                className={`mt-1 shrink-0 text-bronze-700 transition-transform duration-200 ease-out motion-reduce:transition-none ${
+                  attentionOpen ? '' : '-rotate-90'
+                }`}
+              >
+                <path d="M3 5.5 8 10.5l5-5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
           </h2>
+          {/* OUTSIDE the collapsing region on purpose. Collapsing hides the
+              cards, not the fact — a patient who folds this away should still
+              see, on the page, that there are results outside the range. */}
           <p className="mt-4 max-w-measure text-reading leading-relaxed text-espresso/90">
-            {data.attention.length === 1 ? 'One of your results sits' : `${data.attention.length} of your results sit`} outside
-            the usual reference range.
+            {data.attention.length === 1
+              ? 'One of your markers sits'
+              : `${data.attention.length} of your markers sit`}{' '}
+            outside the usual reference range. That is the most recent result for each marker you have, across every
+            report, rather than only your latest panel.
           </p>
 
           <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <ul className="flex flex-col gap-5 lg:col-span-2">
+            {/* ONLY THE LIST COLLAPSES, and that is what keeps "Talk to
+                someone" still. It sits in its own grid column, `self-start`,
+                so its width comes from the column and its height from its own
+                content — neither of which the list's height touches. Put the
+                whole grid inside the region and the card would ride the
+                animation up the page and land somewhere else. */}
+            <div
+              id={ATTENTION_REGION_ID}
+              className={`collapse-region lg:col-span-2 ${attentionOpen ? 'is-open' : ''}`}
+            >
+            <ul className="flex flex-col gap-5">
               {data.attention.map((item, i) => (
                 <li key={item.markerId}>
                   <Reveal delay={staggerDelay(i)}>
@@ -321,6 +462,7 @@ export function PatientOverview() {
                 </li>
               ))}
             </ul>
+            </div>
 
             <div className="lg:sticky lg:top-8 lg:self-start">
               <ClinicContactCard />

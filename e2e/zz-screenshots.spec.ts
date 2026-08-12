@@ -38,9 +38,37 @@ async function login(request: APIRequestContext, email: string, password: string
   expect(otp.ok(), `${email} could not complete 2FA`).toBeTruthy();
 }
 
-/** A context with the theme already chosen, so nothing flashes on first paint. */
-async function themedContext(browser: Browser, theme: 'light' | 'dark') {
-  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+/**
+ * WHICH WIDTHS ARE WALKED.
+ *
+ * 1440 is the desktop this product is designed at. 390 x 844 is a phone — an
+ * iPhone 14's CSS viewport — and it is a different LAYOUT rather than a
+ * narrower one: the sidebar is a drawer behind a header, the results grid is
+ * one column, the marker page's 40/60 pair stacks, and `.value-row` switches to
+ * its two-line arrangement. None of that is exercised by a 1440 walk, which is
+ * why the walk ran at one width for months and mobile was reviewed by eye.
+ *
+ * The theme and the width together, so a file name says which of the four a
+ * picture is.
+ */
+const WIDTHS = [
+  { key: '', width: 1440, height: 900 },
+  { key: '-mobile', width: 390, height: 844 },
+] as const;
+
+type Width = (typeof WIDTHS)[number];
+
+/** A context with the theme and the width already chosen, so nothing flashes on first paint. */
+async function themedContext(browser: Browser, theme: 'light' | 'dark', size: Width = WIDTHS[0]) {
+  const ctx = await browser.newContext({
+    viewport: { width: size.width, height: size.height },
+    // A real phone reports a touch primary pointer and a device pixel ratio,
+    // and `hover:` utilities do not apply on one. A 390px desktop window is not
+    // a phone and would photograph hover states nobody on a phone can reach.
+    isMobile: size.width < 768,
+    hasTouch: size.width < 768,
+    deviceScaleFactor: size.width < 768 ? 2 : 1,
+  });
   await ctx.addInitScript((t) => {
     try {
       localStorage.setItem('aspire-theme', t as string);
@@ -85,10 +113,11 @@ test.describe('screenshots', () => {
   // genuinely hung page sits there for a quarter of an hour pretending to work.
   test.describe.configure({ timeout: 360_000 });
 
-  test('every patient route, both themes', async ({ browser }) => {
+  for (const size of WIDTHS) {
+  test(`every patient route, both themes${size.key ? ' — mobile' : ''}`, async ({ browser }) => {
     fs.mkdirSync(OUT, { recursive: true });
     for (const theme of ['light', 'dark'] as const) {
-      const ctx = await themedContext(browser, theme);
+      const ctx = await themedContext(browser, theme, size);
       await login(ctx.request, DEMO_EMAIL, DEMO_PASSWORD);
       const page = await ctx.newPage();
 
@@ -124,16 +153,18 @@ test.describe('screenshots', () => {
         await settle(page);
         // Something mounted. A blank screenshot and a quiet page look identical.
         expect(await page.locator('main').count(), `${route.path} rendered no main`).toBeGreaterThan(0);
-        await page.screenshot({ path: path.join(OUT, `patient-${route.name}-${theme}.png`), fullPage: true });
+        await page.screenshot({ path: path.join(OUT, `patient-${route.name}-${theme}${size.key}.png`), fullPage: true });
       }
       await ctx.close();
     }
   });
+  }
 
-  test('every admin route, both themes', async ({ browser }) => {
+  for (const size of WIDTHS) {
+  test(`every admin route, both themes${size.key ? ' — mobile' : ''}`, async ({ browser }) => {
     fs.mkdirSync(OUT, { recursive: true });
     for (const theme of ['light', 'dark'] as const) {
-      const ctx = await themedContext(browser, theme);
+      const ctx = await themedContext(browser, theme, size);
       await login(ctx.request, ADMIN_EMAIL, ADMIN_PASSWORD);
       const page = await ctx.newPage();
 
@@ -152,11 +183,12 @@ test.describe('screenshots', () => {
       for (const route of routes) {
         await page.goto(route.path);
         await settle(page);
-        await page.screenshot({ path: path.join(OUT, `admin-${route.name}-${theme}.png`), fullPage: true });
+        await page.screenshot({ path: path.join(OUT, `admin-${route.name}-${theme}${size.key}.png`), fullPage: true });
       }
       await ctx.close();
     }
   });
+  }
 
   /**
    * THE SIDEBAR AGAINST THE GLOW, at both ends of it.

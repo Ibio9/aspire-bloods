@@ -282,7 +282,7 @@ export function ClinicContactCard({ className = '' }: { className?: string }) {
     <div className={`card min-w-0 p-7 ${className}`}>
       <p className="eyebrow mb-3">Talk to someone</p>
       <p className="max-w-measure text-reading leading-relaxed text-espresso">
-        Your GP knows your full history and is the right first call about any result. The Aspire clinical team can
+        Your GP knows your full history and is the right first call about any result. The Aspire Clinic clinical team can
         also talk you through what you’re looking at.
       </p>
       <ClinicContactLines className="mt-7" />

@@ -147,3 +147,131 @@ test.describe('render timing', () => {
     await ctx.close();
   });
 });
+
+/**
+ * ===========================================================================
+ *  WHAT THE GLASS COSTS, ON THE LONGEST LIST IN THE PRODUCT.
+ * ===========================================================================
+ *
+ * `GLASS.blur` is 14px and was written down as a frame budget. A budget nobody
+ * measures is a guess with a unit on it, so this measures it: the by-marker
+ * view (437 markers) scrolled with the pinned control bar's backdrop filter
+ * active, against the same scroll with the filter removed.
+ *
+ * HOW IT IS MEASURED, AND WHY NOT `page.metrics()`. A backdrop filter costs a
+ * compositing pass per frame, which never appears in JS timing — the main
+ * thread is idle while the compositor is late. What a reader actually
+ * experiences is FRAME INTERVALS, so that is what is recorded:
+ * requestAnimationFrame timestamps during a real scroll, turned into a frame
+ * rate and a count of frames that took longer than 20ms (i.e. dropped one at
+ * 60Hz).
+ *
+ * The comparison matters more than the absolute. A headless Chromium on a CI
+ * box is not anybody's laptop, so "58fps" on its own says little; "58 with the
+ * glass and 59 without it" says the filter is not the problem.
+ */
+test.describe('glass scroll cost', () => {
+  test.skip(!RUN, 'set E2E_TIMING=1 to measure');
+  test.describe.configure({ timeout: 180_000 });
+
+  test('scrolling the by-marker list with the pinned glass bar', async ({ browser }) => {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    await login(ctx.request);
+    const page = await ctx.newPage();
+
+    await page.goto('/results?view=by-marker');
+    await page.getByText('Every marker on record').first().waitFor({ timeout: 60_000 }).catch(() => undefined);
+    await page.waitForTimeout(1500);
+
+    const markerCount = await page.locator('.card').count();
+
+    async function scrollProfile(label: string) {
+      return page.evaluate(async () => {
+        window.scrollTo(0, 0);
+        await new Promise((r) => requestAnimationFrame(() => r(null)));
+        const frames: number[] = [];
+        let last = performance.now();
+        const start = last;
+        await new Promise<void>((resolve) => {
+          function step(now: number) {
+            frames.push(now - last);
+            last = now;
+            // A steady scroll rather than one jump: the cost of a backdrop
+            // filter is per FRAME it is composited on, so it only shows up
+            // under continuous movement.
+            window.scrollBy(0, 24);
+            if (now - start > 3000) return resolve();
+            requestAnimationFrame(step);
+          }
+          requestAnimationFrame(step);
+        });
+        // The first interval is measured from before the loop started and is
+        // not a frame anybody saw.
+        const deltas = frames.slice(1);
+        const total = deltas.reduce((a, b) => a + b, 0);
+        const sorted = [...deltas].sort((a, b) => a - b);
+        return {
+          frames: deltas.length,
+          fps: Math.round((deltas.length / total) * 1000),
+          medianMs: Number(sorted[Math.floor(sorted.length / 2)].toFixed(1)),
+          worstMs: Number(sorted[sorted.length - 1].toFixed(1)),
+          dropped: deltas.filter((d) => d > 20).length,
+          scrolledTo: Math.round(window.scrollY),
+        };
+      });
+    }
+
+    // The bar has to be PINNED for the glass to exist at all — it fades in on
+    // pin and is absent at rest, so profiling from the top of the page would
+    // measure a page with no backdrop filter on it and report a clean result.
+    await page.evaluate(() => window.scrollTo(0, 1200));
+    await page.waitForTimeout(400);
+    const glassOn = await page.evaluate(
+      () => document.querySelectorAll('.glass.is-pinned, .glass-veil.is-pinned').length,
+    );
+
+    const withGlass = await scrollProfile('glass');
+
+    /**
+     * THE SWEEP. `GLASS.blur` is a budget, so the question is not "is 14px
+     * slow" but "what is the largest radius that is not". Each pass changes
+     * ONLY `--glass-blur` on the document, so every other cost — the same 166
+     * cards, the same scroll, the same compositing of the same translucent
+     * fill — is held constant and the difference is the radius.
+     */
+    const sweep: { blur: string; fps: number; medianMs: number; dropped: number }[] = [];
+    for (const blur of ['14px', '10px', '8px', '6px', '4px', '2px']) {
+      await page.evaluate((b) => document.documentElement.style.setProperty('--glass-blur', b), blur);
+      await page.waitForTimeout(300);
+      const r = await scrollProfile(blur);
+      sweep.push({ blur, fps: r.fps, medianMs: r.medianMs, dropped: r.dropped });
+    }
+    await page.evaluate(() => document.documentElement.style.removeProperty('--glass-blur'));
+
+    // The same scroll with the filter taken out, and nothing else changed.
+    await page.addStyleTag({
+      content: '.glass, .panel-wash { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }',
+    });
+    await page.waitForTimeout(400);
+    const withoutGlass = await scrollProfile('no glass');
+
+    console.log(
+      [
+        '',
+        '─── glass scroll cost, by-marker view ───────────────────────────',
+        `  cards on the page       ${markerCount}`,
+        `  pinned glass surfaces   ${glassOn}`,
+        `  with glass              ${withGlass.fps} fps · median ${withGlass.medianMs}ms · worst ${withGlass.worstMs}ms · ${withGlass.dropped} frames over 20ms`,
+        ...sweep.map(
+          (r) => `  blur ${r.blur.padEnd(6)}            ${String(r.fps).padStart(2)} fps · median ${r.medianMs}ms · ${r.dropped} frames over 20ms`,
+        ),
+        `  backdrop-filter off     ${withoutGlass.fps} fps · median ${withoutGlass.medianMs}ms · worst ${withoutGlass.worstMs}ms · ${withoutGlass.dropped} frames over 20ms`,
+        '─────────────────────────────────────────────────────────────────',
+        '',
+      ].join('\n'),
+    );
+
+    expect(glassOn, 'the control bar was not pinned, so no glass was being composited').toBeGreaterThan(0);
+    await ctx.close();
+  });
+});

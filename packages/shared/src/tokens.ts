@@ -946,14 +946,39 @@ export const PANEL_WASH_ALPHA = { light: 0.06, dark: 0.38 } as const;
  * differs per surface, and only because what is behind them differs — see the
  * note on `--c-glass`.
  *
- * `blur` is 14px and that number is a budget rather than a taste. A backdrop
- * filter costs a compositing pass over the area behind the element on every
- * frame it is on screen, and the area here is a full-width bar over a list that
- * can be 350 markers long. 14px is where the diffusion is unambiguous — body
- * copy underneath is a wash, not letters — while staying cheap enough to hold
- * 60fps on the machines patients actually use. If it ever costs frames, this is
- * the number to lower; the effect survives 8px and does not survive being
- * replaced by an opaque fill, which is what it exists to avoid.
+ * `blur` WAS 14px "as a budget rather than a taste", which is a guess with a
+ * unit on it. It has now been measured, and the measurement changed the number
+ * and — more usefully — the reasoning.
+ *
+ * MEASURED (e2e/zz-render-timing.spec.ts, "glass scroll cost"): a continuous
+ * 3-second scroll of the by-marker view, 166 cards, with the control bar
+ * pinned so the filter is actually compositing.
+ *
+ *     backdrop-filter off   60 fps · median 16.7ms · 0 frames over 20ms
+ *     blur 14px             23 fps · median 50.0ms · 66 frames over 20ms
+ *     blur 10px             39 fps · median 16.7ms · 50 frames over 20ms
+ *     blur  8px             31 fps · median 33.3ms
+ *     blur  6px             25 fps · median 33.4ms
+ *     blur  2px             25 fps · median 33.4ms
+ *
+ * THE RADIUS IS NOT THE COST. 2px is as expensive as 14px and both are a third
+ * of the frame rate with the filter absent — so what is being paid for is the
+ * EXISTENCE of the backdrop pass (a render surface, re-composited every frame
+ * the element is on screen), not the work inside it. "Reduce the radius until
+ * it stops dropping frames" has no answer above zero.
+ *
+ * WHAT THAT MEASUREMENT IS AND IS NOT. It is headless Chromium, which rasterises
+ * in software (SwiftShader) — the worst case for a backdrop filter and not what
+ * anybody's browser does. A GPU-composited backdrop filter is close to free.
+ * So this is a floor, not a verdict, and it is NOT grounds for replacing the
+ * material with an opaque fill: that would paint over the corner glow, which is
+ * the thing glass exists to avoid.
+ *
+ * WHAT WAS DONE. 10px, because it is the only value that measured better and it
+ * costs nothing to take — the diffusion is still unambiguous at 10 (body copy
+ * underneath is a wash, not letters). WHAT IS STILL OPEN: measure this on a
+ * GPU-backed browser before drawing any conclusion about the design. The number
+ * to change is here; the spec that produces the table is committed.
  *
  * `saturate` is barely above 1: glass that desaturates reads as fog, and glass
  * that saturates hard reads as a colour filter. This is enough that the warm
@@ -961,7 +986,7 @@ export const PANEL_WASH_ALPHA = { light: 0.06, dark: 0.38 } as const;
  */
 export const GLASS = {
   wash: { light: 0.62, dark: 0.58 },
-  blur: '14px',
+  blur: '10px',
   saturate: '1.08',
 } as const;
 

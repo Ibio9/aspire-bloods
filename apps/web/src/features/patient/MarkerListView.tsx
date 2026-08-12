@@ -129,7 +129,7 @@ function DownloadMarkersButton() {
     // the page itself, over the corner glow, and it is one of the three
     // surfaces (with the pinned control bar and the sidebar) that are
     // deliberately one material.
-    <Button variant="glass" loading={downloading} onClick={() => void handleDownload()}>
+    <Button variant="glass" className="print-hide" loading={downloading} onClick={() => void handleDownload()}>
       Download markers (PDF)
     </Button>
   );

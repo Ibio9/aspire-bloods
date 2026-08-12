@@ -171,10 +171,7 @@ export function MarkerLibraryPage() {
       {/* No standfirst. It said the page contained plain-English explanations,
           which is what the page visibly is, and that nothing here is a
           diagnosis, which the footer disclaimer says on every screen. */}
-      <PrintHeader
-        title="Understanding your results"
-        note="Reference material about what each marker measures. Not a result and not a diagnosis."
-      />
+      <PrintHeader note="Reference material about what each marker measures. Not a result and not a diagnosis." />
       <TwoTierHeading eyebrow="Aspire Clinic · Patient portal" title="Understanding your results" />
       {/* The way back to the first sign-in introduction, for anyone who skipped
           it or wants it again. It is a link on the page rather than a setting,
@@ -182,7 +179,7 @@ export function MarkerLibraryPage() {
           preference you keep. */}
       <Link
         to="/welcome"
-        className="mt-3 inline-flex rounded-input text-sm font-medium text-bronze-700 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze print:hidden"
+        className="mt-3 inline-flex rounded-input text-sm font-medium text-bronze-700 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze print-hide"
       >
         Read the introduction to your results
       </Link>

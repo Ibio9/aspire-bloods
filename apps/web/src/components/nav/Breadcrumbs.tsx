@@ -11,7 +11,10 @@ export function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
   if (items.length === 0) return null;
 
   return (
-    <nav aria-label="Breadcrumb" className="mb-3">
+    // `print-hide`: a trail back through an app is navigation, and on paper it
+    // is a row of links to somewhere the reader cannot go. The printed page
+    // carries its own masthead instead — see PrintDocument.tsx.
+    <nav aria-label="Breadcrumb" className="mb-3 print-hide">
       <ol className="flex flex-wrap items-center gap-1.5 text-sm text-espresso/80">
         {items.map((item, i) => {
           const isLast = i === items.length - 1;

@@ -57,11 +57,7 @@ I already checked: git history has no committed `.env` files and no secret-shape
 
 **PDF storage — Railway Volume, not object storage.** The original `StorageAdapter` interface was built swappable specifically for this decision (`LocalDiskStorageAdapter` now, `S3StorageAdapter` later if ever needed). At this practice's scale (single API instance, not planning horizontal scaling), a Railway Volume gets you off the ephemeral container filesystem with **zero code changes** — the existing HMAC-signed-URL download flow, encryption-at-rest handling, and `StorageAdapter` abstraction all keep working exactly as designed, just pointed at a persistent mount instead of the container's disk. Object storage (S3/R2) would be more "correct" for a multi-instance or high-scale deployment, but that's not this deployment, and it means a new external account, new credentials to secure, and a new adapter to write for a scaling need that doesn't exist yet. If the practice later needs multi-instance Railway or wants geo-redundant file storage, swapping in `S3StorageAdapter` behind the same interface is the clean upgrade path — nothing else in the codebase would need to change.
 
-- [ ] **Add a third service** for the nightly backup → same GitHub repo, but set it to build `apps/server/backup.Dockerfile` (Settings → Source → this repo, then Settings → Build → set the Dockerfile path) — **not** the app's own `Dockerfile`; this one only needs `pg_dump` and the AWS CLI, not Node. Service → **Settings → Cron Schedule**, set `15 3 * * *` (03:15 UTC daily). This makes it a cron service: Railway runs the container to completion on that schedule instead of keeping it always-on, so it isn't billed as a running service between backups.
-  - Variables:
-    - `DATABASE_URL` — use the **private** reference to the Postgres service (Railway's internal networking, e.g. `postgres.railway.internal`), the same "Add Reference" picker as the API service uses. This is the whole point of running the backup as a Railway service instead of a GitHub Action: Postgres never needs a public network exposure for backups to work.
-    - `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY`, `BACKUP_S3_ENDPOINT`, `BACKUP_S3_BUCKET` — see "Backups" below for where these come from (R2 bucket + API token)
-    - `BACKUP_RETENTION_DAYS=35` (optional — this is already the default if unset)
+- [ ] **Add a third service for the nightly backup.** This is its own runbook, because it is the step that was skipped and left the practice with no off-platform backup at all — see [Database restore → Standing up the backup cron service](#standing-up-the-backup-cron-service). In short: new service from this repo, Config-as-code path `railway.backup.json`, and the variables in the table there.
 
 ### 3. Vercel — frontend
 
@@ -264,6 +260,177 @@ Backups run as a Railway **Cron Service** (`apps/server/backup.Dockerfile` + `ap
 Nightly at 03:15 UTC: `pg_dump`, gzip-compressed, uploaded to S3-compatible off-platform storage (Cloudflare R2 recommended: free egress, generous free tier, S3-compatible API). Retention: **35 days**, pruned automatically by the same script. This is deliberately separate from whatever backup tier Railway's own Postgres plan includes — a Railway-only backup doesn't help if the incident is Railway itself (account issue, region outage, accidental project deletion). The script fails loudly (non-zero exit, explicit message) rather than silently skipping if `DATABASE_URL` or any `BACKUP_S3_*` variable is missing.
 
 Built and ran this exact image locally before committing it: real `pg_dump` against the local Postgres, real upload/list/delete against a local MinIO instance standing in for R2 — confirmed the dump, the upload, and both branches of the prune logic (kept a recent backup, deleted an artificially-expired one) all actually work, not just that the script reads correctly.
+
+> ## ⚠ AS OF 12 AUGUST 2026 THIS HAS NEVER RUN
+>
+> The R2 bucket `aspire-bloods-backups` exists and is **0 bytes, empty, zero
+> Class B operations**, and there is **no backup service in the Railway
+> project** — only the API and Postgres. The Dockerfile and the script have
+> been in the repository the whole time. Nothing deployed them and nothing
+> scheduled them, so there has never been an off-platform copy of this
+> database.
+>
+> Work through "Standing up the backup cron service" below. Take the manual
+> backup at the end of this section **today**, before anything else, so at
+> least one copy exists while the service is being created.
+
+### What was missing, exactly
+
+Four things, and only the first was a file:
+
+| | Existed? | |
+| --- | --- | --- |
+| `apps/server/backup.Dockerfile` | ✅ | builds an image with `pg_dump` + AWS CLI |
+| `apps/server/scripts/backup.sh` | ✅ | dumps, verifies, uploads, prunes |
+| **A Railway service that builds that Dockerfile** | ❌ | nothing pointed at it |
+| **A cron schedule on that service** | ❌ | nothing ran it |
+| **Environment variables on that service** | ❌ | no `BACKUP_S3_*` anywhere |
+| **Anything that notices it is not running** | ❌ | the failure was silent for months |
+
+The last row is the one that mattered. A backup job's real failure mode is
+being absent, and absence produces no logs, no errors and no alerts. Three
+things now close it: the job **writes a `BackupRun` row** to the database on
+every run whatever the outcome, the **clinician work queue leads with the last
+successful backup** and says so plainly when there has never been one, and the
+job **emails `ESCALATION_EMAIL`** on failure and on a dump that is suspiciously
+small against the previous night's.
+
+### Standing up the backup cron service
+
+`railway.backup.json` at the repository root carries the build and the
+schedule. Everything below is what Railway needs that a file cannot supply.
+
+**Step 1 — create the service.**
+
+1. Open the Railway project.
+2. Press **+ New** (top right) → **GitHub Repo** → choose **`Ibio9/aspire-bloods`**.
+3. Railway creates a service and immediately starts building the wrong thing
+   (it defaults to the root `railway.json`, which is the API). That is expected;
+   the next step fixes it. Let it fail or cancel it.
+4. Click the new service → **Settings** → **General** → rename it to
+   **`backup`** so it is not "aspire-bloods (1)" in six months.
+
+**Step 2 — point it at the right config.**
+
+1. Still in **Settings**, find **Config-as-code** (under *Build*).
+2. In **Railway Config File**, paste exactly: `railway.backup.json`
+3. Press **Save**. This is what selects `apps/server/backup.Dockerfile`, the
+   `/backup.sh` start command, the `15 3 * * *` schedule and
+   `restartPolicyType: NEVER`. **Do not** also set a Dockerfile path or a start
+   command in the dashboard — two sources for one setting is one edit away from
+   disagreeing.
+
+**Step 3 — the cron schedule.**
+
+Confirm it took: **Settings → Deploy → Cron Schedule** should read `15 3 * * *`.
+If the field is empty, type it there. That is 03:15 UTC daily. Railway runs a
+cron service **to completion** on that schedule rather than keeping it up, so it
+is billed for the ~40 seconds it takes.
+
+**Step 4 — the environment variables.** Service → **Variables** tab.
+
+`DATABASE_URL` is added differently from the rest and this is the whole reason
+the backup is a Railway service rather than a GitHub Action:
+
+1. Press **+ New Variable** → **Add Reference** (not the plain text field).
+2. Choose the **Postgres** service → **`DATABASE_URL`**.
+3. Confirm the value shown contains **`.railway.internal`**. If it says
+   `containers-us-west-…` or any public host, you have picked the public URL:
+   remove it and pick again. The private one means Postgres never needs a public
+   network exposure for backups to work.
+
+The rest are plain values. Press **+ New Variable** for each, or use **Raw
+Editor** and paste the block below with your own values filled in:
+
+| Variable | What it is | Where it comes from |
+| --- | --- | --- |
+| `DATABASE_URL` | the database to dump | **Add Reference** → Postgres → `DATABASE_URL` (private) |
+| `BACKUP_S3_ACCESS_KEY_ID` | R2 access key id | Cloudflare → R2 → **Manage R2 API Tokens** → the token's Access Key ID |
+| `BACKUP_S3_SECRET_ACCESS_KEY` | R2 secret | same token — **shown once**, at creation |
+| `BACKUP_S3_ENDPOINT` | R2 S3 endpoint | Cloudflare → R2 → bucket → **Settings** → S3 API. Looks like `https://<account-id>.r2.cloudflarestorage.com`. **No bucket name on the end** |
+| `BACKUP_S3_BUCKET` | the bucket | `aspire-bloods-backups` |
+| `RESEND_API_KEY` | so failures can email | the same key the API service already has — copy it across |
+| `ESCALATION_EMAIL` | who gets told | the same value the API service has. **Staff only** — never `CLINIC_CONTACT_EMAIL`, which is what patients see |
+| `EMAIL_FROM` | the sender | same as the API service. Optional; defaults to `Aspire Clinic <no-reply@aspireshield.com>` |
+| `BACKUP_RETENTION_DAYS` | how long to keep | optional, defaults to `35`. Leave unset |
+| `BACKUP_S3_REGION` | R2 ignores it, the CLI insists | optional, defaults to `auto`. Leave unset |
+| `BACKUP_MIN_UNCOMPRESSED_BYTES` | the "is this empty" floor | optional, defaults to `262144`. Leave unset |
+| `BACKUP_SHRINK_ALERT_PERCENT` | alert if under this % of last night | optional, defaults to `60`. Leave unset |
+
+The R2 API token needs **Object Read & Write** on this bucket. Read alone
+cannot upload; admin is more than it needs.
+
+**Step 5 — run it once, now, rather than waiting for 03:15.**
+
+1. Service → **Deployments** tab → the latest deployment → **⋮** → **Redeploy**.
+   On a cron service this runs the job immediately.
+2. Watch the logs. A good run prints, in order: `Dumping database…`,
+   `Verifying the dump…`, `Dump verified: N bytes…`, `Uploading to s3://…`,
+   `Reading the object back…`, `Uploaded and verified…`, `Backup job complete.`
+3. Any failure prints a sentence naming the stage and emails
+   `ESCALATION_EMAIL`. The commonest is `BACKUP_S3_ENDPOINT` with the bucket
+   name accidentally appended.
+
+**Step 6 — confirm it from three places, not one.**
+
+1. Cloudflare → R2 → the bucket. There is an object named
+   `aspire-bloods-<timestamp>.sql.gz` and the bucket is no longer 0 B.
+2. The portal → **Clinician console → Work queue**. The first band reads
+   **"under an hour ago — last successful backup"**.
+3. Run the restore drill below against that object. Until it has been restored
+   once, it is a file, not a backup.
+
+### Take a manual backup right now (PowerShell)
+
+Do this today, before the service exists. It needs **Docker Desktop running** —
+that is where `pg_dump` comes from, so nothing has to be installed.
+
+You need the **public** `DATABASE_URL`: Railway → Postgres service → **Variables**
+→ `DATABASE_PUBLIC_URL` (the `.proxy.rlwy.net` one, *not* `.railway.internal` —
+your laptop is outside Railway's private network).
+
+```powershell
+# 1. Paste the public connection string. It stays in this shell only.
+$env:PGURL = "postgresql://postgres:PASSWORD@HOST.proxy.rlwy.net:PORT/railway"
+
+# 2. Where to put it, and a name with the moment in it.
+$stamp  = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH-mm-ssZ")
+$outDir = "$env:USERPROFILE\aspire-backups"
+New-Item -ItemType Directory -Force $outDir | Out-Null
+$out = Join-Path $outDir "aspire-bloods-$stamp.sql"
+
+# 3. Dump it, using the same Postgres 16 client the backup image uses.
+#    --no-owner --no-privileges so it restores into a database with different
+#    role names, which a scratch database always has.
+docker run --rm -e PGURL=$env:PGURL postgres:16-alpine `
+  sh -c 'pg_dump "$PGURL" --format=plain --no-owner --no-privileges' | Set-Content -Path $out -Encoding utf8
+
+# 4. Look at it before believing it. A dump that failed is often a small file
+#    that exists, which is why this checks the size AND the content.
+$size = (Get-Item $out).Length
+"{0:N0} bytes" -f $size
+if ($size -lt 262144) { Write-Error "That is too small to be this database. Do not trust it." }
+Select-String -Path $out -Pattern '^COPY public\."(Report|ReportResult|User)"' | Select-Object -First 3
+```
+
+Those last two lines are the point. **A `pg_dump` that fails still leaves a
+file**, and a 4 kB file of error text looks like a backup in a folder listing.
+The size floor and the three `COPY` sections are the same two checks the nightly
+job makes.
+
+Then compress it and put it somewhere that is not this laptop:
+
+```powershell
+Compress-Archive -Path $out -DestinationPath "$out.zip"
+Get-FileHash "$out.zip" -Algorithm SHA256
+```
+
+Keep the hash. If you later upload this to R2 by hand, compare it after.
+
+**It contains every patient record in the database.** Encrypted-at-rest fields
+stay encrypted inside the dump; everything else — names, dates of birth, contact
+details, results — does not. It belongs on an encrypted disk, and it should be
+deleted once the scheduled backups are confirmed working.
 
 ### What the nightly job verifies before it calls a file a backup
 

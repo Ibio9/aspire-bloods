@@ -134,11 +134,22 @@ blur is a surface, and the light and the content behind it still come through.
 
 **One material, three numbers, one class.** `GLASS` in tokens.ts holds the blur
 radius, the saturation and the per-theme alpha; `.glass` in globals.css is the
-only place they are applied. The blur is **14px and that is a frame budget**, not
-a taste — a backdrop filter costs a compositing pass over the area behind the
-element on every frame, and the area here is a full-width bar over a list that
-can be 350 markers long. If it ever costs frames, lower the radius; the effect
-survives 8px and does not survive being replaced by an opaque fill.
+only place they are applied.
+
+**THE BLUR IS MEASURED, AND THE RADIUS IS NOT THE COST.** It was written down as
+"14px, a frame budget", which is a guess with a unit on it. Profiled over a
+3-second scroll of the by-marker view with the bar pinned
+(`e2e/zz-render-timing.spec.ts`): **60fps with the filter off, 23fps at 14px,
+and 25fps at 2px.** What is paid for is the EXISTENCE of the backdrop pass, not
+the work inside it, so "reduce the radius until it stops dropping frames" has no
+answer above zero. It is 10px now — the only value that measured better, and
+free to take.
+
+**That measurement is headless Chromium, which rasterises in software** — the
+worst case for a backdrop filter and not what a patient's browser does. It is a
+floor, not a verdict, and it is **not** grounds for going back to an opaque
+fill, which would paint over the corner glow. Measure it on a GPU-backed
+browser before concluding anything about the design.
 
 **The colour is the CARD tone, never the page.** Glass the colour of the page is
 invisible against the page.
@@ -471,7 +482,14 @@ patient-sidebar.spec.ts; the "no booking entry point" test in
 route-console.spec.ts). See DEPLOYMENT.md → Feature flags for the full note.
 
 # Naming and contact details (Aug 2026)
-- The practice is **Aspire Clinic** in everything a patient reads. "Aspire Group
+- The practice is **Aspire Clinic** in everything a patient reads — including
+  inside a longer phrase. It was "the Aspire clinical team" in ten places
+  (screen copy, the source label, two seeded copy blocks); it is "the Aspire
+  Clinic clinical team". **The `supersedes` arrays in seed.ts are HISTORY and
+  are not editable**: they are matched exactly against what is stored, so a
+  find-and-replace that "tidied" them would strand every database still holding
+  the old text, which would then be left alone for ever on the grounds that a
+  human must have written it. Add the outgoing body to the list instead. "Aspire Group
   of Companies" is gone from product copy, seeded copy blocks, emails and the
   PDF. It survives only in PRIVACY.md and SECURITY.md, where it is genuinely
   the legal entity.
@@ -724,6 +742,45 @@ time comes from the latest REPORT_PARSED / REPORT_VERIFIED audit entry.
 `updatedAt` is not that timestamp: it moves when anything on the row changes.
 The median takes the LOWER of two middles rather than averaging, so every
 duration on the screen is one a real report actually took.
+
+# Backups: THE JOB HAD NEVER RUN (Aug 2026)
+
+**The R2 bucket was 0 bytes, empty, zero operations, and there was no backup
+service in Railway at all.** The Dockerfile and the script had been in the
+repository for months. Nothing deployed them and nothing scheduled them, so the
+practice had no off-platform copy of its database and **nothing anywhere could
+have said so** — the only evidence a run produced was a log line in a service
+that did not exist.
+
+**A backup job's failure mode is being ABSENT, and absence is silent.** Three
+things close that, and all three matter:
+
+1. **`railway.backup.json`** — config-as-code for the cron service: the backup
+   Dockerfile, `/backup.sh`, `15 3 * * *`, `restartPolicyType: NEVER` (a failed
+   run has already emailed and recorded itself; restarting sends the same alert
+   three more times at 3am). A service must be pointed at this path explicitly,
+   or Railway builds the API's Dockerfile and runs it as an always-on web
+   service. DEPLOYMENT.md has the click-by-click.
+2. **`BackupRun`** — every run writes a row, success or failure, over the same
+   private `DATABASE_URL` it already holds. Not an API call with a shared
+   secret and not a marker object in the bucket: both are a second credential
+   and a second network path. FAILED rows are as important as succeeded ones —
+   "no row since Tuesday" and "a row every night saying it failed" are
+   different problems.
+3. **The clinician work queue leads with it.** Three states, not two: never
+   run, stale (over 48h), and last-run-failed. Never run says so in as many
+   words rather than reading as "unknown".
+
+**It emails `ESCALATION_EMAIL`** on failure and on a dump under 60% of the last
+successful one's size — the fixed floor catches an empty dump, and only a
+comparison with this database's own history catches the one that actually
+happens: a valid, restorable dump a third the size it was last night. That one
+**warns and still uploads**, because refusing it would turn a suspicion into a
+night with no backup at all. curl + python3 in the image, because it is
+postgres:16-alpine and has no Node.
+
+**Never `CLINIC_CONTACT_EMAIL`** — a backup failure is not something a patient
+is told about.
 
 # Backups: verified nightly, drilled by hand (Aug 2026)
 
@@ -1028,6 +1085,29 @@ It refuses to run unless the target database's name contains "drill" or
   signed by a named person who has read it. Streamed rather than stored, unlike
   the patient summary, because it is a derived view for a conversation rather
   than a record.
+- **RENDER THE PRINT. READING THE STYLESHEET IS NOT REVIEWING IT.**
+  `e2e/zz-print.spec.ts` renders the report, marker and library pages through
+  Chromium's real print path in both themes and measures what comes out.
+  Writing the stylesheet and reading it back found none of these four, and all
+  four were live:
+  · **The whole sidebar printed on every page.** `print:hidden` loses to
+  `md:flex` on source order (Tailwind emits the `print` variant BEFORE the
+  responsive ones), and A4 at 96dpi is **794px — above the `md` breakpoint**.
+  Chrome is hidden with **`.print-hide`** and its `!important` now, never
+  `print:hidden`.
+  · **And the rule meant to help was un-hiding it.** `.print-flow > *` set
+  `display: block !important` on the shell's direct children, which includes
+  the sidebar, after the hide rule and at equal specificity. It is
+  `:not(.print-hide)`.
+  · **Half of every report printed blank.** `.reveal` starts at `opacity: 0`
+  and is lifted by an IntersectionObserver; printing does not scroll, so every
+  card below the fold had never intersected. The "turn off animation" rule
+  killed the transition and the transform and left the opacity — the only one
+  of the three that was hiding anything.
+  · **The repeating footer was 290px of a 1017px page**, on all 56 pages of the
+  library. The full contact block moved OUT of the running footer and into the
+  end of the document, once; what repeats is two lines. `@page`'s bottom margin
+  is what reserves the band, and the spec asserts the footer fits in it.
 - **PRINTING IS A DOCUMENT, NOT A SCREENSHOT OF AN APP.** The theme is forced
   LIGHT at the token layer (`@media print` in tailwind.config.ts re-emits the
   light set at a selector that beats `.dark`), so every colour in the product
@@ -1038,6 +1118,28 @@ It refuses to run unless the target database's name contains "drill" or
   implements `@page` margin boxes**, so the `counter(page)` rule is declared
   because it is correct and the numbering a reader actually gets is the print
   dialog's own — do not "fix" this with JavaScript pagination.
+- **"WORTH A CONVERSATION" COLLAPSES, AND THE FACT DOES NOT.** Open by default;
+  the heading and the count line stay on the page when it is shut, because
+  collapsing hides the CARDS, not that there are results outside the range.
+  Only the list is inside the region — the "Talk to someone" card is a sibling
+  in its own grid column, so it neither moves nor resizes. Persisted per
+  PATIENT (`aspire_overview_attention_open:<userId>`), because an admin who is
+  also a patient shares a browser with their own account. Escape closes it only
+  when focus is inside, and returns focus to the disclosure. Every out-of-range
+  result stays in the list: no cap, no "show more".
+  **`.collapse-region` animates `grid-template-rows` from `0fr` to `1fr`**, so
+  the browser interpolates to the content's own height without anybody
+  measuring it — and `visibility: hidden` (delayed by the duration on the way
+  out) is the other half, because `overflow: hidden` at zero height leaves every
+  link inside still focusable, which is a tab stop trap.
+- **THE OVERVIEW COUNT AND A REPORT'S COUNTS STRIP ARE DIFFERENT NUMBERS ON
+  PURPOSE, AND THE SENTENCE NOW SAYS SO.** The strip counts one report; the
+  Overview counts the most recent result for EVERY marker across every released
+  report, because a flagged ferritin does not stop mattering when the next panel
+  omits it. On the demo patient that is **37 against 2 out of 12**, and the
+  sentence used to read "37 of your results sit outside the usual reference
+  range" with nothing saying which set it meant. It now says markers rather than
+  results, and names the scope in the same breath.
 - Nothing auto-publishes; release is an explicit state change
 
 # One human gate, and it is a clinician (Aug 2026)

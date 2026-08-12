@@ -165,7 +165,7 @@ export function MarkerDetailPage() {
     <div className="motion-safe:animate-riseIn">
       {/* The most recent draw this marker has a result from — the trend is
           sorted oldest first, so the sample date is the last row's. */}
-      <PrintHeader title={detail.name} sampleDate={detail.trend[detail.trend.length - 1]?.sampleDate ?? null} />
+      <PrintHeader sampleDate={detail.trend[detail.trend.length - 1]?.sampleDate ?? null} />
       <Breadcrumbs
         items={
           navState

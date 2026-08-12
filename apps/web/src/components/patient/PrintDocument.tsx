@@ -1,5 +1,6 @@
 import { formatDate } from '@aspire-bloods/shared';
 import { useAuth } from '../../lib/AuthContext';
+import { useClinicContact } from '../../lib/patientPortal';
 import { ClinicContactLines } from './ClinicContact';
 
 /**
@@ -36,15 +37,12 @@ import { ClinicContactLines } from './ClinicContact';
  */
 
 export function PrintHeader({
-  title,
   sampleDate,
   note,
 }: {
-  /** What this document is: the report's title, the marker's name, or the library's own. */
-  title: string;
   /** ISO date of the sample, where the document is about one. */
   sampleDate?: string | null;
-  /** One line of context where the title alone is not enough. */
+  /** One line of context where the page's own heading is not enough. */
   note?: string;
 }) {
   const { user } = useAuth();
@@ -53,7 +51,12 @@ export function PrintHeader({
       {/* The practice, in the product's own display face. "Aspire Clinic" is
           what a patient reads everywhere and is what a GP should see too. */}
       <p className="font-display opsz-small text-lg leading-none text-espresso">Aspire Clinic</p>
-      <h1 className="font-display opsz-section mt-3 text-xl leading-tight text-espresso">{title}</h1>
+      {/* NO TITLE HERE, and that is a correction from the first draft. This
+          header sits immediately above the page's own heading, which prints —
+          so a title here printed "Ferritin" twice, once as a masthead and once
+          as the page title an inch below it. The title is instead carried into
+          the FOOTER, where it identifies a loose page 3 of 5, which is the
+          place a document actually needs its own name repeated. */}
       {/* Patient and sample date, as DATA — mono, tabular, one per line, in the
           order somebody checks them: whose is this, and when was it taken. */}
       <dl className="mt-3 flex flex-wrap gap-x-10 gap-y-1 text-sm">
@@ -74,7 +77,8 @@ export function PrintHeader({
           {/* The date it was printed, because a results page changes: a sheet
               printed before an amendment and one printed after look identical
               without it. Computed at render, which for a print is the moment
-              the dialog opened. */}
+              the dialog opened. Repeated in the footer, which is the copy a
+              loose page carries. */}
           <dd className="numeric font-medium text-espresso">{formatDate(new Date().toISOString().slice(0, 10))}</dd>
         </div>
       </dl>
@@ -83,14 +87,54 @@ export function PrintHeader({
   );
 }
 
+/**
+ * ===========================================================================
+ *  THE FOOT OF A PRINTED DOCUMENT: TWO PIECES, PRINTED DIFFERENTLY.
+ * ===========================================================================
+ *
+ * THE RUNNING FOOTER repeats on every sheet, because it is `position: fixed`
+ * in the print stylesheet. What repeats has to be SMALL: a fixed element sits
+ * over the content unless the flow is padded out of its way, and every pixel of
+ * footer is a pixel off every page. Measured, the first version was 290px of a
+ * 1017px page — the clinic's full address, four lines with icons, repeated on
+ * all 56 pages of the marker library, taking 28% of the paper with it. It is
+ * two lines now: whose this is, when it was printed, and one route to a human.
+ *
+ * THE CONTACT BLOCK prints ONCE, at the end, in the ordinary flow. The full
+ * four lines, one item per line as they are everywhere else in the product
+ * (CLAUDE.md — never comma-joined), where they cost one page's worth of space
+ * rather than fifty-six.
+ *
+ * Both are rendered by the shell, so every printed patient screen gets them
+ * without each page remembering to.
+ */
 export function PrintFooter() {
+  const { user } = useAuth();
+  const contact = useClinicContact();
   return (
-    <footer className="print-footer print-only hidden border-t border-taupe pt-3">
-      <p className="text-xs leading-relaxed text-espresso/85">
-        These results were released by Aspire Clinic. They are not a diagnosis. If anything here needs discussing,
-        contact the clinic:
-      </p>
-      <ClinicContactLines className="mt-2" size="compact" />
-    </footer>
+    <>
+      {/* ONCE, at the end of the document. */}
+      <div className="print-only hidden border-t border-taupe pt-4">
+        <p className="text-xs font-medium text-espresso">Contact Aspire Clinic</p>
+        <ClinicContactLines className="mt-2" size="compact" />
+      </div>
+
+      {/* On every sheet. Two lines, and no more. */}
+      <footer className="print-footer print-only hidden border-t border-taupe pt-2">
+        {user?.displayName && (
+          <p className="text-xs font-medium text-espresso">
+            {user.displayName}
+            <span className="numeric font-normal text-espresso/80">
+              {' · printed '}
+              {formatDate(new Date().toISOString().slice(0, 10))}
+            </span>
+          </p>
+        )}
+        <p className="text-xs leading-snug text-espresso/85">
+          Released by Aspire Clinic. Not a diagnosis.
+          {contact?.email ? ` Questions: ${contact.email}` : ''}
+        </p>
+      </footer>
+    </>
   );
 }

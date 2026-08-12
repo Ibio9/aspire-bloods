@@ -81,7 +81,41 @@ export interface ExceptionCounts {
   unplacedResults: number;
 }
 
+/**
+ * WHETHER THE OFF-PLATFORM BACKUP IS ACTUALLY HAPPENING.
+ *
+ * On this screen because it is the screen somebody opens every morning, and
+ * because the failure mode of a backup job is not crashing, it is being absent.
+ * The R2 bucket was found empty, 0 B, 0 operations — the script was correct and
+ * had never been deployed, and nothing in the product could have said so.
+ *
+ * `neverRun` and "stale" are reported separately and both matter: no row at all
+ * means the cron service does not exist or has never fired, and a row from four
+ * days ago means it exists and has stopped. They have different causes and
+ * different first questions.
+ */
+export interface BackupStatus {
+  /** True when there has never been a run of any kind. The state that was live for months. */
+  neverRun: boolean;
+  lastSuccessAt: string | null;
+  /** Hours since the last SUCCESSFUL run, or null when there has never been one. */
+  hoursSinceSuccess: number | null;
+  /** True when there has never been a success, or the last one is older than the threshold. */
+  overdue: boolean;
+  overdueAfterHours: number;
+  /** The most recent run whatever its outcome, so a nightly FAILURE is visible rather than reading as silence. */
+  lastRun: {
+    startedAt: string;
+    finishedAt: string | null;
+    outcome: 'SUCCEEDED' | 'FAILED';
+    objectKey: string | null;
+    failureStage: string | null;
+    errorMessage: string | null;
+  } | null;
+}
+
 export interface WorkQueue {
+  backup: BackupStatus;
   buckets: QueueBucket[];
   reports: QueuedReport[];
   turnaround: TurnaroundStats;
@@ -91,6 +125,16 @@ export interface WorkQueue {
 
 /** The window the turnaround figures are computed over. */
 const TURNAROUND_WINDOW_DAYS = 30;
+
+/**
+ * How old the last successful backup may be before the queue says so.
+ *
+ * 48 rather than 24: the job runs nightly, so a single missed night is a
+ * warning worth investigating and not yet an emergency, and a threshold that
+ * fires on every transient failure is a threshold people learn to ignore. Two
+ * missed nights is a job that has stopped.
+ */
+const BACKUP_OVERDUE_HOURS = 48;
 
 /**
  * The order the buckets are presented in — what a clinician should look at
@@ -123,7 +167,7 @@ export async function getWorkQueue(now = new Date()): Promise<WorkQueue> {
   // Open work and the recent release history, in two reads rather than one
   // over-fetching read: the queue needs every open report and none of the
   // released ones, and the turnaround needs the opposite.
-  const [open, released, unmappedAnalytes, unplacedResults] = await Promise.all([
+  const [open, released, unmappedAnalytes, unplacedResults, lastRun, lastSuccess] = await Promise.all([
     prisma.report.findMany({
       where: { voidedAt: null, status: { not: 'RELEASED' } },
       include: {
@@ -140,7 +184,37 @@ export async function getWorkQueue(now = new Date()): Promise<WorkQueue> {
     // admin mapping is stamped RESOLVED, so this is what is actually still open.
     prisma.randoxAnalyteObservation.count({ where: { status: 'UNMAPPED' } }),
     prisma.unmatchedResult.count({ where: { status: 'PENDING' } }),
+    // The most recent run of ANY outcome, and the most recent SUCCESS. Two
+    // queries rather than one because they answer two questions: "is the job
+    // running" and "is there a backup". A job failing every night answers the
+    // first yes and the second no.
+    prisma.backupRun.findFirst({ orderBy: { startedAt: 'desc' } }),
+    prisma.backupRun.findFirst({ where: { outcome: 'SUCCEEDED' }, orderBy: { startedAt: 'desc' } }),
   ]);
+
+  const lastSuccessAt = lastSuccess?.finishedAt ?? lastSuccess?.startedAt ?? null;
+  const hoursSinceSuccess = lastSuccessAt
+    ? Math.floor((now.getTime() - lastSuccessAt.getTime()) / 3_600_000)
+    : null;
+  const backup: BackupStatus = {
+    neverRun: lastRun === null,
+    lastSuccessAt: lastSuccessAt?.toISOString() ?? null,
+    hoursSinceSuccess,
+    // Never having succeeded is overdue by definition — the state this whole
+    // panel exists because of. It is not "unknown" and must not read as one.
+    overdue: hoursSinceSuccess === null || hoursSinceSuccess >= BACKUP_OVERDUE_HOURS,
+    overdueAfterHours: BACKUP_OVERDUE_HOURS,
+    lastRun: lastRun
+      ? {
+          startedAt: lastRun.startedAt.toISOString(),
+          finishedAt: lastRun.finishedAt?.toISOString() ?? null,
+          outcome: lastRun.outcome,
+          objectKey: lastRun.objectKey,
+          failureStage: lastRun.failureStage,
+          errorMessage: lastRun.errorMessage,
+        }
+      : null,
+  };
 
   // When each open report entered a state that has no column of its own. One
   // query for all of them — the alternative is a query per row, and this list
@@ -216,6 +290,7 @@ export async function getWorkQueue(now = new Date()): Promise<WorkQueue> {
   const worst = durations[durations.length - 1] ?? null;
 
   return {
+    backup,
     buckets,
     reports,
     turnaround: {
