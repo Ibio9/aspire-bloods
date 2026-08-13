@@ -477,8 +477,37 @@ const MARK_SHIFT: Record<StatusHue, number> = { green: 0.44, olive: 0.53, yellow
  * Zero is a real answer here and not a missing one: the mark is the lifted hue
  * itself, which is the most chromatic it can be, and only orange and red — the
  * two heaviest bands — need to be pulled off it.
+ *
+ * ── AND IT IS A DIRECTION PER HUE NOW, BECAUSE ONE BAND WENT PAST IT ───────
+ *
+ * The out-of-range band is a real yellow now (see BAND_FILL), which puts it at
+ * okL 0.63 — LIGHTER than any gold the mark can be lifted to. Stepping toward
+ * the text colour tops out at 2.79:1 on it, so there is no answer in that
+ * direction at all; it has to step toward the GROUND, and it lands on #46380f
+ * at 3.24:1. Red is the mirror image and always was: it cannot go dark, only
+ * light.
+ *
+ * So the record carries a direction. `text` is the theme's own text tone and
+ * `ground` is black — never the plot surface, which is a warm near-black and
+ * would tint every mark that used it toward the one hue the plot already is.
+ * The mark loses most of its own hue in that direction (#46380f is a dark
+ * brown), and that is the accepted cost: what a mark has to do is be SEEN, and
+ * the shape is what carries the state — see the note on the point marks in
+ * TrendChart. A mark that has vanished into its band has lost the shape layer,
+ * which is the thing that carries it.
  */
-const MARK_SHIFT_DARK: Record<StatusHue, number> = { green: 0.04, olive: 0, yellow: 0, orange: 0.22, red: 0.46 };
+interface MarkShift {
+  toward: 'text' | 'ground';
+  amount: number;
+}
+
+const MARK_SHIFT_DARK: Record<StatusHue, MarkShift> = {
+  green: { toward: 'text', amount: 0.04 },
+  olive: { toward: 'text', amount: 0.39 },
+  yellow: { toward: 'ground', amount: 0.66 },
+  orange: { toward: 'text', amount: 0.66 },
+  red: { toward: 'text', amount: 0.46 },
+};
 
 /**
  * How far each hue is lifted toward the theme's text tone before anything in
@@ -655,11 +684,93 @@ const BAND_FILL: Record<'light' | 'dark', Record<'green' | 'yellow' | 'red' | 'o
   },
   dark: {
     green: { saturation: 0.795, lightness: 0.156 }, // #244808, okC 0.0985
-    yellow: { saturation: 0.789, lightness: 0.211 }, // #604a0b, okC 0.0812
+    // ── THE OUT-OF-RANGE BAND IS YELLOW, NOT OLIVE (Aug 2026) ────────────
+    // It was `{ 0.789, 0.211 }` — #604a0b, okL 0.42, okC 0.0812 — a dark
+    // ochre that reads as brown, and it is the colour a patient sees for
+    // every out-of-range result. See YELLOW_IS_A_GAMUT_PROBLEM below for the
+    // measurement and for the four things this cost.
+    yellow: { saturation: 1, lightness: 0.34 }, // #ad8100, okL 0.629, okC 0.1287
     red: { saturation: 0.707, lightness: 0.382 }, // #a72f1d, okC 0.1593
     optimal: { saturation: 0.795, lightness: 0.174 }, // #285009
   },
 };
+
+/**
+ * ═══ WHY DARK'S YELLOW IS THE ONE BAND OFF ITS RUNG ═══════════════════════
+ *
+ * `BAND_CONTRAST` puts the out-of-range band 1.88:1 off the surface it is drawn
+ * on. Against a near-black plot that fixes its luminance low, and **a yellow at
+ * a low luminance is a brown in any colour space** — not because the hue was
+ * badly chosen but because that is what a dark yellow is. The previous note
+ * here recorded that as a gamut limit and stopped. This is what happens if you
+ * do not stop.
+ *
+ * ── THE MEASUREMENT THAT DECIDES EVERYTHING ───────────────────────────────
+ *
+ * The most chroma sRGB will hold at hue 88°, by lightness:
+ *
+ *     okL 0.42   0.084     okL 0.55   0.113     okL 0.65   0.133
+ *     okL 0.50   0.102     okL 0.60   0.123     okL 0.70   0.143  ← ceiling
+ *
+ * So yellow cannot reach its own palette chroma (`bandChromaCeiling`, 0.1405)
+ * below okL 0.69, where green manages it from 0.44 and red from 0.405. Yellow
+ * is the hue with the least room, and the ladder was putting it in the least
+ * roomy part of it.
+ *
+ * ── SO IT WAS RAISED, AND FOUR THINGS HAD TO MOVE WITH IT ─────────────────
+ *
+ * Rendered at okL 0.42 / 0.55 / 0.60 / 0.62 / 0.66 / 0.70 and looked at: it
+ * stops reading as olive somewhere around 0.60 and is unambiguously gold by
+ * 0.66. It is set at **0.63**, and that number is not a taste — it is the
+ * highest the rest of the chart survives:
+ *
+ *  1. THE TREND LINE has to clear every band at AA-large, and the band it
+ *     cannot clear is now this one. At okL 0.63 the line has to reach 0.931
+ *     lightness (#ffe9dc, 3.02:1 on the yellow band); at 0.65 it is #fff3ed and
+ *     at 0.66 it is white outright. See LINE_LIFT.
+ *  2. THE BOUNDARY HAIRLINE is ONE neutral drawn over all five bands, and it
+ *     has to stay inside 1.6–3.5:1 on each. Solved over every (tone, opacity)
+ *     pair: 0.63 passes at 1.62–3.48, **0.64 fails and every value above it
+ *     fails**. That is the binding constraint, and it is why this is 0.63 and
+ *     not 0.66 — the hairline is the greyscale carrier, the thing that says
+ *     where the bound is when the colour is taken away, and it does not get
+ *     traded for a slightly better yellow.
+ *  3. THE POINT MARK on this band can no longer step toward the text colour:
+ *     the band is lighter than any lifted gold. It steps toward the GROUND
+ *     instead — see MARK_SHIFT_DARK, which is a direction per hue now.
+ *  4. THE LADDER'S ORDERING IS BROKEN BY THIS BAND AND CANNOT BE REPAIRED.
+ *     Measured, dark, geometric mean off card and plot:
+ *
+ *         green 1.49   olive 2.58   yellow 4.47   orange 3.10   red 2.29
+ *
+ *     Yellow is now the loudest band on the plot. Red cannot be lifted past
+ *     it: every band's luminance is capped by the line that has to clear it,
+ *     and at that cap red reaches 4.71 against yellow's 4.84 at okL 0.65 — it
+ *     runs out of room first, in both directions. This was solved for, not
+ *     assumed.
+ *
+ *     WHAT CARRIES THE ESCALATION INSTEAD IS CHROMA, and it is monotonic
+ *     across all five where the contrast ladder is not:
+ *
+ *         0.0971 → 0.1035 → 0.1294 → 0.1313 → 0.1583
+ *
+ *     plus the hue itself, which is the layer that was always doing most of
+ *     this work. A traffic light is the same shape of thing: its amber is
+ *     brighter than its red and nobody reads amber as the more serious of the
+ *     two. Direction and severity are still stated in the chevron, the word
+ *     and the figures on the axis, exactly as before.
+ *
+ * ── LIGHT IS UNTOUCHED ────────────────────────────────────────────────────
+ *
+ * Light's band is DARKER than its surface, so the ladder pushes it toward
+ * okL 0.77 rather than away from it, and #d8ae35 is already a gold carrying its
+ * full ceiling chroma. None of the above applies there and none of it was
+ * changed there.
+ *
+ * The rung this band actually lands on is `bandRung()` in statusBands.ts, which
+ * is what the tests measure against — so the exception is a value in the source
+ * rather than a relaxed assertion.
+ */
 
 /**
  * THE TREND LINE, AND IT IS BRIGHTER BECAUSE THE BANDS ARE (Aug 2026).
@@ -678,10 +789,32 @@ const BAND_FILL: Record<'light' | 'dark', Record<'green' | 'yellow' | 'red' | 'o
  * 30°, so a saturated bronze line would read as a status colour crossing the
  * plot) it lands at 3.36:1 in light and 3.33:1 in dark, at a chroma of 0.20 —
  * darker AND more bronze than the step it replaces.
+ *
+ * ── AND IN DARK IT IS NOW A PALE CREAM, WHICH IS A REAL LOSS (Aug 2026) ────
+ *
+ * The out-of-range band moved to a lightness where a yellow is a yellow (see
+ * BAND_FILL), and the line has to clear it at AA-large. That takes the line to
+ * 0.936 lightness — #ffebdf, an OKLab chroma of 0.029 against the 0.20 it
+ * carried before. **There is no bronze left in it.** Solved at full HSL
+ * saturation rather than bronze's own precisely to keep what warmth the gamut
+ * still allows at that luminance: the old rule against a saturated line (it
+ * would read as a status colour, bronze sitting at 19° between the status red
+ * and orange) is about a MID-lightness line, and at 0.93 even a fully saturated
+ * bronze is a pale cream that could not be mistaken for a band.
+ *
+ * The alternative was a darker line, and it is impossible rather than merely
+ * worse: to clear the in-range band from below, a line would need a luminance
+ * under zero. Measured both ways before this was taken.
  */
-const LINE_LIFT: Record<'light' | 'dark', number> = {
-  light: 0.296, // #654532
-  dark: 0.709, // #ceae9c
+interface LineLift {
+  lightness: number;
+  /** Bronze's own, except where the gamut leaves so little that it is spent. */
+  saturation: number | 'own';
+}
+
+const LINE_LIFT: Record<'light' | 'dark', LineLift> = {
+  light: { lightness: 0.296, saturation: 'own' }, // #654532
+  dark: { lightness: 0.936, saturation: 1 }, // #ffebdf
 };
 
 // ---------------------------------------------------------------------------
@@ -1061,7 +1194,7 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
     out[`--c-hue-${hue}-edge`] = dark ? darkFill(hue, 'edge') : mix(tintTowards, h, TINT_MIX.edge);
     // Away from the surface rather than toward it — see TINT_MIX.mark.
     out[`--c-hue-${hue}-mark`] = dark
-      ? mix(h, darkText, MARK_SHIFT_DARK[hue])
+      ? mix(h, MARK_SHIFT_DARK[hue].toward === 'text' ? darkText : '#000000', MARK_SHIFT_DARK[hue].amount)
       : mix(statusHue[hue], brand.espresso, MARK_SHIFT[hue]);
   }
 
@@ -1110,7 +1243,11 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
   // Bronze's OWN saturation, and nothing higher — the bronze hue sits at 19°,
   // between the status red at 8° and the status orange at 30°, so a saturated
   // bronze line would read as a status colour crossing the plot.
-  out['--c-chart-line'] = reLightness(brand.bronze, LINE_LIFT[mode], ownSaturation(brand.bronze));
+  out['--c-chart-line'] = reLightness(
+    brand.bronze,
+    LINE_LIFT[mode].lightness,
+    LINE_LIFT[mode].saturation === 'own' ? ownSaturation(brand.bronze) : LINE_LIFT[mode].saturation,
+  );
   out['--c-chart-point'] = out['--c-chart-line'];
   /**
    * The ring around a plotted point, and it is THE CARD'S OWN SURFACE in both
@@ -1141,7 +1278,15 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * 2.57:1 starts to compete with the trend line — the boundary is furniture
    * and the reader's own result is not.
    */
-  out['--c-chart-reference-edge'] = dark ? darkScales.taupe[800] : scales.taupe[900];
+  // ONE NEUTRAL OVER ALL FIVE BANDS, and in dark it is solved rather than
+  // stepped: the out-of-range band is a real yellow now and the spread from the
+  // in-range band to it is far wider than a scale step was chosen against.
+  // 0.775 is the value that keeps the drawn hairline inside 1.6-3.5:1 on every
+  // band; there is no such value once the yellow band goes past okL 0.63, which
+  // is what fixes the yellow where it is. See BAND_FILL.
+  out['--c-chart-reference-edge'] = dark
+    ? reLightness(brand.taupe, 0.774, ownSaturation(brand.taupe))
+    : scales.taupe[900];
   /**
    * THE OPTIMAL NARROWING, AS AN OPAQUE FILL of its own (Aug 2026).
    *

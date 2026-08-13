@@ -503,12 +503,44 @@ both significants share one.
    a floor; solved for an equal RGB span the three came out `#98db65`, `#cfb158`,
    `#eb8677` — a highlighter green beside a dull gold — because a green at 63%
    lightness holds an enormous span while looking ordinary and a red does not.
-   **DARK'S GOLD IS THE ONE THAT IS STILL SHORT, and it is the GAMUT and not the
-   cap.** The rungs are contrasts against a near-black surface, so gold's 1.88
-   puts it at 21% lightness, and a yellow at 21% lightness is a brown in any
-   colour space. Uncapping its saturation entirely buys 7% and still returns a
-   dark ochre; lifting the whole ladder ~30% buys 15% and costs the chart the
-   thing the ladder is for. Both were measured and neither was taken.
+   **DARK'S OUT-OF-RANGE BAND IS OFF THE LADDER, AND IT IS THE ONLY ONE
+   (Aug 2026).** It was #604b0b — a dark ochre that read as brown — because the
+   1.88 rung against a near-black plot fixes its luminance low, and **a yellow
+   at a low luminance is a brown in any colour space**. Yellow is also the hue
+   with the least room: it cannot reach its own palette chroma below okL 0.69,
+   where green manages it from 0.44 and red from 0.405. So the rung moved
+   instead: `BAND_RUNG` (statusBands.ts) is where the fills are actually solved
+   to, `BAND_CONTRAST` is the ladder the design asks for, and they differ in
+   exactly one cell — dark's yellow, at **4.45** and **#ad8100**.
+   **THE NUMBER IS FIXED BY THE HAIRLINE, NOT BY TASTE.** Rendered at okL 0.42 /
+   0.55 / 0.60 / 0.62 / 0.66 / 0.70 and looked at, it stops reading as olive
+   around 0.60 and is unambiguously gold by 0.66 — but the boundary hairline is
+   ONE neutral over all five bands and has to stay inside 1.6–3.5:1 on each.
+   Solved over every (tone, opacity) pair: **okL 0.629 passes at 1.62–3.48 and
+   0.64 fails**. The hairline is the greyscale carrier and does not get traded
+   for a slightly better yellow.
+   **THREE THINGS MOVED WITH IT AND ONE COULD NOT BE SAVED.** The trend line had
+   to reach 0.936 lightness to clear the band at AA-large, which leaves it
+   #ffeade — an OKLab chroma of 0.029 against the 0.20 it carried, so **there is
+   no bronze left in the dark line**; a darker line is impossible rather than
+   worse (it would need a luminance under zero to clear the in-range band from
+   below). The point mark on that band now steps toward the GROUND rather than
+   the text — `MARK_SHIFT_DARK` carries a direction per hue — and off the plot,
+   in the key and the tooltip, `StatusMark` takes the status TEXT colour, which
+   is the token already solved for a card. And **the escalation inverts**: dark
+   now runs green 1.49, olive 2.58, yellow 4.45, orange 3.10, red 2.29. Red
+   cannot be lifted past yellow — every band's luminance is capped by the line
+   that has to clear it, and at that cap red reaches 4.71 against yellow's 4.84.
+   It was solved for, not assumed.
+   **SO THE ESCALATION IS CARRIED BY CHROMA IN DARK AND BY CONTRAST IN LIGHT**,
+   and each theme has exactly one measure that runs monotonically across all
+   five (light's chroma is not monotonic either — its red is 0.134 against its
+   gold's 0.140). In range is still the quietest band in both, which is the rung
+   that was always load-bearing. A traffic light is the same arrangement: its
+   amber is brighter than its red and nobody reads amber as the more serious of
+   the two. **Light is untouched** — a light band is DARKER than its surface, so
+   the ladder pushes it toward the lightness a yellow lives at rather than away
+   from it, and #d8ae35 was already a gold at full ceiling chroma.
    **THE MEASURE IS THE GEOMETRIC MEAN OF TWO SURFACES.** One fill is drawn on
    the chart's plot panel and on the card a range bar sits on, and those two are
    not the same distance apart in the two themes. Solving against the card alone

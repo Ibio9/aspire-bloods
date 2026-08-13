@@ -268,12 +268,28 @@ function markFill(status: MarkerStatus): string {
  * straddles its path, and on a 5px triangle that eats half the shape from the
  * inside.
  */
+/**
+ * ── AND OFF THE PLOT IT IS A DIFFERENT COLOUR, WHICH IS NOT A CHOICE ───────
+ *
+ * The same glyph is drawn in three places: on the plot over its own band, in
+ * the tooltip, and in the key — and the last two are on a CARD. `--c-hue-*-mark`
+ * is solved against the BAND (see MARK_SHIFT_DARK), and since the out-of-range
+ * band became a real yellow the dark mark for it steps toward the ground rather
+ * than away from it. #45370f clears its own gold band at 3.28:1 and measures
+ * 1.28:1 on the card, which is a triangle nobody can see in the key.
+ *
+ * So `surface` says which ground this instance is standing on, and the mark
+ * takes the STATUS TEXT colour there instead — which is the token already
+ * solved for a card, and already what the tooltip colours the status word with
+ * one line below the glyph. On the plot nothing changes.
+ */
 function StatusMark({
   cx,
   cy,
   status,
   size = 1,
   ring = 1,
+  surface = 'plot',
 }: {
   cx: number;
   cy: number;
@@ -281,6 +297,8 @@ function StatusMark({
   size?: number;
   /** The VISIBLE width of the outline, in pixels — see paintOrder below. */
   ring?: number;
+  /** Where this instance is drawn. `card` is the key and the tooltip. */
+  surface?: 'plot' | 'card';
 }) {
   const known = asMarkerStatus(status);
   // No status, no mark. Every shape here — level dot, triangle, doubled
@@ -292,9 +310,11 @@ function StatusMark({
   const common = {
     // The plot's ground, not the card's: the point sits inside the inset panel,
     // and filling it with the card colour would make every mark read as a
-    // slightly lighter patch than the surface it is punched out of.
-    fill: chartTokens.plotSurface,
-    stroke: markFill(known),
+    // slightly lighter patch than the surface it is punched out of. Off the
+    // plot there is no ground to punch it out of, so the shape is hollow and
+    // the card shows through it.
+    fill: surface === 'plot' ? chartTokens.plotSurface : 'transparent',
+    stroke: surface === 'plot' ? markFill(known) : statusColor(known),
     // Doubled, because `paint-order: stroke` draws the outline FIRST and then
     // fills over its inner half — so half of the declared width is what shows.
     strokeWidth: ring * 2,
@@ -702,7 +722,7 @@ function ChartTooltip({
           mark's shape — so it reads identically with the colour removed. */}
       <p className="mt-2 flex items-center gap-1.5 font-medium" style={{ color: statusColor(point.status) }}>
         <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-          <StatusMark cx={6} cy={6} status={point.status} size={0.9} />
+          <StatusMark cx={6} cy={6} status={point.status} size={0.9} surface="card" />
         </svg>
         {statusLabel(point.status)}
       </p>
@@ -1491,7 +1511,7 @@ function ChartKey({
   const marks = statuses.map((s) => (
     <li key={`mark-${s}`} className="flex items-center gap-2">
       <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" className="shrink-0">
-        <StatusMark cx={7} cy={7} status={s} size={0.85} ring={2} />
+        <StatusMark cx={7} cy={7} status={s} size={0.85} ring={2} surface="card" />
       </svg>
       <span className="min-w-0">{statusLabel(s)}</span>
     </li>

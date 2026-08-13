@@ -377,6 +377,40 @@ export const BAND_CONTRAST: Record<MarkerStatus, number> = {
 };
 
 /**
+ * WHAT EACH BAND IS ACTUALLY SOLVED TO, PER THEME — and it is not always the
+ * rung above (Aug 2026).
+ *
+ * `BAND_CONTRAST` is the ladder the design asks for. `BAND_RUNG` is where the
+ * fills land, and there is exactly ONE difference between them: **dark's
+ * out-of-range band**, at 4.45 instead of 1.88.
+ *
+ * It is here rather than as a relaxed assertion in a test because it is a
+ * decision, and a decision belongs in the source. The decision is that the
+ * out-of-range band has to READ AS YELLOW — it is the colour a patient sees for
+ * every result outside their range — and against a near-black plot the 1.88
+ * rung fixes its luminance so low that no yellow exists there. It came out
+ * #604a0b: a dark ochre. The full measurement, and the four things that had to
+ * move with it, are on `BAND_FILL` in tokens.ts.
+ *
+ * THE CONSEQUENCE, STATED PLAINLY: in dark, the out-of-range band is the
+ * LOUDEST band on the plot. Red cannot be lifted past it — every band's
+ * luminance is capped by the trend line that has to clear it at AA-large, and
+ * at that cap red runs out of room before yellow does. So the escalation from
+ * "outside the range" to "significantly outside it" is carried in dark by
+ * CHROMA, which is monotonic across all five where the contrast ladder is not
+ * (0.097 → 0.104 → 0.129 → 0.131 → 0.158), and by the hue itself. A traffic
+ * light is the same arrangement: its amber is brighter than its red.
+ *
+ * IN RANGE IS STILL THE QUIETEST BAND IN BOTH THEMES, which is the rung that
+ * was always load-bearing — it is the one covering most of a plot, and the one
+ * the "bands are context, the line is content" rule is really about.
+ */
+export const BAND_RUNG: Record<'light' | 'dark', Record<'green' | 'yellow' | 'red', number>> = {
+  light: { green: BAND_CONTRAST.IN_RANGE, yellow: BAND_CONTRAST.HIGH, red: BAND_CONTRAST.SIGNIFICANT_HIGH },
+  dark: { green: BAND_CONTRAST.IN_RANGE, yellow: 4.45, red: BAND_CONTRAST.SIGNIFICANT_HIGH },
+};
+
+/**
  * THE RUNG AT EACH OF THE TWO BOUNDARIES — the midpoint of the two bands it
  * joins, DERIVED rather than written down.
  *
