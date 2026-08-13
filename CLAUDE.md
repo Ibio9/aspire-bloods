@@ -558,13 +558,35 @@ both significants share one.
    it are not clinically different — and a ramp across a whole band says the
    opposite falsehood, that the middle of "above range" is a transition. So
    each of the four boundaries is drawn as a blend CENTRED ON ITSELF, at a
-   fixed share of the DRAWN EXTENT (`TRANSITION_SHARE`, 11%, ±5.5% either side)
-   rather than of the range — so the blend is the same handful of pixels on a
-   3.9–5.1 marker and a 30–400 one. Flat green across the range, blend at the
-   bound, flat gold, blend at the threshold, flat red. The bound sits at the
+   fixed share of the DRAWN EXTENT (`TRANSITION_SHARE`, **40%**, ±20% either
+   side) rather than of the range — so the blend is the same handful of pixels
+   on a 3.9–5.1 marker and a 30–400 one. Flat green across the range, blend at
+   the bound, flat gold, blend at the threshold, flat red. The bound sits at the
    MIDPOINT of its blend, so a result exactly on the limit is drawn exactly
    half in each colour, and the boundary hairline runs through the middle of
-   the gradient rather than along its edge. `bandRampStops` (statusBands.ts) is
+   the gradient rather than along its edge.
+   **40% IS ONE STEP BACK FROM WHERE THE FLAT CORES GO (Aug 2026).** It was
+   11%, which on a 200px plot is 22px — a small blur at a seam between two
+   blocks rather than a transition, and the blend is meant to be the dominant
+   impression because what it says is the whole reason it exists. Swept at 11 /
+   20 / 28 / 34 / 40 / 46 / 52%, rendered through `bandRampStops` itself on four
+   real geometries and looked at: the cores start going at 46%, where the
+   in-range band on a narrow marker becomes a continuous ramp with nothing left
+   in the middle of it. At 40% the tightest of the four keeps a green core 26%
+   of its own band.
+   **EACH BOUNDARY GETS ITS OWN HALF-WIDTH AND IT IS THE SAME ON BOTH SIDES.**
+   The clamp used to be per BAND — each band's flat core inset from its own two
+   ends and pinned at its own midpoint — which never let two blends cross but
+   did let one go LOPSIDED: a bound with a wide band below and a narrow one
+   above got the full half-width downward and a clipped one upward, so it sat
+   off-centre in its own transition and the hairline no longer ran through the
+   middle. Invisible at 11%, unmissable at 40%. Each boundary now takes the
+   smallest of the nominal half-width and half the gap to the boundary either
+   side of it, which is both halves of the requirement at once: half a gap each
+   means two neighbours can MEET and can never overlap, and one figure on both
+   sides keeps the bound in the middle. `markerCopy.test.ts` pins the symmetry,
+   the non-crossing and the surviving core over six geometries including two
+   degenerate ones. `bandRampStops` (statusBands.ts) is
    the ONE derivation, shared by the chart and by both range bars — the bar and
    the chart speak one visual language, and the mini bar's old "flat segments,
    a ramp at this size is a smear" objection went with the ramp it was about.

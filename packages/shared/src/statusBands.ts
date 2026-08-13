@@ -437,12 +437,31 @@ export const CONTRAST_AT_THRESHOLD = (BAND_CONTRAST.HIGH + BAND_CONTRAST.SIGNIFI
  * telling them about the width of a band rather than about their own result.
  * On the plot this is the same handful of pixels every time.
  *
- * 0.11 of the extent, i.e. ±5.5% either side of the boundary. Enough to be
- * unmistakably a blend at the shortest height this chart is drawn at (~200px,
- * so ~22px) and far short of the width of the narrowest band it has to sit
- * inside.
+ * ── 0.40, UP FROM 0.11, AND THE NUMBER IS THE ONE BEFORE IT BREAKS ────────
+ *
+ * At 0.11 the blend was ±5.5% either side of a bound: on a 200px plot about
+ * 22px, which is a small blur at a seam between two blocks rather than a
+ * transition. The blend is meant to be the dominant impression, because the
+ * thing it is saying — that a value one unit inside a range and one unit
+ * outside it are not clinically different — is the whole reason the gradient
+ * exists.
+ *
+ * Swept at 0.11 / 0.20 / 0.28 / 0.34 / 0.40 / 0.46 / 0.52, rendered through
+ * this same function on four real geometries (a 3.8–5.8 marker reading 3.4, a
+ * 0–60 reading 94, a 2–10 and a 0–999) and looked at. The flat cores start
+ * going at 0.46 — the in-range band on a narrow marker becomes a continuous
+ * ramp with no region left in the middle of it — so this is one step back from
+ * there. At 0.40 the tightest of the four keeps a green core 26% of the width
+ * of its own band, which still reads as one region.
+ *
+ * A SHARE OF THE EXTENT AND NEVER OF THE RANGE, which is the whole reason it is
+ * a share of anything: a marker with a 3.9–5.1 range and one with a 30–400
+ * range would otherwise get transitions two orders of magnitude apart in
+ * appearance, and the reader has no way to know that the softness of an edge is
+ * telling them about the width of a band rather than about their own result. In
+ * the sweep the 2–10 and the 0–999 are the same picture, which is the check.
  */
-export const TRANSITION_SHARE = 0.11;
+export const TRANSITION_SHARE = 0.4;
 
 /** One stop in a band's fill, placed by the VALUE it belongs at. */
 export interface BandRampStop {
@@ -539,44 +558,55 @@ export function bandRampStops(
   const [g, v, y, o, r] = (['green', 'olive', 'yellow', 'orange', 'red'] as const).map((hue) => hueTint[hue].fill);
 
   /**
-   * The flat part of a band, inset from both its ends by the half-transition —
-   * and never crossing its own midpoint, so a band narrower than one transition
-   * degenerates into a single stop at its centre rather than into two stops in
-   * the wrong order.
+   * ── EACH BOUNDARY GETS ITS OWN HALF-WIDTH, AND IT IS THE SAME ON BOTH SIDES
+   *
+   * The blend is centred on its bound, so a result sitting exactly on the limit
+   * is drawn exactly half in each colour and the hairline runs through the
+   * middle of the gradient. That claim only holds while the two halves are
+   * EQUAL, which is why the clamp is per BOUNDARY rather than per band.
+   *
+   * It used to be per band: each band's flat core was inset from both its own
+   * ends and clamped at its own midpoint. That never let two blends cross, but
+   * it let one become lopsided — a bound with a wide band below it and a narrow
+   * one above got the full half-width downward and a clipped one upward, so the
+   * bound sat off-centre in its own transition and the hairline no longer ran
+   * through the middle of it. Invisible at 11% and unmissable at 40%.
+   *
+   * So each boundary takes the smallest of: the nominal half-width, and half
+   * the gap to the boundary on either side of it. Half the gap is exactly the
+   * "stop at the midpoint between the two bounds" rule — two neighbours each
+   * reaching at most halfway can meet and can never overlap — and taking the
+   * same figure on both sides is what keeps the bound in the middle of its own
+   * blend. The two REFERENCE BOUNDS are bracketed by the range on one side and
+   * a severity threshold on the other and therefore share a figure; the two
+   * SEVERITY THRESHOLDS are open-ended outward and are bounded only inward.
    */
-  const flat = (from: number, to: number): [number, number] => {
-    const middle = (from + to) / 2;
-    return [Math.min(from + halfWidth, middle), Math.max(to - halfWidth, middle)];
-  };
+  const range = high - low;
+  const atBound = Math.min(halfWidth, range / 2, threshold / 2);
+  const atThreshold = Math.min(halfWidth, threshold / 2);
 
   switch (asMarkerStatus(status)) {
-    case 'IN_RANGE': {
-      const [a, b] = flat(low, high);
+    case 'IN_RANGE':
       return [
         { value: low, colour: v },
-        { value: a, colour: g },
-        { value: b, colour: g },
+        { value: low + atBound, colour: g },
+        { value: high - atBound, colour: g },
         { value: high, colour: v },
       ];
-    }
-    case 'HIGH': {
-      const [a, b] = flat(high, high + threshold);
+    case 'HIGH':
       return [
         { value: high, colour: v },
-        { value: a, colour: y },
-        { value: b, colour: y },
+        { value: high + atBound, colour: y },
+        { value: high + threshold - atThreshold, colour: y },
         { value: high + threshold, colour: o },
       ];
-    }
-    case 'LOW': {
-      const [a, b] = flat(low - threshold, low);
+    case 'LOW':
       return [
         { value: low - threshold, colour: o },
-        { value: a, colour: y },
-        { value: b, colour: y },
+        { value: low - threshold + atThreshold, colour: y },
+        { value: low - atBound, colour: y },
         { value: low, colour: v },
       ];
-    }
     // The two outer bands are open-ended, so they carry only the half of the
     // transition that exists — flat red runs on from there to wherever the
     // caller's own extent ends, which is what a gradient's last stop already
@@ -584,11 +614,11 @@ export function bandRampStops(
     case 'SIGNIFICANT_HIGH':
       return [
         { value: high + threshold, colour: o },
-        { value: high + threshold + halfWidth, colour: r },
+        { value: high + threshold + atThreshold, colour: r },
       ];
     case 'SIGNIFICANT_LOW':
       return [
-        { value: low - threshold - halfWidth, colour: r },
+        { value: low - threshold - atThreshold, colour: r },
         { value: low - threshold, colour: o },
       ];
     default:

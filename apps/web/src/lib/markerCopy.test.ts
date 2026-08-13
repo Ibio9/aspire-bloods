@@ -40,7 +40,17 @@ const m = (status: MarkerStatusInput) => ({ status });
  * rather than of the range. The numbers here are a plausible plot: a 3.9–5.1
  * range, a 1.8-wide severity step, and a domain of roughly 2–7.
  */
-const RAMP = { low: 3.9, high: 5.1, threshold: 1.8, halfWidth: (5 * TRANSITION_SHARE) / 2 };
+/**
+ * The extent is the marker's OWN plot rather than a round number, because since
+ * the transition went to 40% of it (Aug 2026) the two are no longer independent:
+ * a fixture that gave a 1.2-wide range a 5-wide domain would ask for a half
+ * transition of 1.0 either side of a bound 0.6 from the middle of its band, and
+ * every stop below would come back clamped. This is what the chart actually
+ * computes for a marker whose results all sit inside its range — the band plus
+ * 30% of its own width at each end, so 1.92 — and the transition fits inside it
+ * with room to spare.
+ */
+const RAMP = { low: 3.9, high: 5.1, threshold: 1.8, halfWidth: (1.92 * TRANSITION_SHARE) / 2 };
 
 describe('statusFilterCounts', () => {
   it('counts every filter in one pass, matching the per-filter predicate', () => {
@@ -369,6 +379,116 @@ describe('every lookup keyed on status is total', () => {
       for (const band of statusBands(narrow.low, narrow.high, narrow.threshold)) {
         const stops = bandRampStops(band.status, narrow);
         expect([...stops].sort((a, b) => a.value - b.value), band.status).toEqual(stops);
+      }
+    });
+
+    /**
+     * The two properties the widened transition turns on (Aug 2026). At 11% of
+     * the extent neither could be violated by anything real; at 40% both are
+     * one narrow marker away, so both are checked over a spread of geometries
+     * rather than on the one plausible marker above.
+     */
+    const GEOMETRIES = [
+      { name: 'a plausible plot', low: 3.9, high: 5.1, threshold: 1.8, extent: 5 },
+      { name: 'a narrow range', low: 2, high: 10, threshold: 12, extent: 12.4 },
+      { name: 'a wide range', low: 0, high: 999, threshold: 1498.5, extent: 1298.7 },
+      { name: 'a tight threshold', low: 40, high: 60, threshold: 1, extent: 60 },
+      { name: 'a tight range', low: 10, high: 10.4, threshold: 30, extent: 70 },
+      { name: 'both tight', low: 10, high: 10.01, threshold: 0.005, extent: 40 },
+    ];
+
+    it('centres every blend on its own bound, so the hairline runs through the middle of it', () => {
+      // THE CLAIM THE WHOLE GRADIENT MAKES: a result sitting exactly on the
+      // limit is drawn exactly half in each colour. That only holds while the
+      // two halves are equal — and the clamp used to be per BAND, which let a
+      // bound with a wide band on one side and a narrow one on the other get
+      // the full half-width downward and a clipped one upward. Invisible at
+      // 11%; unmissable at 40%.
+      for (const g of GEOMETRIES) {
+        const halfWidth = (g.extent * TRANSITION_SHARE) / 2;
+        const stops = (s: MarkerStatus) => bandRampStops(s, { ...g, halfWidth });
+        const inRange = stops('IN_RANGE');
+        const high = stops('HIGH');
+        const low = stops('LOW');
+        const sigHigh = stops('SIGNIFICANT_HIGH');
+        const sigLow = stops('SIGNIFICANT_LOW');
+        // The reference bounds: the flat green ends as far below the bound as
+        // the flat gold begins above it.
+        expect(g.high - inRange[2].value, `${g.name}: the blend at the upper bound`).toBeCloseTo(
+          high[1].value - g.high,
+          9,
+        );
+        expect(g.low - low[2].value, `${g.name}: the blend at the lower bound`).toBeCloseTo(
+          inRange[1].value - g.low,
+          9,
+        );
+        // The severity thresholds, which are open-ended outward.
+        expect(g.high + g.threshold - high[2].value, `${g.name}: the blend at the upper threshold`).toBeCloseTo(
+          sigHigh[1].value - (g.high + g.threshold),
+          9,
+        );
+        expect(g.low - g.threshold - sigLow[0].value, `${g.name}: the blend at the lower threshold`).toBeCloseTo(
+          low[1].value - (g.low - g.threshold),
+          9,
+        );
+      }
+    });
+
+    it('stops each blend at the midpoint between two bounds rather than painting over its neighbour', () => {
+      // Two boundaries close together must not have their zones cross. Each
+      // takes at most half the gap to its neighbour, so at worst two blends
+      // MEET at the midpoint — which is what the flat core collapsing to a
+      // single point looks like, and is never a stop list running backwards or
+      // one band's colour appearing on the far side of the next bound.
+      for (const g of GEOMETRIES) {
+        const halfWidth = (g.extent * TRANSITION_SHARE) / 2;
+        for (const band of statusBands(g.low, g.high, g.threshold)) {
+          const stops = bandRampStops(band.status, { ...g, halfWidth });
+          const where = `${g.name} / ${band.status}`;
+          // In order, and inside the band's own extent — a stop past either end
+          // is a blend that has crossed a boundary.
+          for (let i = 1; i < stops.length; i += 1) {
+            expect(stops[i - 1].value, `${where}: stops out of order`).toBeLessThanOrEqual(stops[i].value);
+          }
+          if (band.from !== null) {
+            expect(stops[0].value, `${where}: a stop below the band`).toBeGreaterThanOrEqual(band.from - 1e-9);
+          }
+          if (band.to !== null) {
+            expect(stops[stops.length - 1].value, `${where}: a stop above the band`).toBeLessThanOrEqual(
+              band.to + 1e-9,
+            );
+          }
+        }
+      }
+    });
+
+    it('keeps a flat core in the in-range band on an ordinary plot, and never an inverted one', () => {
+      // THE WIDENING STOPS ONE STEP BEFORE THE CORES GO — "green still reads as
+      // one region through its middle" — and the four geometries here are the
+      // ones the share was swept against, at the domain the chart actually
+      // computes for each. Measured as a share of the band's own width, so it
+      // is a statement about what the reader sees rather than about units.
+      const ORDINARY = [
+        { name: 'RBC 3.8–5.8 reading 3.4', low: 3.8, high: 5.8, threshold: 3, extent: 3.7 },
+        { name: 'GGT 0–60 reading 94', low: 0, high: 60, threshold: 90, extent: 112 },
+        { name: 'a narrow 2–10', low: 2, high: 10, threshold: 12, extent: 12.4 },
+        { name: 'a wide 0–999', low: 0, high: 999, threshold: 1498.5, extent: 1298.7 },
+      ];
+      for (const g of ORDINARY) {
+        const halfWidth = (g.extent * TRANSITION_SHARE) / 2;
+        const [, a, b] = bandRampStops('IN_RANGE', { ...g, halfWidth });
+        const core = (b.value - a.value) / (g.high - g.low);
+        expect(core, `${g.name}: the in-range core is ${(core * 100).toFixed(0)}% of the band`).toBeGreaterThan(0.15);
+      }
+      // And on a plot dominated by a huge excursion — where the in-range band is
+      // a thin strip and the transition genuinely cannot fit inside it — the
+      // core collapses to the band's own midpoint rather than inverting. A
+      // gradient handed two stops in the wrong order is the failure; a thin
+      // strip drawn entirely as a blend is not.
+      for (const g of GEOMETRIES) {
+        const halfWidth = (g.extent * TRANSITION_SHARE) / 2;
+        const [, a, b] = bandRampStops('IN_RANGE', { ...g, halfWidth });
+        expect(b.value - a.value, `${g.name}: the in-range core is inverted`).toBeGreaterThanOrEqual(0);
       }
     });
   });
