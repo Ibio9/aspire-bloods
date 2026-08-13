@@ -11,6 +11,8 @@ import {
   BAND_CONTRAST,
   BAND_RUNG,
   bandChromaCeiling,
+  BAND_CHROMA_SHARE,
+  statusHue,
   CONTRAST_AT_BOUND,
   CONTRAST_AT_THRESHOLD,
   NO_STATUS_PAINT,
@@ -126,6 +128,82 @@ function okChroma(hex: string): number {
     1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
     0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
   );
+}
+
+/**
+ * PERCEPTUAL DISTANCE between two colours — OKLab ΔE.
+ *
+ * Contrast ratio answers "can I read text on this" and sees luminance only, so
+ * it calls a gold and an orange of the same luminance 1.00:1. For "can I see
+ * that this region is a different colour from that one", which is what a chart
+ * band actually has to do, distance in a perceptually uniform space is the
+ * measure. Computed here rather than imported, like okChroma, so it stays
+ * independent of whatever tokens.ts solved against.
+ */
+function deltaOk(a: string, b: string): number {
+  const lab = (hex: string) => {
+    const [r, g, bl] = [1, 3, 5]
+      .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+    const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * bl);
+    const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * bl);
+    const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * bl);
+    return [
+      0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+      1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+      0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
+    ];
+  };
+  const [l1, a1, b1] = lab(a);
+  const [l2, a2, b2] = lab(b);
+  return Math.hypot(l1 - l2, a1 - a2, b1 - b2);
+}
+
+/** A hex's own HSL lightness — the coordinate `BAND_FILL` solves. */
+function lightnessOf(hex: string): number {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  return (Math.max(r, g, b) + Math.min(r, g, b)) / 2;
+}
+
+/**
+ * The most OKLab chroma sRGB will hold for a hue at a given lightness.
+ *
+ * Swept rather than derived: the sRGB gamut boundary in OKLab has no closed
+ * form worth writing here, and a sweep is exact to its step. Used to ask "did
+ * this fill take the share it was allotted" in the cases where the GAMUT binds
+ * before the share does — at dark's lightnesses two of the three cannot reach
+ * their share whatever saturation they are given, and a test that ignored that
+ * would be asserting a property of sRGB rather than of the design.
+ */
+function maxChromaAtLightness(hue: 'green' | 'yellow' | 'red', lightness: number): number {
+  const [r0, g0, b0] = [1, 3, 5].map((i) => parseInt(statusHue[hue].slice(i, i + 2), 16) / 255);
+  const max = Math.max(r0, g0, b0);
+  const min = Math.min(r0, g0, b0);
+  const d = max - min;
+  let h = 0;
+  if (d !== 0) {
+    if (max === r0) h = ((g0 - b0) / d + (g0 < b0 ? 6 : 0)) / 6;
+    else if (max === g0) h = ((b0 - r0) / d + 2) / 6;
+    else h = ((r0 - g0) / d + 4) / 6;
+  }
+  const hx = (v: number) => Math.round(Math.max(0, Math.min(255, v * 255))).toString(16).padStart(2, '0');
+  const at = (s: number): string => {
+    if (s === 0) return `#${hx(lightness)}${hx(lightness)}${hx(lightness)}`;
+    const q = lightness < 0.5 ? lightness * (1 + s) : lightness + s - lightness * s;
+    const p = 2 * lightness - q;
+    const f = (t: number) => {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1 / 6) return p + (q - p) * 6 * t;
+      if (t < 1 / 2) return q;
+      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+      return p;
+    };
+    return `#${hx(f(h + 1 / 3))}${hx(f(h))}${hx(f(h - 1 / 3))}`;
+  };
+  let best = 0;
+  for (let s = 0; s <= 1; s += 0.005) best = Math.max(best, okChroma(at(s)));
+  return best;
 }
 
 /** The three surfaces text is ever set on: the page, a card, and an input. */
@@ -254,12 +332,13 @@ describe.each(MODES)('%s theme', (mode) => {
     // against either one alone leaves the other instrument's bands about a
     // third apart between light and dark.
     //
-    // MEASURED AGAINST `BAND_RUNG` AND NOT `BAND_CONTRAST`, because those are
-    // two different things since Aug 2026: the ladder the design asks for, and
-    // where the fills are actually solved to. They differ in exactly one place
-    // — dark's out-of-range band, which is at 4.45 because at 1.88 no yellow
-    // exists on a near-black plot. The difference is a value in the source, so
-    // this stays an equality rather than becoming a loosened bound.
+    // MEASURED AGAINST `BAND_RUNG`, which since Aug 2026 equals `BAND_CONTRAST`
+    // in both themes again. The two were allowed to differ for exactly one
+    // entry — dark's out-of-range band at 4.45, because at the ordinary rung no
+    // yellow exists on a near-black plot and that band was the only thing
+    // saying "out of range" in dark. The LINE says it now, so the band went
+    // back on the ladder. The two names stay apart because the reason they
+    // diverged can recur; the test below holds that they currently do not.
     for (const hue of BAND_STATES) {
       const got = bandRung(mode, hue);
       const rung = BAND_RUNG[mode][hue];
@@ -267,18 +346,21 @@ describe.each(MODES)('%s theme', (mode) => {
     }
   });
 
-  it('leaves the ladder itself in order, whatever one band had to do to be its own colour', () => {
-    // The DESIGN's ladder, unchanged and still ordered — it is what light is
-    // solved to in full and what dark departs from in one place only.
+  it('leaves the ladder in order and, since Aug 2026, departs from it nowhere', () => {
+    // The DESIGN's ladder, ordered. It is much quieter than it was — the bands
+    // are context now that the trend line carries the status along its own
+    // length — but "further out is more strongly marked" is unchanged, and that
+    // is what this holds.
     expect(BAND_CONTRAST.IN_RANGE).toBeLessThan(BAND_CONTRAST.HIGH);
     expect(BAND_CONTRAST.HIGH).toBeLessThan(BAND_CONTRAST.SIGNIFICANT_HIGH);
-    // And the departure is exactly one band, so nobody can quietly add another.
+    // NO departures, in either theme. Dark's out-of-range band was the only one
+    // there has ever been, and it went back on the ladder when the line took
+    // over carrying the status. A new one is a decision somebody has to take
+    // deliberately, which is what failing here forces.
     const off = (['green', 'yellow', 'red'] as const).filter(
       (hue) => BAND_RUNG[mode][hue] !== BAND_CONTRAST[hue === 'green' ? 'IN_RANGE' : hue === 'yellow' ? 'HIGH' : 'SIGNIFICANT_HIGH'],
     );
-    expect(off, `${mode} departs from the ladder on ${off.join(', ') || 'nothing'}`).toEqual(
-      mode === 'dark' ? ['yellow'] : [],
-    );
+    expect(off, `${mode} departs from the ladder on ${off.join(', ') || 'nothing'}`).toEqual([]);
   });
 
   it('puts each hinge exactly halfway between the two bands it joins', () => {
@@ -339,21 +421,33 @@ describe.each(MODES)('%s theme', (mode) => {
     // it to a bound it cannot control would only ever be a bound on its
     // neighbours applied twice. Its own claim is checked above.
     //
-    // AND NOT THE OUT-OF-RANGE BAND (Aug 2026), which is 2.04:1 in light and
-    // 4.19:1 off the same card in dark — a deliberate 2× divergence and the
-    // only one in the system. Dark's yellow had to leave the ladder to be a
-    // yellow at all; light's did not, because a light band is DARKER than its
-    // surface, so the ladder pushes it toward the lightness a yellow lives at
-    // rather than away from it. Holding the two together here would mean either
-    // changing a light band nobody complained about or putting dark's back to
-    // ochre. See BAND_RUNG.
-    for (const hue of BAND_STATES.filter((h) => h !== 'yellow')) {
+    // ALL THREE AGAIN (Aug 2026). The out-of-range band used to be exempt here:
+    // 2.04:1 in light and 4.19:1 in dark, a deliberate 2× divergence, because
+    // dark's yellow had left the ladder to be a yellow at all. With the LINE
+    // carrying the status that band came back, both themes are on one ladder,
+    // and there is nothing left to exempt.
+    for (const hue of BAND_STATES) {
       for (const surface of ['--c-cream-50', '--c-chart-plot-surface'] as const) {
         const measured = MODES.map((m) => contrastRatio(tone(m, `--c-hue-${hue}-fill`), tone(m, surface)));
         const [light, dark] = measured;
-        // Visible at all — a band nobody can see is a band that is not there.
-        for (const [i, w] of measured.entries()) {
-          expect(w, `the ${hue} band in ${MODES[i]} is ${w.toFixed(3)}:1 off ${surface}`).toBeGreaterThan(1.15);
+        /**
+         * VISIBLE AT ALL — a band nobody can see is a band that is not there.
+         *
+         * MEASURED AS PERCEPTUAL DISTANCE, NOT AS CONTRAST (Aug 2026). This was
+         * a 1.15:1 contrast floor, and when the bands dropped to context weight
+         * light's in-range band landed at 1.14 and failed it while being plainly,
+         * obviously green. Contrast ratio is a LUMINANCE measure; what makes a
+         * large flat region of colour visible against another is mostly its HUE.
+         * It is the same argument this file already makes one instrument up,
+         * where chroma is measured in OKLab rather than read off HSL saturation.
+         *
+         * The floor is an OKLab ΔE of 0.05 — roughly where a large field stops
+         * being a region and starts being a suspicion. A band that genuinely
+         * went grey fails it; a band that is quiet and coloured does not.
+         */
+        for (const m of MODES) {
+          const d = deltaOk(tone(m, `--c-hue-${hue}-fill`), tone(m, surface));
+          expect(d, `the ${hue} band in ${m} is ΔE ${d.toFixed(3)} off ${surface}`).toBeGreaterThan(0.05);
         }
         expect(
           Math.max(light, dark) / Math.min(light, dark),
@@ -405,19 +499,59 @@ describe.each(MODES)('%s theme', (mode) => {
       expect(measured, `the ${hue} band is more chromatic than statusHue.${hue} itself`).toBeLessThanOrEqual(
         ceiling * 1.02,
       );
-      // And the floor is what the single cap actually produced, hue by hue.
-      // Stated as the old numbers rather than as a share of the ceiling,
-      // because two of the six are bound by the sRGB GAMUT rather than by the
-      // palette — at dark's rungs, green sits at 16% lightness and gold at 21%,
-      // and neither can reach the brand hue's colourfulness down there whatever
-      // it is given. A share-of-ceiling floor would either fail on those two or
-      // be loose enough to let a single cap back in. This cannot: every one of
-      // the six has to be measurably more colourful than it was.
-      const before = SINGLE_CAP_CHROMA[mode][hue as 'green' | 'yellow' | 'red'];
+      // ── THE FLOOR IS THE ALLOTTED SHARE, NOT THE WHOLE CEILING (Aug 2026)
+      //
+      // A band used to take ALL of its hue's palette chroma. Solved that way
+      // against the new quiet rungs the bands came out pale but vivid, and the
+      // measurement that condemned it is one line: the green band carried 0.123
+      // of chroma against the green LINE's 0.096. The context was more
+      // colourful than the content — the same inversion the rungs were lowered
+      // to fix, surviving in the dimension nobody had measured.
+      //
+      // So a band takes `BAND_CHROMA_SHARE` of the ceiling and this holds it
+      // there from BOTH sides: it must reach essentially all of its share (a
+      // band that went grey fails) and must not exceed it (a band creeping back
+      // toward the line fails). The old absolute floor — what the single 0.6
+      // saturation cap produced — cannot be used any more and `SINGLE_CAP_CHROMA`
+      // is kept only as the historical record it is: a fainter band sits at a
+      // lightness where less chroma physically exists, so the only way to beat
+      // that number now would be to make the bands loud again, which is the
+      // change being measured, inverted.
+      const allowed = Math.min(
+        maxChromaAtLightness(hue as 'green' | 'yellow' | 'red', lightnessOf(tone(mode, `--c-hue-${hue}-fill`))),
+        ceiling * BAND_CHROMA_SHARE,
+      );
       expect(
         measured,
-        `the ${hue} band is ${measured.toFixed(4)}; the single 0.6 cap gave ${before.toFixed(4)}`,
-      ).toBeGreaterThan(before * 1.05);
+        `the ${hue} band is ${measured.toFixed(4)} of an allotted ${allowed.toFixed(4)}`,
+      ).toBeGreaterThanOrEqual(allowed * 0.93);
+      expect(
+        measured,
+        `the ${hue} band is ${measured.toFixed(4)}, past its allotted ${allowed.toFixed(4)}`,
+      ).toBeLessThanOrEqual(allowed * 1.07);
+    }
+  });
+
+  it('leaves every band less colourful than the line drawn in the same hue', () => {
+    // ── THE ORDERING, IN THE DIMENSION NOBODY WAS WATCHING (Aug 2026) ──────
+    //
+    // "The line is content, the bands are context" was asserted only as
+    // CONTRAST. Solved on contrast alone the bands stayed at full palette
+    // chroma and out-coloured the line, which is the ordering inverted however
+    // good the contrast numbers look. Both dimensions are held now, and this is
+    // the second: for every hue, the band is strictly less chromatic than the
+    // colour the trend line is drawn in as it crosses that band.
+    //
+    // Per hue rather than globally, because the five cannot hold equal chroma
+    // at the lightnesses the ladder puts them at — comparing a green band with
+    // a red line would be measuring the gamut rather than the design.
+    for (const hue of BAND_HUES) {
+      const band = okChroma(tone(mode, `--c-hue-${hue}-fill`));
+      const line = okChroma(tone(mode, `--c-hue-${hue}-mark`));
+      expect(
+        band,
+        `the ${hue} band is ${band.toFixed(4)} chromatic against a line of ${line.toFixed(4)}`,
+      ).toBeLessThan(line);
     }
   });
 
@@ -437,36 +571,30 @@ describe.each(MODES)('%s theme', (mode) => {
     }
   });
 
-  it('escalates continuously across all five, by contrast in light and by chroma in dark', () => {
-    // WHAT CHANGED, AND WHY THIS TEST REPLACED HALF OF THE ONE ABOVE (Aug 2026).
+  it('escalates continuously across all five, by contrast, in both themes', () => {
+    // ── ONE CARRIER AGAIN (Aug 2026) ───────────────────────────────────────
     //
-    // "Further out is more strongly marked" used to be asserted on the contrast
-    // rung in both themes. In dark that is now false: the out-of-range band
-    // sits at 4.45 against red's 2.29, because a yellow at red's rung is a dark
-    // ochre and red cannot be lifted past it (every band's luminance is capped
-    // by the trend line that has to clear it). So the escalation is carried in
-    // dark by CHROMA instead.
+    // "Further out is more strongly marked" was asserted on the contrast rung
+    // in both themes, then on CHROMA in dark, and now on contrast again. The
+    // detour is worth recording because it was a symptom rather than a design:
+    // dark's out-of-range band had been lifted off the ladder to 4.45 so it
+    // would read as a yellow rather than an ochre, which put it ABOVE the red
+    // band and ran the contrast ladder backwards — so the test had to find some
+    // other measure that still ran continuously, and chroma did.
     //
-    // AND THE TWO THEMES USE DIFFERENT CARRIERS, which is worth stating rather
-    // than papering over: light's chroma is NOT monotonic (its red is 0.134
-    // against its gold's 0.140, and has been since the bands went opaque), and
-    // dark's contrast is not. Each theme has exactly one measure that runs
-    // continuously from in-range to significantly-out, and this asserts the one
-    // it actually has — so a change that breaks BOTH in either theme fails
-    // here, and a change that swaps which one carries it has to say so.
+    // With the trend line carrying the status, that band went back on the
+    // ladder (see BAND_RUNG) and the contrast ordering is true in both themes
+    // again. One rule for both is worth more than two: a theme quietly
+    // departing from the ladder now fails here rather than being absorbed by a
+    // second carrier.
     //
-    // Chroma is measured in OKLab, computed in this file rather than imported,
-    // so it is independent of what tokens.ts solved against.
+    // Chroma is deliberately NOT asserted monotonic. It never was in light —
+    // its red sits below its gold and has since the bands went opaque — and the
+    // bands are held to a share of the palette per hue now, which is a
+    // different claim, made in its own test above.
     const rungs = BAND_HUES.map((hue) => bandRung(mode, hue));
-    const chromas = BAND_HUES.map((hue) => okChroma(tone(mode, `--c-hue-${hue}-fill`)));
     const rising = (xs: number[]) => xs.every((x, i) => i === 0 || xs[i - 1] < x);
-    const carrier = mode === 'light' ? 'contrast' : 'chroma';
-    expect(
-      rising(carrier === 'contrast' ? rungs : chromas),
-      `${mode} escalates by ${carrier}: rungs ${rungs.map((r) => r.toFixed(2)).join(' ')}, chroma ${chromas
-        .map((c) => c.toFixed(3))
-        .join(' ')}`,
-    ).toBe(true);
+    expect(rising(rungs), `${mode} rungs ${rungs.map((r) => r.toFixed(2)).join(' ')}`).toBe(true);
   });
 
   it('shades the optimal narrowing into the in-range band without making it a boundary', () => {
@@ -534,13 +662,29 @@ describe.each(MODES)('%s theme', (mode) => {
     }
   });
 
-  it('keeps a plotted point readable against the band it lands on', () => {
-    // A point takes its own state's colour and sits on a band of that same
-    // colour; if the two met, the chart would lose the shape layer that carries
-    // the status. Green is checked against the optimal narrowing too, since an
-    // in-range point can land inside it.
+  it('keeps every status colour readable against EVERY band, not just its own', () => {
+    // ── THIS GOT STRICTER IN Aug 2026, AND THE REASON IS THE LINE ──────────
+    //
+    // It used to check a mark against the band of its OWN hue: a green point
+    // lands on the green band, so those two must not meet. That was the whole
+    // constraint for as long as these colours were only ever used on point
+    // marks, because a point sits where its own status put it.
+    //
+    // The TREND LINE is drawn in them now, gradiented along its length — so a
+    // GOLD segment crosses the GREEN band on its way up to an out-of-range
+    // result, and a green segment crosses the gold coming back down. Every one
+    // of the five has to clear every one of the five, plus the optimal
+    // narrowing, or the line disappears for part of its length.
+    //
+    // Measured against the OLD heavy bands the worst pair was the dark gold
+    // mark on the dark green band at **1.10:1**. That measurement is what
+    // forced the bands down to context weight rather than the other way round —
+    // see BAND_FILL and MARK_SHIFT in tokens.ts.
+    const grounds = [
+      ...BAND_HUES.map((hue) => tone(mode, `--c-hue-${hue}-fill`)),
+      tone(mode, '--c-band-optimal'),
+    ];
     for (const hue of BAND_HUES) {
-      const grounds = [tone(mode, `--c-hue-${hue}-fill`), ...(hue === 'green' ? [tone(mode, '--c-band-optimal')] : [])];
       for (const band of grounds) {
         const ratio = contrastRatio(tone(mode, `--c-hue-${hue}-mark`), band);
         expect(ratio, `${hue} mark on ${band} is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(WCAG_AA_LARGE_TEXT);

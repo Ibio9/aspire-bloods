@@ -95,24 +95,92 @@ export function nexusEndpoint(name: NexusEndpointName): { path: string; verb: Ra
 
 /**
  * ---------------------------------------------------------------------------
- * WHAT THE SPEC SAYS ABOUT AUTHENTICATION, WHICH IS LESS THAN WE ASSUMED.
+ * THE CLINIC BOOKING ENDPOINTS, FROM THE POSTMAN COLLECTION.
  * ---------------------------------------------------------------------------
  *
- * `securitySchemes` contains exactly two entries, and they are the same
- * subscription key twice over:
+ * Transcribed from specs/"Clinic Booking Platform Testing APIs.postman_collection.json"
+ * and the CB STES auth document beside it. There is still no OpenAPI document
+ * for this API — the collection gives REQUEST bodies and verbs and no response
+ * examples at all, so what is verified here is exactly what goes OUT and
+ * nothing about what comes back. That asymmetry is honoured throughout:
+ * requests are built to the collection literally, responses are still read
+ * through the tolerant helpers in clients/parse.ts.
+ *
+ * THE SAME ONE-SENTENCE RULE HOLDS HERE AS ON NEXUS: takes a body, POST; takes
+ * nothing, GET. All five booking calls take a body and all five are POST;
+ * GetBiologicalSex takes nothing and is the GET the auth document uses as its
+ * worked example.
+ *
+ * The base URL is a DIFFERENT HOST from Nexus
+ * (stes-cb-platform-apim.azure-api.net/booking-platform-api), with its own
+ * subscription key, its own B2C client id and its own scope — which is why
+ * "per API" is a structural property of the connection config and of the rate
+ * limiter rather than a convention.
+ */
+export const CLINIC_BOOKING_ENDPOINTS = {
+  // The one GET. The auth document's worked example.
+  getBiologicalSex: { path: 'BiologicalSex/GetBiologicalSex', verb: 'GET' },
+
+  // The five POSTs, in the order the flow diagram walks them.
+  getServiceLocations: { path: 'Locations/GetServiceLocations', verb: 'POST' },
+  availabilityDetails: { path: 'Availability/AvailabilityDetails', verb: 'POST' },
+  holdAvailabilityBooking: { path: 'RandoxBookings/HoldAvailabilityBooking', verb: 'POST' },
+  createRandoxBooking: { path: 'RandoxBookings/CreateRandoxBooking', verb: 'POST' },
+  cancelRandoxBooking: { path: 'RandoxBookings/CancelRandoxBooking', verb: 'POST' },
+} as const satisfies Record<string, { path: string; verb: RandoxVerb }>;
+
+export type ClinicBookingEndpointName = keyof typeof CLINIC_BOOKING_ENDPOINTS;
+
+const BOOKING_BY_PATH = new Map<string, RandoxVerb>(
+  Object.values(CLINIC_BOOKING_ENDPOINTS).map((e) => [e.path, e.verb]),
+);
+
+/** As verbForPath, for the booking API. Throws rather than guessing. */
+export function bookingVerbForPath(path: string): RandoxVerb {
+  const normalised = path.replace(/^\/+/, '');
+  const verb = BOOKING_BY_PATH.get(normalised);
+  if (!verb) {
+    throw new Error(
+      `"${normalised}" is not one of the ${BOOKING_BY_PATH.size} Clinic Booking endpoints in the Postman collection. ` +
+        'Add it to CLINIC_BOOKING_ENDPOINTS with the verb the collection gives it rather than calling it with a guessed one.',
+    );
+  }
+  return verb;
+}
+
+export function bookingEndpoint(name: ClinicBookingEndpointName): { path: string; verb: RandoxVerb } {
+  return CLINIC_BOOKING_ENDPOINTS[name];
+}
+
+/**
+ * ---------------------------------------------------------------------------
+ * AUTHENTICATION: BOTH CREDENTIALS, ON EVERY REQUEST. SETTLED (Aug 2026).
+ * ---------------------------------------------------------------------------
+ *
+ * The Nexus OpenAPI document's `securitySchemes` contains exactly two entries
+ * and they are the same subscription key twice over:
  *
  *   apiKeyHeader  Ocp-Apim-Subscription-Key, in the header
  *   apiKeyQuery   subscription-key, in the query string
  *
- * There is NO OAuth scheme, no bearer scheme and no reference to Azure B2C
- * anywhere in the document. The auth PDFs Danial sent describe a B2C ROPC
- * password grant, so a bearer is probably still required at the gateway — but
- * "probably" is the accurate word and the spec does not corroborate it.
+ * There is no OAuth scheme, no bearer scheme and no reference to Azure B2C
+ * anywhere in that document, and for a while this file said the bearer was
+ * therefore "probably" required — the honest word at the time.
  *
- * So: the subscription key goes on every request unconditionally, and the
- * bearer is independently switchable (RANDOX_BEARER_TOKEN_ENABLED, default
- * on). A 401 logs which combination was actually sent, so the first live call
- * diagnoses itself instead of becoming a morning of guessing.
+ * THE CB STES AUTH DOCUMENT SETTLES IT, in one sentence: "Authorisation will be
+ * the bearer token and in the header section include the following key:
+ * Ocp-Apim-Subscription-Key." Both, together, on every request. Its Postman
+ * screenshot shows exactly that pair of headers, and both Postman collections
+ * carry a collection-level bearer alongside a per-request subscription key.
+ *
+ * So the spec's silence was a gap in the spec and not evidence of absence: an
+ * APIM `securitySchemes` block describes what the GATEWAY checks, and the
+ * bearer is checked by the B2C policy in front of it. Nothing about that is
+ * inferable from the OpenAPI file, which is why it took a second document.
+ *
+ * RANDOX_BEARER_TOKEN_ENABLED stays, and is now a LEVER rather than a HEDGE:
+ * it exists so a 401 can be diagnosed in one redeploy, not because the answer
+ * is in doubt. Turning it off is a diagnostic step, never a configuration.
  *
  * THE HEADER FORM, NEVER THE QUERY FORM. A subscription key in a query string
  * is a credential in every access log, proxy log and browser history between

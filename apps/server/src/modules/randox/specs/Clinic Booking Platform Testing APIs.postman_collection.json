@@ -1,0 +1,282 @@
+{
+	"info": {
+		"_postman_id": "ca35a9f8-9f6c-49f5-b9c4-27f6b9e26a7b",
+		"name": "Clinic Booking Platform Testing APIs",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "17141429"
+	},
+	"item": [
+		{
+			"name": "Get Bearer Token",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "grant_type",
+							"value": "password",
+							"type": "text"
+						},
+						{
+							"key": "client_id",
+							"value": "0b0399a4-d61f-43fc-a0d0-3311f60cdcb1",
+							"type": "text"
+						},
+						{
+							"key": "scope",
+							"value": "https://randoxclinicbooking.onmicrosoft.com/clinic-booking-platform-api/user_impersonation",
+							"type": "text"
+						},
+						{
+							"key": "username",
+							"value": "xxxxxxxxxxxxxxxxxxxxx",
+							"type": "text"
+						},
+						{
+							"key": "password",
+							"value": "xxxxxxxxxxxxxxxxxxxxx",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "https://randoxclinicbooking.b2clogin.com/randoxclinicbooking.onmicrosoft.com/B2C_1_apim_ropc_signin1/oauth2/v2.0/token",
+					"protocol": "https",
+					"host": [
+						"randoxclinicbooking",
+						"b2clogin",
+						"com"
+					],
+					"path": [
+						"randoxclinicbooking.onmicrosoft.com",
+						"B2C_1_apim_ropc_signin1",
+						"oauth2",
+						"v2.0",
+						"token"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Service Locations",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Ocp-Apim-Subscription-Key",
+						"value": "xxxxxxxxxxxxxxxxxxxxx",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"ServiceId\": 787\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://stes-cb-platform-apim.azure-api.net/booking-platform-api/Locations/GetServiceLocations",
+					"protocol": "https",
+					"host": [
+						"stes-cb-platform-apim",
+						"azure-api",
+						"net"
+					],
+					"path": [
+						"booking-platform-api",
+						"Locations",
+						"GetServiceLocations"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Availability Details",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Ocp-Apim-Subscription-Key",
+						"value": "xxxxxxxxxxxxxxxxxxxxx"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"ServiceId\": \"787\",\r\n    \"LocationId\": 15,\r\n    \"SearchFrom\": \"2025-09-10T00:00:00.000Z\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://stes-cb-platform-apim.azure-api.net/booking-platform-api/Availability/AvailabilityDetails",
+					"protocol": "https",
+					"host": [
+						"stes-cb-platform-apim",
+						"azure-api",
+						"net"
+					],
+					"path": [
+						"booking-platform-api",
+						"Availability",
+						"AvailabilityDetails"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Hold Availability Booking",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Ocp-Apim-Subscription-Key",
+						"value": "xxxxxxxxxxxxxxxxxxxxx",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"ServiceId\": 787,\r\n    \"LocationId\": \"15\",\r\n    \"AppointmentSlotId\": \"72164:72164::1760607000:\",\r\n    \"AppointmentSlotDate\": \"16/10/2025\",\r\n    \"AppointmentSlotTIme\": \"09:30\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://stes-cb-platform-apim.azure-api.net/booking-platform-api/RandoxBookings/HoldAvailabilityBooking",
+					"protocol": "https",
+					"host": [
+						"stes-cb-platform-apim",
+						"azure-api",
+						"net"
+					],
+					"path": [
+						"booking-platform-api",
+						"RandoxBookings",
+						"HoldAvailabilityBooking"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Create Randox Booking",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Ocp-Apim-Subscription-Key",
+						"value": "xxxxxxxxxxxxxxxxxxxxx",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"BookingId\": 1144015,\r\n    \"ServiceId\": \"787\",\r\n    \"LocationId\": \"15\",\r\n    \"AppointmentId\": 1144015,\r\n    \"AppointmentSlotId\": \"72164:72164::1760607000:\",\r\n    \"AppointmentSlotDate\": \"2025-10-16T00:00:00Z\",\r\n    \"AppointmentSlotTIme\": \"09:30\",\r\n    \"FirstName\": \"Tom\",\r\n    \"LastName\": \"Smithy\",\r\n    \"DateOfBirth\": \"1990-01-01T00:00:00\",\r\n    \"BiologicalSexId\": 1,\r\n    \"EmailAddress\": \"tom.smithtest@email.co.uk\",\r\n    \"ConfirmEmailAddress\": \"tom.smithtest@email.co.uk\",\r\n    \"ContactNumber\": \"078123456789\",\r\n    \"AddressLine1\": \"8 Road House Place\",\r\n    \"AddressLine2\": \"Test\",\r\n    \"TownCity\": \"Town\",\r\n    \"PostalCode\": \"BS2 9RX\",\r\n    \"CountryId\": 1,\r\n    \"CommunicationPreferenceEmail\": false,\r\n    \"CommunicationPreferenceSMS\": false,\r\n    \"CommunicationPreferenceTelephone\": false,\r\n    \"GPExternalNumber\": \"ITW-TEST-019999\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://stes-cb-platform-apim.azure-api.net/booking-platform-api/RandoxBookings/CreateRandoxBooking",
+					"protocol": "https",
+					"host": [
+						"stes-cb-platform-apim",
+						"azure-api",
+						"net"
+					],
+					"path": [
+						"booking-platform-api",
+						"RandoxBookings",
+						"CreateRandoxBooking"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Cancel Booking",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Ocp-Apim-Subscription-Key",
+						"value": "xxxxxxxxxxxxxxxxxxxxx",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"RandoxBookingOrderId\": 32285\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://stes-cb-platform-apim.azure-api.net/booking-platform-api/RandoxBookings/CancelRandoxBooking",
+					"protocol": "https",
+					"host": [
+						"stes-cb-platform-apim",
+						"azure-api",
+						"net"
+					],
+					"path": [
+						"booking-platform-api",
+						"RandoxBookings",
+						"CancelRandoxBooking"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"requests": {},
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"requests": {},
+				"exec": [
+					""
+				]
+			}
+		}
+	]
+}

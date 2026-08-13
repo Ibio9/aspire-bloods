@@ -278,6 +278,104 @@ export function fromEuropeLondon(raw: string | null): string | null {
   return result.toISOString();
 }
 
+/**
+ * ---------------------------------------------------------------------------
+ * CLINIC BOOKING SLOT TIMES: TWO DATE FORMATS, ONE ZONE, AND A TRAP.
+ * ---------------------------------------------------------------------------
+ *
+ * AvailabilityDetails returns slots in UTC — stated on the flow diagram, "get
+ * list of date & times - all UTC". The two calls that then reference a slot
+ * spell its date differently, in the SAME flow, in the SAME collection:
+ *
+ *   HoldAvailabilityBooking   "AppointmentSlotDate": "16/10/2025"
+ *   CreateRandoxBooking       "AppointmentSlotDate": "2025-10-16T00:00:00Z"
+ *   both                      "AppointmentSlotTIme": "09:30"
+ *
+ * Each endpoint is sent what its own example uses. That is the same rule the
+ * Nexus side already runs on (`asRandoxInt` / `asRandoxIdString`) and it is
+ * the only rule that survives a pair of documents that disagree with each
+ * other.
+ *
+ * THE TRAP, AND IT IS PROVABLE FROM THE COLLECTION ITSELF. The example's
+ * AppointmentSlotId is "72164:72164::1760607000:", and 1760607000 as a Unix
+ * epoch is 2025-10-16T09:30:00Z — the same 09:30 the example sends. In London
+ * that instant is 10:30, because 16 October is inside BST. So the date and
+ * time fields carry the slot's UTC WALL CLOCK and not its UK local one, and a
+ * formatter using local getters on a UK-hosted server would have sent "10:30"
+ * for seven months of the year: a hold placed on a slot an hour away from the
+ * one the patient chose, with nothing in any response to say so.
+ *
+ * Hence `getUTC*` throughout below, and hence these live in one place with
+ * that reasoning attached rather than being inlined at three call sites.
+ *
+ * `londonWallClock` is the other direction and the other rule: a slot is
+ * DISPLAYED in UK local time, because a patient attends an appointment in the
+ * time zone the clinic is in. Nothing between the API and the render converts
+ * anything — the instant stays UTC the whole way — and this is the single
+ * function that turns one into the other, at the edge, explicitly.
+ */
+
+function utcParts(startUtc: string): { date: Date; yyyy: string; mm: string; dd: string; hh: string; mi: string } {
+  const date = new Date(startUtc);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(`"${startUtc}" is not a usable slot timestamp. Availability slots are UTC ISO-8601 instants.`);
+  }
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return {
+    date,
+    yyyy: String(date.getUTCFullYear()),
+    mm: pad(date.getUTCMonth() + 1),
+    dd: pad(date.getUTCDate()),
+    hh: pad(date.getUTCHours()),
+    mi: pad(date.getUTCMinutes()),
+  };
+}
+
+/** "16/10/2025" — the form HoldAvailabilityBooking's own example uses. */
+export function slotDateDayFirst(startUtc: string): string {
+  const p = utcParts(startUtc);
+  return `${p.dd}/${p.mm}/${p.yyyy}`;
+}
+
+/**
+ * "2025-10-16T00:00:00Z" — the form CreateRandoxBooking's own example uses.
+ *
+ * MIDNIGHT, not the slot instant: their example pairs a midnight timestamp
+ * with a separate AppointmentSlotTIme of "09:30", so sending the real instant
+ * here would put the time in two places and invite them to disagree.
+ */
+export function slotDateIsoMidnightZ(startUtc: string): string {
+  const p = utcParts(startUtc);
+  return `${p.yyyy}-${p.mm}-${p.dd}T00:00:00Z`;
+}
+
+/** "09:30", from the UTC clock. See the trap above. */
+export function slotTimeOfDay(startUtc: string): string {
+  const p = utcParts(startUtc);
+  return `${p.hh}:${p.mi}`;
+}
+
+/**
+ * The same instant as UK local wall clock, for anything a patient reads.
+ *
+ * Europe/London explicitly, never the runtime's own zone: the appointment is
+ * at a clinic in the UK whatever zone the reader's device is set to, and a
+ * patient booking from abroad must not be shown their own local time for it.
+ */
+export function londonWallClock(startUtc: string): { date: string; time: string; timeZone: 'Europe/London' } {
+  const instant = new Date(startUtc);
+  if (Number.isNaN(instant.getTime())) {
+    throw new Error(`"${startUtc}" is not a usable slot timestamp.`);
+  }
+  const parts = LONDON_PARTS.formatToParts(instant);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  return {
+    date: `${get('year')}-${get('month')}-${get('day')}`,
+    time: `${get('hour')}:${get('minute')}`,
+    timeZone: 'Europe/London',
+  };
+}
+
 const LONDON_PARTS = new Intl.DateTimeFormat('en-GB', {
   timeZone: 'Europe/London',
   year: 'numeric',

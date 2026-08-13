@@ -171,7 +171,7 @@ Every escalation writes an `EscalationEvent` row and an `ESCALATION_TRIGGERED` a
 
 **What off removes.** "Book a test" leaves the patient sidebar; `/book`, `/appointments`, `/appointments/:id` and `/appointments/:id/reschedule` redirect to `/overview` rather than 404ing (they are in bookmarks); Overview drops the upcoming-appointments section; an opened report drops its "from your appointment on…" provenance link; the fasting and preparation notices go with the flow that carried them. Rollup constant-folds the flag, so with it unset none of `features/booking` or `lib/booking` is in the production bundle at all — verified by grepping `dist/assets/*.js`.
 
-**What off does NOT touch.** The server's Randox integration is a separate concern with a separate switch (`RANDOX_ENABLED`) and is untouched: ordering (`CreatePendingOrder`), `GetServiceLocations`, `AvailabilityDetails`, `HoldAvailabilityBooking`, `CreateRandoxBooking`, cancel/reschedule, the mock transport and every test over them all still run. Whatever implements booking on the main site calls those. Results ingestion, polling and the order lifecycle are likewise unaffected.
+**What off does NOT touch.** The server's Randox integration is a separate concern with a separate switch (`RANDOX_ENABLED`) and is untouched: ordering (`CreatePendingOrder`), `GetServiceLocations`, `AvailabilityDetails`, `HoldAvailabilityBooking`, `CreateRandoxBooking`, `CancelRandoxBooking`, the mock transport and every test over them all still run. Whatever implements booking on the main site calls those. **There is no reschedule endpoint** — the Postman collection has five booking calls and none of them moves an appointment — so moving one is hold-new, book-new, cancel-old, in that order, which is what `rescheduleBooking` does. Results ingestion, polling and the order lifecycle are likewise unaffected.
 
 **Turning it back on.** Set `VITE_BOOKING_ENABLED=true` in Vercel (Production and/or Preview) and redeploy. Nothing else needs changing; no migration, no server variable. Two e2e expectations are written against "off" and would need updating with it: the patient sidebar's link count in `e2e/patient-sidebar.spec.ts`, and the "no booking entry point is reachable" test in `e2e/route-console.spec.ts`.
 
@@ -185,12 +185,30 @@ The integration is finished and runs end to end on the mock transport. Nothing i
 
 **Two guards you will meet, and neither is to be worked around.** Booting production with `RANDOX_TRANSPORT=mock` and `RANDOX_ENABLED=true` is refused — the mock returns fixture results and they would be ingested as though they were a real patient's. Booting with `RANDOX_TRANSPORT=live` while `RANDOX_CODE_MAP_FILE` or `RANDOX_ID_MAP_FILE` still points at a checked-in `.example.json` is also refused: those files contain invented codes, and running live against them would classify every genuine Randox code as unrecognised and therefore as a void — which presents as "no results ever arrive" rather than as a configuration error. Both refusals name the variable.
 
+### What is known and what is still missing (Aug 2026)
+
+Both developer portal accounts are active, and four more documents are in `apps/server/src/modules/randox/specs/` — the CB STES auth document, the Nexus↔Clinic Booking flow diagram, and a Postman collection for each API.
+
+**Known and already defaulted in code** — both base URLs, both B2C client ids, both scopes, the shared token endpoint, the two booking service ids (787 UK / 788 ROI), and the sandbox test location (30, Clinic Location Crumlin).
+
+**Still missing, and each one blocks a live boot:**
+
+| Missing | Where it comes from |
+|---|---|
+| The two subscription keys | Created in the developer portal, one per API |
+| `RANDOX_USERNAME` / `RANDOX_PASSWORD` | **Also created in the portal**, not issued — both auth documents say "the username created within the Developer Portal", so nobody is waiting to send them |
+| `RANDOX_CLINIC_ID` | `GET /Clinic/GetMyClinicDetails`, on the first authenticated call |
+| Test and cancellation reason ids | Their own GET endpoints |
+| The panel/test id map | Agreed with Randox, or mapped in the console |
+| The collection methods | Whatever the contract permits |
+| **The void and caveat code list** | **The Randox Web Developer team, and nothing else.** None of the four new documents contains it, and there is no endpoint in the OpenAPI spec that returns one. The boot guard stays. |
+
 ### What to do at go-live, in order
 
 Everything in steps 1–9 is a Railway variable on the **API service** unless stated. Set them all, then restart once.
 
-1. **Get the two subscription keys** from the Randox developer portal — one per API, they are not the same key. Set `RANDOX_NEXUS_SUBSCRIPTION_KEY` and `RANDOX_BOOKING_SUBSCRIPTION_KEY`. Example shape: `0f3c9a7e5b1d4e8fa2c6b0d9e4f71a35`.
-2. **Get the ROPC service account** Randox issue for the password grant and set `RANDOX_USERNAME` and `RANDOX_PASSWORD` (e.g. `aspire-api@randoxclinicbooking.onmicrosoft.com`). Both APIs share one pair by default; `RANDOX_NEXUS_USERNAME` / `RANDOX_NEXUS_PASSWORD` and the `RANDOX_BOOKING_*` equivalents exist only if production issues you separate accounts.
+1. **Create the two subscription keys** in the Randox developer portal — one per API, they are not the same key. Set `RANDOX_NEXUS_SUBSCRIPTION_KEY` and `RANDOX_BOOKING_SUBSCRIPTION_KEY`. Example shape: `0f3c9a7e5b1d4e8fa2c6b0d9e4f71a35`.
+2. **Create the ROPC service account in the developer portal** and set `RANDOX_USERNAME` and `RANDOX_PASSWORD`. Not something Randox send you: both auth documents say "This will be the username created within the Developer Portal". Both APIs share one pair by default; `RANDOX_NEXUS_USERNAME` / `RANDOX_NEXUS_PASSWORD` and the `RANDOX_BOOKING_*` equivalents exist only if production issues you separate accounts.
 3. **Point at production rather than the sandbox.** The defaults are the `stes-` sandbox hosts. Set `RANDOX_NEXUS_BASE_URL` and `RANDOX_BOOKING_BASE_URL` to the production roots Randox give you. If production uses different B2C applications, also set `RANDOX_NEXUS_CLIENT_ID`, `RANDOX_BOOKING_CLIENT_ID`, `RANDOX_NEXUS_SCOPE`, `RANDOX_BOOKING_SCOPE` and `RANDOX_B2C_TOKEN_URL`; if not, leave all six on their documented defaults.
 4. **Read your own clinic id** from `GET /Clinic/GetMyClinicDetails` (it returns an integer, e.g. `146`) and set `RANDOX_CLINIC_ID=146`. If the clinic has more than one test location, that call also returns `clinicTestLocations` — set `RANDOX_TEST_CLINIC_LOCATION_ID` to the one you order against. A single-site clinic leaves it blank and it falls back to the clinic id.
 5. **Read the testing and cancellation reason ids** from `GET /TestReason/GetTestingReasons` and `GET /CancellationReason/GetCancellationReasons`, and set `RANDOX_DEFAULT_TEST_REASON_ID` (e.g. `1`) and `RANDOX_DEFAULT_CANCELLATION_REASON_ID` (e.g. `1`). Both are required — `CreatePendingOrder` rejects an empty `TestReasons`, and `CancelOrder` takes a reason id rather than free text.
@@ -199,7 +217,11 @@ Everything in steps 1–9 is a Railway variable on the **API service** unless st
 8. **Say which collection routes you are contractually entitled to offer**: `RANDOX_COLLECTION_METHODS=IN_CLINIC,HOME_KIT,MOBILE_PHLEBOTOMY` — or whichever subset Randox have agreed. It is empty by default and an order requesting an unlisted method is refused before it is sent. Live boot with it empty is refused, because no order could be placed by any route.
 9. **Switch the transport**: `RANDOX_TRANSPORT=live`, then `RANDOX_ENABLED=true`. Set them in that order, in one save if the dashboard allows it — `RANDOX_ENABLED=true` with `RANDOX_TRANSPORT=mock` is refused in production, so a partial save will fail the boot rather than ingest fixtures.
 10. **Restart the service and read the boot log.** A missing or malformed setting fails the boot and names every one of them at once, with a sentence on what each is for. This is intentional: finding six missing credentials one redeploy at a time is its own kind of outage.
-11. **Verify, in the console.** Open **Panels → Randox panel mapping** and press *Refresh from Randox* — that exercises all seven reference endpoints against the live gateway and will fail loudly if the key or the scope is wrong. Then place one real order and watch the **Ingestion log**. Polling is hourly per order, staggered by creation time, so the first status check is up to an hour after the order.
+11. **Verify, in the console.** Open **Panels → Randox panel mapping** and press *Refresh from Randox* — that exercises all eight reference endpoints against the live gateway and will fail loudly if the key or the scope is wrong. Then place one real order and watch the **Ingestion log**. Polling is hourly per order, staggered by creation time, so the first status check is up to an hour after the order.
+
+**If the first call 401s, check the scope before anything else.** The Nexus scope was wrong by one hyphen until Aug 2026 (`gptestorderportal-externalapi` for `gptestorderportal-external-api`) because it was transcribed from the auth PDF's rendered text, where the hyphen falls on a line break and vanishes — the CB scope is mangled the same way two paragraphs later in its own document. A wrong scope means B2C issues no token at all, so the failure arrives as a 401 talking about the token rather than about the scope. Copy scopes from the PDF's **link target** or from the Postman collection, never from the paragraph. Both credentials are required together — the bearer AND `Ocp-Apim-Subscription-Key` — which the CB auth document states outright, so a 401 is a wrong key, a wrong scope or a subscription not enabled for that product, and never a question of which one to send.
+
+**For the first booking smoke test, use LocationId 30 ("Clinic Location Crumlin").** Randox confirm it has real availability; the Postman collection's own LocationId 15 may have none, and an empty diary is indistinguishable from a broken integration from the outside.
 
 ### The variables, in full
 
@@ -214,7 +236,9 @@ Everything in steps 1–9 is a Railway variable on the **API service** unless st
 | `RANDOX_USERNAME` / `RANDOX_PASSWORD` | `aspire-api@…onmicrosoft.com` | ROPC service account. Per-API overrides exist and are usually unnecessary. |
 | `RANDOX_NEXUS_CLIENT_ID` | `791f0001-20d7-4771-b4ab-359b4b9efd21` | Documented, not secret. Defaulted. |
 | `RANDOX_BOOKING_CLIENT_ID` | `0b0399a4-d61f-43fc-a0d0-3311f60cdcb1` | Documented, not secret. Defaulted. |
-| `RANDOX_NEXUS_SCOPE` / `RANDOX_BOOKING_SCOPE` | `https://randoxclinicbooking.onmicrosoft.com/…` | From the STES auth documents. Defaulted. |
+| `RANDOX_NEXUS_SCOPE` / `RANDOX_BOOKING_SCOPE` | `https://randoxclinicbooking.onmicrosoft.com/…` | From the STES auth documents **and both Postman collections**. Defaulted. Note the hyphen in `gptestorderportal-external-api` — see the 401 note above. |
+| `RANDOX_BOOKING_SERVICE_ID_UK` / `_ROI` | `787` / `788` | The ServiceId for third-party in-clinic bookings. Exactly two exist. Defaulted. |
+| `RANDOX_BOOKING_REGION` | `UK` | Picks between the two above. A deployment fact, not a per-request one. |
 | `RANDOX_B2C_TOKEN_URL` | `https://randoxclinicbooking.b2clogin.com/…/oauth2/v2.0/token` | One shared endpoint; per-API overrides exist. |
 | `RANDOX_CLINIC_ID` | `146` | Integer. From `GetMyClinicDetails`. |
 | `RANDOX_TEST_CLINIC_LOCATION_ID` | `147` | Blank falls back to the clinic id. |
@@ -227,8 +251,8 @@ Everything in steps 1–9 is a Railway variable on the **API service** unless st
 | `RANDOX_HEALTH_CHECK_PANEL_REPORT` | `true` | Asks for the patient-facing scalebar PDF rather than the tabular lab one. |
 | `RANDOX_CV_SCORE_REQUIRED` | `false` | Needs measurements `CreatePendingOrder` cannot carry. Leave off. |
 | `RANDOX_REFERENCE_DATA_METHOD` | `get` | Settled by the OpenAPI spec: all eight reference endpoints are GET (takes a body → POST; takes nothing → GET). `auto` survives as an escape hatch — it sends the declared verb and repeats as POST on a 404/405/501. |
-| `RANDOX_BEARER_TOKEN_ENABLED` | `true` | Whether to send a B2C bearer alongside the subscription key. **Unconfirmed:** the spec declares only the subscription key and no bearer scheme at all; the auth PDFs describe B2C ROPC. Flip to `false` without a deploy if the first live call 401s with a valid key — the 401 log line names which combination was sent. The key itself always goes, in the header. |
-| `RANDOX_MAX_REQUESTS_PER_MINUTE` | `60` | Outbound pacing, per API. `0` disables it. A gateway `Retry-After` is obeyed regardless. |
+| `RANDOX_BEARER_TOKEN_ENABLED` | `true` | **Confirmed required (Aug 2026)** — the CB auth document: "Authorisation will be the bearer token and in the header section include the following key: Ocp-Apim-Subscription-Key." Both, on every request. Leave it on; turning it off is a diagnostic step for an unexplained 401, not a configuration. The key always goes, in the header. |
+| `RANDOX_MAX_REQUESTS_PER_MINUTE` | `60` | Outbound pacing, **per API**. Randox's documented limit is **600/min per API** and the boot refuses anything above it. 60 is a tenth of the ceiling on purpose — 600 is where they start refusing. `0` disables our pacing; a gateway `Retry-After` is obeyed regardless. |
 | `RANDOX_RETRY_MAX_ATTEMPTS` | `3` | Transient failures only (429, 5xx, timeout). Never applied to `CreatePendingOrder`. |
 | `RANDOX_RETRY_BASE_DELAY_MS` | `500` | Exponential with jitter from here, capped at 60s. |
 | `RANDOX_POLL_CRON` | `*/5 * * * *` | How often the sweeper wakes, **not** how often an order is polled. |

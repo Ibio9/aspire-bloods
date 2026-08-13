@@ -1,5 +1,11 @@
-import { describe, it, expect } from 'vitest';
-import { RequestRateLimiter } from '../src/modules/randox/http/rateLimiter.js';
+import { describe, it, expect, beforeEach } from 'vitest';
+import {
+  RequestRateLimiter,
+  RANDOX_DOCUMENTED_LIMIT_PER_MINUTE,
+  assertWithinDocumentedLimit,
+  limiterFor,
+  __resetLimitersForTest,
+} from '../src/modules/randox/http/rateLimiter.js';
 
 /**
  * Outbound pacing on the Randox APIs.
@@ -62,5 +68,54 @@ describe('RequestRateLimiter', () => {
     const after = Date.now();
     await limiter.acquire();
     expect(Date.now() - after).toBeLessThan(50);
+  });
+});
+
+/**
+ * Randox's documented limit is 600 requests per minute, PER API (Chris
+ * Caulfield, Aug 2026). Two properties follow, and neither is about arithmetic:
+ * the two APIs must not spend each other's budget, and a configured pace above
+ * the ceiling must fail at boot rather than at 3am.
+ */
+describe('the documented limit', () => {
+  beforeEach(() => __resetLimitersForTest());
+
+  it('is 600 a minute and is a ceiling, not a target', () => {
+    expect(RANDOX_DOCUMENTED_LIMIT_PER_MINUTE).toBe(600);
+    // Our own default is a tenth of it. Pacing at the rate Randox start
+    // refusing at means every ordinary burst discovers the limiter.
+    expect(assertWithinDocumentedLimit(60)).toBeUndefined();
+    expect(assertWithinDocumentedLimit(600)).toBeUndefined();
+    expect(() => assertWithinDocumentedLimit(601)).toThrow(/RANDOX_MAX_REQUESTS_PER_MINUTE/);
+    expect(() => assertWithinDocumentedLimit(601)).toThrow(/600 requests per minute per API/);
+  });
+
+  it('gives each API its own limiter, keyed on the connection', () => {
+    // PER API MEANS PER API. Two clients for one API share a budget; two APIs
+    // do not. This used to hold only because clients/index.ts happens to cache
+    // one client each — a second `new LiveNexusLabClient()` anywhere silently
+    // doubled the outbound rate with nothing to notice it.
+    const nexusA = limiterFor('Nexus Lab', 600);
+    const nexusB = limiterFor('Nexus Lab', 600);
+    const booking = limiterFor('Clinic Booking', 600);
+
+    expect(nexusB).toBe(nexusA);
+    expect(booking).not.toBe(nexusA);
+  });
+
+  it('one API being paced does not slow the other down', async () => {
+    const nexus = limiterFor('Nexus Lab', 600);
+    const booking = limiterFor('Clinic Booking', 600);
+
+    // Three Nexus calls are 200ms of pacing. A booking call issued in the same
+    // tick should not wait behind them — a shared limiter would make a burst of
+    // poll traffic delay a patient's appointment search for no reason at all.
+    void nexus.acquire();
+    void nexus.acquire();
+    void nexus.acquire();
+
+    const started = Date.now();
+    await booking.acquire();
+    expect(Date.now() - started).toBeLessThan(50);
   });
 });

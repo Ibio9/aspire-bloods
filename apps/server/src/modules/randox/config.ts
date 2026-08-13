@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { env } from '../../config/env.js';
+import { assertWithinDocumentedLimit } from './http/rateLimiter.js';
+import type { RandoxBookingRegion } from './types.js';
 
 /**
  * Everything the Randox integration needs that we do not yet have. Access
@@ -261,6 +263,26 @@ export function randoxTestClinicLocationId(): number | null {
   return Number.isInteger(parsed) ? parsed : null;
 }
 
+/**
+ * The Clinic Booking ServiceId for third-party in-clinic bookings.
+ *
+ * TWO VALUES EXIST AND THERE IS NO THIRD: 787 (UK) and 788 (Republic of
+ * Ireland). Not in any document — from Chris Caulfield's email, Aug 2026.
+ *
+ * Read from the configured region rather than passed per call. Which country a
+ * booking is made in is a fact about the deployment, and an argument that
+ * could be either is an argument that will eventually be the wrong one: a UK
+ * patient sent to service 788 gets Irish clinics offered, with nothing in the
+ * response to say the wrong service was asked for.
+ */
+export function bookingServiceId(region: RandoxBookingRegion = env.RANDOX_BOOKING_REGION): number {
+  return region === 'ROI' ? env.RANDOX_BOOKING_SERVICE_ID_ROI : env.RANDOX_BOOKING_SERVICE_ID_UK;
+}
+
+export function bookingRegion(): RandoxBookingRegion {
+  return env.RANDOX_BOOKING_REGION;
+}
+
 /** The testing reason sent on every order. Required non-empty by the spec. */
 export function defaultTestReason(): { Id: number; Details: string } | null {
   const raw = env.RANDOX_DEFAULT_TEST_REASON_ID.trim();
@@ -312,6 +334,10 @@ export function assertRandoxConfigured(): void {
   enabledCollectionMethods();
   loadCodeMap();
   loadIdMap();
+  // Randox's documented ceiling is 600/min per API. Checked in mock as well as
+  // live: a pace set above the ceiling is a mistake wherever it is set, and
+  // finding it out on the deploy that flips to live is the worst moment for it.
+  assertWithinDocumentedLimit(env.RANDOX_MAX_REQUESTS_PER_MINUTE);
 
   if (randoxTransport() === 'mock') {
     if (env.NODE_ENV === 'production') {

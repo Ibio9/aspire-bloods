@@ -68,6 +68,23 @@ const DEFAULTS: Record<string, Record<string, unknown>> = {
   ingestionLogEntry: { markerCount: 0 },
   auditLogEntry: { actorType: 'USER' },
   randoxOrder: { pollAttempts: 0, consecutiveFailures: 0, status: 'INCOMPLETE' },
+  // Nullable in the schema and read back by the booking service before every
+  // call that needs them, so an undefined here would be the fake failing a
+  // guard the database would have satisfied with a null.
+  randoxAppointment: {
+    status: 'HELD',
+    serviceLocationName: null,
+    serviceId: null,
+    slotReference: null,
+    holdReference: null,
+    holdExpiresAt: null,
+    holdBookingId: null,
+    holdAppointmentId: null,
+    bookingReference: null,
+    randoxBookingOrderId: null,
+    endUtc: null,
+    cancelledAt: null,
+  },
   // The sighting counter and its two timestamps are @default in the schema and
   // are read back by the queue and the confidence figure, so an undefined one
   // here would be the fake under test rather than the code.
@@ -209,6 +226,10 @@ const TABLES = [
   'auditLogEntry',
   'unmatchedResult',
   'randoxOrder',
+  // The in-clinic appointment. One row per order, holding the hold and the
+  // identifiers CreateRandoxBooking and CancelRandoxBooking need — see
+  // modules/randox/bookingService.ts.
+  'randoxAppointment',
   'randoxCatalogueEntry',
   'randoxUnknownCode',
   // What we have seen Randox actually send, per analyte string. The ingestion
@@ -298,6 +319,8 @@ export interface SeedPatientInput {
   email?: string;
   sex?: 'MALE' | 'FEMALE' | 'ANY';
   withProfile?: boolean;
+  /** False leaves address and postcode unset — the profile a booking refuses. */
+  withAddress?: boolean;
   deactivated?: boolean;
 }
 
@@ -328,6 +351,12 @@ export function seedPatient(db: FakePrisma, input: SeedPatientInput) {
     dobEncrypted: encryptField(input.dob),
     contactNumberEncrypted: encryptField('07700900000'),
     sex: input.sex ?? 'ANY',
+    // CreateRandoxBooking requires an address, a town and a postcode, and both
+    // are optional on a real profile. Present by default so a booking test
+    // exercises the booking rather than the validation; `withAddress: false`
+    // is how a test asks for the profile that cannot be booked.
+    addressEncrypted: input.withAddress === false ? null : encryptField('1 Fixture Street, Fixtureton'),
+    postcode: input.withAddress === false ? null : 'M1 1AA',
   };
   db.patientProfile.rows.push(profile);
   user.patientProfile = profile;

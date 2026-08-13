@@ -8,13 +8,12 @@
  * (see the notes on specific fields) that silence is stated rather than
  * filled in.
  *
- * CLINIC BOOKING: UNVERIFIED. No OpenAPI spec exists for it yet — access is
- * still pending. What IS documented, from the flow PDFs, is the endpoint
- * paths, the call order, that availability is UTC, that a hold lasts 30
- * minutes, and that the Nexus order number goes across as GPExternalNumber.
- * The request and response *bodies* are not documented anywhere we have, so
- * everything under "Clinic Booking" below is marked UNVERIFIED and read
- * through the tolerant helpers in clients/parse.ts.
+ * CLINIC BOOKING: REQUESTS VERIFIED, RESPONSES NOT. The Postman collection in
+ * specs/ gives every request body literally — paths, verbs, field names,
+ * value types — and gives no response examples at all. So everything sent is
+ * built to the collection and everything received is still read through the
+ * tolerant helpers in clients/parse.ts. The long note above that section has
+ * the detail, including the two facts that only the flow PDF states.
  */
 
 // ---------------------------------------------------------------------------
@@ -437,30 +436,148 @@ export interface RandoxClinicDetails extends RandoxClinicLocation {
 }
 
 // ---------------------------------------------------------------------------
-// Clinic Booking — UNVERIFIED
+// Clinic Booking — REQUESTS VERIFIED, RESPONSES NOT
 // ---------------------------------------------------------------------------
 
 /**
- * Everything from here down is UNVERIFIED against any Randox specification.
- * No OpenAPI document for the Clinic Booking API has been provided; access
- * is pending.
+ * ---------------------------------------------------------------------------
+ * WHAT THE POSTMAN COLLECTION SETTLES, AND WHAT IT LEAVES OPEN (Aug 2026).
+ * ---------------------------------------------------------------------------
  *
- * What IS documented (flow PDFs, and so treated as fact):
- *   - the endpoint paths: /Locations/GetServiceLocations,
- *     /Availability/AvailabilityDetails,
- *     /RandoxBookings/HoldAvailabilityBooking,
- *     /RandoxBookings/CreateRandoxBooking
- *   - the call order, and that a hold lasts 30 minutes
- *   - availability comes back in UTC
- *   - the Nexus order number is sent as GPExternalNumber
- *   - CancelRandoxBooking and RescheduleAppointment exist and are windowed
+ * specs/"Clinic Booking Platform Testing APIs.postman_collection.json" is the
+ * real collection from the developer portal. It gives, for all five booking
+ * calls: the path, the verb, and a complete request body with real field names
+ * and real values. It gives NO response examples at all — the `response` array
+ * on every item is empty.
  *
- * What is NOT documented and is therefore assumed: every property name and
- * the response envelope. These are read through the tolerant helpers in
- * clients/parse.ts, so a name we guessed wrong degrades to "field absent"
- * (handled) rather than a crash. Replace this section, and the tolerant
- * reads in ClinicBookingClient.ts, the moment the real spec arrives.
+ * That asymmetry is the shape of this section and is worth stating plainly,
+ * because it is easy to read "we have the collection now" as "the API is
+ * documented now":
+ *
+ *   OUTBOUND  verified, literal, and built exactly as the collection spells it
+ *             — including a misspelling and two different date formats for one
+ *             field, both of which are Randox's and neither of which is ours
+ *             to correct.
+ *   INBOUND   still assumed. Every response below is read through the tolerant
+ *             helpers in clients/parse.ts under several plausible spellings, so
+ *             a name guessed wrong degrades to "field absent" (handled) rather
+ *             than a crash.
+ *
+ * ALSO STILL DOCUMENTED ONLY IN THE FLOW PDF, and treated as fact: availability
+ * is UTC, a hold lasts 30 minutes, and the Nexus order number goes across as
+ * GPExternalNumber.
+ *
+ * AND ONE ENDPOINT WENT MISSING. RescheduleAppointment is NOT in the
+ * collection. It was in this section as a documented path; it never came from
+ * a document we still hold, and the one machine-readable list of this API's
+ * endpoints does not have it. See ClinicBookingClient.rescheduleAppointment.
  */
+
+/**
+ * THE SERVICE ID, WHICH IS NOT OPTIONAL AND IS NOT DISCOVERABLE.
+ *
+ * Third-party in-clinic bookings have exactly two: 787 for the UK, 788 for the
+ * Republic of Ireland (Chris Caulfield, Aug 2026 — not in any document). Three
+ * of the five calls take one and nothing the API returns tells you which to
+ * use, so it is configuration: RANDOX_BOOKING_REGION picks, and
+ * `bookingServiceId()` in config.ts is the only place it is read.
+ */
+export type RandoxBookingRegion = 'UK' | 'ROI';
+
+/**
+ * TYPES ARE INCONSISTENT ACROSS THE COLLECTION, EXACTLY AS THEY ARE ON NEXUS.
+ * ServiceId is 787 on GetServiceLocations and HoldAvailabilityBooking, and
+ * "787" on AvailabilityDetails and CreateRandoxBooking. LocationId is 15 on
+ * AvailabilityDetails and "15" on the other two. The rule is unchanged and is
+ * the only one that works: ACCEPT BOTH IN, SEND WHATEVER THAT ENDPOINT'S OWN
+ * EXAMPLE USES. Each wire type below therefore states the form its own
+ * endpoint wants, and the client converts at the boundary.
+ */
+
+/** POST /Locations/GetServiceLocations. ServiceId as a NUMBER. */
+export interface GetServiceLocationsWireRequest {
+  ServiceId: number;
+}
+
+/** POST /Availability/AvailabilityDetails. ServiceId STRING, LocationId NUMBER. */
+export interface AvailabilityDetailsWireRequest {
+  ServiceId: string;
+  LocationId: number;
+  /** "2025-09-10T00:00:00.000Z". There is no SearchTo — see the client. */
+  SearchFrom: string;
+}
+
+/**
+ * POST /RandoxBookings/HoldAvailabilityBooking. ServiceId NUMBER, LocationId
+ * STRING, and the date day-first.
+ *
+ * `AppointmentSlotTIme` IS SPELLED THAT WAY ON THE WIRE. Capital I in the
+ * middle of "Time", in both this call and CreateRandoxBooking. It is Randox's
+ * field name, so it is what we send; correcting it would produce a request
+ * with no slot time in it, which is a 400 at best and a booking at an
+ * unspecified time at worst. It is spelled correctly nowhere else in this
+ * codebase — the conversion happens here, at the wire, and only here.
+ */
+export interface HoldAvailabilityBookingWireRequest {
+  ServiceId: number;
+  LocationId: string;
+  AppointmentSlotId: string;
+  /** "16/10/2025" — day-first, per THIS endpoint's example. */
+  AppointmentSlotDate: string;
+  /** "09:30", UTC. Randox's spelling. */
+  AppointmentSlotTIme: string;
+}
+
+/**
+ * POST /RandoxBookings/CreateRandoxBooking. ServiceId and LocationId both
+ * STRINGS here, and the date is an ISO instant at midnight Z rather than the
+ * day-first form the hold takes.
+ */
+export interface CreateRandoxBookingWireRequest {
+  BookingId: number;
+  ServiceId: string;
+  LocationId: string;
+  AppointmentId: number;
+  AppointmentSlotId: string;
+  /** "2025-10-16T00:00:00Z" — ISO, midnight, per THIS endpoint's example. */
+  AppointmentSlotDate: string;
+  /** "09:30", UTC. Randox's spelling, again. */
+  AppointmentSlotTIme: string;
+  FirstName: string;
+  LastName: string;
+  /** "1990-01-01T00:00:00" — no zone designator in their example. */
+  DateOfBirth: string;
+  BiologicalSexId: number;
+  EmailAddress: string;
+  ConfirmEmailAddress: string;
+  ContactNumber: string;
+  AddressLine1: string;
+  AddressLine2: string;
+  TownCity: string;
+  PostalCode: string;
+  CountryId: number;
+  CommunicationPreferenceEmail: boolean;
+  CommunicationPreferenceSMS: boolean;
+  CommunicationPreferenceTelephone: boolean;
+  /** THE NEXUS ORDER NUMBER. The whole reason the two APIs join up. */
+  GPExternalNumber: string;
+}
+
+/**
+ * POST /RandoxBookings/CancelRandoxBooking.
+ *
+ * ONE FIELD, AND IT IS NOT THE ONE WE WERE SENDING. The collection cancels by
+ * `RandoxBookingOrderId` — a Randox-side integer (32285 in their example) —
+ * and not by any string reference of ours and not by GPExternalNumber. So the
+ * id has to be captured from CreateRandoxBooking's response and stored, which
+ * is what RandoxAppointment.randoxBookingOrderId is for. Without it a booking
+ * can be made and never cancelled.
+ */
+export interface CancelRandoxBookingWireRequest {
+  RandoxBookingOrderId: number;
+}
+
+// --- What we hand upward (responses: assumed shapes, tolerantly read) -------
 
 export interface RandoxServiceLocation {
   id: string;
@@ -468,34 +585,79 @@ export interface RandoxServiceLocation {
   addressLine1: string | null;
   city: string | null;
   postcode: string | null;
-  /** Documented as present, for "closest to" sorting done on our side. */
+  /** For "closest to" sorting done on our side. */
   latitude: number | null;
   longitude: number | null;
 }
 
 export interface RandoxAvailabilitySlot {
-  /** UTC — documented. */
+  /** UTC — documented on the flow diagram, "all UTC". */
   startUtc: string;
   endUtc: string | null;
+  /** Randox's AppointmentSlotId, e.g. "72164:72164::1760607000:". */
   slotReference: string;
+  /**
+   * The same instant as UK local wall clock, computed once at the boundary.
+   *
+   * Carried BESIDE the instant rather than instead of it, and named so the two
+   * cannot be confused. A consumer that renders `startUtc` with a plain
+   * `toLocaleTimeString` gets the READER's zone, which is right only by
+   * accident and wrong for anyone booking from abroad; a consumer that renders
+   * this gets the clinic's. See londonWallClock() in clients/parse.ts.
+   */
+  local: { date: string; time: string; timeZone: 'Europe/London' };
 }
 
 export interface HoldAvailabilityBookingResponse {
   holdReference: string;
-  /** Documented as 30 minutes; server value preferred when supplied. */
+  /** Documented as 30 minutes; a server-supplied expiry is preferred. */
   expiresAtUtc: string;
+  /**
+   * CreateRandoxBooking sends BookingId and AppointmentId, and the hold is the
+   * only call before it that could have produced either. Read defensively and
+   * nullable BY TYPE, because that is an inference from where the fields
+   * appear in the flow and not something any document states — the client
+   * refuses to build a booking with them missing rather than sending a zero.
+   */
+  bookingId: number | null;
+  appointmentId: number | null;
 }
 
+/** What the booking service hands the client. Wire shapes are built from it. */
 export interface CreateRandoxBookingRequest {
   holdReference: string;
+  bookingId: number;
+  appointmentId: number;
   serviceLocationId: string;
-  /** The Nexus order NUMBER (the string one). Documented field name. */
-  gpExternalNumber: string;
+  slotReference: string;
+  /** UTC instant. Split into Randox's date and time fields at the wire. */
   startUtc: string;
+  /** The Nexus order NUMBER. Sent as GPExternalNumber. */
+  gpExternalNumber: string;
+  patient: {
+    firstName: string;
+    lastName: string;
+    /** "yyyy-mm-dd". Widened to their datetime form at the wire. */
+    dateOfBirth: string;
+    biologicalSexId: number;
+    email: string;
+    contactNumber: string;
+    addressLine1: string;
+    addressLine2: string;
+    townCity: string;
+    postalCode: string;
+    countryId: number;
+  };
 }
 
 export interface CreateRandoxBookingResponse {
   bookingReference: string;
+  /**
+   * The id CancelRandoxBooking takes. Nullable because it is read out of a
+   * response nobody has documented — a cancel with nothing to send is refused
+   * with a message saying so, rather than sent as 0.
+   */
+  randoxBookingOrderId: number | null;
   startUtc: string;
   endUtc: string | null;
 }

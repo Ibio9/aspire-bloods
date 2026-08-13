@@ -1390,10 +1390,26 @@ model RandoxAppointment {
 
   serviceLocationId   String
   serviceLocationName String?
+  // 787 (UK) or 788 (ROI). Stored per appointment rather than read from config
+  // at cancel time: the service is part of the booking's identity on Randox's
+  // side and the configured region can change under a live appointment.
+  serviceId           Int?
+
+  // Randox's AppointmentSlotId, e.g. "72164:72164::1760607000:". Every call
+  // after availability references it.
+  slotReference String?
 
   holdReference    String?
   holdExpiresAt    DateTime?
+  // The BookingId/AppointmentId pair the hold returns and the create consumes.
+  holdBookingId     Int?
+  holdAppointmentId Int?
+
   bookingReference String?
+  // THE ID CancelRandoxBooking TAKES, and the only field it takes. Captured
+  // from CreateRandoxBooking's response — without it a booking cannot be
+  // cancelled at all. See modules/randox/types.ts.
+  randoxBookingOrderId Int?
 
   // Randox return availability in UTC; stored as UTC and only ever
   // localised at render time.

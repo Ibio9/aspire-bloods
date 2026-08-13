@@ -459,6 +459,33 @@ both significants share one.
    five regions of colour ARE the picture and the reader's own result is a
    detail on top of them. What that ordering means is unchanged and is the
    thing to keep: the reader meets the line first and the bands second.
+
+   **AND THE LINE CARRIES THE STATUS ALONG ITS OWN LENGTH NOW (Aug 2026).**
+   Each point is drawn in its own state's colour and the stroke is ONE gradient
+   in user space with a stop at each point's x — so between two draws the colour
+   blends rather than steps, which is the only claim the chart is entitled to
+   make: nobody measured the moment the crossing happened. A stop also lands
+   wherever the segment CROSSES a boundary, in that boundary's own hinge colour
+   (olive at a reference bound, orange at a threshold), so a line from in-range
+   to significantly-high travels green → gold → red in the order the value
+   actually travels. Without those the sRGB interpolation from green to red
+   passes through a muddy olive-brown belonging to no state at all.
+   **THE ORDER OF PROMINENCE IS LINE, THEN THE BOUNDARY HAIRLINES, THEN THE
+   BANDS**, and all three moved to make it true. The line went to 4px; the
+   hairline's relative weight nearly quadrupled (2.15:1 on a band standing
+   4.74:1 off the plot, → 2.47:1 on one standing 1.47:1); and the bands dropped
+   to `BAND_CONTRAST` 1.24 / 1.38 / 1.54, from 1.5 / 1.88 / 2.3.
+   **THE MEASUREMENT THAT FORCED IT.** In dark the loudest band stood **4.74:1**
+   off the plot while the line cleared it at 3.05 — the context louder than the
+   content, in the theme most people read in. Line-over-band against
+   loudest-band-off-plot went 1.58× → 2.13× in light and **0.64× → 1.83×** in
+   dark.
+   **AND THE FAULT WAS CHROMA AS MUCH AS CONTRAST.** Solved on the rung alone
+   the bands came out pale but vivid, carrying 0.123 of OKLab chroma against the
+   green LINE's 0.096 — the ordering inverted in the one dimension nothing was
+   measuring. A band takes `BAND_CHROMA_SHARE` (0.6) of `bandChromaCeiling` and
+   the line takes ALL of it, so the line is 1.67× the band's colourfulness by
+   construction. Both dimensions are asserted.
    **Hairlines** — boundaries are 1px at low opacity, and the reference bounds
    are LABELLED INLINE on the axis. **Axes** — round tick values only (the
    y-axis read 0, 8, 16, 24, 31.9, and 31.9 is not a number anybody chose), four
@@ -503,44 +530,38 @@ both significants share one.
    a floor; solved for an equal RGB span the three came out `#98db65`, `#cfb158`,
    `#eb8677` — a highlighter green beside a dull gold — because a green at 63%
    lightness holds an enormous span while looking ordinary and a red does not.
-   **DARK'S OUT-OF-RANGE BAND IS OFF THE LADDER, AND IT IS THE ONLY ONE
-   (Aug 2026).** It was #604b0b — a dark ochre that read as brown — because the
-   1.88 rung against a near-black plot fixes its luminance low, and **a yellow
-   at a low luminance is a brown in any colour space**. Yellow is also the hue
-   with the least room: it cannot reach its own palette chroma below okL 0.69,
-   where green manages it from 0.44 and red from 0.405. So the rung moved
-   instead: `BAND_RUNG` (statusBands.ts) is where the fills are actually solved
-   to, `BAND_CONTRAST` is the ladder the design asks for, and they differ in
-   exactly one cell — dark's yellow, at **4.45** and **#ad8100**.
-   **THE NUMBER IS FIXED BY THE HAIRLINE, NOT BY TASTE.** Rendered at okL 0.42 /
-   0.55 / 0.60 / 0.62 / 0.66 / 0.70 and looked at, it stops reading as olive
-   around 0.60 and is unambiguously gold by 0.66 — but the boundary hairline is
-   ONE neutral over all five bands and has to stay inside 1.6–3.5:1 on each.
-   Solved over every (tone, opacity) pair: **okL 0.629 passes at 1.62–3.48 and
-   0.64 fails**. The hairline is the greyscale carrier and does not get traded
-   for a slightly better yellow.
-   **THREE THINGS MOVED WITH IT AND ONE COULD NOT BE SAVED.** The trend line had
-   to reach 0.936 lightness to clear the band at AA-large, which leaves it
-   #ffeade — an OKLab chroma of 0.029 against the 0.20 it carried, so **there is
-   no bronze left in the dark line**; a darker line is impossible rather than
-   worse (it would need a luminance under zero to clear the in-range band from
-   below). The point mark on that band now steps toward the GROUND rather than
-   the text — `MARK_SHIFT_DARK` carries a direction per hue — and off the plot,
-   in the key and the tooltip, `StatusMark` takes the status TEXT colour, which
-   is the token already solved for a card. And **the escalation inverts**: dark
-   now runs green 1.49, olive 2.58, yellow 4.45, orange 3.10, red 2.29. Red
-   cannot be lifted past yellow — every band's luminance is capped by the line
-   that has to clear it, and at that cap red reaches 4.71 against yellow's 4.84.
-   It was solved for, not assumed.
-   **SO THE ESCALATION IS CARRIED BY CHROMA IN DARK AND BY CONTRAST IN LIGHT**,
-   and each theme has exactly one measure that runs monotonically across all
-   five (light's chroma is not monotonic either — its red is 0.134 against its
-   gold's 0.140). In range is still the quietest band in both, which is the rung
-   that was always load-bearing. A traffic light is the same arrangement: its
-   amber is brighter than its red and nobody reads amber as the more serious of
-   the two. **Light is untouched** — a light band is DARKER than its surface, so
-   the ladder pushes it toward the lightness a yellow lives at rather than away
-   from it, and #d8ae35 was already a gold at full ceiling chroma.
+   **DARK'S OUT-OF-RANGE BAND WAS OFF THE LADDER, AND IS BACK ON IT (Aug
+   2026).** Worth keeping because the reason it left can recur. It was #604b0b —
+   a dark ochre reading as brown — because the rung against a near-black plot
+   fixes its luminance low, and **a yellow at a low luminance is a brown in any
+   colour space**; yellow has the least room of the three, unable to reach its
+   own palette chroma below okL 0.69 where green manages it from 0.44. So the
+   rung moved to 4.45 (#ad8100) and `BAND_RUNG` was born to hold the exception.
+   **WHAT RETIRED IT was the line taking over the status.** That band was the
+   only thing saying "outside your range" in dark, so it had to be gold whatever
+   it cost. It is not any more — the LINE says it, in a gold solved to clear
+   every band — so the band went back to being the quietest thing that still
+   shows where the region is. `BAND_RUNG` now equals `BAND_CONTRAST` in both
+   themes; the two names are kept apart only because the divergence can recur.
+   **THREE THINGS THE EXCEPTION HAD FORCED WENT WITH IT.** The escalation is
+   carried by CONTRAST in both themes again (it had to switch to chroma in dark,
+   because a band at 4.45 sits above the red band and ran the ladder backwards).
+   The dark gold mark no longer steps toward the GROUND instead of the text —
+   `MARK_SHIFT_DARK` and its direction-per-hue are deleted. And the comparison
+   chart's line is a bronze again rather than a near-white: it had been driven to
+   0.936 lightness (#ffeade, OKLab chroma 0.029) to clear a 4.74:1 band, and the
+   note here recorded that as unavoidable, which it was AT THOSE BANDS. It is
+   #916248 / #b28064 now, chroma 0.072 / 0.074.
+   **AND THE LINE COLOURS ARE SOLVED, NOT MIXED (Aug 2026).** `MARK_SHIFT` mixed
+   each hue TOWARD the theme's text tone, which darkens and desaturates at once —
+   so every step taken to clear a band was paid for in the colour that was the
+   whole point, and light's green and gold came out #567639 and #836a26, two
+   dark khakis ΔE 0.070 apart. On a 4px line that is one colour. `MARK_FILL` is
+   solved exactly as `BAND_FILL` is: hue angle untouched, lightness solved to
+   clear 3:1 on EVERY band, saturation to the chroma ceiling. Light's
+   green|gold separation went 0.070 → 0.145. Solved with the saturation free
+   instead, dark came out #74ff00 and #ffff00 — the highlighter green the
+   ceiling exists to prevent.
    **THE MEASURE IS THE GEOMETRIC MEAN OF TWO SURFACES.** One fill is drawn on
    the chart's plot panel and on the card a range bar sits on, and those two are
    not the same distance apart in the two themes. Solving against the card alone
@@ -638,27 +659,41 @@ both significants share one.
    clears 3:1 on its own band" used to be a constraint inside the band solve,
    which meant the BAND was being desaturated to suit the mark: dark red's
    ceiling under it was a 36%-saturation band, i.e. the maroon this has been
-   through twice. The mark moves and the band does not — `MARK_SHIFT` and
-   `MARK_SHIFT_DARK` are two records because the two themes fail in opposite
-   directions, and each is the SMALLEST shift that clears 3.2:1 on its own
-   band, because every step past that is chroma spent for nothing. Green is
-   solved against the OPTIMAL fill as well, since an in-range point can land
-   inside the narrowing. Every value went UP in light with the opaque bands and
-   three of the five went to ZERO in dark, and that asymmetry is real rather
-   than a slip: a dark band is LIGHTER than the plot it sits on, so the lifted
-   hue is already clear of it, while a light band moved toward the mark. The
-   cost in light is recorded rather than hidden — the gold mark is #6b592c and
-   the amber #6e4e2e, dark warm browns rather than the gold and amber they were.
+   through twice. The mark moves and the band does not. **IT IS `MARK_FILL` NOW
+   AND IT CLEARS EVERY BAND, NOT ITS OWN (Aug 2026)** — the trend line is drawn
+   in these colours and a gold segment crosses the green band on its way up, so
+   all five have to clear all five plus the optimal narrowing. Green is still
+   checked against the narrowing for its own reason: an in-range point can land
+   inside it. `MARK_SHIFT` / `MARK_SHIFT_DARK` and their direction-per-hue are
+   gone; the cost they recorded is gone with them, and the gold mark that was
+   #6b592c is #8b6800.
    Status is carried by the mark's SHAPE and by the word in the tooltip and the
    key; a mark that has vanished into its band loses the shape layer, which is
    the thing that carries it.
-   **BAND_CONTRAST, BAND_FILL, LINE_LIFT AND MARK_SHIFT ARE ONE DECISION —
-   change any rung and all of it is solved again.**
-   **IF BRIGHTER BANDS BURY THE LINE, BRIGHTEN THE LINE.** Never dull the bands
-   back down: the line is the content and the bands are the context, and that
-   ordering is a fact about the chart rather than about how much ink is on it.
-   `chart.lineWidth` is 3 and `chart.line` steps away from the surface in each
-   theme. **It is SOLVED now rather than a step on the bronze scale (Aug
+   **BAND_CONTRAST, BAND_CHROMA_SHARE, BAND_FILL, MARK_FILL, LINE_LIFT AND THE
+   HAIRLINE'S OPACITY ARE ONE DECISION — change any rung and all of it is solved
+   again.** The Aug 2026 pass is the worked example: lowering the ladder for the
+   status-carrying line moved the band fills, the line colours, the comparison
+   chart's bronze, the hairline opacity (0.62 → 0.55, which is a SMALLER number
+   for MORE relative prominence) and retired `BAND_RUNG`'s one exception.
+   **"IF BRIGHTER BANDS BURY THE LINE, BRIGHTEN THE LINE" — AND IN Aug 2026 THE
+   BANDS WERE DULLED INSTEAD, DELIBERATELY.** The rule was right about the
+   ORDERING and wrong about the lever, and it is worth knowing which is which.
+   The ordering — line is content, bands are context — is a fact about the chart
+   and is unchanged. "Never dull the bands" was a heuristic that held only while
+   the bands carried the traffic light: dulling them then would have thrown away
+   the thing that said what a result was. With the LINE carrying the status
+   there is nothing left in a band to protect, and the heuristic had been
+   followed to the point where dark's loudest band stood 4.74:1 off the plot
+   against a line clearing it at 3.05 — the ordering it exists to defend,
+   inverted. Both levers are legitimate; which one to pull depends on what the
+   band is still doing. `chart.lineWidth` is 4 and `chart.line` steps away from
+   the surface in each theme.
+   **`chart.line` IS THE COMPARISON CHART'S LINE ONLY.** The single-marker trend
+   chart draws its own line in the status hues (see above) and does not use it.
+   On the comparison chart two or three markers share one normalised axis, so
+   the line says "which marker" and must NOT borrow a status hue — there it
+   would be a verdict on the wrong one. **It is SOLVED now rather than a step on the bronze scale (Aug
    2026).** It was `bronze-700` light / `bronze-500` dark, which cleared the
    composited bands and does not clear the opaque ones — 2.87:1 and 2.42:1 on
    the significantly-out red, i.e. under AA-large. The scale's dark end is mixed
@@ -667,15 +702,25 @@ both significants share one.
    `LINE_LIFT` solves the lightness at bronze's OWN saturation and nothing
    higher — the bronze hue sits at 19°, between the status red at 8° and the
    status orange at 30°, so a saturated bronze line would read as a status
-   colour crossing the plot. It lands at 3.36:1 light and 3.33:1 dark, chroma
-   0.20: darker AND more bronze in light, brighter AND more bronze in dark.
+   colour crossing the plot. **RE-SOLVED AGAINST THE QUIET BANDS (Aug 2026)**:
+   clearing the old dark band at AA-large had driven it to 0.936 lightness —
+   #ffeade, chroma 0.029, a white line with a rumour of warmth — and the note
+   here recorded that as unavoidable, which it was at those bands. It is
+   #916248 / #b28064 now, chroma 0.072 / 0.074, at 3.03:1 and 3.01:1. Dark is
+   the one worth noticing: a bronze line again rather than a white one.
    The boundary hairline went the same way — `taupe-900` in light, where at
    `taupe-600` it measured **1.11:1** against the significantly-out band, a line
    nobody can see drawn across the region where seeing it matters most.
    `tokenContrast.test.ts` holds the line above every band it crosses (including
    the optimal narrowing), the hairline visible on all of them and below the
-   line, the range-bar mark at AA-large on every segment it can stand on, and
-   every band's chroma above 0.15.
+   line, the range-bar mark at AA-large on every segment it can stand on, EVERY
+   status colour above EVERY band (not just its own — the status line crosses
+   bands it does not belong to), each band at its allotted share of the palette
+   chroma, and each band strictly less chromatic than the line drawn over it.
+   **"Every band's chroma above 0.15" is retired**: it was an absolute floor
+   taken from what a superseded saturation cap produced, and a quiet band sits
+   at a lightness where less chroma physically exists — held to it, the only way
+   to pass would be to make the bands loud again.
    **A TICK IS DROPPED WHERE IT WOULD PRINT ON A REFERENCE BOUND**, because the
    bound is the number that means something. `TICK_BOUND_GAP` is 8% of the
    domain — 16px on the shortest plot this chart is drawn at — and it is a
@@ -841,9 +886,9 @@ features/booking or lib/booking reaches the production bundle.
 
 **What is NOT behind it, and must keep working:** the server's whole Randox
 chain — placeOrder/amend/cancel, GetServiceLocations, AvailabilityDetails,
-HoldAvailabilityBooking, CreateRandoxBooking, the mock transport, every test
-over them. That is what whatever books on the main site will call, and it has
-its own separate switch (`RANDOX_ENABLED`). Results ingestion, polling and the
+HoldAvailabilityBooking, CreateRandoxBooking, CancelRandoxBooking, the mock
+transport, every test over them. That is what whatever books on the main site
+will call, and it has its own separate switch (`RANDOX_ENABLED`). Results ingestion, polling and the
 order lifecycle are untouched by the flag.
 
 Turning it back on is `VITE_BOOKING_ENABLED=true` in Vercel and a redeploy.
@@ -907,15 +952,33 @@ identifier in a body); the eight GETs are the reference-data endpoints and take
 nothing at all. `RANDOX_REFERENCE_DATA_METHOD` now defaults to `get` rather than
 probing; `auto` survives as an escape hatch, not as a hedge.
 
-**THE SPEC DECLARES ONLY A SUBSCRIPTION KEY. THE BEARER IS UNCONFIRMED.**
+**THE BEARER IS REQUIRED, ALONGSIDE THE KEY. SETTLED (Aug 2026).** The Nexus
 `securitySchemes` has exactly two entries and both are the same key
 (`Ocp-Apim-Subscription-Key` as a header, `subscription-key` as a query
-parameter). There is no OAuth or bearer scheme anywhere in the document. The
-auth PDFs describe an Azure B2C ROPC grant, so the gateway probably does want
-one — "probably" being the honest word. So: the key always goes, in the HEADER
-(never the query form, which puts a credential in every access log), and the
-bearer is switchable by `RANDOX_BEARER_TOKEN_ENABLED` (default on). A 401 logs
-which combination was sent, so the first live call diagnoses itself.
+parameter), with no OAuth or bearer scheme anywhere in the document — and this
+note used to say the bearer was therefore "probably" wanted. **The CB STES auth
+document settles it in one sentence**: "Authorisation will be the bearer token
+and in the header section include the following key:
+Ocp-Apim-Subscription-Key." Both, together, on every request; its Postman
+screenshot shows exactly that pair and both collections carry a
+collection-level bearer beside a per-request key. The spec's silence was a GAP
+IN THE SPEC rather than evidence — `securitySchemes` describes what the APIM
+gateway checks, and the bearer is checked by the B2C policy in front of it,
+which is not inferable from the OpenAPI file at all.
+`RANDOX_BEARER_TOKEN_ENABLED` stays as a LEVER rather than a hedge: it exists
+so an unexplained 401 can be bisected in one redeploy. The key always goes, in
+the HEADER, never the query form.
+
+**AND THE NEXUS SCOPE WAS WRONG BY ONE HYPHEN, WHICH WOULD HAVE 401'd EVERY
+LIVE CALL (Aug 2026).** It read `gptestorderportal-externalapi`; it is
+`gptestorderportal-external-api`, per the auth PDF's own LINK TARGET and the
+Nexus Postman collection. The typo came from transcribing the PDF's RENDERED
+PARAGRAPH, where the hyphen falls on a line break and disappears — the CB scope
+is mangled identically two paragraphs later in its own document, which is what
+makes the error recognisable rather than mysterious. A wrong scope means B2C
+issues no token at all, so the symptom is a 401 about the token and never about
+the scope. **Transcribe a URL from the link target or the collection, never
+from the paragraph.** Pinned, both ways, by `randoxBookingContract.test.ts`.
 
 **THE 401 BODY USES A DIFFERENT KEY.** 200/400/500 return
 `{"statusCode": "...", "message": "..."}`; the 401 returns
@@ -927,12 +990,28 @@ boundary (`asRandoxInt` / `asRandoxIdString`).
 **THREE ORDER IDENTIFIERS, THREE COLUMNS, AND LINKING JOINS ON `orderId`.**
 Creation returns `{orderId, externalNumber}`; everything afterwards returns
 `orderNumber`; and the spec's own two examples spell them differently
-(`GC1123-00010300` vs `GP-THE-00000130`). "externalNumber is orderNumber under
-another name" is an UNVERIFIED HYPOTHESIS. `RandoxOrder` stores `randoxOrderId`,
+(`GC1123-00010300` vs `GP-THE-00000130`). `RandoxOrder` stores `randoxOrderId`,
 `externalNumber` and `orderNumber` separately and none overwrites another;
 automatic linking joins on **`randoxOrderId`**, the one identifier that provably
-appears on both sides. `reconcileOrderNumber()` logs loudly and audits the first
-time a real order shows the two differing. On the list for Randox.
+appears on both sides.
+
+**THE Aug 2026 DOCUMENTS RESOLVE THE INPUT HALF AND NOT THE OUTPUT HALF, AND
+THE DIFFERENCE IS WHY THE THREE COLUMNS STAY.** Two new statements bear on it.
+The flow diagram: capture the Order Number from `CreatePendingOrder` — whose
+response carries only `externalNumber`, so that IS the string it means — and
+send it to Clinic Booking as `GPExternalNumber`. The Nexus Postman collection,
+on five separate endpoints: `"orderNumber": "xxx001-000xxxxx" // this can be
+either orderid or orderNumber (externalNumber)`.
+So **what to SEND is settled**: the creation response's `externalNumber` is
+what every later Nexus call and the booking both accept, which is exactly what
+`orderNumber` is seeded from. **What Randox RETURN is not.** Whether the
+`orderNumber` on a GetOrderStatus response is byte-identical to the
+`externalNumber` we were given is still unstated — a parenthetical gloss in a
+collection comment is evidence, not a schema — and it is the half that would
+silently break a lookup. `reconcileOrderNumber()` therefore stays exactly as it
+is: it logs loudly and audits the first time a real order shows the two
+differing. Still on the list for Randox, now as one narrow question rather than
+a general one.
 
 **RESULTS IDENTIFY A MARKER BY AN ANALYTE STRING, NOT A CODE.** Each row in
 `reportResults` is orderNumber, dateOfReceipt, dateOfReport, analyte, group,
@@ -1040,9 +1119,124 @@ rather than as a production 400.** Nothing real goes near the sandbox: no real
 names, no real dates of birth.
 
 **THE BOOT GUARD IS UNTOUCHED.** There is still no endpoint anywhere in the spec
-returning void or caveat codes, which confirms they come only from the Randox Web
-Developer team. Production still refuses to start with `RANDOX_TRANSPORT=live`
-while the code map is the checked-in placeholder. Do not weaken it.
+returning void or caveat codes, and **none of the four documents that arrived in
+Aug 2026 contains the list either** — which confirms it comes only from the
+Randox Web Developer team. Production still refuses to start with
+`RANDOX_TRANSPORT=live` while the code map is the checked-in placeholder. Do not
+weaken it.
+
+**GetOrderStatus TAKES THE CLINIC ID, ON THE STRENGTH OF THE FLOW DIAGRAM
+AGAINST TWO SILENT EXAMPLES (Aug 2026).** Three documents, two answers: the
+OpenAPI example sends `{OrderNumber, OrderId}`, the Postman collection sends
+`{orderNumber}`, and the flow diagram says "Clinic Id must be your current
+Clinic Id". It is SENT, and the asymmetry is the whole reason — an example that
+does not show a field is SILENT about it, while the diagram positively asserts
+one is needed, so sending satisfies both readings and omitting satisfies only
+the weaker. Both result endpoints have always taken it and their examples say
+so. PascalCase on GetOrderStatus and camelCase on the two result endpoints,
+because that is how each endpoint's own example is written; this API is not
+consistent with itself and imposing consistency on it is how a 400 gets
+invented.
+
+# Clinic Booking — requests verified, responses not (Aug 2026)
+
+`specs/Clinic Booking Platform Testing APIs.postman_collection.json` is the real
+collection. It gives every REQUEST body literally — path, verb, field names,
+value types — and **no response examples at all**. That asymmetry is the shape
+of the whole client: what we send is built to the collection, what we receive is
+still read through the tolerant helpers in `clients/parse.ts`. Do not read "we
+have the collection" as "the API is documented".
+
+**Every guessed request body was wrong, and that is the lesson.** The client had
+`{serviceLocationId, slotReference}` for a hold and `{holdReference, startUtc}`
+for a booking, read tolerantly so a wrong guess would "degrade gracefully".
+Tolerance is right for a RESPONSE and worthless for a REQUEST: a misread
+response loses a field, a misspelled request is refused whole. Not one guessed
+name was right.
+
+**Five POSTs and one GET**, same rule as Nexus — takes a body, POST.
+`GetServiceLocations`, `AvailabilityDetails`, `HoldAvailabilityBooking`,
+`CreateRandoxBooking`, `CancelRandoxBooking`; `GetBiologicalSex` is the GET.
+`CLINIC_BOOKING_ENDPOINTS` in endpoints.ts is the table and `bookingVerbForPath`
+throws on anything not in it.
+
+**THE SERVICE ID IS REQUIRED AND IS NOT DISCOVERABLE.** 787 (UK) and 788 (ROI),
+and there is no third. Not in any document — Chris Caulfield's email. It is
+CONFIGURATION picked by `RANDOX_BOOKING_REGION` rather than an argument: which
+country a booking is made in is a fact about the deployment, and a parameter
+that could be either would eventually be the wrong one, offering a UK patient
+Irish clinics with nothing in the response to say so.
+
+**THE SAME FIELD TAKES TWO DATE FORMATS IN ONE FLOW.** `AppointmentSlotDate` is
+`"16/10/2025"` on the hold and `"2025-10-16T00:00:00Z"` on the create, two
+requests apart. **`AppointmentSlotTIme` is misspelled** — capital I — in both.
+Each endpoint is sent what its OWN example uses, which is the rule the Nexus
+side already runs on, and correcting the spelling would produce a request with
+no slot time in it.
+
+**AND THE SLOT FIELDS ARE THE UTC WALL CLOCK, WHICH THE COLLECTION PROVES ON ITS
+OWN.** Their `AppointmentSlotId` is `"72164:72164::1760607000:"`, and 1760607000
+as an epoch is `2025-10-16T09:30:00Z` — the same 09:30 they send as
+`AppointmentSlotTIme`. In London that instant reads 10:30, because 16 October is
+inside BST. So a formatter using LOCAL getters on a UK-hosted server would have
+held a slot an hour from the one the patient chose, for seven months of every
+year, with nothing in any response to say so. `slotDateDayFirst`,
+`slotDateIsoMidnightZ` and `slotTimeOfDay` in clients/parse.ts use `getUTC*`
+throughout and the arithmetic is pinned against the collection's own example.
+The other direction is `londonWallClock`, and every slot carries its UK-local
+rendering BESIDE the instant (`slot.local`) so a consumer cannot accidentally
+localise into the READER's zone — right only by accident, and wrong for anyone
+booking from abroad.
+
+**CANCEL TAKES A RANDOX INTEGER, WHICH HAD TO BE CAPTURED AND WASN'T.**
+`CancelRandoxBooking` takes one field, `RandoxBookingOrderId`, and not the
+string reference this code was inventing and not `GPExternalNumber` — a cancel
+that would have been refused every time, discovered by the first patient who
+tried to cancel. It comes back from `CreateRandoxBooking` and is stored on
+`RandoxAppointment.randoxBookingOrderId`, alongside `slotReference`,
+`holdBookingId`, `holdAppointmentId` and `serviceId`: a distinct identifier gets
+a distinct column, the same rule as the three order identifiers. Everything the
+create needs is written at the HOLD, because the create is a separate request
+and possibly after a reload.
+
+**THERE IS NO RESCHEDULE ENDPOINT.** `RandoxBookings/RescheduleAppointment` was
+called here and described as documented; it is in neither collection, the flow
+diagram nor either auth document — it came from somebody's recollection, which
+is how an integration acquires a feature that passes every test and 404s in
+production. The client and the mock both throw
+`RandoxUnsupportedOperationError` (501). Moving an appointment is COMPOSED from
+three documented calls and **the order is the whole design**: hold the new slot,
+book the new slot, then cancel the old one. Cancelling first is simpler and
+loses somebody's appointment when step 2 fails. Whether Randox accept a second
+booking against one `GPExternalNumber` is unknown and this ordering is safe
+under both answers — refused, the original stands; accepted, step 3 leaves
+exactly one. If step 3 fails the new appointment is KEPT and audited: a stale
+booking is a phone call, no appointment is a wasted trip.
+
+**THE MOCK IS GENERATED FROM THE COLLECTION AND CHECKS WHAT WE SEND, FIELD BY
+FIELD.** `mock/bookingSpecServer.ts` rejects a body whose fields, JSON types or
+string SHAPES differ from the collection's own example — so correcting the
+misspelling is a 400, swapping the two date formats is a 400, sending
+`ServiceId` as a number where that endpoint's example says `"787"` is a 400, and
+an invented `SearchTo` is a 400 rather than a field a real API would ignore
+while returning an unbounded range. It requires BOTH credentials, unlike the
+Nexus mock, because the CB document requires both and the Nexus spec does not
+mention one: the two mocks differ exactly where the two documents differ.
+Responses are fixtures and live in `mock/bookingScenarios.ts`, separately and
+labelled, because nobody has documented one.
+`tests/randoxBookingContract.test.ts` runs the real client over HTTP through the
+whole documented flow — Nexus create → locations → availability → hold → booking
+carrying the order number → status 1–4 → reports and detail — plus the four
+failure paths that are OUTCOMES rather than faults: a slot taken between
+availability and hold, a lapsed hold, a create that fails after a hold (which is
+NOT dressed up as a lost slot — the slot is still held and trying again is the
+right advice), and a cancel. A create is never retried, for the same reason
+`CreatePendingOrder` is not.
+
+**AvailabilityDetails HAS NO SearchTo.** It takes a single `SearchFrom`. The
+upper bound is applied to the RESULT, on our side; adding a request field the
+API has never been shown to accept would be silently ignored and would return
+months of slots.
 
 # The web bundle is route-split, and the boundaries are load-bearing (Aug 2026)
 

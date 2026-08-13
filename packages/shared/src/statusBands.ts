@@ -369,45 +369,47 @@ export function bandGradientStops(status: MarkerStatusInput): [string, string] {
  * never the bands by getting duller.
  */
 export const BAND_CONTRAST: Record<MarkerStatus, number> = {
-  IN_RANGE: 1.5,
-  LOW: 1.88,
-  HIGH: 1.88,
-  SIGNIFICANT_LOW: 2.3,
-  SIGNIFICANT_HIGH: 2.3,
+  IN_RANGE: 1.24,
+  LOW: 1.38,
+  HIGH: 1.38,
+  SIGNIFICANT_LOW: 1.54,
+  SIGNIFICANT_HIGH: 1.54,
 };
 
 /**
- * WHAT EACH BAND IS ACTUALLY SOLVED TO, PER THEME — and it is not always the
- * rung above (Aug 2026).
+ * WHAT EACH BAND IS ACTUALLY SOLVED TO, PER THEME — and since Aug 2026 it is
+ * the rung above, in both themes, with no exceptions.
  *
- * `BAND_CONTRAST` is the ladder the design asks for. `BAND_RUNG` is where the
- * fills land, and there is exactly ONE difference between them: **dark's
- * out-of-range band**, at 4.45 instead of 1.88.
+ * `BAND_CONTRAST` is the ladder the design asks for and `BAND_RUNG` is where
+ * the fills land. There used to be exactly one difference between them:
+ * **dark's out-of-range band**, at 4.45 instead of 1.88. It was raised because
+ * against a near-black plot the ordinary rung fixes a yellow's luminance so low
+ * that it comes out #604a0b, a dark ochre — and that band was the only thing
+ * telling a patient in dark mode that a result was outside their range, so it
+ * had to read as yellow whatever it cost.
  *
- * It is here rather than as a relaxed assertion in a test because it is a
- * decision, and a decision belongs in the source. The decision is that the
- * out-of-range band has to READ AS YELLOW — it is the colour a patient sees for
- * every result outside their range — and against a near-black plot the 1.88
- * rung fixes its luminance so low that no yellow exists there. It came out
- * #604a0b: a dark ochre. The full measurement, and the four things that had to
- * move with it, are on `BAND_FILL` in tokens.ts.
+ * IT IS NOT THE ONLY THING ANY MORE. The trend line carries the status along
+ * its own length now, in a gold solved to clear every band it crosses, so
+ * "outside the range" is said by the line in the right colour and the band
+ * underneath is free to be the quietest thing that still shows where the region
+ * is. The exception is gone, both themes are on one ladder, and three
+ * consequences the exception forced go with it:
  *
- * THE CONSEQUENCE, STATED PLAINLY: in dark, the out-of-range band is the
- * LOUDEST band on the plot. Red cannot be lifted past it — every band's
- * luminance is capped by the trend line that has to clear it at AA-large, and
- * at that cap red runs out of room before yellow does. So the escalation from
- * "outside the range" to "significantly outside it" is carried in dark by
- * CHROMA, which is monotonic across all five where the contrast ladder is not
- * (0.097 → 0.104 → 0.129 → 0.131 → 0.158), and by the hue itself. A traffic
- * light is the same arrangement: its amber is brighter than its red.
+ *  · The escalation is carried by CONTRAST in both themes again. It had to
+ *    switch to chroma in dark, because a band at 4.45 is louder than the red
+ *    band above it and the ladder ran backwards.
+ *  · The dark gold MARK no longer has to step toward the ground instead of the
+ *    text — see MARK_SHIFT_DARK, where `toward: 'ground'` now has no users.
+ *  · The comparison chart's line is a bronze again rather than a near-white,
+ *    because it no longer has to clear a 4.74:1 band — see LINE_LIFT.
  *
  * IN RANGE IS STILL THE QUIETEST BAND IN BOTH THEMES, which is the rung that
- * was always load-bearing — it is the one covering most of a plot, and the one
- * the "bands are context, the line is content" rule is really about.
+ * was always load-bearing: it covers most of a plot, and it is the one the
+ * "bands are context, the line is content" rule is really about.
  */
 export const BAND_RUNG: Record<'light' | 'dark', Record<'green' | 'yellow' | 'red', number>> = {
   light: { green: BAND_CONTRAST.IN_RANGE, yellow: BAND_CONTRAST.HIGH, red: BAND_CONTRAST.SIGNIFICANT_HIGH },
-  dark: { green: BAND_CONTRAST.IN_RANGE, yellow: 4.45, red: BAND_CONTRAST.SIGNIFICANT_HIGH },
+  dark: { green: BAND_CONTRAST.IN_RANGE, yellow: BAND_CONTRAST.HIGH, red: BAND_CONTRAST.SIGNIFICANT_HIGH },
 };
 
 /**

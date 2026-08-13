@@ -2,7 +2,7 @@ import type { RandoxOrder } from '@prisma/client';
 import { prisma } from '../../db/client.js';
 import { env } from '../../config/env.js';
 import { nexusLabClient } from './clients/index.js';
-import { isRandoxEnabled } from './config.js';
+import { isRandoxEnabled, randoxClinicId } from './config.js';
 import { orderStatusFromCode } from './types.js';
 import { ingestOrderResults } from './ingestionService.js';
 import { orderRefOf, reconcileOrderNumber } from './orderService.js';
@@ -101,7 +101,16 @@ export async function onOrderStatusChanged(inputOrderNumber: string): Promise<Or
     };
   }
 
-  const status = await nexusLabClient().getOrderStatus({ orderId: order.randoxOrderId, orderNumber });
+  // ClinicId goes too: the flow diagram requires it on GetOrderStatus even
+  // though neither the OpenAPI example nor the Postman one carries it. See
+  // LiveNexusLabClient.getOrderStatus. `?? undefined` rather than a refusal —
+  // an order predating RANDOX_CLINIC_ID must still be pollable, since the two
+  // documents that omit the field say it is not needed.
+  const status = await nexusLabClient().getOrderStatus({
+    orderId: order.randoxOrderId,
+    orderNumber,
+    clinicId: order.clinicId ?? randoxClinicId() ?? undefined,
+  });
 
   // The first place Randox ever state an orderNumber of their own. Everything
   // before this point has been using the creation response's externalNumber as

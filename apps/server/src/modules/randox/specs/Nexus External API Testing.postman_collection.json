@@ -1,0 +1,508 @@
+{
+  "info": {
+    "_postman_id": "c991fdce-7a4b-4d97-9e4b-76ab84446fe6",
+    "name": "Nexus External API Testing",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "17141429"
+  },
+  "item": [
+    {
+      "name": "Get Bearer Token",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "password",
+              "type": "text"
+            },
+            {
+              "key": "client_id",
+              "value": "791f0001-20d7-4771-b4ab-359b4b9efd21",
+              "type": "text"
+            },
+            {
+              "key": "scope",
+              "value": "https://randoxclinicbooking.onmicrosoft.com/gptestorderportal-external-api/User.Read.All",
+              "type": "text"
+            },
+            {
+              "key": "username",
+              "value": "xxxxxxxxxxxxxxxxxxxxxxxxx",
+              "type": "text",
+              "description": "Your Dev Portal Username"
+            },
+            {
+              "key": "password",
+              "value": "xxxxxxxxxxxxxxxxxxxxxxxxx",
+              "type": "text",
+              "description": "Your Dev Portal Password"
+            }
+          ]
+        },
+        "url": {
+          "raw": "https://randoxclinicbooking.b2clogin.com/randoxclinicbooking.onmicrosoft.com/B2C_1_apim_ropc_signin1/oauth2/v2.0/token",
+          "protocol": "https",
+          "host": [
+            "randoxclinicbooking",
+            "b2clogin",
+            "com"
+          ],
+          "path": [
+            "randoxclinicbooking.onmicrosoft.com",
+            "B2C_1_apim_ropc_signin1",
+            "oauth2",
+            "v2.0",
+            "token"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Biological Sex",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Ocp-Apim-Subscription-Key",
+            "value": "{{subscription_key}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_api_url}}/BiologicalSex/GetBiologicalSex",
+          "host": [
+            "{{base_api_url}}"
+          ],
+          "path": [
+            "BiologicalSex",
+            "GetBiologicalSex"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Test Panels",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Ocp-Apim-Subscription-Key",
+            "value": "{{subscription_key}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_api_url}}/TestPanel/GetPanels",
+          "host": [
+            "{{base_api_url}}"
+          ],
+          "path": [
+            "TestPanel",
+            "GetPanels"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Test Items",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Ocp-Apim-Subscription-Key",
+            "value": "{{subscription_key}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_api_url}}/TestItem/GetTests",
+          "host": [
+            "{{base_api_url}}"
+          ],
+          "path": [
+            "TestItem",
+            "GetTests"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Test Reasons",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Ocp-Apim-Subscription-Key",
+            "value": "{{subscription_key}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_api_url}}/TestReason/GetTestingReasons",
+          "host": [
+            "{{base_api_url}}"
+          ],
+          "path": [
+            "TestReason",
+            "GetTestingReasons"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Clinic Details",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Ocp-Apim-Subscription-Key",
+            "value": "{{subscription_key}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_api_url}}/Clinic/GetMyClinicDetails",
+          "host": [
+            "{{base_api_url}}"
+          ],
+          "path": [
+            "Clinic",
+            "GetMyClinicDetails"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create Pending Order",
+      "protocolProfileBehavior": {
+        "disabledSystemHeaders": {}
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Ocp-Apim-Subscription-Key",
+            "value": "{{subscription_key}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"firstName\": \"George\",\r\n  \"lastName\": \"Doe\",\r\n  \"dateOfBirth\": \"2000-08-01\",\r\n  \"biologicalSexId\": 1,\r\n  \"testClinicLocationId\": 0, // this is your clinic id from GetMyClinicDetails\r\n  \"isHealthCheckPanelReport\": false,\r\n  \"panelIds\": [1],\r\n  \"testIds\": [],\r\n  \"testReasons\": [\r\n    {\r\n      \"id\": 1,\r\n      \"details\": \"selected\"\r\n    }\r\n  ]\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_api_url}}/Order/CreatePendingOrder",
+          "host": [
+            "{{base_api_url}}"
+          ],
+          "path": [
+            "Order",
+            "CreatePendingOrder"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update Pending Order",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Ocp-Apim-Subscription-Key",
+            "value": "{{subscription_key}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"orderNumber\": \"xxx001-000xxxxx\", // this can be either orderid or orderNumber (externalNumber)\r\n  \"firstName\": \"George\",\r\n  \"lastName\": \"Roe\",\r\n  \"dateOfBirth\": \"2000-08-01\",\r\n  \"biologicalSexId\": 1,\r\n  \"testClinicLocationId\": 0, // this is your clinic id from GetMyClinicDetails\r\n  \"isHealthCheckPanelReport\": false,\r\n  \"panelIds\": [5],\r\n  \"testIds\": [],\r\n  \"testReasons\": [\r\n    {\r\n      \"id\": 1,\r\n      \"details\": \"selected\"\r\n    }\r\n  ]\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_api_url}}/Order/UpdatePendingOrder",
+          "host": [
+            "{{base_api_url}}"
+          ],
+          "path": [
+            "Order",
+            "UpdatePendingOrder"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create Order",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Ocp-Apim-Subscription-Key",
+            "value": "{{subscription_key}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"patient\": {\r\n    \"firstName\": \"John\",\r\n    \"lastName\": \"Doe\",\r\n    \"dateOfBirth\": \"2000-08-01\",\r\n    \"biologicalSexId\": 1,\r\n    \"isHealthCheckPanelReport\": true,\r\n    \"testClinicLocationId\": 0, // this is your clinic id from GetMyClinicDetails\r\n    \"isFasting\": true, // optional\r\n    \"fastStartDate\": \"2026-08-02T11:20:00\", // optional - must include the time and be UTC \r\n    \"height\": 180, // optional\r\n    \"weight\": 100, // optional\r\n    \"waist\": 37, // optional\r\n    \"hip\": 94, // optional\r\n    \"pulse\": 70, // optional\r\n    \"systolicBloodPressure\": 90, // optional\r\n    \"diastolicBloodPressure\": 60, // optional\r\n    \"diabetic\": false, // optional\r\n    \"smoker\": true, // optional\r\n    \"knownVascularDisease\": false, // optional\r\n    \"onMedForHypertension\": true, // optional\r\n    \"ethnicityId\": 1 // optional\r\n  },\r\n  \"panelIds\": [5],\r\n  \"testIds\": [],\r\n  \"testReasons\": [\r\n    {\r\n      \"id\": 6,\r\n      \"details\": \"Selected\"\r\n    }\r\n  ],\r\n  \"sampleCollection\": {\r\n    \"sampleCollectionDate\": \"2026-08-03T09:20:00\", // must include the time and be UTC\r\n    \"sampleLaboratoryId\": 1, // always defaulted to 1\r\n    \"sampleTubes\": [\r\n      {\r\n        \"id\": 1,\r\n        \"quantityRequired\": 2\r\n      },\r\n      {\r\n        \"id\": 3,\r\n        \"quantityRequired\": 1\r\n      },\r\n      {\r\n        \"id\": 5,\r\n        \"quantityRequired\": 1\r\n      }\r\n    ],\r\n    \"sampleCollectionComment\": \"\"\r\n  }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_api_url}}/Order/CreateOrder",
+          "host": [
+            "{{base_api_url}}"
+          ],
+          "path": [
+            "Order",
+            "CreateOrder"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update Order",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Ocp-Apim-Subscription-Key",
+            "value": "{{subscription_key}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"orderNumber\": \"xxx001-000xxxxx\", // this can be either orderid or orderNumber (externalNumber)\r\n    \"patient\": {\r\n        \"firstName\": \"John\",\r\n        \"lastName\": \"Doe\",\r\n        \"dateOfBirth\": \"2000-08-01\",\r\n        \"biologicalSexId\": 1,\r\n        \"isHealthCheckPanelReport\": true,\r\n        \"testClinicLocationId\": 0, // this is your clinic id from GetMyClinicDetails\r\n        \"isFasting\": true, // optional\r\n        \"fastStartDate\": \"2026-08-02T11:20:00\", // optional - must include the time and be UTC \r\n        \"height\": 180, // optional\r\n        \"weight\": 100, // optional\r\n        \"waist\": 37, // optional\r\n        \"hip\": 94, // optional\r\n        \"pulse\": 70, // optional\r\n        \"systolicBloodPressure\": 90, // optional\r\n        \"diastolicBloodPressure\": 60, // optional\r\n        \"diabetic\": false, // optional\r\n        \"smoker\": true, // optional\r\n        \"knownVascularDisease\": false, // optional\r\n        \"onMedForHypertension\": true, // optional\r\n        \"ethnicityId\": 1 // optional\r\n    },\r\n    \"panelIds\": [5],\r\n    \"testIds\": [1],\r\n    \"testReasons\": [\r\n        {\r\n        \"id\": 6,\r\n        \"details\": \"Selected\"\r\n        }\r\n    ],\r\n    \"sampleCollection\": {\r\n        \"sampleCollectionDate\": \"2026-08-03T09:20:00\", // must include the time and be UTC\r\n        \"sampleLaboratoryId\": 1, // always defaulted to 1\r\n        \"sampleTubes\": [\r\n            {\r\n                \"id\": 1,\r\n                \"quantityRequired\": 3\r\n            },\r\n            {\r\n                \"id\": 3,\r\n                \"quantityRequired\": 1\r\n            },\r\n            {\r\n                \"id\": 5,\r\n                \"quantityRequired\": 1\r\n            }\r\n        ],\r\n        \"sampleCollectionComment\": \"Added missing test.\"\r\n    }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_api_url}}/Order/UpdateOrder",
+          "host": [
+            "{{base_api_url}}"
+          ],
+          "path": [
+            "Order",
+            "UpdateOrder"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Order Status",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Ocp-Apim-Subscription-Key",
+            "value": "{{subscription_key}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"orderNumber\": \"xxx001-000xxxxx\" // this can be either orderid or orderNumber (externalNumber)\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_api_url}}/Order/GetOrderStatus",
+          "host": [
+            "{{base_api_url}}"
+          ],
+          "path": [
+            "Order",
+            "GetOrderStatus"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Order Result Details",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Ocp-Apim-Subscription-Key",
+            "value": "{{subscription_key}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"clinicId\": 0, // this is your clinic id from GetMyClinicDetails\r\n    \"orderNumber\": \"xxx001-000xxxxx\" // this can be either orderid or orderNumber (externalNumber)\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_api_url}}/Order/GetOrderResultDetail",
+          "host": [
+            "{{base_api_url}}"
+          ],
+          "path": [
+            "Order",
+            "GetOrderResultDetail"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Order Result Reports",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Ocp-Apim-Subscription-Key",
+            "value": "{{subscription_key}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"clinicId\": 0, // this is your clinic id from GetMyClinicDetails\r\n    \"orderNumber\": \"xxx001-000xxxxx\" // this can be either orderid or orderNumber (externalNumber)\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_api_url}}/Order/GetOrderResultReports",
+          "host": [
+            "{{base_api_url}}"
+          ],
+          "path": [
+            "Order",
+            "GetOrderResultReports"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Cancel Order",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Ocp-Apim-Subscription-Key",
+            "value": "{{subscription_key}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"clinicId\": 0, // this is your clinic id from GetMyClinicDetails\r\n  \"cancellationReasonId\": 3,\r\n  \"orderNumber\": \"xxx001-000xxxxx\" // this can be either orderid or orderNumber (externalNumber)\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_api_url}}/Order/CancelOrder",
+          "host": [
+            "{{base_api_url}}"
+          ],
+          "path": [
+            "Order",
+            "CancelOrder"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{auth_secret_bearer}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "auth_secret_bearer",
+      "secret": true
+    },
+    {
+      "key": "base_api_url",
+      "value": ""
+    },
+    {
+      "key": "subscription_key",
+      "value": ""
+    }
+  ]
+}

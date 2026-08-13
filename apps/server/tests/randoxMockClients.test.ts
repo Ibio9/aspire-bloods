@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { MockNexusLabClient } from '../src/modules/randox/mock/MockNexusLabClient.js';
 import { MockClinicBookingClient } from '../src/modules/randox/mock/MockClinicBookingClient.js';
-import { RandoxWindowExpiredError } from '../src/modules/randox/errors.js';
+import { RandoxUnsupportedOperationError, RandoxWindowExpiredError } from '../src/modules/randox/errors.js';
 import { orderStatusFromCode } from '../src/modules/randox/types.js';
+import type { CreateRandoxBookingRequest } from '../src/modules/randox/types.js';
 import {
   FIXTURE_UNKNOWN_CODE,
   FIXTURE_UNMAPPED_MARKER,
@@ -14,6 +15,21 @@ import {
  * They are written against the contract, not against our own ingestion
  * code, so they stay meaningful when the live client replaces the mock.
  */
+
+/** Invented. Nothing real goes near the sandbox or these fixtures. */
+const FIXTURE_BOOKING_PATIENT: CreateRandoxBookingRequest['patient'] = {
+  firstName: 'Fixture',
+  lastName: 'Patient',
+  dateOfBirth: '1990-01-01',
+  biologicalSexId: 2,
+  email: 'fixture.patient@example.test',
+  contactNumber: '07700900000',
+  addressLine1: '1 Fixture Street',
+  addressLine2: '',
+  townCity: 'Fixtureton',
+  postalCode: 'M1 1AA',
+  countryId: 1,
+};
 
 const orderRequest = () => ({
   FirstName: 'Test',
@@ -247,93 +263,125 @@ describe('reference data', () => {
 
 describe('MockClinicBookingClient', () => {
   let booking: MockClinicBookingClient;
+  const ORDER_NUMBER = 'GC1123-00010300';
+
   beforeEach(() => {
     booking = new MockClinicBookingClient();
   });
 
-  it('returns availability in UTC with an explicit Z', async () => {
-    const [location] = await booking.getServiceLocations();
+  /** The location Randox say actually has availability: 30, Crumlin. */
+  async function crumlin() {
+    const locations = await booking.getServiceLocations();
+    return locations.find((l) => l.id === '30')!;
+  }
+
+  async function bookFirstSlot(orderNumber = ORDER_NUMBER) {
+    const location = await crumlin();
+    const [slot] = await booking.availabilityDetails(location.id, '2026-09-01', '2026-09-01');
+    const hold = await booking.holdAvailabilityBooking(location.id, slot.slotReference, slot.startUtc);
+    const created = await booking.createRandoxBooking({
+      holdReference: hold.holdReference,
+      bookingId: hold.bookingId!,
+      appointmentId: hold.appointmentId!,
+      serviceLocationId: location.id,
+      slotReference: slot.slotReference,
+      startUtc: slot.startUtc,
+      gpExternalNumber: orderNumber,
+      patient: FIXTURE_BOOKING_PATIENT,
+    });
+    return { location, slot, hold, created };
+  }
+
+  it('returns availability in UTC with an explicit Z, and a UK-local rendering beside it', async () => {
+    const location = await crumlin();
     const slots = await booking.availabilityDetails(location.id, '2026-09-01', '2026-09-01');
     expect(slots.length).toBeGreaterThan(0);
-    for (const slot of slots) expect(slot.startUtc.endsWith('Z')).toBe(true);
+    for (const slot of slots) {
+      expect(slot.startUtc.endsWith('Z')).toBe(true);
+      expect(slot.local.timeZone).toBe('Europe/London');
+    }
+    // 1 September is inside BST, so the two readings differ by an hour. The
+    // instant and its rendering are carried separately for exactly this
+    // reason — a consumer showing the UTC clock would be an hour early.
+    const nine = slots.find((s) => s.startUtc.includes('T09:00'))!;
+    expect(nine.local.time).toBe('10:00');
+  });
+
+  it('an empty diary is an answer, not a failure', async () => {
+    // Location 15 is the collection's own, and Randox warn it may have no
+    // slots. A caller must not read that as a broken integration.
+    const slots = await booking.availabilityDetails('15', '2026-09-01', '2026-09-01');
+    expect(slots).toEqual([]);
   });
 
   it('books a held slot against the Nexus order number', async () => {
-    const [location] = await booking.getServiceLocations();
-    const [slot] = await booking.availabilityDetails(location.id, '2026-09-01', '2026-09-01');
-    const hold = await booking.holdAvailabilityBooking(location.id, slot.slotReference);
-    const result = await booking.createRandoxBooking({
-      holdReference: hold.holdReference,
-      serviceLocationId: location.id,
-      gpExternalNumber: 'GC1123-00010300',
-      startUtc: slot.startUtc,
-    });
-    expect(result.bookingReference).toBeTruthy();
+    const { created } = await bookFirstSlot();
+    expect(created.bookingReference).toBeTruthy();
+    // The id CancelRandoxBooking takes, and the only field it takes.
+    expect(created.randoxBookingOrderId).toBeTypeOf('number');
   });
 
   it('refuses to book without the Nexus order number', async () => {
-    const [location] = await booking.getServiceLocations();
+    const location = await crumlin();
     const [slot] = await booking.availabilityDetails(location.id, '2026-09-01', '2026-09-01');
-    const hold = await booking.holdAvailabilityBooking(location.id, slot.slotReference);
+    const hold = await booking.holdAvailabilityBooking(location.id, slot.slotReference, slot.startUtc);
     await expect(
       booking.createRandoxBooking({
         holdReference: hold.holdReference,
+        bookingId: hold.bookingId!,
+        appointmentId: hold.appointmentId!,
         serviceLocationId: location.id,
-        gpExternalNumber: '',
+        slotReference: slot.slotReference,
         startUtc: slot.startUtc,
+        gpExternalNumber: '',
+        patient: FIXTURE_BOOKING_PATIENT,
       }),
     ).rejects.toThrow(/GPExternalNumber/);
   });
 
   it('treats a lapsed 30-minute hold as a closed window, not a fault', async () => {
     booking.expireHoldsImmediately = true;
-    const [location] = await booking.getServiceLocations();
+    await expect(bookFirstSlot()).rejects.toBeInstanceOf(RandoxWindowExpiredError);
+  });
+
+  it('a slot taken between availability and hold is a closed window', async () => {
+    booking.nextHoldSlotTaken = true;
+    const location = await crumlin();
     const [slot] = await booking.availabilityDetails(location.id, '2026-09-01', '2026-09-01');
-    const hold = await booking.holdAvailabilityBooking(location.id, slot.slotReference);
     await expect(
-      booking.createRandoxBooking({
-        holdReference: hold.holdReference,
-        serviceLocationId: location.id,
-        gpExternalNumber: 'GC1123-00010300',
-        startUtc: slot.startUtc,
-      }),
+      booking.holdAvailabilityBooking(location.id, slot.slotReference, slot.startUtc),
     ).rejects.toBeInstanceOf(RandoxWindowExpiredError);
   });
 
   it('will not reuse a hold that has already been converted to a booking', async () => {
-    const [location] = await booking.getServiceLocations();
-    const [slot] = await booking.availabilityDetails(location.id, '2026-09-01', '2026-09-01');
-    const hold = await booking.holdAvailabilityBooking(location.id, slot.slotReference);
-    const request = {
-      holdReference: hold.holdReference,
-      serviceLocationId: location.id,
-      gpExternalNumber: 'GC1123-00010300',
-      startUtc: slot.startUtc,
-    };
-    await booking.createRandoxBooking(request);
-    await expect(booking.createRandoxBooking(request)).rejects.toBeInstanceOf(RandoxWindowExpiredError);
+    const { location, slot, hold } = await bookFirstSlot();
+    await expect(
+      booking.createRandoxBooking({
+        holdReference: hold.holdReference,
+        bookingId: hold.bookingId!,
+        appointmentId: hold.appointmentId!,
+        serviceLocationId: location.id,
+        slotReference: slot.slotReference,
+        startUtc: slot.startUtc,
+        gpExternalNumber: ORDER_NUMBER,
+        patient: FIXTURE_BOOKING_PATIENT,
+      }),
+    ).rejects.toBeInstanceOf(RandoxWindowExpiredError);
   });
 
-  it('reschedules a confirmed booking', async () => {
-    const [location] = await booking.getServiceLocations();
-    const slots = await booking.availabilityDetails(location.id, '2026-09-01', '2026-09-01');
-    const hold = await booking.holdAvailabilityBooking(location.id, slots[0].slotReference);
-    const created = await booking.createRandoxBooking({
-      holdReference: hold.holdReference,
-      serviceLocationId: location.id,
-      gpExternalNumber: 'GC1123-00010300',
-      startUtc: slots[0].startUtc,
-    });
-    const moved = await booking.rescheduleAppointment(
-      created.bookingReference,
-      'GC1123-00010300',
-      slots[2].slotReference,
-      slots[2].startUtc,
-    );
-    expect(moved.startUtc).toBe(slots[2].startUtc);
+  it('cancels by Randox’s own booking-order id', async () => {
+    const { created } = await bookFirstSlot();
+    await expect(booking.cancelRandoxBooking(created.randoxBookingOrderId!, ORDER_NUMBER)).resolves.toBeUndefined();
   });
 
   it('treats cancelling an unknown booking as a closed window', async () => {
-    await expect(booking.cancelRandoxBooking('NOPE', 'GC1123-00010300')).rejects.toBeInstanceOf(RandoxWindowExpiredError);
+    await expect(booking.cancelRandoxBooking(999999, ORDER_NUMBER)).rejects.toBeInstanceOf(RandoxWindowExpiredError);
+  });
+
+  it('refuses to reschedule, because there is no such endpoint', async () => {
+    // The mock refuses exactly as the live client does. A mock that quietly
+    // supported an endpoint Randox do not document would make the absence
+    // invisible until production. See ClinicBookingClient.rescheduleAppointment.
+    await expect(booking.rescheduleAppointment()).rejects.toBeInstanceOf(RandoxUnsupportedOperationError);
   });
 });

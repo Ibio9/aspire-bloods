@@ -95,12 +95,26 @@ const envSchema = z.object({
   RANDOX_BOOKING_SUBSCRIPTION_KEY: z.string().optional().default(''),
 
   // Scopes, verified from the Randox STES auth documents in
-  // modules/randox/specs/. Defaulted rather than blank: a wrong scope fails
-  // as an opaque B2C rejection, and these are documented values, not
-  // secrets. Still overridable if production differs.
+  // modules/randox/specs/ AND from the two Postman collections. Defaulted
+  // rather than blank: a wrong scope fails as an opaque B2C rejection, and
+  // these are documented values, not secrets. Still overridable if
+  // production differs.
+  //
+  // THE NEXUS SCOPE WAS WRONG BY ONE HYPHEN AND WOULD HAVE FAILED EVERY LIVE
+  // CALL (fixed Aug 2026). It read `gptestorderportal-externalapi`. The real
+  // value is `gptestorderportal-external-api`, which is what the Nexus auth
+  // PDF's own hyperlink target says and what the Nexus Postman collection
+  // sends. The typo came from transcribing the PDF's RENDERED TEXT, where the
+  // hyphen fell on a line break and was swallowed — the same break mangles the
+  // CB scope into "clinic-booking-platformapi" two paragraphs later, which is
+  // how the error is recognisable rather than mysterious. A wrong scope is not
+  // a subtle failure: B2C refuses to issue a token at all, so every Nexus call
+  // 401s from the first one, with a message about the token and not about the
+  // scope. TRANSCRIBE FROM THE LINK TARGET OR THE COLLECTION, NEVER FROM THE
+  // RENDERED PARAGRAPH.
   RANDOX_NEXUS_SCOPE: z
     .string()
-    .default('https://randoxclinicbooking.onmicrosoft.com/gptestorderportal-externalapi/User.Read.All'),
+    .default('https://randoxclinicbooking.onmicrosoft.com/gptestorderportal-external-api/User.Read.All'),
   RANDOX_BOOKING_SCOPE: z
     .string()
     .default('https://randoxclinicbooking.onmicrosoft.com/clinic-booking-platform-api/user_impersonation'),
@@ -137,6 +151,20 @@ const envSchema = z.object({
   RANDOX_CLINIC_ID: z.string().optional().default(''),
   /** Defaults to RANDOX_CLINIC_ID when unset. */
   RANDOX_TEST_CLINIC_LOCATION_ID: z.string().optional().default(''),
+
+  // KNOWN (Chris Caulfield, Aug 2026) — the Clinic Booking ServiceId for
+  // third-party in-clinic bookings. There are exactly two and no others: 787
+  // for the UK, 788 for the Republic of Ireland. Every one of the five booking
+  // calls that takes a service takes one of these, so it is not optional and
+  // it is not derivable from anything the API returns.
+  //
+  // Defaulted because they are documented values rather than secrets, and
+  // RANDOX_BOOKING_REGION picks between them — the region a booking is made in
+  // is a deployment fact, not a per-request one, and a portal that could send
+  // either would eventually send the wrong one.
+  RANDOX_BOOKING_SERVICE_ID_UK: z.coerce.number().int().default(787),
+  RANDOX_BOOKING_SERVICE_ID_ROI: z.coerce.number().int().default(788),
+  RANDOX_BOOKING_REGION: z.enum(['UK', 'ROI']).default('UK'),
 
   // The two CreatePendingOrder report flags. Both documented, neither
   // secret. IsHealthCheckPanelReport=true asks for the patient-facing
@@ -186,24 +214,35 @@ const envSchema = z.object({
 
   // Whether to send an Azure B2C bearer alongside the subscription key.
   //
-  // UNCONFIRMED, WHICH IS WHY IT IS A SWITCH. The spec's securitySchemes
-  // contains exactly two entries and both are the same subscription key
-  // (header or query); there is no OAuth or bearer scheme in the document at
-  // all. The auth PDFs describe a B2C ROPC password grant, so the gateway
-  // probably does want one — "probably" being the honest word. Default on,
-  // because that is the more likely of the two and the one the credentials
-  // were requested for; flip it to false without a deploy if the first live
-  // call 401s with a valid key. The subscription key is NOT switchable and
-  // always goes, in the header — never the query form, which would put a
-  // credential in every access log.
+  // CONFIRMED REQUIRED (Aug 2026), so this is a LEVER AND NO LONGER A HEDGE.
+  // The CB STES auth document says it in one sentence — "Authorisation will be
+  // the bearer token and in the header section include the following key:
+  // Ocp-Apim-Subscription-Key" — and both Postman collections carry a
+  // collection-level bearer beside a per-request subscription key. The Nexus
+  // OpenAPI document's silence on it was a gap in the document: securitySchemes
+  // describes what the APIM gateway checks, and the bearer is checked by the
+  // B2C policy in front of it.
+  //
+  // It stays switchable so a 401 on the first live call can be bisected in one
+  // redeploy rather than a morning. Turning it off is a diagnostic step, never
+  // a configuration. The subscription key is NOT switchable and always goes, in
+  // the header — never the query form, which would put a credential in every
+  // access log.
   RANDOX_BEARER_TOKEN_ENABLED: z
     .enum(['true', 'false'])
     .default('true')
     .transform((v) => v === 'true'),
 
-  // Client-side pacing on outbound Randox calls, per API. A poll sweep makes
+  // Client-side pacing on outbound Randox calls, PER API. A poll sweep makes
   // two or three calls per order in a tight loop; spacing them is what keeps
   // us under the gateway's limiter rather than discovering it. 0 disables.
+  //
+  // Randox's documented limit is 600 requests per minute per API (Chris
+  // Caulfield, Aug 2026) and is the CEILING, not the target — see
+  // RANDOX_DOCUMENTED_LIMIT_PER_MINUTE in modules/randox/http/rateLimiter.ts,
+  // which refuses a value above it at boot. 60 is a tenth of the ceiling and
+  // is deliberately well below: the limit is what Randox will enforce, and
+  // pacing at the enforcement threshold means every burst discovers it.
   RANDOX_MAX_REQUESTS_PER_MINUTE: z.coerce.number().default(60),
   // Transient failures only (429, 5xx, timeout, dropped connection). Never
   // applied to CreatePendingOrder — a retried create is a duplicate order.
@@ -295,6 +334,17 @@ const envSchema = z.object({
   // way that looked like a product fault.
   PASSWORD_RESET_RATE_LIMIT_MAX: z.coerce.number().default(5),
 });
+
+/**
+ * Exported for one purpose: asserting the DEFAULTS.
+ *
+ * `env` is parsed from whatever process.env happens to hold, so a test reading
+ * it proves what that machine is configured with and not what ships. Several
+ * of these defaults are documented Randox values where one wrong character
+ * means no token is ever issued (see RANDOX_NEXUS_SCOPE), so the schema itself
+ * has to be reachable. Nothing else should parse it — use `env`.
+ */
+export const envSchema_forDefaultsTestingOnly = envSchema;
 
 export type Env = z.infer<typeof envSchema>;
 

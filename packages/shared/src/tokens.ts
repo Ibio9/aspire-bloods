@@ -156,6 +156,27 @@ function okChroma(hex: string): number {
  * and forcing them to one figure is the single-cap mistake wearing a different
  * hat.
  */
+/**
+ * HOW MUCH OF THAT CEILING A BAND ACTUALLY TAKES (Aug 2026).
+ *
+ * A band used to take all of it. That was right while the bands carried the
+ * traffic light; it is wrong now the LINE does, and the measurement that says
+ * so is that the green band carried 0.123 of OKLab chroma against the green
+ * line's 0.096 — the context more colourful than the content.
+ *
+ * The bands are context, so they take 60% and the line keeps the rest. It is a
+ * share rather than an absolute floor because the three hues cannot hold equal
+ * chroma at the lightnesses the ladder puts them at, which is the whole reason
+ * `bandChromaCeiling` is per hue; a flat number here would reintroduce the
+ * single-cap mistake one level up.
+ *
+ * NOT APPLIED AT RUNTIME. `BAND_FILL`'s saturations are solved against it at
+ * authoring time and the solved numbers are what ship — this is exported so the
+ * contrast test can assert the share was actually taken rather than trusting a
+ * comment.
+ */
+export const BAND_CHROMA_SHARE = 0.6;
+
 export function bandChromaCeiling(hue: 'green' | 'yellow' | 'red'): number {
   return okChroma(statusHue[hue]);
 }
@@ -448,66 +469,77 @@ const TINT_MIX = {
  * never been the thing that says it, and a mark that has vanished into its band
  * loses the shape layer, which is the thing that does.
  */
-const MARK_SHIFT: Record<StatusHue, number> = { green: 0.44, olive: 0.53, yellow: 0.69, orange: 0.66, red: 0.46 };
-
 /**
- * The same, in dark — and it is a SEPARATE RECORD now (Aug 2026), because the
- * bands got stronger and the mark has to keep standing off its own band.
+ * ═══ THE COLOURS THE TREND LINE IS DRAWN IN — AND THE POINT MARKS WITH IT
+ *     (re-derived Aug 2026) ═══════════════════════════════════════════════
  *
- * The two themes fail in opposite directions, which is why one record could not
- * serve both. A mark shifts toward the theme's TEXT tone: in light that is
- * espresso, so a bigger shift makes the mark darker and it gains contrast
- * against a pale band; in dark it is a warm cream, so a bigger shift makes the
- * mark lighter and it gains contrast against a dark one. Raising `BAND_WEIGHT`
- * therefore needs MORE shift in both themes — and by different amounts per hue,
- * since the four do not start at the same luminance in either.
+ * WHAT THIS ROLE IS FOR NOW. It used to be only the point marks: five glyphs
+ * on a plot, each standing on the band of its own hue. The LINE is drawn in
+ * these too since the status moved onto it, gradiented along its own length —
+ * so a gold segment crosses the GREEN band on its way up to an out-of-range
+ * result, and every one of the five has to clear every one of the five plus the
+ * optimal narrowing. Measured against the old heavy bands the worst pair was
+ * **1.10:1**, which is what forced the bands down to context weight.
  *
- * Red in dark is the one that actually bound. At the old 0.12 it measured
- * 2.7:1 against the new significantly-out band, which is a point mark
- * disappearing into the region it is standing on — the failure the shape layer
- * cannot afford, since shape is what carries status when colour is taken away.
- * Solved per hue for the SMALLEST shift that clears 3.2:1 on its own band at
- * that band's own weight, because every step past that is chroma spent for
- * nothing. tokenContrast.test.ts measures the result at 3:1.
+ * ── AND IT IS SOLVED NOW, NOT MIXED ───────────────────────────────────────
  *
- * RE-SOLVED with the opaque bands (Aug 2026), and dark went the OTHER WAY from
- * light — three of the five need no shift at all now. A dark band is lighter
- * than the plot it sits on, and the lifted hue is already well clear of it;
- * what was binding before was a MUDDIER band closer to the mark's own tone.
- * Zero is a real answer here and not a missing one: the mark is the lifted hue
- * itself, which is the most chromatic it can be, and only orange and red — the
- * two heaviest bands — need to be pulled off it.
+ * This was `MARK_SHIFT` / `MARK_SHIFT_DARK`: the hue MIXED TOWARD the theme's
+ * text tone by an amount per hue. That is fine for nudging a glyph clear of its
+ * own band and hopeless for a line that has to READ as green, then gold, then
+ * red — because mixing toward a brown-grey darkens and DESATURATES at once, so
+ * every step taken to clear a band was paid for in the colour that was the
+ * whole point. It showed: light's green and gold came out #567639 and #836a26,
+ * two dark khakis ΔE 0.070 apart, which on a 4px line is one colour.
  *
- * ── AND IT IS A DIRECTION PER HUE NOW, BECAUSE ONE BAND WENT PAST IT ───────
+ * It is solved exactly as `BAND_FILL` is, and that is the point — one
+ * derivation for both, differing only in what they are solved TO:
  *
- * The out-of-range band is a real yellow now (see BAND_FILL), which puts it at
- * okL 0.63 — LIGHTER than any gold the mark can be lifted to. Stepping toward
- * the text colour tops out at 2.79:1 on it, so there is no answer in that
- * direction at all; it has to step toward the GROUND, and it lands on #46380f
- * at 3.24:1. Red is the mirror image and always was: it cannot go dark, only
- * light.
+ *   · the HUE ANGLE is the brand hue's own and is never touched;
+ *   · the LIGHTNESS is solved so the colour clears 3:1 on every band;
+ *   · the SATURATION is taken to the hue's chroma ceiling.
  *
- * So the record carries a direction. `text` is the theme's own text tone and
- * `ground` is black — never the plot surface, which is a warm near-black and
- * would tint every mark that used it toward the one hue the plot already is.
- * The mark loses most of its own hue in that direction (#46380f is a dark
- * brown), and that is the accepted cost: what a mark has to do is be SEEN, and
- * the shape is what carries the state — see the note on the point marks in
- * TrendChart. A mark that has vanished into its band has lost the shape layer,
- * which is the thing that carries it.
+ * THE CEILING IS THE SAME ONE, AND THAT IS THE ORDERING MADE ARITHMETIC. A band
+ * takes `BAND_CHROMA_SHARE` (0.6) of `bandChromaCeiling`; the line takes ALL of
+ * it. So the line is 1.67× the band's colourfulness by construction rather than
+ * by luck, and it is still inside the palette by the palette's own definition —
+ * a green as chromatic as `statusHue.green` cannot be out of it, because that
+ * IS the palette's green. Solved with the saturation free instead, dark came
+ * out #74ff00 and #ffff00: a highlighter green beside a pure yellow, which is
+ * the "signal green and web red" failure this ceiling exists to prevent.
+ *
+ * Measured, before → after, in OKLab chroma and in the separation between the
+ * three states (the number that decides whether a reader can tell the segments
+ * apart at all):
+ *
+ *     light   chroma 0.096 0.091 0.159  →  0.124 0.110 0.159
+ *             ΔE green|gold 0.070 → 0.145,  gold|red 0.134 → 0.131
+ *     dark    chroma 0.100 0.137 0.104  →  0.124 0.140 0.159
+ *             ΔE green|gold 0.118 → 0.128,  gold|red 0.143 → 0.144
+ *
+ * THE TWO HINGES ARE MIDPOINTS, exactly as the band hinges are: olive is the
+ * RGB midpoint of the solved green and gold, orange of the gold and red. A
+ * hinge is where the line crosses a boundary, so it has to be half of each on
+ * the same terms the bands use — and solving one independently is what once
+ * drew a chartreuse stripe down the middle of a blend.
+ *
+ * `toward: 'ground'` is gone with the mixing, and with it the one hue that had
+ * to step the other way. Dark's gold could not step toward the text tone while
+ * the out-of-range band was lifted off the ladder to 4.45; that band is back on
+ * the ladder and no direction-per-hue is needed by anything.
  */
-interface MarkShift {
-  toward: 'text' | 'ground';
-  amount: number;
-}
-
-const MARK_SHIFT_DARK: Record<StatusHue, MarkShift> = {
-  green: { toward: 'text', amount: 0.04 },
-  olive: { toward: 'text', amount: 0.39 },
-  yellow: { toward: 'ground', amount: 0.66 },
-  orange: { toward: 'text', amount: 0.66 },
-  red: { toward: 'text', amount: 0.46 },
+const MARK_FILL: Record<'light' | 'dark', Record<'green' | 'yellow' | 'red', BandFill>> = {
+  light: {
+    green: { saturation: 0.85, lightness: 0.202 }, // #2e5f08, okC 0.1239
+    yellow: { saturation: 0.995, lightness: 0.274 }, // #8b6800, okC 0.1104
+    red: { saturation: 0.635, lightness: 0.426 }, // #b23a28, okC 0.1590
+  },
+  dark: {
+    green: { saturation: 0.37, lightness: 0.442 }, // #6d9a47, okC 0.1237
+    yellow: { saturation: 0.8, lightness: 0.434 }, // #c79a16, okC 0.1404
+    red: { saturation: 0.99, lightness: 0.706 }, // #fe7f6a, okC 0.1590
+  },
 };
+
 
 /**
  * How far each hue is lifted toward the theme's text tone before anything in
@@ -669,29 +701,92 @@ interface BandFill {
   lightness: number;
 }
 
+/**
+ * ═══ SOLVED AGAIN, MUCH QUIETER, BECAUSE THE LINE CARRIES THE STATUS NOW
+ *     (Aug 2026) ══════════════════════════════════════════════════════════
+ *
+ * Everything about HOW these are derived is unchanged — hue angle untouched,
+ * lightness solved to the rung, saturation taken to the hue's own palette
+ * chroma ceiling. Only the rung moved, and it moved a long way down.
+ *
+ * WHAT THE BANDS ARE FOR CHANGED. The trend line used to be one bronze stroke
+ * and the bands were how a reader knew where a value sat, so they carried the
+ * whole traffic light and were solved to be seen. The line is drawn in the
+ * status hues now, gradiented along its own length, so it says green, gold and
+ * red by itself — and the bands' job drops to the one thing the line cannot do:
+ * show WHERE the regions are. That is context, and context should be quiet.
+ *
+ * Measured, contrast off the plot panel:
+ *
+ *     light   1.39 1.58 1.74 1.94 2.12   →   1.14 1.21 1.27 1.35 1.42
+ *     dark    1.59 2.74 4.74 3.29 2.44   →   1.32 1.37 1.47 1.47 1.64
+ *
+ * Dark is the dramatic one and it is the point: its out-of-range band stood
+ * **4.74** off the plot while the line cleared it at 3.05, so THE BAND WAS
+ * LOUDER THAN THE LINE — the ordering the whole design rests on, inverted, in
+ * the theme most people read in. The line-to-loudest-band lead goes from 0.64x
+ * to 1.84x there and 1.58x to 2.11x in light.
+ *
+ * WHAT IS NOT LOST. The five regions stay tellable apart, and the measure for
+ * that is perceptual distance rather than contrast ratio: contrast only sees
+ * luminance, and a gold beside an orange at the same luminance measures 1.00:1
+ * and is obviously two colours. Green-to-gold and gold-to-red in OKLab ΔE:
+ * light 0.113/0.141 → 0.097/0.129, dark 0.290/0.194 → 0.077/0.132. And the
+ * faintest band still stands ΔE 0.127 (light) / 0.118 (dark) off the plot
+ * ground, which is a region of colour rather than a suggestion of one — the
+ * 1.14:1 ratio undersells it badly because most of that difference is HUE.
+ *
+ * ── AND THE REAL FAULT WAS CHROMA, NOT LUMINANCE ──────────────────────────
+ *
+ * Solved on the rung alone, the bands came out PALE BUT VIVID — light pastels
+ * at very nearly the brand hues' own colourfulness. Put side by side with the
+ * line the measurement was embarrassing: the green band carried 0.123 of chroma
+ * against the green LINE's 0.096. **The context was more colourful than the
+ * content**, which is the same inversion the rung was lowered to fix, surviving
+ * in the one dimension nobody had looked at.
+ *
+ * So a band takes a SHARE of `bandChromaCeiling` rather than all of it —
+ * `BAND_CHROMA_SHARE`, 0.6 — and the ordering is now true in both dimensions at
+ * once. Per hue, band against the line drawn in that same hue:
+ *
+ *     light   band 0.073 0.075 0.084 0.075 0.091
+ *             line 0.096 0.088 0.091 0.104 0.159
+ *     dark    band 0.072 0.066 0.070 0.074 0.094
+ *             line 0.100 0.115 0.137 0.123 0.104
+ *
+ * The ceiling itself is untouched and still does its original job: it is the
+ * bound the share is a share OF, so a band can never be more colourful than its
+ * own brand hue however the share is set. What stops "quieter" becoming "grey"
+ * is now the share being asserted rather than the ceiling being reached —
+ * tokenContrast.test.ts holds each fill at its allotted share and holds every
+ * band strictly less chromatic than the line of the same hue.
+ */
 const BAND_FILL: Record<'light' | 'dark', Record<'green' | 'yellow' | 'red' | 'optimal', BandFill>> = {
   // The hue angle is the brand hue's own and is never touched. Both other
   // coordinates are solved: the lightness by the ladder, the saturation by the
   // palette's own ceiling on that hue. See the note above for the measurement.
   light: {
-    green: { saturation: 0.514, lightness: 0.673 }, // #a6d681, okC 0.1234
-    yellow: { saturation: 0.676, lightness: 0.527 }, // #d8af35, okC 0.1407
-    red: { saturation: 0.793, lightness: 0.695 }, // #ef8474, okC 0.1341
-    // The optimal narrowing: the same green at the same saturation, a rung
-    // deeper. 1.13:1 off the in-range band — a visible shading-in, and nothing
-    // like the step a boundary makes.
-    optimal: { saturation: 0.514, lightness: 0.6 }, // #93cd65
+    green: { saturation: 0.495, lightness: 0.8025 }, // #cae6b4, okC 0.0733
+    yellow: { saturation: 0.63, lightness: 0.737 }, // #e6d192, okC 0.0838
+    red: { saturation: 0.995, lightness: 0.8285 }, // #ffb3a8, okC 0.0910
+    // The optimal narrowing: the same green, one small step deeper. 1.11:1 off
+    // the in-range band — a visible shading-in, and nothing like the step a
+    // boundary makes.
+    optimal: { saturation: 0.41, lightness: 0.763 }, // #c0dbaa
   },
   dark: {
-    green: { saturation: 0.795, lightness: 0.156 }, // #244808, okC 0.0985
-    // ── THE OUT-OF-RANGE BAND IS YELLOW, NOT OLIVE (Aug 2026) ────────────
-    // It was `{ 0.789, 0.211 }` — #604a0b, okL 0.42, okC 0.0812 — a dark
-    // ochre that reads as brown, and it is the colour a patient sees for
-    // every out-of-range result. See YELLOW_IS_A_GAMUT_PROBLEM below for the
-    // measurement and for the four things this cost.
-    yellow: { saturation: 1, lightness: 0.34 }, // #ad8100, okL 0.629, okC 0.1287
-    red: { saturation: 0.707, lightness: 0.382 }, // #a72f1d, okC 0.1593
-    optimal: { saturation: 0.795, lightness: 0.174 }, // #285009
+    green: { saturation: 0.63, lightness: 0.1335 }, // #1f370d, okC 0.0723
+    // ── AND THE OUT-OF-RANGE BAND IS BACK ON THE LADDER ──────────────────
+    // It was `{ 1, 0.34 }` — #ad8100 — lifted right off the ladder to okL
+    // 0.629 because at its own rung a dark yellow is a brown, and the band
+    // was the only thing saying "out of range" in dark. It is not any more:
+    // the LINE says it, in a gold solved to clear every band. So the band can
+    // be what it should have been all along — the quietest thing that still
+    // shows where the region is — and `BAND_RUNG`, which existed to hold this
+    // one exception, is equal to `BAND_CONTRAST` again in both themes.
+    yellow: { saturation: 0.995, lightness: 0.141 }, // #483600, okC 0.0700
+    red: { saturation: 0.515, lightness: 0.283 }, // #6d2d23, okC 0.0940
+    optimal: { saturation: 0.52, lightness: 0.161 }, // #263e14
   },
 };
 
@@ -812,9 +907,45 @@ interface LineLift {
   saturation: number | 'own';
 }
 
+/**
+ * ── AND THE BRONZE CAME BACK (Aug 2026) ────────────────────────────────────
+ *
+ * WHICH LINE THIS IS, first, because there are two now: the SINGLE-marker trend
+ * chart draws its line in the status hues, gradiented along its length, and no
+ * longer uses this at all. This is the COMPARISON chart's line — two or three
+ * markers on one normalised axis — where the line says "this is your series"
+ * and must not borrow a status hue, because on that chart it would be a verdict
+ * on the wrong marker.
+ *
+ * It was solved against bands that stood 1.39–2.12 (light) and 1.59–4.74 (dark)
+ * off the plot, and clearing the dark one at AA-large drove it to a lightness of
+ * 0.936 — #ffebdf, an OKLab chroma of 0.028, which is a white line with a
+ * rumour of warmth in it. The previous note here recorded that as unavoidable
+ * and it was, at those bands: a darker line would have needed a luminance below
+ * zero to clear the in-range band from underneath.
+ *
+ * With the bands at 1.14–1.42 and 1.32–1.64 the constraint is simply not
+ * binding any more. Re-solved for the MOST CHROMATIC bronze that still clears
+ * every band at 3:1, at bronze's own saturation and nothing higher (the hue
+ * sits at 19°, between the status red at 8° and the status orange at 30°, so a
+ * saturated bronze line would read as a status colour crossing the plot):
+ *
+ *     light  #654532 chroma 0.053  →  #916248 chroma 0.072   (3.03:1 worst)
+ *     dark   #ffebdf chroma 0.028  →  #b28064 chroma 0.074   (3.00:1 worst)
+ *
+ * Dark is the one worth noticing: it is a bronze line again rather than a white
+ * one, and the two themes are now the same colour at two lightnesses instead of
+ * two different ideas.
+ *
+ * BOTH AT BRONZE'S OWN SATURATION, which is what `'own'` says and is a
+ * constraint rather than a default: solved with the saturation free, dark came
+ * out #bd7c57 at chroma 0.096, and a bronze that saturated at 19° is close
+ * enough to the status orange at 30° to read as one crossing the plot. The
+ * lightness does the work; the hue stays where the palette put it.
+ */
 const LINE_LIFT: Record<'light' | 'dark', LineLift> = {
-  light: { lightness: 0.296, saturation: 'own' }, // #654532
-  dark: { lightness: 0.936, saturation: 1 }, // #ffebdf
+  light: { lightness: 0.425, saturation: 'own' }, // #916248
+  dark: { lightness: 0.545, saturation: 'own' }, // #b28064
 };
 
 // ---------------------------------------------------------------------------
@@ -1174,6 +1305,24 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
     orange: mix(bandFill('yellow'), bandFill('red'), 0.5),
   };
 
+  /**
+   * THE LINE AND POINT COLOURS, solved the same way and hinged the same way —
+   * see MARK_FILL. Three states solved against every band; the two hinges the
+   * exact RGB midpoints of their neighbours, because a hinge is where the line
+   * crosses a boundary and has to be half of each.
+   */
+  const markFill = (hue: 'green' | 'yellow' | 'red'): string => {
+    const { saturation, lightness } = MARK_FILL[mode][hue];
+    return reLightness(themedHue(hue), lightness, saturation);
+  };
+  const MARK: Record<StatusHue, string> = {
+    green: markFill('green'),
+    yellow: markFill('yellow'),
+    red: markFill('red'),
+    olive: mix(markFill('green'), markFill('yellow'), 0.5),
+    orange: mix(markFill('yellow'), markFill('red'), 0.5),
+  };
+
   // The five hues, per role. Emitted per HUE and not only per status because
   // the two HINGES are real tokens here — olive at a reference bound, orange at
   // a significantly-out threshold, each the midpoint of the gradient centred on
@@ -1192,10 +1341,10 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
     out[`--c-hue-${hue}-fill`] = FILL[hue];
     out[`--c-hue-${hue}-track`] = dark ? darkFill(hue, 'track') : mix(tintTowards, h, TINT_MIX.track);
     out[`--c-hue-${hue}-edge`] = dark ? darkFill(hue, 'edge') : mix(tintTowards, h, TINT_MIX.edge);
-    // Away from the surface rather than toward it — see TINT_MIX.mark.
-    out[`--c-hue-${hue}-mark`] = dark
-      ? mix(h, MARK_SHIFT_DARK[hue].toward === 'text' ? darkText : '#000000', MARK_SHIFT_DARK[hue].amount)
-      : mix(statusHue[hue], brand.espresso, MARK_SHIFT[hue]);
+    // THE TREND LINE'S OWN COLOUR AT THIS HUE, and the point mark standing on
+    // it. Solved against every band rather than mixed toward the text tone —
+    // see MARK_FILL for why the mixing had to go.
+    out[`--c-hue-${hue}-mark`] = MARK[hue];
   }
 
   for (const key of Object.keys(status) as StatusKey[]) {
@@ -1812,11 +1961,17 @@ export const chart = {
   line: 'rgb(var(--c-chart-line))',
   /**
    * And its weight. A token rather than a literal on the `<Line>` because it is
-   * half of one decision with `BAND_CONTRAST`: the bands were raised to make
-   * the regions unmistakable, and the answer to a line competing with them is a
-   * heavier line, never a lighter band.
+   * half of one decision with `BAND_CONTRAST` — and in Aug 2026 that decision
+   * went the other way for the first time: the bands dropped back to context
+   * and the line got HEAVIER, so the ordering is carried twice over rather than
+   * by contrast alone.
+   *
+   * 4, up from 3. It is also carrying a gradient now (see StatusLineGradient),
+   * and a colour that changes along a 3px stroke is a colour nobody can read —
+   * the extra pixel is what makes "gold here, green there" legible as well as
+   * true.
    */
-  lineWidth: 3,
+  lineWidth: 4,
   point: 'rgb(var(--c-chart-point))',
   /** Ring around every point so it stays legible against the band it lands on. */
   pointRing: 'rgb(var(--c-chart-point-ring))',
@@ -1834,8 +1989,35 @@ export const chart = {
    * result. The reference bounds still take twice the weight of the severity
    * thresholds, because that is the band the chart is actually about.
    */
-  referenceEdgeOpacity: 0.62,
-  severityEdgeOpacity: 0.4,
+  /**
+   * ── THE MIDDLE RUNG (Aug 2026) ────────────────────────────────────────
+   *
+   * The order of prominence on this plot is LINE, then the boundary hairlines,
+   * then the bands, and this number is the middle one. It is what says exactly
+   * where a patient's normal range ends — with the bands blending across a
+   * boundary rather than meeting at a step, it is the ONLY thing that says it
+   * precisely, and the only part of the whole scheme that survives the colour
+   * being taken away.
+   *
+   * THE FIGURE WENT DOWN AND THE PROMINENCE WENT UP, which is not a
+   * contradiction: what matters is the hairline against the BAND it is drawn
+   * on, not its alpha. Measured on dark's out-of-range band —
+   *
+   *     before   hairline 2.15:1 on a band standing 4.74:1 off the plot  → 0.45
+   *     after    hairline 2.47:1 on a band standing 1.47:1 off the plot  → 1.68
+   *
+   * — so the boundary went from being less than half as prominent as the region
+   * it bounds to being two thirds more prominent than it. Nearly four times the
+   * relative weight, from a smaller number.
+   *
+   * 0.55 IS A CEILING SET BY THE LINE, not a preference. Raised to 0.78 the
+   * hairline measured 5.34:1 on dark's in-range band against the line's 3.74,
+   * and the boundary became the loudest thing on the plot — the same inversion
+   * this whole change exists to undo, one layer up. `tokenContrast.test.ts`
+   * asserts the line out-reads the boundary on every band it crosses.
+   */
+  referenceEdgeOpacity: 0.55,
+  severityEdgeOpacity: 0.38,
   /**
    * THE STEP: where a marker's reference range changed between two results.
    *

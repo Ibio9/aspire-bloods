@@ -17,7 +17,9 @@ import {
   chart as chartTokens,
   statusBands,
   statusPaint,
+  hueTint,
   bandRampStops,
+  severityThresholdFor,
   TRANSITION_SHARE,
   OPTIMAL_FILL,
   referenceRangePeriods,
@@ -522,6 +524,131 @@ interface OptimalRegion {
   edges: number[];
 }
 
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  THE LINE CARRIES THE STATUS ALONG ITS OWN LENGTH (Aug 2026).
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * The line used to be one flat bronze and the BANDS carried the traffic light.
+ * That put the loudest thing on the plot behind the data — in dark, measurably
+ * so: the out-of-range band stood 4.74:1 off the plot panel while the line
+ * cleared it at 3.05, so the context was louder than the content in the theme
+ * most people read in.
+ *
+ * So it is inverted. Each point's own status colour is a stop on ONE gradient
+ * laid across the plot in user space, positioned at that point's own x. Between
+ * two points the browser interpolates, which is exactly the claim the chart is
+ * entitled to make: the colour changes gradually between two draws because the
+ * VALUE changed gradually between them, and a segment that crosses a reference
+ * bound blends across it rather than stepping at it. A hard colour step would
+ * assert that the crossing happened at a particular moment, and nobody measured
+ * that moment.
+ *
+ * USER SPACE, NOT `objectBoundingBox`. A gradient in bounding-box units is
+ * relative to the PATH's own box, so it would rescale whenever the series' x
+ * extent changed and the stops would no longer be at the points. In user space
+ * the offsets are the plot's own pixels and a stop lands exactly on its point.
+ *
+ * THE COLOURS ARE THE POINT MARKS' OWN (`markFill`), so the line arrives at each
+ * mark in precisely that mark's colour rather than in a near-miss of it. That
+ * is also what made the band re-solve necessary rather than optional: these
+ * colours have to clear EVERY band now, because a gold segment crosses the
+ * green band on its way up. Measured against the old bands the worst pair was
+ * 1.10:1 — see MARK_SHIFT in tokens.ts.
+ *
+ * A SINGLE-POINT series has nothing to interpolate; the gradient still resolves
+ * (two identical stops) and no line is drawn anyway.
+ */
+function StatusLineGradient({ id, points }: { id: string; points: PlottedPoint[] }) {
+  const plot = usePlotArea();
+  const xScale = useXAxisScale();
+  if (!plot || !xScale) return null;
+
+  const at = (p: PlottedPoint): number | null => {
+    const x = xScale(p.t);
+    return x == null || !Number.isFinite(x) ? null : (x as number);
+  };
+
+  const stops: { x: number; colour: string }[] = [];
+  for (const [i, p] of points.entries()) {
+    const known = asMarkerStatus(p.status);
+    const x = at(p);
+    if (known && x !== null) stops.push({ x, colour: markFill(known) });
+
+    /**
+     * ── AND A STOP WHERE THE LINE ACTUALLY CROSSES A BOUNDARY ──────────────
+     *
+     * Endpoint stops alone are correct but ugly, and the ugliness is a real
+     * failure rather than a taste: a segment from an in-range result to a
+     * significantly-high one interpolates GREEN straight to RED in sRGB, which
+     * passes through a muddy olive-brown at its midpoint — a colour that is in
+     * neither state and belongs to no part of the vocabulary.
+     *
+     * The value between two draws does not jump from in-range to
+     * significantly-high; it passes THROUGH above-range on the way. So the line
+     * does too. Each boundary the segment crosses gets a stop at the x where it
+     * crosses, in that boundary's own hinge colour — olive at a reference
+     * bound, orange at a severity threshold, exactly the two hinges the bands
+     * are already built from. The result is green → gold → red in the order the
+     * value actually travels, still blended the whole way, with no step
+     * anywhere and no colour that means nothing.
+     *
+     * The segment takes the FIRST point's geometry, which is the same rule the
+     * bands follow for a period (see `bandSegments`): where a reference range
+     * changed between two draws we know it changed between them and not when,
+     * so the earlier one is what the segment is read against.
+     */
+    const next = points[i + 1];
+    if (!next) continue;
+    const x2 = at(next);
+    const v1 = p.value;
+    const v2 = next.value;
+    if (x === null || x2 === null || !Number.isFinite(v1) || !Number.isFinite(v2) || v1 === v2) continue;
+    const threshold = severityThresholdFor(p.referenceLow, p.referenceHigh, p.severityThreshold);
+    const crossings: [number, string][] = [
+      [p.referenceLow - threshold, hueTint.orange.mark],
+      [p.referenceLow, hueTint.olive.mark],
+      [p.referenceHigh, hueTint.olive.mark],
+      [p.referenceHigh + threshold, hueTint.orange.mark],
+    ];
+    for (const [bound, colour] of crossings) {
+      if (!Number.isFinite(bound)) continue;
+      // Strictly between the two values, so a point sitting exactly ON a bound
+      // does not get a second stop at its own x fighting its own colour.
+      if ((v1 - bound) * (v2 - bound) >= 0) continue;
+      const ratio = (bound - v1) / (v2 - v1);
+      stops.push({ x: x + (x2 - x) * ratio, colour });
+    }
+  }
+
+  stops.sort((a, b) => a.x - b.x);
+  if (stops.length === 0) return null;
+
+  return (
+    <linearGradient
+      id={id}
+      gradientUnits="userSpaceOnUse"
+      x1={plot.x}
+      y1={0}
+      x2={plot.x + plot.width}
+      y2={0}
+    >
+      {/* Before the first point and after the last the line does not exist, so
+          the end stops simply hold the first and last colours — anything else
+          would be inventing a colour for a stretch of plot with no line on it. */}
+      <stop offset={0} stopColor={stops[0].colour} />
+      {stops.map((s, i) => (
+        <stop
+          key={i}
+          offset={Math.max(0, Math.min(1, (s.x - plot.x) / (plot.width || 1)))}
+          stopColor={s.colour}
+        />
+      ))}
+      <stop offset={1} stopColor={stops[stops.length - 1].colour} />
+    </linearGradient>
+  );
+}
+
 function OptimalRegions({ regions }: { regions: OptimalRegion[] }) {
   const plot = usePlotArea();
   const xScale = useXAxisScale();
@@ -785,6 +912,8 @@ export function TrendChart({
   // Pattern ids are document-global; two marker charts on one page sharing an
   // id would make the second one's band reference the first one's pattern.
   const uid = useId().replace(/:/g, '');
+  /** The line's own status gradient — same reason as `uid`: ids are document-global. */
+  const lineGradientId = `status-line-${uid}`;
 
   /**
    * Only points that were actually placed against a range are plotted.
@@ -1248,6 +1377,11 @@ export function TrendChart({
                   ))}
                 </linearGradient>
               ))}
+              {/* THE LINE'S OWN GRADIENT — a stop per point, in that point's
+                  status colour, at that point's x. Inside <defs> so it is a
+                  definition rather than something drawn; it reads the plot area
+                  and the x scale, which are only available inside the chart. */}
+              <StatusLineGradient id={lineGradientId} points={rows} />
             </defs>
 
             <XAxis
@@ -1419,16 +1553,18 @@ export function TrendChart({
               // point and an incomparable series both render as marks only.
               type="linear"
               dataKey="value"
-              // ONE DEFINITE COLOUR, and it is bronze: the product's accent,
-              // which says "this is your series" rather than borrowing a status
-              // hue and implying a verdict on the trend.
-              stroke={connected ? chartTokens.line : 'none'}
+              // THE STATUS, ALONG ITS LENGTH — see StatusLineGradient. It was
+              // one flat bronze, on the reasoning that a status hue on the line
+              // would imply a verdict on the whole trend; drawn per point and
+              // blended between them it says the opposite, which is that the
+              // verdict changed where the value did.
+              stroke={connected ? `url(#${lineGradientId})` : 'none'}
               // Round caps and joins: a line with mitred corners reads as a
               // plotted path, and a drawn stroke is what the rest of the
               // product's marks are. The WEIGHT is a token because it is half
-              // of one decision with BAND_CONTRAST — the bands were raised and
-              // the line was raised with them, rather than the bands being
-              // dulled back down to leave room for it.
+              // of one decision with BAND_CONTRAST — and that decision went the
+              // other way this time: the bands dropped back to context and the
+              // line got heavier, so the ordering is carried twice over.
               strokeWidth={chartTokens.lineWidth}
               strokeLinecap="round"
               strokeLinejoin="round"

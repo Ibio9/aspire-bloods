@@ -2,7 +2,7 @@ import { B2CTokenClient } from '../auth/B2CTokenClient.js';
 import { RandoxApiError, RandoxWindowExpiredError, looksLikeWindowExpired } from '../errors.js';
 import { env } from '../../../config/env.js';
 import type { RandoxApiConnection } from '../config.js';
-import { RequestRateLimiter, sleep } from './rateLimiter.js';
+import { limiterFor, sleep, type RequestRateLimiter } from './rateLimiter.js';
 import { SUBSCRIPTION_KEY_HEADER, parseRandoxErrorBody } from '../endpoints.js';
 
 export interface RandoxRequestOptions {
@@ -70,7 +70,10 @@ export class RandoxHttpClient {
 
   constructor(private readonly connection: RandoxApiConnection) {
     this.tokens = new B2CTokenClient(connection);
-    this.limiter = new RequestRateLimiter(env.RANDOX_MAX_REQUESTS_PER_MINUTE);
+    // Shared per API, not owned by this client. Randox's limit is 600 a minute
+    // PER API, so two clients for the same API must not each get their own
+    // budget — see limiterFor().
+    this.limiter = limiterFor(connection.label, env.RANDOX_MAX_REQUESTS_PER_MINUTE);
   }
 
   get label(): string {
@@ -116,11 +119,14 @@ export class RandoxHttpClient {
       if (res.status === 401) {
         // WHAT WAS SENT, IN THE LOG, BEFORE ANYTHING IS RETRIED.
         //
-        // The spec declares only a subscription key; the auth PDFs describe a
-        // B2C bearer. Which of those the gateway actually wants is unconfirmed
-        // until the first live call, and a 401 with no record of what was
-        // tried turns that call into a morning of guessing. So the combination
-        // is named, the 401's own message is read out of the body (which uses
+        // BOTH credentials are required — the CB auth document says so in as
+        // many words and both Postman collections send both (see the note in
+        // ../endpoints.ts). So a 401 is no longer "which of the two did they
+        // want": it is a wrong key, a wrong scope, an expired token or a
+        // subscription that is not enabled for this product. The combination
+        // is still named, because a log that says which credentials went is
+        // the difference between reading this line and rerunning the call by
+        // hand. The 401's own message is read out of the body (which uses
         // `status`, not `statusCode` — see parseRandoxErrorBody), and neither
         // credential is ever printed.
         const body = await res.clone().text().catch(() => '');
@@ -130,7 +136,9 @@ export class RandoxHttpClient {
             `Sent: subscription key ${this.connection.subscriptionKey ? 'YES' : 'MISSING'} (header ${SUBSCRIPTION_KEY_HEADER}), ` +
             `bearer ${env.RANDOX_BEARER_TOKEN_ENABLED ? 'YES' : 'NO (RANDOX_BEARER_TOKEN_ENABLED=false)'}. ` +
             `Randox said: ${parsed.message ?? '(no message)'}${parsed.code ? ` [${parsed.code}]` : ''}. ` +
-            'If the key is present and correct, try the other bearer setting before assuming the key is wrong.',
+            'Both are documented as required. Check the subscription key belongs to this API (Nexus and Clinic ' +
+            'Booking have separate keys, separate client ids and separate scopes) and that the scope matches the ' +
+            'one in specs/ exactly — it is hyphenated, and a PDF line break has eaten that hyphen before.',
         );
         // Token rejected — could be revoked, or expired earlier than its
         // stated lifetime. Drop it and try once with a new one. Outside the
@@ -240,14 +248,17 @@ export class RandoxHttpClient {
   }
 
   /**
-   * THE SUBSCRIPTION KEY IS UNCONDITIONAL. THE BEARER IS NOT.
+   * BOTH CREDENTIALS, ON EVERY REQUEST.
    *
-   * The spec declares exactly one kind of credential — the subscription key,
-   * as a header or as a query parameter — and no OAuth or bearer scheme at
-   * all. The auth PDFs describe an Azure B2C ROPC grant, so a bearer is
-   * probably still wanted at the gateway, but the two documents disagree and
-   * only one of them is the spec. So the key always goes, and the bearer is
-   * switchable without a deploy (RANDOX_BEARER_TOKEN_ENABLED, default on).
+   * The CB auth document: "Authorisation will be the bearer token and in the
+   * header section include the following key: Ocp-Apim-Subscription-Key." The
+   * Nexus OpenAPI file declares only the key, which was a gap in that document
+   * rather than evidence — securitySchemes describes what the APIM gateway
+   * checks and the bearer is checked by the B2C policy in front of it.
+   *
+   * The key is unconditional. The bearer is switchable
+   * (RANDOX_BEARER_TOKEN_ENABLED, default on) purely so a 401 can be bisected
+   * in one redeploy; it is a diagnostic lever, not a configuration.
    *
    * Header form, never the query form: `?subscription-key=` puts a live
    * credential into every access log between here and Randox.

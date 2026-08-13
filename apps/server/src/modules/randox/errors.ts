@@ -40,6 +40,31 @@ export class RandoxWindowExpiredError extends Error {
 }
 
 /**
+ * An operation this integration cannot perform because Randox document no
+ * endpoint for it.
+ *
+ * Distinct from every other error here, and the distinction is the point: an
+ * API error means we asked and were refused, and this means THERE IS NOTHING
+ * TO ASK. It exists for RescheduleAppointment, which was in this codebase as a
+ * documented path and is absent from the Postman collection — the only
+ * machine-readable list of this API's endpoints anyone has sent us. Calling a
+ * path on the strength of remembering it once is how an integration acquires a
+ * feature that 404s in production and works in every test.
+ *
+ * Surfaced as 501 rather than 500: the request was well-formed and the server
+ * cannot do it.
+ */
+export class RandoxUnsupportedOperationError extends Error {
+  constructor(
+    readonly operation: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'RandoxUnsupportedOperationError';
+  }
+}
+
+/**
  * Whether a failed response is Randox saying "that window has closed"
  * rather than a real error. There is no documented error-code list, so
  * this matches on HTTP status plus body wording — deliberately broad, and

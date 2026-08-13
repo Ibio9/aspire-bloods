@@ -104,10 +104,37 @@ export class LiveNexusLabClient implements NexusLabClient {
     });
   }
 
-  async getOrderStatus(ref: Pick<OrderRef, 'orderId' | 'orderNumber'>): Promise<GetOrderStatusResponse> {
+  /**
+   * POST /Order/GetOrderStatus.
+   *
+   * THREE DOCUMENTS, TWO ANSWERS, AND THE CLINIC ID GOES (Aug 2026).
+   *
+   *   OpenAPI example      {"OrderNumber": "ITTEST-00111234", "OrderId": 130}
+   *   Postman collection   {"orderNumber": "xxx001-000xxxxx"}
+   *   Flow diagram         "Use Order Number returned from Create Pending
+   *                        Order · Clinic Id must be your current Clinic Id"
+   *
+   * Two of the three omit ClinicId and one requires it. It is SENT, and the
+   * asymmetry is the reason: an example that does not show a field is silent
+   * about it, while the flow diagram positively asserts one is needed. Sending
+   * it satisfies both readings — .NET model binding ignores properties it has
+   * no home for — and omitting it satisfies only the weaker one. If it ever
+   * turns out to be rejected, that is a 400 naming the field on the first call,
+   * which is a better failure than a 400 saying "order id is invalid or
+   * missing" for a reason nobody can see.
+   *
+   * PascalCase here and camelCase on the two result endpoints, because that is
+   * how the spec's own examples are written. Consistency with itself is not
+   * something this API offers and not something we should impose.
+   */
+  async getOrderStatus(ref: Pick<OrderRef, 'orderId' | 'orderNumber'> & { clinicId?: number }): Promise<GetOrderStatusResponse> {
     const body = await this.http.request<unknown>(NEXUS_ENDPOINTS.getOrderStatus.path, {
       method: NEXUS_ENDPOINTS.getOrderStatus.verb,
-      body: { OrderNumber: ref.orderNumber, OrderId: ref.orderId },
+      body: {
+        OrderNumber: ref.orderNumber,
+        OrderId: ref.orderId,
+        ...(ref.clinicId === undefined ? {} : { ClinicId: ref.clinicId }),
+      },
     });
 
     const statusId = pickNumber(body, 'statusId', 'StatusId');

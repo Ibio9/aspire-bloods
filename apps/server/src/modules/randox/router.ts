@@ -11,6 +11,7 @@ import { listServiceLocations, listAvailability, holdSlot, confirmBooking, cance
 import { onOrderStatusChanged } from './pollingJob.js';
 import { randoxDateTime } from './clients/parse.js';
 import { randoxConfigSummary, enabledCollectionMethods, RandoxConfigError } from './config.js';
+import { RandoxUnsupportedOperationError } from './errors.js';
 import {
   refreshReferenceData,
   catalogueReconciliation,
@@ -45,6 +46,12 @@ function handleRandoxError(e: unknown, res: import('express').Response): boolean
   }
   if (e instanceof RandoxConfigError) {
     res.status(503).json({ error: e.message });
+    return true;
+  }
+  // 501, not 500: the request was well-formed and Randox document no endpoint
+  // that could serve it. See RandoxUnsupportedOperationError.
+  if (e instanceof RandoxUnsupportedOperationError) {
+    res.status(501).json({ error: e.message });
     return true;
   }
   return false;

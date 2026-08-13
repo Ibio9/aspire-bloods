@@ -32,7 +32,12 @@ export interface NexusLabClient {
   /** Windowed. Takes a CancellationReasonId, not free text. */
   cancelOrder(request: CancelOrderRequest): Promise<void>;
 
-  getOrderStatus(ref: Pick<OrderRef, 'orderId' | 'orderNumber'>): Promise<GetOrderStatusResponse>;
+  /**
+   * ClinicId optional BY TYPE and always supplied in practice: the flow
+   * diagram requires it, the OpenAPI and Postman examples omit it. See
+   * LiveNexusLabClient.getOrderStatus for why it is sent.
+   */
+  getOrderStatus(ref: Pick<OrderRef, 'orderId' | 'orderNumber'> & { clinicId?: number }): Promise<GetOrderStatusResponse>;
   getOrderResultDetail(ref: OrderRef): Promise<GetOrderResultDetailResponse>;
   /** Base64 PDF, or null when Randox have none for this order. */
   getOrderResultReports(ref: OrderRef): Promise<string | null>;
@@ -52,26 +57,48 @@ export interface NexusLabClient {
 }
 
 /**
- * UNVERIFIED — no Randox specification for the Clinic Booking API has been
- * provided; access is still pending. The method set and call order come
- * from the flow PDFs, which document the endpoint paths and sequence but
- * not the request or response bodies. See types.ts.
+ * REQUESTS VERIFIED AGAINST THE POSTMAN COLLECTION, RESPONSES STILL ASSUMED.
+ * The method set and call order are the flow diagram's; every request body is
+ * the collection's, literally. See ../types.ts for what that asymmetry means.
  */
 export interface ClinicBookingClient {
+  /** POST. Takes the configured ServiceId (787 UK / 788 ROI). */
   getServiceLocations(): Promise<RandoxServiceLocation[]>;
-  /** `from`/`to` are ISO dates; slots come back in UTC (documented). */
-  availabilityDetails(serviceLocationId: string, fromIsoDate: string, toIsoDate: string): Promise<RandoxAvailabilitySlot[]>;
-  /** Holds a slot for 30 minutes (documented). */
-  holdAvailabilityBooking(serviceLocationId: string, slotReference: string): Promise<HoldAvailabilityBookingResponse>;
-  /** Windowed: fails once the 30-minute hold has lapsed. */
+  /**
+   * POST. Slots come back UTC (documented) and carry a UK-local rendering
+   * beside the instant.
+   *
+   * `until` is applied to the RESULT, not sent: the API takes a SearchFrom and
+   * has no SearchTo.
+   */
+  availabilityDetails(
+    locationId: string,
+    searchFromIsoDate: string,
+    untilIsoDate?: string,
+  ): Promise<RandoxAvailabilitySlot[]>;
+  /**
+   * POST. Holds a slot for 30 minutes (documented).
+   *
+   * Takes the slot's UTC instant as well as its id, because the wire wants the
+   * date and the time as separate fields and both are derived from it.
+   */
+  holdAvailabilityBooking(
+    locationId: string,
+    slotReference: string,
+    startUtc: string,
+  ): Promise<HoldAvailabilityBookingResponse>;
+  /** POST. Windowed: fails once the 30-minute hold has lapsed. */
   createRandoxBooking(request: CreateRandoxBookingRequest): Promise<CreateRandoxBookingResponse>;
-  /** Windowed. */
-  cancelRandoxBooking(bookingReference: string, orderNumber: string): Promise<void>;
-  /** Windowed. */
-  rescheduleAppointment(
-    bookingReference: string,
-    orderNumber: string,
-    newSlotReference: string,
-    newStartUtc: string,
-  ): Promise<CreateRandoxBookingResponse>;
+  /**
+   * POST. Windowed. Takes Randox's own integer booking-order id — the only
+   * field the cancel example carries.
+   */
+  cancelRandoxBooking(randoxBookingOrderId: number, orderNumber: string): Promise<void>;
+  /**
+   * NOT A DOCUMENTED ENDPOINT. Throws RandoxUnsupportedOperationError. Kept on
+   * the interface rather than deleted so that the absence is visible where
+   * somebody would go looking for it, instead of being a method that quietly
+   * never existed. See LiveClinicBookingClient.rescheduleAppointment.
+   */
+  rescheduleAppointment(): Promise<never>;
 }
