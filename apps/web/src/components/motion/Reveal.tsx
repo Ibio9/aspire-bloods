@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useStill } from './still';
 
 /**
  * The portal's one scroll-entrance primitive: a restrained fade with a short
@@ -28,8 +29,12 @@ interface RevealProps {
 
 export function Reveal({ children, delay = 0, className = '' }: RevealProps) {
   const ref = useRef<HTMLDivElement>(null);
+  // `still` sits beside the reduced-motion check rather than replacing it: a
+  // still subtree renders the FINISHED state, which is the same answer both
+  // other branches give. See components/motion/still.ts.
+  const still = useStill();
   const [shown, setShown] = useState(
-    () => prefersReducedMotion() || typeof IntersectionObserver === 'undefined',
+    () => still || prefersReducedMotion() || typeof IntersectionObserver === 'undefined',
   );
 
   useEffect(() => {

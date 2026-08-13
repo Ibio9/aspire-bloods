@@ -334,7 +334,7 @@ export function ComponentsShowcase() {
 
       <Section title="Dark surface — bronze fails here, verified (used on the login split panel)">
         <div className="rounded-card p-8" style={{ background: `linear-gradient(to bottom right, ${brand.espresso}, ${ink})` }}>
-          <p className="font-eyebrow text-xs uppercase tracking-eyebrow text-taupe">Eyebrow in taupe</p>
+          <p className="font-eyebrow text-lg uppercase tracking-eyebrow text-taupe">Eyebrow in taupe</p>
           <div className="mt-3">
             <Wordmark variant="dark" />
           </div>

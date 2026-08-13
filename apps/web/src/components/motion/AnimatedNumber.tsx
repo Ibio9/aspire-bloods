@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useStill } from './still';
 
 /**
  * A count that settles into place once, the first time it scrolls into view —
@@ -24,8 +25,12 @@ const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
 export function AnimatedNumber({ value, durationMs = 600 }: { value: number; durationMs?: number }) {
   const ref = useRef<HTMLSpanElement>(null);
   const played = useRef(false);
+  // The count is the expensive half of the freeze — a re-render every frame
+  // for 600ms, and inside the results-ready backdrop every one of those
+  // invalidates a viewport-sized blur. See components/motion/still.ts.
+  const still = useStill();
   const [display, setDisplay] = useState<number>(() =>
-    prefersReducedMotion() || typeof IntersectionObserver === 'undefined' ? value : 0,
+    still || prefersReducedMotion() || typeof IntersectionObserver === 'undefined' ? value : 0,
   );
 
   useEffect(() => {

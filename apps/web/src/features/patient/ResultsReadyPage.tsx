@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
-import { Wordmark } from '../../components/Wordmark';
 import { apiFetch } from '../../lib/api';
 import { useAuth } from '../../lib/AuthContext';
+import { MomentBackdrop } from './MomentBackdrop';
 
 /**
  * ===========================================================================
@@ -33,12 +33,34 @@ import { useAuth } from '../../lib/AuthContext';
  * somebody who reached their results from an emailed link has, by any honest
  * reading, seen that they are ready.
  *
- * ── THE ARCH ──────────────────────────────────────────────────────────────
+ * ── THE ARCH, AND IT STANDS ON THE FLOOR ──────────────────────────────────
  *
  * One of exactly three places the product's repeating shape appears, and the
  * ONLY place it appears large. A doorway, with the content inside it — a
- * translucent warm sheet over the corner glow rather than a fill, so the light
- * still comes through it, which is the whole reason the glass material exists.
+ * translucent warm sheet over the light behind it rather than a fill, which is
+ * the whole reason the glass material exists.
+ *
+ * It reaches the bottom edge of the window: the crown in view, the sides
+ * running down and off the bottom, no bottom border and no gap under it. It
+ * floated in the middle of the page until Aug 2026, which made it a large
+ * rounded card — a doorway you can see the bottom of is a window, and one
+ * hanging in mid-air is a shape. Everything that used to sit BELOW it has
+ * moved inside it, because there is no longer a below: "Not just now" is under
+ * the button now, and the wordmark is gone from this screen rather than
+ * squeezed in beside an eyebrow that already says Aspire Clinic.
+ *
+ * The geometry is in `.moment-arch` (globals.css), including the one number
+ * worth knowing here — the content sits below the spring line at every width
+ * because a percentage padding resolves against the element's own WIDTH and
+ * the crown is exactly half the width tall.
+ *
+ * ── AND IT STANDS ON THE READER'S OWN RESULTS ─────────────────────────────
+ *
+ * Behind it, the real Overview, live and blurred past reading: the patient
+ * sees their own results out of focus through the doorway and then walks into
+ * them. See MomentBackdrop.tsx — it is portalled under the corner glow,
+ * inert, and frozen so that a viewport-sized blur is rasterised once rather
+ * than every frame of the Overview's own entrance.
  *
  * ── THE BREATH ────────────────────────────────────────────────────────────
  *
@@ -105,64 +127,87 @@ export function ResultsReadyPage() {
     }
   }
 
-  if (report === 'loading' || report === null) {
-    // Deliberately blank rather than a skeleton. This screen is one sentence
-    // and a button; a shaped placeholder of it would be a louder thing than
-    // the screen it is standing in for, and it is on screen for one fetch.
-    return <div className="min-h-screen" aria-busy="true" aria-label="Loading" />;
-  }
-
   return (
-    <main className="relative flex min-h-screen flex-col items-center justify-center px-6 py-16">
-      {/* THE ARCH. A doorway, full size, once. The glass material rather than a
-          fill — the corner glow passes through it, which is the rule the whole
-          dark theme turns on. `pb` far exceeds `pt` because the content sits in
-          the straight part of the shape and the curve needs room above it. */}
-      <div className="glass arch relative w-full max-w-md border border-taupe/70 px-8 pb-16 pt-28 text-center shadow-card sm:px-12 sm:pb-20 sm:pt-36">
-        {/* THE BREATH. One element, and it is the wordmark's own dot rather than
-            a new object invented to move: the thing that drifts should be
-            something already on the page. */}
-        <div className="pointer-events-none absolute inset-x-0 top-14 flex justify-center">
-          <span
-            aria-hidden="true"
-            className="motion-safe:animate-breathe block h-3 w-3 rounded-full bg-bronze/70"
-          />
-        </div>
+    /* THE GROUND IS MOUNTED BEFORE THE MOMENT IS, and outside the branch below
+       on purpose. It is a portal, so where it sits in this tree decides only
+       WHEN it mounts, and mounting it here means the Overview's chunk and its
+       fetch are already in flight while `/patient/results-ready` is still
+       answering — the two requests overlap instead of queueing. It is invisible
+       for its first third of a second either way (see the fade's delay), so
+       nothing shows during a redirect that never became a moment. */
+    <>
+      <MomentBackdrop />
+      {report === 'loading' || report === null ? (
+        // Deliberately blank rather than a skeleton. This screen is one
+        // sentence and a button; a shaped placeholder of it would be a louder
+        // thing than the screen it is standing in for, and it is on screen for
+        // one fetch.
+        <div className="min-h-viewport" aria-busy="true" aria-label="Loading" />
+      ) : (
+        <main className="relative flex min-h-viewport flex-col items-center justify-end px-6 pt-10">
+          {/* THE WRAPPER IS THE ARCH'S WIDTH, AND IT HAS TO BE.
+              `.moment-arch` puts its content on the spring line with
+              `padding-top: 50%`, and a percentage padding resolves against the
+              CONTAINING BLOCK'S width — not, as it reads, against the element's
+              own. With `max-w-md` on the arch itself its containing block was
+              `main`, so 50% was half of 1392px rather than half of 448, and the
+              button ended up 700px below the bottom of the window. Capping the
+              width one level up makes the two the same number and the rule
+              exact. */}
+          <div className="w-full max-w-md">
+            {/* THE ARCH. A doorway, full size, once, standing on the floor of
+                the window — `justify-end` above and no padding under it, so its
+                bottom edge is the bottom edge of the screen. `border-b-0`
+                because the one thing a doorway must not have is a bottom: at a
+                hairline across the foot of the viewport the whole shape reads
+                as a card that happens to be tall. The glass material rather
+                than a fill — the corner glow, and now the reader's own blurred
+                results, pass through it. Its height, the crown and where the
+                content sits are all in `.moment-arch`. */}
+            <div className="moment-arch glass arch relative flex w-full flex-col justify-center border border-b-0 border-taupe/70 px-8 text-center shadow-card sm:px-12">
+              {/* THE BREATH. One element, and it is the wordmark's own dot
+                  rather than a new object invented to move: the thing that
+                  drifts should be something already on the page. In the crown
+                  of the arch, where the shape is still comfortably wider than
+                  the dot is — see the note on the radius in globals.css. */}
+              <div className="pointer-events-none absolute inset-x-0 top-16 flex justify-center">
+                <span
+                  aria-hidden="true"
+                  className="motion-safe:animate-breathe block h-3 w-3 rounded-full bg-bronze/70"
+                />
+              </div>
 
-        <p className="eyebrow mb-6">Aspire Clinic</p>
-        <h1 className="font-display opsz-hero text-2xl font-normal leading-tight text-espresso">
-          {firstName ? `${firstName},` : 'Your results'}
-          <span className="mt-1 block">your results are ready</span>
-        </h1>
+              <p className="eyebrow mb-6">Aspire Clinic</p>
+              <h1 className="font-display opsz-hero text-2xl font-normal leading-tight text-espresso">
+                {firstName ? `${firstName},` : 'Your results'}
+                <span className="mt-1 block">your results are ready</span>
+              </h1>
 
-        <p className="mx-auto mt-6 max-w-xs text-sm leading-relaxed text-espresso/80">
-          {report.panelName ? `${report.panelName}, reviewed and released.` : 'Reviewed and released.'}
-        </p>
+              <p className="mx-auto mt-6 max-w-xs text-sm leading-relaxed text-espresso/80">
+                {report.panelName ? `${report.panelName}, reviewed and released.` : 'Reviewed and released.'}
+              </p>
 
-        <Button className="mt-10 w-full" onClick={() => spend(`/reports/${report.reportId}`)} disabled={leaving}>
-          View my results
-        </Button>
-      </div>
+              <Button className="mt-10 w-full" onClick={() => spend(`/reports/${report.reportId}`)} disabled={leaving}>
+                View my results
+              </Button>
 
-      {/* The way past it, quiet and outside the arch: a moment with no exit but
-          its own button is a modal, and this is a page. */}
-      <button
-        type="button"
-        onClick={() => spend('/overview')}
-        disabled={leaving}
-        className="mt-8 rounded-input text-sm text-espresso/80 underline-offset-4 hover:text-espresso hover:underline disabled:opacity-50"
-      >
-        Not just now
-      </button>
-
-      {/* `variant="light"` means "on a light-coloured surface", and it is the
-          theme-aware one — `text-espresso`, which is espresso in light and warm
-          cream in dark. The default `dark` variant is frozen light text for the
-          always-dark night panels, and on this page's cream background that is
-          cream on cream: the mark was invisible in light mode. */}
-      <div className="mt-14 opacity-60">
-        <Wordmark variant="light" />
-      </div>
-    </main>
+              {/* The way past it — inside the arch now, because there is no
+                  longer an outside for it to be quiet in. Still a link-shaped
+                  control and still deliberately not a second button competing
+                  with the first: a moment with no exit but its own primary
+                  action is a modal, and this is a page. */}
+              <button
+                type="button"
+                onClick={() => spend('/overview')}
+                disabled={leaving}
+                className="mx-auto mt-6 rounded-input text-sm text-espresso/80 underline-offset-4 hover:text-espresso hover:underline disabled:opacity-50"
+              >
+                Not just now
+              </button>
+            </div>
+          </div>
+        </main>
+      )}
+    </>
   );
 }

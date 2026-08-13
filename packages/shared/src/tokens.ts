@@ -1344,6 +1344,104 @@ export const GLASS = {
 } as const;
 
 /**
+ * ── THE RESULTS-READY MOMENT'S BACKGROUND: THE OVERVIEW, OUT OF FOCUS ──────
+ *
+ * The moment used to stand on the plain page. It stands on the patient's OWN
+ * Overview now — the real screen, live, rendered behind the arch and blurred
+ * past reading — so the doorway has the thing it is a doorway INTO on the
+ * other side of it. See `.moment-backdrop` in globals.css for how it is built
+ * and MomentBackdrop.tsx for why it is inert.
+ *
+ * THREE NUMBERS, AND THE FIRST ONE WAS MEASURED BY LOOKING AT IT.
+ *
+ * `blur` is a standard deviation, not a radius — CSS `blur(<length>)` takes σ
+ * directly — and it is bounded from BOTH sides, which is why it is a number
+ * rather than "as much as possible". Rendered at 1440×900 against the demo
+ * Overview and read off the screenshots:
+ *
+ *     σ = 16px   the greeting is a legible word shape, card text runs read as
+ *                lines of text. Too little: this is what "no marker names"
+ *                rules out.
+ *     σ = 24px   nothing resolves anywhere, and the page is still visibly a
+ *                page — a header block, a row of cards, a column of them.
+ *     σ = 32px   an atmospheric wash. Nothing is legible and nothing is
+ *                anything: the ground stops reading as the reader's results
+ *                and becomes a texture, which is the whole point thrown away.
+ *
+ * The floor has an arithmetic form as well, and the two agree. A glyph is
+ * resolvable while σ is under about its CAP HEIGHT (~0.7 of the font size);
+ * past that each stroke is spread over more than the letter is tall and the
+ * word closes up. The largest thing on the Overview carrying a value is the
+ * at-a-glance figure at 28px, cap height ~20px, so 24 clears the largest of
+ * them by a fifth and everything else — the 21px values, the 18px marker
+ * names, the 16px body — by a great deal more. `e2e/results-ready.spec.ts`
+ * measures the font sizes actually present and holds σ above their cap
+ * height, so a future type-scale change that put a 40px value on this screen
+ * would fail rather than quietly become readable.
+ *
+ * Do not tune it downward to "let a bit through": the whole of what may come
+ * through is that these are the reader's results.
+ *
+ * `wash` is the PAGE COLOUR over the blur, which is why it darkens in dark and
+ * lightens in light without a second rule — it is the same operation in both,
+ * "back toward the ground", and the ground is near-black on one side and cream
+ * on the other. `shade` is the shadow tone on top of it, and it is what makes
+ * the composition work in LIGHT: cream over cream mutes the Overview but does
+ * not push it behind the arch, and the arch is a pale glass surface that needs
+ * a darker ground to stand on. In dark the wash is already doing that and the
+ * shade is a smaller correction.
+ *
+ * TOGETHER THEY ARE A CONTRAST BUDGET, and it multiplies rather than adds:
+ * what survives the veil is `(1 - wash) × (1 - shade)` of whatever separation
+ * the Overview had — 33% in light, 24% in dark. Measured, in the terms that
+ * matter, which is the loudest thing the Overview paints against the arch that
+ * has to out-read it:
+ *
+ *     light   a card stands 1.298:1 off its page → 1.106:1 through the veil,
+ *             against the arch's 1.302:1 off the same ground — 2.8×
+ *     dark    1.279:1 → 1.041:1, against the arch's 1.139:1 — 3.4×
+ *
+ * So the arch out-reads everything behind it by roughly three to one, by
+ * construction rather than by eye. `tokenContrast.test.ts` holds the
+ * multiplier, that ratio, and — the one that could actually harm a reader —
+ * every word on the arch at AA, since the arch is GLASS and its text is now
+ * set over this ground rather than over a surface.
+ *
+ * ── AND IT COSTS NOTHING TO DRAW, ON A BROWSER WITH A GPU ─────────────────
+ *
+ * Measured at 1440×900 on the settled moment, three seconds of frame
+ * intervals (`e2e/results-ready.spec.ts`):
+ *
+ *                                    headless (SwiftShader)    headed (GPU)
+ *     as shipped                       9 fps · median 117ms    60 fps · 16.7ms
+ *     no backdrop at all              40 fps · median  33ms    60 fps · 16.7ms
+ *     backdrop on, breathing dot off  42 fps · median  17ms    60 fps · 16.6ms
+ *
+ * ON A REAL GPU THE BLUR IS FREE — the moment with a whole blurred Overview
+ * behind it is frame-for-frame the moment without one, and the worst frame in
+ * three seconds is 20ms. The software-raster column is the same artefact
+ * recorded on GLASS above and it says the same thing twice: the ONE animation
+ * on this screen is the 12px breathing dot, and with it stopped even
+ * SwiftShader holds 42 fps with the blur on. What software rasterisation
+ * cannot do is re-blur a full viewport within a frame while something else
+ * asks for one. Layer promotion does not rescue it (`will-change: transform`,
+ * `translateZ(0)`, `contain: strict` and promoting the dot were each measured
+ * and each changed nothing), and it does not need rescuing: nothing else on
+ * the screen moves, so what a reader without hardware acceleration loses is a
+ * slightly uneven drift on one dot.
+ *
+ * The layer being STATIC is what makes that true and is not a happy accident —
+ * see `StillContext` (components/motion/still.ts) and the `.moment-backdrop` rules in globals.css. A blurred
+ * layer is re-rasterised in full whenever anything inside it changes, and the
+ * Overview's own entrance is about a second of continuous change.
+ */
+export const MOMENT_BACKDROP = {
+  blur: '24px',
+  wash: { light: 0.62, dark: 0.72 },
+  shade: { light: 0.14, dark: 0.16 },
+} as const;
+
+/**
  * ── GLASS IS NOT THE BLUR. THE BLUR IS DOING NOTHING HERE (Aug 2026) ───────
  *
  * The sidebar's computed style has been right for a while — `blur(10px)

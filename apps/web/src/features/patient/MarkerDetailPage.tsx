@@ -129,15 +129,14 @@ export function MarkerDetailPage() {
   if (!detail) {
     return (
       <div aria-busy="true" aria-label="Loading marker detail">
-        <Skeleton className="h-4 w-28" />
-        <Skeleton className="mt-3 h-9 w-64" />
-        {/* The same shape as the real thing — a hero value, then a full-width
-            plot — so nothing jumps when the fetch lands. */}
-        <Skeleton className="mt-9 h-16 w-48" />
-        <Skeleton className="mt-5 h-5 w-64" />
-        <Skeleton className="mt-8 h-9 w-full max-w-xl" />
-        <Skeleton className="mt-14 h-4 w-28" />
-        <Skeleton className="mt-4 h-80 w-full" />
+        <Skeleton className="h-6 w-32" />
+        <Skeleton className="mt-3 h-11 w-64" />
+        {/* The same shape as the real thing — two cards, 40/60 — so nothing
+            jumps when the fetch lands. */}
+        <div className="mt-10 grid grid-cols-1 gap-7 lg:grid-cols-5">
+          <Skeleton className="h-[30rem] w-full lg:col-span-2" />
+          <Skeleton className="h-[30rem] w-full lg:col-span-3" />
+        </div>
       </div>
     );
   }
@@ -231,126 +230,143 @@ export function MarkerDetailPage() {
         )}
       </div>
 
-      {/* ═══ 1. THE VALUE. Biggest thing on the page, by a clear margin. ═════
-          NO CARD AROUND IT, and that is the point rather than a saving of a
-          border. The page used to be four blocks of roughly equal weight —
-          latest result, chart, explanation, previous results — each in its own
-          box, so nothing said what to read first and the number competed with
-          three neighbours drawn exactly like it. A card is a way of saying
-          "this is one of several things"; the value is not one of several
-          things. It sits directly on the page, and the hierarchy is carried by
-          size, weight and space, which is what those are for.
+      {/* ═══ THE PAIR. LATEST RESULT AND TREND, 40/60 (restored Aug 2026) ═══
+          The page spent a spell with the value and the chart uncarded and
+          stacked full width, on the reasoning that a card says "this is one of
+          several things" and the value is not one of several things. What that
+          cost was the two facts belonging together: the number and the shape it
+          sits at the end of are ONE answer read side by side, and stacked they
+          became two screens with the second one below the fold.
 
-          THE ONE EXCEPTION to "every number is mono": Fraunces at the hero
-          optical size, like a headline, with the unit in mono beside it at a
-          much smaller size — which is what makes the pair read as a measurement
-          rather than as a title with a word after it. flex-wrap, because a
-          textual result ("Not detected") at display size has to wrap rather
-          than push the unit and the copy button out. */}
-      <div className="mt-9">
-        <p
-          className={`flex flex-wrap items-baseline gap-x-3 gap-y-1 ${
-            detail.latest.valueText ? 'hero-value-text' : 'hero-value'
-          }`}
-        >
-          <span className="tabular">{detail.latest.valueText ?? detail.latest.value}</span>
-          <span className="numeric text-lg font-normal text-espresso/80">{detail.latest.unit}</span>
-          <CopyButton
-            value={`${detail.latest.valueText ?? detail.latest.value} ${detail.latest.unit}`}
-            label="Copy result value"
-            className="ml-1 self-center"
-          />
-        </p>
-        <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          <StatusBadge status={latestStatus} />
-          {detail.latest.amendedAt && (
-            <span className="text-xs text-espresso/80">
-              Amended <span className="numeric">{formatDate(detail.latest.amendedAt)}</span>
-            </span>
-          )}
-        </div>
-        {/* Two ranges, always labelled by whose they are. The lab's is the
-            one the status above was decided by; the optimal band underneath
-            is advisory context and says so. Where a marker has no
-            established optimal, this second line simply isn't there - no
-            empty band, no placeholder. */}
-        {/* A qualitative result ("Not detected") has no numeric range behind
-            it, and this line rendered "Lab reference range 0-0 " for one —
-            a half-populated row stating something false. The report card and
-            the All-markers row already guarded this; the marker's own page,
-            which is where someone goes to read the range properly, did not. */}
-        {latestStatus !== null && detail.latest.referenceHigh > detail.latest.referenceLow && (
-          <p className="mt-3 text-sm text-espresso/80">
-            Lab reference range{' '}
-            {/* Formatted rather than interpolated: a range that arrived through
-                a unit conversion has no rounding of its own, and printed raw it
-                read "3.884960761896305–5.494444506110488 mmol/L". Same
-                formatter the trend chart's tooltip, sentence and axis labels
-                use, so one range reads the same everywhere on the page. */}
-            <span className="numeric">
-              {formatReferenceRange(detail.latest.referenceLow, detail.latest.referenceHigh, detail.latest.unit)}
-            </span>
-          </p>
-        )}
-        {detail.optimal && (
-          <p className="tabular mt-1 text-sm text-espresso/80">
-            {optimalRangeLabel(detail.optimal)}
-            {optimalStatusLabel(detail.optimal) && (
-              <span> · {optimalStatusLabel(detail.optimal)!.toLowerCase()}</span>
-            )}
-          </p>
-        )}
-        {/* Empty for anything the clinic analysed itself — see
-            lib/sourceLabel.ts. Rendered unguarded, that put an empty
-            paragraph and its margin under every in-house result. */}
-        {detail.latest.sourceLabel && <p className="mt-1 text-sm text-espresso/80">{detail.latest.sourceLabel}</p>}
-        {/* A textual result has no position on a numeric scale, and a result
-            with no status was never placed on one — the bar would be a guess
-            in both cases, so it is simply not drawn.
+          40/60, not an even split, because the two are not equal weight — the
+          left card holds a number, a bar and a short history, the right holds
+          the chart that is the reason to be on this page. Five columns split
+          two and three, the closest simple ratio. Below `lg` they stack full
+          width, where a 60% plot would be a slot.
 
-            Capped rather than full-bleed: a range bar stretched across 1440px
-            of page turns a scale into a horizon, and the mark's position stops
-            being readable against the two printed ends. */}
-        {detail.latest.value !== null && latestStatus !== null && (
-          <div className="mt-8 max-w-2xl">
-            <RangeBar
-              value={detail.latest.value}
-              low={detail.latest.referenceLow}
-              high={detail.latest.referenceHigh}
-              status={latestStatus}
-              severityThreshold={detail.latest.severityThreshold}
-              optimal={detail.optimal}
-              unit={detail.latest.unit}
+          THE HIERARCHY THE UNCARDED VERSION WON IS KEPT, and it was never about
+          the cards: the VALUE is bigger than the marker's NAME. The name is a
+          `.section-heading` (38px) and the value is `.hero-value` (72px at
+          1440), so a page about somebody's result is not headed by the word
+          "Ferritin" set half again as large as the number they came for.
+
+          SAME HEIGHT, DRIVEN BY CONTENT — which is what a grid row does on its
+          own (`align-items: stretch`), and why neither card carries a height.
+          NOT `flex flex-col` with `mt-auto` on the history: that pair is what
+          opened a dead zone last time, pinning PREVIOUS RESULTS to the floor of
+          a card whose height comes from the chart beside it. The sections
+          follow each other at ordinary spacing and any slack falls at the
+          bottom, where slack reads as nothing at all. */}
+      <div className="mt-10 grid grid-cols-1 gap-7 lg:grid-cols-5">
+        <Card className="lg:col-span-2">
+          <p className="eyebrow mb-4">Latest result</p>
+          {/* THE ONE EXCEPTION to "every number is mono": Fraunces at the hero
+              optical size, like a headline, with the unit in mono beside it at
+              a much smaller size — which is what makes the pair read as a
+              measurement rather than as a title with a word after it.
+              flex-wrap, because a textual result ("Not detected") at display
+              size has to wrap rather than push the unit and the copy button
+              out. */}
+          <p
+            className={`flex flex-wrap items-baseline gap-x-3 gap-y-1 ${
+              detail.latest.valueText ? 'hero-value-text' : 'hero-value'
+            }`}
+          >
+            <span className="tabular">{detail.latest.valueText ?? detail.latest.value}</span>
+            <span className="numeric text-base font-normal text-espresso/80">{detail.latest.unit}</span>
+            <CopyButton
+              value={`${detail.latest.valueText ?? detail.latest.value} ${detail.latest.unit}`}
+              label="Copy result value"
+              className="ml-1 self-center"
             />
+          </p>
+          <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <StatusBadge status={latestStatus} />
+            {detail.latest.amendedAt && (
+              <span className="text-xs text-espresso/80">
+                Amended <span className="numeric">{formatDate(detail.latest.amendedAt)}</span>
+              </span>
+            )}
           </div>
-        )}
+          {/* Two ranges, always labelled by whose they are. The lab's is the
+              one the status above was decided by; the optimal band underneath
+              is advisory context and says so. Where a marker has no
+              established optimal, this second line simply isn't there - no
+              empty band, no placeholder. */}
+          {/* A qualitative result ("Not detected") has no numeric range behind
+              it, and this line rendered "Lab reference range 0-0 " for one —
+              a half-populated row stating something false. The report card and
+              the All-markers row already guarded this; the marker's own page,
+              which is where someone goes to read the range properly, did not. */}
+          {latestStatus !== null && detail.latest.referenceHigh > detail.latest.referenceLow && (
+            <p className="mt-3 text-sm text-espresso/80">
+              Lab reference range{' '}
+              {/* Formatted rather than interpolated: a range that arrived through
+                  a unit conversion has no rounding of its own, and printed raw it
+                  read "3.884960761896305–5.494444506110488 mmol/L". Same
+                  formatter the trend chart's tooltip, sentence and axis labels
+                  use, so one range reads the same everywhere on the page. */}
+              <span className="numeric">
+                {formatReferenceRange(detail.latest.referenceLow, detail.latest.referenceHigh, detail.latest.unit)}
+              </span>
+            </p>
+          )}
+          {detail.optimal && (
+            <p className="tabular mt-1 text-sm text-espresso/80">
+              {optimalRangeLabel(detail.optimal)}
+              {optimalStatusLabel(detail.optimal) && (
+                <span> · {optimalStatusLabel(detail.optimal)!.toLowerCase()}</span>
+              )}
+            </p>
+          )}
+          {/* Empty for anything the clinic analysed itself — see
+              lib/sourceLabel.ts. Rendered unguarded, that put an empty
+              paragraph and its margin under every in-house result. */}
+          {detail.latest.sourceLabel && <p className="mt-1 text-sm text-espresso/80">{detail.latest.sourceLabel}</p>}
+          {/* A textual result has no position on a numeric scale, and a result
+              with no status was never placed on one — the bar would be a guess
+              in both cases, so it is simply not drawn. */}
+          {detail.latest.value !== null && latestStatus !== null && (
+            <div className="mt-7">
+              <RangeBar
+                value={detail.latest.value}
+                low={detail.latest.referenceLow}
+                high={detail.latest.referenceHigh}
+                status={latestStatus}
+                severityThreshold={detail.latest.severityThreshold}
+                optimal={detail.optimal}
+                unit={detail.latest.unit}
+              />
+            </div>
+          )}
+          {/* The history, directly beneath the range bar. It is the same data
+              the chart on the right plots, read as a list rather than as a
+              shape — which is the form somebody wants when the question is
+              "what was it last time" rather than "which way is it going", and
+              having both on one row is the whole argument for the row. */}
+          <PreviousResults trend={detail.trend} className="mt-7" />
+        </Card>
+
+        <Card className="lg:col-span-3">
+          <p className="eyebrow mb-4">Trend over time</p>
+          <TrendChart
+            data={detail.trend}
+            crossSourceComparable={detail.crossSourceComparable}
+            optimal={detail.optimal}
+            height="tall"
+          />
+        </Card>
       </div>
 
-      {/* ═══ 2. THE TREND. Second, and the full width of the page. ═══════════
-          Also uncarded. The plot is already an inset panel with its own
-          hairline frame (see chart.plotSurface), so a card around it was a box
-          drawn immediately outside a box — and at 60% of a five-column grid the
-          plot was narrower than it was tall, which is the shape that
-          exaggerates every movement in a series. */}
-      <section className="mt-14">
-        <p className="eyebrow mb-4">Trend over time</p>
-        <TrendChart
-          data={detail.trend}
-          crossSourceComparable={detail.crossSourceComparable}
-          optimal={detail.optimal}
-          height="tall"
-        />
-      </section>
-
-      {/* ═══ 3. EVERYTHING ELSE, VISIBLY QUIETER. ════════════════════════════
+      {/* ═══ EVERYTHING ELSE, VISIBLY QUIETER. ═══════════════════════════════
           A wide margin above this, so the drop in weight is announced by space
           before anything is read. The reading order inside it is fixed and was
-          the wrong way round: the EXPLANATION comes before the out-of-range
-          card. Somebody who has just been told their result is outside the
-          usual range wants to know what the marker is before they are told who
-          to ring about it — the definition is context for the prompt, not a
-          footnote to it. */}
-      <div className="mt-16 max-w-3xl">
+          once the wrong way round: the EXPLANATION comes before the
+          out-of-range card. Somebody who has just been told their result is
+          outside the usual range wants to know what the marker is before they
+          are told who to ring about it — the definition is context for the
+          prompt, not a footnote to it. */}
+      <div className="mt-12 max-w-3xl">
         {detail.explanation && (
           // THE SECOND SURFACE REGISTER — see `.card-vellum` in globals.css.
           // The one class of content in the product that is prose rather than
@@ -402,13 +418,6 @@ export function MarkerDetailPage() {
             <ClinicContactLines className="mt-7" />
           </Card>
         )}
-
-        {/* The history, last and uncarded: the same data the chart plots, read
-            as a list rather than as a shape — which is the form somebody wants
-            when the question is "what was it last time" rather than "which way
-            is it going". It answered that question from inside the hero card
-            before, where it was the fourth thing in the loudest block. */}
-        <PreviousResults trend={detail.trend} className="mt-12" />
       </div>
     </div>
   );

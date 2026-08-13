@@ -488,17 +488,98 @@
 }
 
 @layer components {
-  /* The label half of every label/value pair, and every section label.
-     ONE tracking value (--tracking-eyebrow) everywhere — there used to be
-     three, which is three different products' worth of small caps on one
-     page. Medium weight, because at 12px with 0.14em of tracking a regular
-     weight goes thin enough to disappear on the dark page. */
+  /* ═══ A LABEL GOES ABOVE THE TEXT IT LABELS, IN BOTH SENSES (Aug 2026) ═══
+     The three label classes are 21 / 28 / 21px, not 12 / 16 / 12. Every one of
+     them is now LARGER than the copy it introduces rather than smaller than it.
+
+     WHAT WAS WRONG. `WHAT THIS MARKER MEANS` at 16px stood over a 28px
+     sentence; `LATEST RESULT`, `TREND OVER TIME` and `PREVIOUS RESULTS` at 12px
+     stood over 14–18px body copy. So every label in the product was the
+     smallest thing in its own block — which reads as a caption on the paragraph
+     beneath it rather than as the name of the section above it. The previous
+     three attempts at this all moved WEIGHT, TONE and TRACKING and left the
+     size alone, and all three failed for the same reason: at two-thirds the
+     size of what it labels, no amount of weight makes a label the stronger
+     element.
+
+     THE LADDER, and every step of it is a real step of the nine-step scale:
+
+       .card-eyebrow   28px  the heading of a card whose contents carry labels
+       .eyebrow        21px  every section label and every label/value pair
+       .sublabel       21px  the label half of a pair inside a carded heading
+       body copy       14 / 16 / 18px
+
+     TWO THINGS A LABEL MAY NEVER OVERTAKE, and both are content rather than
+     chrome:
+
+       · THE VALUE ON A RESULT. `LATEST RESULT` sits over a 72px hero value and
+         a card's figures are 28px; the eyebrow is 21px and stays under both.
+         The number is what somebody came to the page for.
+       · A PAGE TITLE IN FRAUNCES. `.display-heading` is clamp(38→72px) and
+         `.section-heading` 38px, both above every label here. A label that
+         out-shouts the name of the page is a page with two titles.
+
+     So the eyebrow lands at 21px precisely: one step above the largest body
+     copy in the product (18px `text-reading`) and one step below the smallest
+     thing it is not allowed to beat (28px `text-xl`, which is both a card's
+     numeric value and its Fraunces lead). It is the only step that satisfies
+     both, which is why it is a step of the scale and not a number.
+
+     The tracking is unchanged and is still ONE value everywhere
+     (--tracking-eyebrow). The medium weight is unchanged too, though the reason
+     for it has expired — it was there because 12px at 0.14em goes thin enough
+     to disappear on the dark page — and it stays because a label that has just
+     grown 75% does not also need to grow a weight. */
   .eyebrow {
-    @apply font-eyebrow text-xs font-medium uppercase tracking-eyebrow text-espresso/80;
+    @apply font-eyebrow text-lg font-medium uppercase tracking-eyebrow text-espresso/80;
+    /* A LABEL THAT WRAPS SHOULD LOOK LIKE IT MEANT TO. At 21px with 0.14em of
+       tracking a long eyebrow is half again as wide as it was, so on a phone
+       some of them now take two lines — `ASPIRE CLINIC · PATIENT PORTAL` is
+       504px of text in a 342px column. Wrapping is not the problem; an ORPHAN
+       is, and the default broke that one after "PATIENT", leaving the word
+       PORTAL alone on a line under a 30-character run. Balanced it splits
+       evenly and reads as a two-line label. Ignored by any browser that does
+       not implement it, which then gets exactly what it gets today. */
+    text-wrap: balance;
+  }
+
+  /* ── AN EYEBROW IS SIZED AGAINST WHAT IT LABELS, AND IN CHROME THAT IS 14px ──
+     One rule, two contexts, and NOT a fourth label class — the classes stay at
+     three and this is the same class measured against different content.
+
+     On a page an eyebrow labels body copy at 14–18px, so it is 21px. Inside the
+     navigation panel, a menu, a dropdown or the command palette it labels
+     CHROME at 14px (`.nav-label`, an option row, a menu item), so it is 16px —
+     still a step above the thing it names, which is the whole rule, and not the
+     three steps that would make it something else.
+
+     TWO MEASURED REASONS, both from the sidebar at 288px:
+
+       · `OPENING HOURS` and `EMERGENCY LINE` at 21px with 0.14em of tracking
+         are 250px and 268px of text in a 232px column, so both WRAPPED — and
+         the contact block, which is capped at 45% of the panel height, then
+         clipped its own last line. At 16px they are 190px and 204px and stand
+         on one line each. This is exactly the "recheck line length" the change
+         was specified with.
+       · `PATIENT PORTAL` at 21px was larger than every nav label under it and
+         louder than the wordmark above it, which is `.nav-label`'s own recorded
+         argument one level up: a navigation column set at page weight reads as
+         a second page competing with the first.
+
+     `.chrome` marks the surfaces where that is true, and it is a closed list:
+     the two shells' sidebars and their mobile drawers, the account menu, a
+     Listbox popup and the command palette. It is never put on a page, a card or
+     a section — an eyebrow over reading matter is 21px everywhere. Note the
+     same component can land on both sides of it: `ClinicContactLines` renders
+     ADDRESS at 16px in the sidebar and at 21px in the out-of-range card on a
+     marker page, which is correct in both places because the content beside it
+     differs. */
+  .chrome .eyebrow {
+    @apply text-base;
   }
 
   /* THE LABEL ON A CARD WHOSE CONTENTS ALSO CARRY LABELS.
-     TWO steps up the scale (16px), semibold, full tone — the eyebrow's own
+     One step up from `.eyebrow` (28px), semibold, full tone — the eyebrow's own
      tracking and case, so it is the same family and not a new one.
 
      It exists because `.eyebrow` cannot be both the heading of a card and the
@@ -523,32 +604,61 @@
      it, so three isolated small labels each read as the start of something and
      the heading read as a caption on the paragraph beneath it.
 
-     16px is a whole step of the scale, a third larger than the sub-labels, and
-     the space is inverted with it at the call site (MarkerExplanation): the
-     heading now owns more room below it than any block gets above it. Five
-     signals, all pointing the same way.
+     16px was a whole step of the scale, a third larger than the sub-labels, and
+     the space was inverted with it at the call site (MarkerExplanation): the
+     heading owns more room below it than any block gets above it. Five signals,
+     all pointing the same way.
+
+     ── AND 16px WAS STILL UNDER THE SENTENCE IT LABELS (Aug 2026, fourth) ────
+     All three previous attempts compared this label with the SUB-LABELS and
+     never with the LEAD — the definition of the marker, Fraunces at 28px,
+     directly beneath it and 75% larger. So the card's heading was the third
+     largest thing in its own card, which is the same failure one level up. It
+     is 28px now: level with the lead in size and decisively ahead of it in
+     weight, case and tracking, and a full step of the scale above the
+     sub-labels so their subordination is wider than it has ever been.
+
+     ONE STEP BEHIND THE RULE THE OTHER TWO FOLLOW, and deliberately. Every
+     other label in the product is now strictly larger than the copy under it;
+     this one is EQUAL to the copy under it, because the step past 28px is 38px
+     — `.section-heading` — and a 38px uppercase tracked label sets
+     "WHAT THIS MARKER MEANS" at roughly 670px, which wraps to two lines in this
+     card and reads as the page's title rather than as a card's label. Equal
+     size plus semibold plus uppercase plus 0.14em against Fraunces regular is
+     not a close contest.
 
      Never a substitute for a section heading, which is Fraunces (see
      `.section-heading`). This is still an eyebrow: it labels a card whose
      content is the thing to read. */
   .card-eyebrow {
-    @apply font-eyebrow text-base font-semibold uppercase tracking-eyebrow text-espresso;
+    @apply font-eyebrow text-xl font-semibold uppercase tracking-eyebrow text-espresso;
+    /* Same reasoning as `.eyebrow`, and it bites sooner here: at 28px
+       "WHAT THIS MARKER MEANS" is 493px and a phone's card holds 286px. */
+    text-wrap: balance;
   }
 
   /* THE LABEL HALF OF A PAIR INSIDE A CARD THAT ALREADY HAS A HEADING.
-     12px is the floor of the type scale and /80 is the floor of the text
-     opacity ladder, so a label that has to go quieter than an eyebrow cannot do
-     it with size or tone. What it drops is the SHOUT: uppercase at 0.14em is
-     what makes 12px loud, and three of them running down a card out-read one of
-     them at the top however the heading is set.
+     WHAT IT GIVES UP IS THE SHOUT, AND ONLY THE SHOUT. That was the mechanism
+     when this was 12px and it is still the mechanism at 21px: uppercase at
+     0.14em is what makes a label loud, and three of them running down a card
+     out-read one of them at the top however the heading is set. Sentence case,
+     the body face, no tracking — so it is quieter than `.eyebrow` at the same
+     size and a full step under `.card-eyebrow` in size as well.
 
-     Sentence case, the body face, medium weight — kept at medium rather than
-     dropped to regular for the same reason `.eyebrow` is: a thin 12px label
-     disappears on the dark page, and "quieter" must not become "fainter". It
-     pairs with its answer by proximity (see MarkerExplanation) and reads as an
-     introduction to one rather than as a fourth heading. */
+     IT ROSE WITH THE REST OF THEM (Aug 2026), and it had to. Left at 12px under
+     a 28px heading it would have been the one label in the product still
+     smaller than its own answer — `If it’s high` at 12px introducing an 18px
+     sentence — which is the exact inversion the ladder was rebuilt to remove,
+     surviving in the one card that had already been through three rounds of it.
+     21px keeps it above its answer and below its heading, which is both halves
+     of what it is for.
+
+     Medium weight, for the same reason `.eyebrow` is: "quieter" must never
+     become "fainter". It pairs with its answer by proximity (see
+     MarkerExplanation) and reads as an introduction to one rather than as a
+     fourth heading. */
   .sublabel {
-    @apply font-body text-xs font-medium text-espresso/80;
+    @apply font-body text-lg font-medium text-espresso/80;
   }
 
   /* Sidebar navigation labels, in both shells.
@@ -881,6 +991,173 @@
   .arch-outline {
     @apply arch border border-taupe;
     opacity: 0.5;
+  }
+
+  /* ═══ THE RESULTS-READY MOMENT ═══════════════════════════════════════════
+     (see features/patient/ResultsReadyPage.tsx and MomentBackdrop.tsx)
+
+     Two things, and they are one composition: a doorway standing on the floor
+     of the window, and the reader's own Overview out of focus behind it.
+
+     ── THE ARCH REACHES THE BOTTOM OF THE VIEWPORT ─────────────────────────
+
+     It used to float in the middle of the page with air underneath it, which
+     made it a large rounded CARD rather than a doorway — a doorway with a
+     bottom edge is a window, and one hanging in space is a shape. It is
+     anchored to the floor now: the crown in view, the two sides running down
+     and off the bottom of the window, no bottom border and no gap.
+
+     `min-height` and never `height`. The arch has to be able to grow past its
+     nominal size when a long name, a large system font or a 560px window
+     leaves the content taller than the doorway — with a fixed height that
+     content is simply painted outside the shape, and the button somebody has
+     to press is the last thing in it.
+
+     THE CAP IS WHY THERE IS A MIN() AT ALL. Left at `100dvh - gap` a 1400px
+     window draws a 448×1360 shaft, which is a corridor rather than a door and
+     puts the content halfway down a screen of empty surface. 46rem is a little
+     under two viewport-heights' worth of the shortest laptop, and above that
+     the gap at the top simply grows.
+
+     ── THE CROWN IS A SEMICIRCLE AT EVERY SIZE, AND THAT IS MEASURABLE ─────
+
+     `.arch` asks for a 9999px radius on the two top corners and the browser
+     reduces it by ONE scale factor across the whole box: f = min(W/(r+r),
+     H/(r+0)), so the drawn radius is min(W/2, H). Both radii are reduced by
+     the same f, so the corner stays CIRCULAR whatever happens — what fails at
+     a short height is not an ellipse, it is the two quarter-rounds separating
+     and a FLAT TOP appearing between them, which is what a squashed arch
+     actually looks like. It cannot happen here: the drawn radius is W/2 for
+     any box at least half as tall as it is wide, and the shortest arch this
+     rule can produce (a 320px phone in landscape) is 480px tall against a
+     136px half-width. `e2e/results-ready.spec.ts` measures the radius against
+     the width at 900, 800, 700 and on a phone rather than trusting the
+     arithmetic.
+
+     ── AND THE CONTENT SITS BELOW THE SPRING LINE ─────────────────────────
+
+     `padding-top: 50%`, which is the one number on this whole element that is
+     not a guess: the crown is exactly half the width tall, so half the width
+     of padding puts the content box exactly on the spring line at every size,
+     with no breakpoints and nothing to keep in step.
+
+     THE CAVEAT IS THE ONE EVERY PERCENTAGE PADDING CARRIES, and it was got
+     wrong once here already: a percentage padding — vertical ones included —
+     resolves against the CONTAINING BLOCK'S width, never against the element's
+     own. With the width cap on this element the containing block was the
+     page's `main`, so 50% came out as half of 1392px and the button sat 700px
+     below the floor of the window. The cap therefore lives on a wrapper one
+     level up (see ResultsReadyPage.tsx) and this element is `width: 100%` of
+     it, which makes the two numbers the same one.
+
+     `justify-content: center` then centres the content in the straight shaft —
+     the visible room inside the doorway — rather than in the whole box, which
+     at short heights would push a heading up into the curve and set it on a
+     line the shape is narrowing across. */
+  .moment-arch {
+    min-height: min(100vh - 2.5rem, 46rem);
+    min-height: min(100dvh - 2.5rem, 46rem);
+    padding-top: 50%;
+    padding-bottom: 3rem;
+  }
+
+  /* ── THE GROUND: THE OVERVIEW, BLURRED ──────────────────────────────────
+     `z-index: -2` so it sits UNDER the corner glow at -1 — see the note in
+     MomentBackdrop.tsx, which is also why it is portalled onto <body> rather
+     than rendered where it is used. */
+  .moment-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  /* The blur, and the page colour under it. Both belong on this one element:
+     a filter samples past its own edges, so without a real colour behind it
+     the field fades out in a band the width of the blur all the way round the
+     window. `overflow: hidden` keeps the filter's region at the size of the
+     viewport rather than the size of the Overview, which is several thousand
+     pixels tall and would otherwise be rasterised in full to show one screen
+     of it. */
+  .moment-backdrop__plate {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    background-color: rgb(var(--c-cream));
+    filter: blur(var(--moment-blur));
+  }
+
+  /* The patient shell's own arrangement — a column of room for the sidebar,
+     then the content — so the shapes land where this reader's results land. */
+  .moment-backdrop__shell {
+    display: flex;
+    min-height: 100%;
+  }
+
+  .moment-backdrop__veil {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgb(var(--c-shadow) / var(--moment-shade)), rgb(var(--c-shadow) / var(--moment-shade))),
+      linear-gradient(rgb(var(--c-cream) / var(--moment-wash)), rgb(var(--c-cream) / var(--moment-wash)));
+  }
+
+  /* NOTHING IN HERE MOVES, EVER. A blurred layer is re-rasterised in full
+     every time anything inside it changes, and the Overview's own arrival is
+     about a second of continuous change landing at exactly the moment the
+     reader is looking at the arch. `!important` because these are the same
+     declarations the components set on themselves and this has to win from a
+     class on an ancestor; the two JavaScript-driven ones (Reveal's observer,
+     AnimatedNumber's frame loop) cannot be reached from CSS at all and are
+     handled by the still context — see components/motion/still.ts.
+
+     `.reveal` and `.stagger-in > *` are pinned at their FINISHED state and not
+     merely un-animated: both start at `opacity: 0`, so turning the animation
+     off without saying where it ended leaves a blank layer. That is the exact
+     failure the print stylesheet had, recorded twice already in this file. */
+  .moment-backdrop *,
+  .moment-backdrop *::before,
+  .moment-backdrop *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .moment-backdrop .reveal,
+  .moment-backdrop .stagger-in > * {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  /* The one exception to the rule above, and it is the layer arriving rather
+     than anything inside it: the ground fades up once, after a delay long
+     enough for the Overview's own fetch to have landed. Declared after the
+     blanket rule and with its own `!important` to beat it.
+
+     Nothing under `prefers-reduced-motion`, where the ground is simply there —
+     which is the same thing this screen has always done for the drift on the
+     dot. */
+  @media (prefers-reduced-motion: no-preference) {
+    .moment-backdrop .moment-backdrop__page {
+      animation: moment-ground-in 900ms ease-out 320ms both !important;
+    }
+  }
+
+  @keyframes moment-ground-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  /* Nobody prints this screen, and a 24px Gaussian of somebody's results is
+     not a thing to send to a printer if they try. */
+  @media print {
+    .moment-backdrop {
+      display: none !important;
+    }
   }
 
   /* A TEXTUAL result — "Not detected", "Sinus rhythm" — in the same slot.

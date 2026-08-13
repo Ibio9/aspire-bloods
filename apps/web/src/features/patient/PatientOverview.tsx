@@ -613,23 +613,34 @@ export function PatientOverview() {
             {/* Counts, not clinical values — the one place a number is allowed
                 to count up as it enters (see AnimatedNumber). Mono and
                 tabular, like every other pure number in the product, so the
-                three line up as a row rather than drifting with their digits. */}
+                three line up as a row rather than drifting with their digits.
+
+                THE LABELS ALIGN AT THE TOP AND THE VALUES AT THE BOTTOM, which
+                needs saying because it costs a uniform gap and buys something
+                worth more. At the label scale these carry now, "In the usual
+                range" is 267px of text in a 237px cell and takes two lines,
+                while "Markers" takes one — so a row of three figures had one of
+                them sitting 31px below the other two, which is the one thing a
+                row of figures may not do. `flex flex-col` plus `mt-auto` pins
+                every value to the floor of its own cell whatever its label did
+                above it, and it holds for a label of any length rather than for
+                the two lines this one happens to need. */}
             <dl className="mt-9 grid grid-cols-2 gap-8 border-t border-taupe pt-8 sm:grid-cols-3">
-              <div>
+              <div className="flex flex-col">
                 <dt className="eyebrow mb-2">Markers</dt>
-                <dd className="numeric tabular text-xl font-semibold leading-none text-espresso">
+                <dd className="numeric tabular mt-auto text-xl font-semibold leading-none text-espresso">
                   <AnimatedNumber value={data.latest.markerCount} />
                 </dd>
               </div>
-              <div>
+              <div className="flex flex-col">
                 <dt className="eyebrow mb-2">In the usual range</dt>
-                <dd className="numeric tabular text-xl font-semibold leading-none text-espresso">
+                <dd className="numeric tabular mt-auto text-xl font-semibold leading-none text-espresso">
                   <AnimatedNumber value={data.latest.inRangeCount} />
                 </dd>
               </div>
-              <div>
+              <div className="flex flex-col">
                 <dt className="eyebrow mb-2">Needs attention</dt>
-                <dd className="numeric tabular text-xl font-semibold leading-none text-espresso">
+                <dd className="numeric tabular mt-auto text-xl font-semibold leading-none text-espresso">
                   <AnimatedNumber value={data.latest.attentionCount} />
                 </dd>
               </div>

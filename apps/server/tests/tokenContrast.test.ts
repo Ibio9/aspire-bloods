@@ -15,6 +15,8 @@ import {
   NO_STATUS_PAINT,
   PANEL_WASH_ALPHA,
   PANEL_SHEEN,
+  GLASS,
+  MOMENT_BACKDROP,
   type StatusKey,
 } from '@aspire-bloods/shared';
 
@@ -800,5 +802,87 @@ describe.each(MODES)('%s sidebar panel', (mode) => {
     // Legible on its own where the wash is faintest, but never a line of light.
     expect(edge).toBeGreaterThanOrEqual(1.6);
     expect(edge).toBeLessThan(WCAG_AA_TEXT);
+  });
+});
+
+/**
+ * ═══ THE RESULTS-READY MOMENT'S GROUND ═══════════════════════════════════
+ *
+ * Behind the arch is the reader's own Overview, blurred past reading and then
+ * veiled — the page colour at `MOMENT_BACKDROP.wash`, and the shadow tone at
+ * `MOMENT_BACKDROP.shade` over that. Three things follow from putting a whole
+ * screen of content under a translucent surface, and all three are measurable
+ * here rather than reviewable in a screenshot:
+ *
+ *  1. The veil is a CONTRAST BUDGET. Whatever separation the Overview had from
+ *     its own page survives at exactly `(1 - wash) × (1 - shade)` of itself,
+ *     because two alpha composites multiply — so the ground's remaining
+ *     structure is a number that was chosen rather than one that happened.
+ *  2. The arch has to dominate it. The failure this is against is a moment
+ *     whose doorway is one of several equally-weighted things on the screen.
+ *  3. AND THE ARCH IS GLASS. Its text is not on a surface any more; it is on
+ *     `--c-glass` at its own alpha over the VEILED GROUND, which is a surface
+ *     that did not exist before this screen had a background. That is the one
+ *     way this change could actually harm somebody, so it is held at AA for
+ *     body text and not at the large-text floor — "Not just now" is 14px.
+ *
+ * Measured against the CARD tone rather than the page: a card is the most
+ * separated thing the Overview paints, so it is the worst case for how much
+ * structure comes through, and the page itself is the ground everything else
+ * on that screen is measured against.
+ */
+describe.each(MODES)('%s results-ready backdrop', (mode) => {
+  const page = tone(mode, '--c-cream');
+  const card = tone(mode, '--c-cream-50');
+  const shadow = tone(mode, '--c-shadow');
+  const { wash, shade } = { wash: MOMENT_BACKDROP.wash[mode], shade: MOMENT_BACKDROP.shade[mode] };
+
+  /** What a colour on the blurred plate looks like once the veil is over it. */
+  const veiled = (hex: string) => blend(shadow, blend(page, hex, wash), shade);
+
+  const ground = veiled(page);
+  const cardThroughVeil = veiled(card);
+  // The arch: the glass material at its own alpha, over the veiled ground.
+  const arch = blend(tone(mode, '--c-glass'), ground, GLASS.wash[mode]);
+
+  it('leaves exactly the share of the Overview the two alphas allow through', () => {
+    const survives = (1 - wash) * (1 - shade);
+    const before = [1, 3, 5].map((i) => parseInt(card.slice(i, i + 2), 16) - parseInt(page.slice(i, i + 2), 16));
+    const after = [1, 3, 5].map(
+      (i) => parseInt(cardThroughVeil.slice(i, i + 2), 16) - parseInt(ground.slice(i, i + 2), 16),
+    );
+    after.forEach((d, i) => {
+      // ±1 for the rounding two composites do. The claim is that the veil is a
+      // multiplier and that the multiplier is the two numbers in tokens.ts.
+      expect(Math.abs(d - before[i] * survives), `channel ${i}: ${d} against ${before[i]} × ${survives}`).toBeLessThanOrEqual(1);
+    });
+  });
+
+  it('puts the arch well clear of anything left showing behind it', () => {
+    const residual = contrastRatio(cardThroughVeil, ground);
+    const dominance = contrastRatio(arch, ground);
+    expect(
+      dominance - 1,
+      `the arch stands ${(dominance - 1).toFixed(3)} off the ground and the loudest thing behind it ${(residual - 1).toFixed(3)}`,
+    ).toBeGreaterThan((residual - 1) * 2.5);
+  });
+
+  it('keeps the arch a surface rather than a hole in the page', () => {
+    // It is glass over a ground that is itself mostly page colour, so the two
+    // could converge into nothing. Same floor the sidebar panel is held to.
+    const separation = contrastRatio(arch, ground);
+    expect(separation, `the arch is ${separation.toFixed(3)}:1 off its own ground`).toBeGreaterThanOrEqual(1.08);
+  });
+
+  it('keeps every word on the arch at AA over the veiled ground', () => {
+    for (const [label, text] of [
+      ['the heading', tone(mode, '--c-espresso')],
+      // The two quiet ones, at the bottom of the opacity ladder this product
+      // allows: the panel line and "Not just now", both /80.
+      ['the muted lines', blend(tone(mode, '--c-espresso'), arch, 0.8)],
+    ] as const) {
+      const ratio = contrastRatio(text, arch);
+      expect(ratio, `${label} is ${ratio.toFixed(2)}:1 on the arch`).toBeGreaterThanOrEqual(WCAG_AA_TEXT);
+    }
   });
 });

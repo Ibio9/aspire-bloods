@@ -13,6 +13,7 @@ import {
   MEASURE,
   PANEL_WASH_ALPHA,
   GLASS,
+  MOMENT_BACKDROP,
   PANEL_SHEEN,
   type TypeStep,
 } from '../../packages/shared/src/tokens';
@@ -415,6 +416,13 @@ export default {
           '--glass-wash': String(GLASS.wash.light),
           '--glass-blur': GLASS.blur,
           '--glass-saturate': GLASS.saturate,
+          // The results-ready moment's ground: the reader's own Overview,
+          // blurred past reading and washed back toward the page. See
+          // MOMENT_BACKDROP in tokens.ts — the blur is a legibility floor
+          // rather than a taste, and the two alphas are a contrast budget.
+          '--moment-blur': MOMENT_BACKDROP.blur,
+          '--moment-wash': String(MOMENT_BACKDROP.wash.light),
+          '--moment-shade': String(MOMENT_BACKDROP.shade.light),
           // What makes the sidebar read as a PANE rather than as a wash. The
           // blur cannot do it on its own — there is nothing behind the column
           // but a flat colour and a smooth gradient, and blurring a smooth
@@ -433,6 +441,9 @@ export default {
           '--glass-wash': String(GLASS.wash.dark),
           '--glass-blur': GLASS.blur,
           '--glass-saturate': GLASS.saturate,
+          '--moment-blur': MOMENT_BACKDROP.blur,
+          '--moment-wash': String(MOMENT_BACKDROP.wash.dark),
+          '--moment-shade': String(MOMENT_BACKDROP.shade.dark),
           '--panel-sheen': String(PANEL_SHEEN.peak.dark),
           '--panel-sheen-top': String(PANEL_SHEEN.edge.top.dark),
           '--panel-sheen-right': String(PANEL_SHEEN.edge.right.dark),
@@ -466,6 +477,9 @@ export default {
             '--glass-wash': '0',
             '--glass-blur': '0px',
             '--glass-saturate': '1',
+            '--moment-blur': '0px',
+            '--moment-wash': '0',
+            '--moment-shade': '0',
             '--panel-sheen': '0',
             '--panel-sheen-top': '0',
             '--panel-sheen-right': '0',

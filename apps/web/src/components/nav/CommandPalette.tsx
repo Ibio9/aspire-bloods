@@ -109,7 +109,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         role="dialog"
         aria-modal="true"
         aria-label="Search"
-        className="relative flex max-h-[60vh] w-full max-w-lg flex-col overflow-hidden rounded-card border border-taupe bg-cream-50 shadow-popover outline-none motion-safe:animate-riseIn"
+        className="chrome relative flex max-h-[60vh] w-full max-w-lg flex-col overflow-hidden rounded-card border border-taupe bg-cream-50 shadow-popover outline-none motion-safe:animate-riseIn"
       >
         <div className="border-b border-taupe px-4 py-3">
           <input
@@ -141,7 +141,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
             return (
               <div key={r.kind === 'destination' ? r.item.to : r.item.id}>
                 {heading && (
-                  <p className="px-3 pb-1 pt-2 text-xs font-medium uppercase tracking-eyebrow text-espresso/80">{heading}</p>
+                  <p className="eyebrow px-3 pb-1 pt-2">{heading}</p>
                 )}
                 <button
                   type="button"

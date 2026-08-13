@@ -69,7 +69,7 @@ export function AuthSplitLayout({ children, eyebrow, headline, supporting, wide 
             block sits centred in whatever height is left above the address. */}
         <div className="relative flex flex-1 flex-col justify-center motion-safe:animate-riseIn">
           <Wordmark variant="dark" size="lg" />
-          <p className="mt-[calc(var(--auth-step)*1.5)] font-eyebrow text-xs uppercase tracking-eyebrow text-oncolor/70">
+          <p className="mt-[calc(var(--auth-step)*1.5)] font-eyebrow text-lg uppercase tracking-eyebrow text-oncolor/70">
             {eyebrow ?? 'Blood test results, done properly'}
           </p>
           {/* Widens with the type so the headline holds two lines rather than

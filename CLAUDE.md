@@ -46,34 +46,81 @@ eyebrow tracking value everywhere (`EYEBROW_TRACKING`, 0.14em). Body copy caps
 at `max-w-measure` (68ch). Tabular figures on every number without exception —
 `.numeric` for mono data, `.tabular` for a number inside a sentence.
 
-**THREE LABEL CLASSES, AND A CARD MAY NOT USE ONE OF THEM TWICE (Aug 2026).**
-`.eyebrow` is the ordinary section label (12px, medium, uppercase, tracked,
-/80). It cannot also be the HEADING of a card whose contents carry labels, and
-on the marker explanation card it was exactly that: "What this marker means" in
-`.eyebrow` above three of "If it's high" in `.eyebrow` — four peers, in which
-the one that is a heading had nothing to say so, and three repetitions of a
-treatment out-read one instance of it. So `.card-eyebrow` is the heading and
-`.sublabel` is the label half of a pair inside such a card (12px, medium, /80,
-**sentence case**). 12px is the floor of the type scale and /80 the floor of the
-opacity ladder, so what a subordinate label gives up is the SHOUT — uppercase at
-0.14em is what makes 12px loud. The weight stays at medium in all three: a thin
-12px label disappears on the dark page, and "quieter" must never become
-"fainter". All three carry `break-after: avoid` in `@media print`.
+**THREE LABEL CLASSES, AND A CARD MAY NOT USE ONE OF THEM TWICE.**
+`.eyebrow` is the ordinary section label. It cannot also be the HEADING of a
+card whose contents carry labels, and on the marker explanation card it was
+exactly that: "What this marker means" in `.eyebrow` above three of "If it's
+high" in `.eyebrow` — four peers, in which the one that is a heading had nothing
+to say so, and three repetitions of a treatment out-read one instance of it. So
+`.card-eyebrow` is the heading and `.sublabel` is the label half of a pair
+inside such a card, in **sentence case** with no tracking. What a subordinate
+label gives up is the SHOUT — uppercase at 0.14em is what makes a label loud —
+and never the size or the tone. The weight stays at medium in all three:
+"quieter" must never become "fainter". All three carry `break-after: avoid` in
+`@media print`.
 
-**AND 14px WAS NOT ENOUGH OF A STEP (Aug 2026, third attempt).** `.card-eyebrow`
-is **16px semibold**, two steps of the scale above `.sublabel` rather than one.
-Measured off the rendered card before the change: heading 14px / 600 / 1.96px
-tracking / uppercase / full tone, label 12px / 500 / 0.05px / sentence / 80%. The
-heading was ahead on all four axes and still read as the weaker of the two, which
-means the axes were not where the contest was being decided. Two pixels is 17%,
-inside the noise of two different letter-cases — and **the SPACE was running the
-other way entirely**: each sub-label sat alone in 36px of air while the heading
-had 20px under it, so three isolated small labels each read as the start of
-something and the heading read as a caption on the paragraph beneath it. The
-block gap is 28px now and the heading's is 32px, so the heading owns more room
-than anything under it. Five signals, all pointing the same way. **If this ever
-looks wrong again, MEASURE the computed style and the margins before touching a
-value** — it has been eyeballed wrongly three times.
+**A LABEL GOES ABOVE THE TEXT IT LABELS, IN BOTH SENSES (Aug 2026, fourth and
+last attempt).** The three classes are **21 / 28 / 21px**, not 12 / 16 / 12, and
+every label in the product is now LARGER than the copy it introduces:
+
+    .card-eyebrow   28px semibold uppercase tracked   a card's heading
+    .eyebrow        21px medium   uppercase tracked   every section label
+    .sublabel       21px medium   sentence case       a label inside a heading
+    body copy       14 / 16 / 18px
+
+`WHAT THIS MARKER MEANS` at 16px stood over a 28px sentence; `LATEST RESULT`,
+`TREND OVER TIME` and `PREVIOUS RESULTS` at 12px stood over 14–18px body copy.
+**The three previous attempts all moved WEIGHT, TONE, TRACKING and SPACE and
+left the SIZE alone, and all three failed for one reason: at two-thirds the size
+of what it labels, no amount of weight makes a label the stronger element.**
+
+**TWO THINGS A LABEL MAY NEVER OVERTAKE**, and both are content rather than
+chrome: **the value on a result** (`LATEST RESULT` sits over a 72px hero value
+and a card's figures are 28px) and **a page title in Fraunces**
+(`.display-heading` clamp(38→72px), `.section-heading` 38px). That is what fixes
+the eyebrow at 21px exactly — one step above the largest body copy (18px) and
+one step below the smallest thing it may not beat (28px, which is both a card's
+numeric value and the Fraunces lead in the explanation card). It is the only
+step that satisfies both, so it is a step of the scale and not a number.
+
+**`.card-eyebrow` is the one that stops at EQUAL rather than larger**, and
+deliberately: the step past 28px is 38px, and a 38px uppercase tracked label
+sets "WHAT THIS MARKER MEANS" at ~670px, wraps in the card and reads as the
+page's title. Equal size plus semibold plus uppercase plus 0.14em against
+Fraunces regular is not a close contest.
+
+**AN EYEBROW IS SIZED AGAINST WHAT IT LABELS, AND IN CHROME THAT IS 14px.**
+`.chrome .eyebrow` is 16px — still a step above what it names. `.chrome` is a
+closed list of surfaces where an eyebrow labels navigation or controls rather
+than reading matter: both shells' sidebars and their mobile drawers, the account
+menu, a Listbox popup and the command palette. NOT a fourth label class and
+never put on a page, a card or a section. Two measured reasons, both from the
+288px sidebar: `OPENING HOURS` and `EMERGENCY LINE` at 21px are 250px and 268px
+in a 232px column, so both wrapped and the contact block then clipped its own
+last line; and `PATIENT PORTAL` at 21px was larger than every nav label under it
+and louder than the wordmark above it, which is `.nav-label`'s own recorded
+argument one level up. The same component can land on both sides of the line —
+`ClinicContactLines` renders ADDRESS at 16px in the sidebar and 21px in the
+out-of-range card, which is right in both places because the content beside it
+differs.
+
+**A LABEL THAT WRAPS SHOULD LOOK LIKE IT MEANT TO.** `text-wrap: balance` on
+`.eyebrow` and `.card-eyebrow`. At 21px with 0.14em a long label is half again
+as wide as it was, so on a phone some now take two lines — the problem is not
+the wrap, it is the ORPHAN: `ASPIRE CLINIC · PATIENT PORTAL` broke after
+"PATIENT" and left PORTAL alone under a 30-character run.
+
+**AND A ROW OF LABEL/VALUE PAIRS ALIGNS ITS VALUES.** A wider label wraps in
+more places, and in the Overview's most-recent-panel strip "In the usual range"
+is 267px of text in a 237px cell while "Markers" is 118px — so one figure of
+three sat 31px below the other two. `flex flex-col` on the pair and `mt-auto` on
+the value pins every figure to the floor of its own cell, for a label of any
+length. It costs a uniform gap under the short labels and that is the cheaper
+half of the trade.
+
+**If this ever looks wrong again, MEASURE the computed style, the margins AND
+the natural width of the longest label before touching a value** — it has been
+eyeballed wrongly three times.
 
 **Loading.** Self-hosted from this origin, latin only, from
 `apps/web/public/assets/fonts` — see the README there for why the files are
@@ -1229,35 +1276,46 @@ It refuses to run unless the target database's name contains "drill" or
   nav item, with Sign out as a SIBLING and never a child: a button inside an
   anchor is invalid markup and gives one control two behaviours.
 
-# The marker page is a value, then a trend, then everything else (Aug 2026)
+# The marker page: two cards, 40/60, then everything else (Aug 2026)
 
-It was four blocks of roughly equal weight — latest result, chart, explanation,
-previous results — each in its own card, so nothing said what to read first and
-the number the patient came for competed with three neighbours drawn exactly
-like it. Worse, **the biggest thing on the page was the marker's NAME**:
-`.display-heading` is clamp(38→72px) and the value was `text-3xl` at 52px, so
-"Ferritin" was set half again as large as the result.
+**LATEST RESULT and TREND OVER TIME are one row of two cards**, with PREVIOUS
+RESULTS inside the left card beneath the range bar, and then the explanation and
+the out-of-range card below. It spent a spell uncarded and stacked full width;
+what that cost was the two facts belonging together — the number and the shape
+it sits at the end of are ONE answer read side by side, and stacked they became
+two screens with the second below the fold.
 
-The order the eye lands in is now fixed and is carried by size, weight and
-space — **not by boxes and rules**:
+**40/60, not an even split**, because the two are not equal weight: the left
+card holds a number, a bar and a short history, the right holds the chart that
+is the reason to be on this page. Five columns split two and three, the closest
+simple ratio. Below `lg` they stack full width, where a 60% plot would be a
+slot.
 
-1. **THE VALUE**, uncarded, `.hero-value` (the display clamp, semibold, 72px at
-   1440), with the mono unit beside it, the status badge, both ranges and the
-   range bar under it. A card is a way of saying "this is one of several
-   things", and the value is not one of several things.
-2. **THE TREND**, uncarded and full width. The plot is already an inset panel
-   with its own hairline frame, so a card round it was a box drawn immediately
-   outside a box — and at 60% of a five-column grid the plot was narrower than
-   it was tall, which is the shape that exaggerates every movement in a series.
-3. **EVERYTHING ELSE**, after a wide margin so the drop in weight is announced
-   by space before anything is read. The h1 is a `.section-heading` (38px): it
-   is still the first thing read and has simply stopped competing with its own
-   answer.
+**SAME HEIGHT, DRIVEN BY CONTENT**, which is what a grid row does on its own
+(`align-items: stretch`) — so neither card carries a height. **NOT `flex
+flex-col` with `mt-auto` on the history**: that pair is what opened a dead zone
+last time, pinning PREVIOUS RESULTS to the floor of a card whose height comes
+from the chart beside it. Sections follow each other at ordinary spacing and any
+slack falls at the bottom, where slack reads as nothing at all.
 
-**THE EXPLANATION COMES BEFORE THE OUT-OF-RANGE CARD.** Somebody who has just
-been told their result is outside the usual range wants to know what the marker
-IS before they are told who to ring about it — the definition is context for the
-prompt, not a footnote to it.
+**THE PAIR FITS ONE WINDOW.** 1440×900 with the page header still visible and no
+scroll to reach either card — measured at 380×613 + 584×613, ending at 821 of
+900, by `e2e/zz-label-scale-shots.spec.ts`, which also asserts the two heights
+are equal. `PREVIOUS_SHOWN` is 3 for this reason and the reason is recorded on
+it: at four rows in the two-line arrangement it overflowed.
+
+**WHAT THE UNCARDED VERSION WON IS KEPT, and it was never about the cards:**
+
+- **THE VALUE IS BIGGER THAN THE MARKER'S NAME.** The name is a
+  `.section-heading` (38px) and the value is `.hero-value` (clamp 38→72px). It
+  used to be the other way round — `.display-heading` at 72px over a `text-3xl`
+  value at 52px — so a page about somebody's result was headed by the word
+  "Ferritin" set half again as large as the number they came for.
+- **THE MOST RECENT POINT PRINTS ITS OWN NUMBER** beside itself on the chart.
+- **THE EXPLANATION COMES BEFORE THE OUT-OF-RANGE CARD.** Somebody who has just
+  been told their result is outside the usual range wants to know what the
+  marker IS before they are told who to ring about it — the definition is
+  context for the prompt, not a footnote to it.
 
 # Vellum: the second surface register (Aug 2026)
 
@@ -1309,6 +1367,54 @@ a moment about a report that is not there is worse than no moment.
 borrowing the demo: "has this person seen this report" is one-way by design, so
 a spec on the demo account would pass once per re-seed and assert nothing after.
 
+**IT STANDS ON THE READER'S OWN OVERVIEW, BLURRED, AND ON THE FLOOR OF THE
+WINDOW (Aug 2026).** Two changes, one composition: a doorway with the thing it
+opens into visibly on the other side of it.
+
+- **The ground is the real `PatientOverview`**, live, with this patient's own
+  results in it — not a screenshot and not card-shaped rectangles — laid out in
+  the patient shell's own geometry so the masses land where their results
+  actually land. Blurred at `MOMENT_BACKDROP.blur` (24px), then veiled with the
+  page colour and the shadow tone. **The blur is bounded from both sides and
+  was measured by looking**: at 16px the greeting is a legible word shape, at
+  32px the ground stops reading as results and becomes a texture. The veil is a
+  contrast BUDGET — two alphas multiply, so 33% of the Overview's own
+  separation survives in light and 24% in dark, and the arch out-reads
+  everything behind it by about three to one. `tokenContrast.test.ts` holds the
+  multiplier, that ratio, and every word on the arch at AA, since the arch is
+  glass and its text is now set over this ground rather than over a surface.
+- **`MomentBackdrop` is PORTALLED onto `<body>` at `z-index: -2`**, which is
+  the only place a layer can sit UNDER the corner glow at -1. Rendered in
+  place it would be trapped in `PageTransition`'s temporary stacking context
+  and blink the glow out on arrival. `aria-hidden` + `pointer-events: none` +
+  **`inert`** — the third is the one the other two miss, and thirty-odd
+  invisible links in the tab order is what it prevents.
+- **NOTHING IN IT ANIMATES.** `StillContext` (components/motion/still.ts) plus
+  the `.moment-backdrop` rules: no `stagger-in`, no `Reveal`, no counting
+  numbers. A blurred layer is re-rasterised in full whenever anything inside it
+  changes, and the Overview's own entrance is ~1s of change landing exactly as
+  the moment arrives. **Measured: a flat 60fps on a GPU-backed browser, frame
+  for frame identical to the moment with no background at all.** The 9fps in
+  headless Chromium is SwiftShader and the same artefact already recorded on
+  GLASS; layer promotion was tried four ways and changed nothing there, and the
+  only thing asking for a frame on this screen is the 12px breathing dot.
+- **The arch reaches the bottom edge of the window** — crown in view, sides
+  running off the bottom, `border-b-0`, no gap. A doorway you can see the
+  bottom of is a window; one hanging in mid-air is a shape. Everything that was
+  below it moved inside it ("Not just now" under the button) and the wordmark
+  is gone from this screen rather than squeezed in beside an eyebrow that
+  already says Aspire Clinic.
+- **`padding-top: 50%` puts the content on the spring line**, because the crown
+  is exactly half the width tall — and a percentage padding resolves against
+  the CONTAINING BLOCK'S width, not the element's own, which is why the width
+  cap lives on a wrapper one level up. Got wrong once: with the cap on the arch
+  itself, 50% was half of 1392px and the button sat 700px below the floor.
+- **The crown is hit-tested, never read off `getComputedStyle`**, which returns
+  the specified 9999px whatever was drawn. A crown flattens into two
+  quarter-rounds with a straight top between them once the box is under half as
+  tall as it is wide, so `e2e/results-ready.spec.ts` probes the shape at 900,
+  800, 700 and on a phone.
+
 **WelcomePage navigates to "/" and not "/overview"**, so HomeRouter re-decides.
 Going straight to the Overview jumped over that decision and skipped the moment
 on the one sign-in it is most obviously for.
@@ -1341,7 +1447,8 @@ just a smaller page.
 
 **THE ARCH.** A rectangle with one semicircular end, standing upright. A
 doorway. It appears in **exactly three places**: the results-ready moment (full
-size, the only time it is large), empty states (a single faint hairline behind
+size and standing on the floor of the window — the only time it is large, see
+that section for the geometry), empty states (a single faint hairline behind
 the message, `.arch-outline`), and the section rail's nodes (already built, laid
 on its side, unchanged and not this class). It does NOT appear on the Overview,
 on Results, on a report, on a marker page, in the sidebar, or anywhere else
@@ -1351,7 +1458,12 @@ clip-path or an SVG, so the shape is correct at every size without a viewBox to
 keep in step — but the element must be TALLER than half its own width or the
 browser caps the radii and a doorway becomes a rounded box. The first empty
 state got that wrong (`h-[150%]` inside an `overflow-hidden` card) and drew two
-bare vertical hairlines through the sentence.
+bare vertical hairlines through the sentence. **What the cap actually does is
+worth knowing, because it is not a squash**: both radii are reduced by ONE
+factor, so the corners stay circular and what appears instead is a FLAT TOP
+between two quarter-rounds. And it is invisible to `getComputedStyle`, which
+returns the specified 9999px whatever was drawn — the shape has to be
+hit-tested.
 
 # Rules
 - Never colour alone for status — text label + icon shape carry it first
