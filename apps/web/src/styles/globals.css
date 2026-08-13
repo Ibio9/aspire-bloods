@@ -324,6 +324,33 @@
     background-color: rgb(var(--c-bronze));
   }
 
+  /* ── A LIST THAT CONTINUES BELOW ITS BOX SAYS SO ───────────────────────
+     A scrolling region with a hard bottom edge cuts whatever row happens to
+     be crossing it in half, and a row sliced through its descenders reads as
+     a rendering fault rather than as a list that goes on. The last 28px fade
+     out, so the cut is visibly deliberate and the next row is visibly there.
+
+     A MASK rather than an overlaid gradient, deliberately: an overlay has to
+     be painted in the surface's own colour, which means one more place that
+     has to know which surface it is on and one more thing to get wrong when
+     a card changes tone. A mask is the same rule on cream, on vellum and on
+     glass because it removes the element's own paint rather than covering it.
+
+     Top and bottom both, so a list scrolled to the middle is faded at both
+     ends — a fade only at the bottom implies the top is the beginning when
+     it may not be. `mask-composite` intersects them; the WebKit prefix is
+     still needed for Safari. */
+  .scroll-shade {
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 28px,
+      #000 calc(100% - 28px),
+      transparent 100%
+    );
+    mask-image: linear-gradient(to bottom, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+  }
+
   /* Entrance animations use a delay (staggered lists) — without this,
      the element renders at its resting (visible) style for the whole
      delay, then snaps to the keyframe's 0% state and animates back in.
@@ -926,8 +953,15 @@
     border-top-right-radius: 9999px;
   }
 
+  /* NO BOTTOM EDGE (Aug 2026). With `border` on all four sides this drew a
+     rounded-topped BOX, and in an empty state — where it is inset from the
+     card's floor — the bottom rule ran horizontally straight through the
+     message it stands behind. A doorway has no bottom: the two sides run down
+     and off, which is exactly what the full-size arch on the results-ready
+     moment does (`border-b-0`, see the note further down). One shape, drawn
+     the same way at both sizes. */
   .arch-outline {
-    @apply arch border border-taupe;
+    @apply arch border border-b-0 border-taupe;
     opacity: 0.5;
   }
 
@@ -1629,6 +1663,17 @@
   .print-footer {
     font-size: 0.75rem;
     line-height: 1.35;
+    /* ── ALIGNED WITH THE CONTENT, NOT WITH THE PAPER (Aug 2026) ──────────
+       `position: fixed` in a paged context is placed against the PAGE box, not
+       against the content area @page's margins carve out of it. Measured at A4
+       (794px at 96dpi): the footer ran 0 → 794 while every card above it ran
+       53 → 741, so the one line that repeats on all fourteen sheets was the
+       only thing on the document that reached past the margin and sat nearer
+       the paper's edge than anything else. 14mm is @page's own side margin —
+       the same number, and the reason it is written here rather than inherited
+       is that a fixed element has nothing to inherit it from. */
+    padding-left: 14mm;
+    padding-right: 14mm;
   }
 
   .print-footer svg {

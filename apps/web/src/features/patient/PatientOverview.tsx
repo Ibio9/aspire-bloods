@@ -519,38 +519,76 @@ export function PatientOverview() {
           </p>
           <p className="mt-3 max-w-measure text-sm leading-relaxed text-espresso/80">{ATTENTION_FRAMING}</p>
 
-          {/* ONE COLUMN, and the second one is gone with the contact card that
-              used to be in it (Aug 2026). The grid was two-plus-one at lg so
-              that "Talk to someone" could travel beside the list; with the
-              clinic's details in the sidebar on every screen, that card was
-              their third appearance on this page and the column existed only
-              to hold it.
+          {/* ═══ TWO COLUMNS, AND THE BAR USES ITS CARD (Aug 2026) ══════════
+              MEASURED, at 1440 on the demo patient: the section was **13,083px
+              of a 15,689px page** — 83% of the Overview was this one list — and
+              every card in it was **848px wide with a 448px range bar inside
+              it**. Just under half of all 37 cards was empty, and the page was
+              paying full height for it.
 
-              What is left is the list, collapsing on its own, at the section's
-              full width — which is also what the cards inside it wanted: a
-              range bar in a two-thirds column at 1440px was drawing a scale
-              into about 380px. */}
+              Two things were true at once and only one of them had been noticed.
+              The card was too WIDE for its content, because the bar carried a
+              `max-w-md` cap that no longer had a reason; and the list was too
+              TALL, because 37 cards at 290px each in a single column is a page
+              nobody reaches the bottom of and three sections below it that
+              nobody sees at all.
+
+              This partly revisits the note that replaced the old two-plus-one
+              grid, which recorded that a range bar in a two-thirds column drew
+              a scale into "about 380px". Two equal columns give each card 414px
+              and its bar 358px — near enough that number, and the objection is
+              still worth answering rather than ignoring: the full range bar on
+              the MARKER PAGE, which is the product's own reference drawing of
+              it, is 305px wide and prints all four of its labels legibly. 358
+              is wider than the reference. What that note was really objecting to
+              was a bar squeezed to make room for a card that has since been
+              removed.
+
+              Net: the section halves, every card's width is used by its own
+              content, and the three sections under it come into reach. */}
           <div className="mt-8">
             <div
               id={ATTENTION_REGION_ID}
               className={`collapse-region ${attentionOpen ? 'is-open' : ''}`}
             >
-            <ul className="flex flex-col gap-5">
+            {/* `items-start`, for the same reason "What's changed" carries it: a
+                card whose marker name wraps to two lines must not set the height
+                of the one beside it and have the difference drawn as empty
+                card. */}
+            <ul className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
               {data.attention.map((item, i) => (
                 <li key={item.markerId}>
                   <Reveal delay={staggerDelay(i)}>
                   <Link to={`/markers/${item.markerId}`} className="block rounded-card">
                     <Card interactive>
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="font-display opsz-small text-lg leading-tight text-espresso">{item.name}</p>
-                          <p className="numeric tabular mt-2 flex items-baseline gap-1.5 text-xl font-semibold text-espresso">
-                            {item.value} <span className="text-sm font-normal text-espresso/80">{item.unit}</span>
-                          </p>
-                        </div>
-                        <StatusBadge status={item.status} />
-                      </div>
-                      <div className="mt-6 max-w-md">
+                      {/* ── NAME, VALUE, THEN STATUS. IN THAT ORDER, ALWAYS ──
+                          This was `flex flex-wrap justify-between` with the
+                          badge as the second item, which produces a DIFFERENT
+                          arrangement depending on how long the marker's name
+                          is: at two columns "Red Blood Cell Count" left room
+                          for the badge on the top row and "GGT (Gamma-Glutamyl
+                          Transferase)" did not, so two cards sitting side by
+                          side put their status word in two different places.
+                          A layout that changes with the content is a layout the
+                          reader has to re-learn per card.
+
+                          Under the value now, which is also where the result
+                          card that appears 165 times on a report puts it — one
+                          arrangement for one object. `text-balance` picks the
+                          better of the breaks the name already has; no
+                          `break-words`, so it never breaks mid-word. */}
+                      <p className="text-balance font-display opsz-small text-lg leading-tight text-espresso">
+                        {item.name}
+                      </p>
+                      <p className="numeric tabular mt-2 flex flex-wrap items-baseline gap-x-1.5 text-xl font-semibold text-espresso">
+                        {item.value} <span className="text-sm font-normal text-espresso/80">{item.unit}</span>
+                      </p>
+                      <StatusBadge status={item.status} className="mt-2.5" />
+                      {/* NO WIDTH CAP. `max-w-md` held the bar at 448px inside
+                          an 848px card, which is the measurement in the note
+                          above; in a two-column card there is nothing left to
+                          cap it against and the scale should have the card. */}
+                      <div className="mt-6">
                         <RangeBar
                           value={item.value}
                           low={item.referenceLow}

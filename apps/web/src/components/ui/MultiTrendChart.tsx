@@ -1,14 +1,21 @@
 import { useId } from 'react';
-import { CartesianGrid, ComposedChart, Line, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import {
+  ComposedChart,
+  Line,
+  ReferenceArea,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+  usePlotArea,
+} from 'recharts';
 import {
   formatDate,
   asMarkerStatus,
-  bandLabel,
-  brand,
-  scales,
   chart as chartTokens,
-  statusPaint,
-  bandGradientStops,
+  bandRampStops,
+  TRANSITION_SHARE,
   severityThresholdFor,
   type MarkerStatus,
 } from '@aspire-bloods/shared';
@@ -22,40 +29,72 @@ import { formatAxisDate, type TrendSeries } from '../../lib/patientPortal';
  * floor or needs two y-axes nobody can read against each other.
  *
  * Instead every point is plotted at its position within its OWN reference
- * range: 0 is that marker's range floor, 1 is its ceiling, and the shared
- * taupe band between them is "inside the usual range" for all series at once.
- * That's the comparison a patient actually wants — "my ferritin climbed
- * while my haemoglobin held steady" — without ever implying the two numbers
- * are on the same scale. Real values and units stay in the tooltip and the
- * legend, which is where they mean something.
+ * range: 0 is that marker's range floor, 1 is its ceiling, and the bands
+ * between them are "inside the usual range" for all series at once. That's the
+ * comparison a patient actually wants — "my ferritin climbed while my
+ * haemoglobin held steady" — without ever implying the two numbers are on the
+ * same scale. Real values and units stay in the tooltip and the legend, which
+ * is where they mean something.
  *
  * Normalisation is per point, not per series, so a reference range that
  * changes between sources moves the point correctly rather than being
  * silently held against a stale range.
  *
- * THE BANDS. 0 to 1 is every series' own reference range, so that band is
- * green and it is exactly right for all of them at once. Outside it, the
- * yellow and red bands can only be drawn when every series agrees on where
- * significantly-out begins in normalised terms — which is the usual case,
- * because the threshold is a multiple of each marker's own range width and
- * therefore lands at the same normalised position for every marker on the
- * default. Where a marker overrides it with an absolute delta and the series
- * disagree, the outer bands are simply not drawn rather than drawn wrong, and
- * the key says which of the two happened. A shared axis is only allowed to
- * shade what is shared.
+ * ═══ ONE BAND SYSTEM, NOT TWO (Aug 2026) ═════════════════════════════════
  *
- * Series identity stays with the line's colour, dash and marker shape — that
- * is what says WHICH marker a point belongs to, and status must not take it
- * over. Status here is carried by the word in the tooltip and the legend,
- * coloured to match the rest of the product.
+ * This chart was the last thing in the product still drawing `bandGradientStops`
+ * — the pre-mixed `hueTint.*.band` palette from before the bands went opaque.
+ * So the product had two vocabularies for one idea, and they were visible on
+ * one screen: the Compare view's pale sage-and-beige bands directly beside a
+ * marker page's solved opaque ones. Two of its key entries were worse than
+ * inconsistent — "Below the reference range" and "Above the reference range"
+ * both resolved to `hueTint.yellow.band`, so the key printed two different
+ * sentences beside two identical swatches.
+ *
+ * It draws `bandRampStops` now, exactly as the single-marker chart and both
+ * range bars do. The geometry is the only thing that differs and it is the
+ * simplest case in the system: this axis IS a reference range, so `low` is 0,
+ * `high` is 1, and the threshold is the shared normalised one. Same five
+ * fills, same two hinges, same blend centred on each boundary, same
+ * `TRANSITION_SHARE`.
+ *
+ * ── AND THE THREE SERIES SHARE ONE LINE COLOUR, WHICH IS MEASURED ─────────
+ *
+ * The three lines used to be bronze, espresso and bronze-800 — three warm
+ * browns that were already near-indistinguishable in light, which is why the
+ * dash pattern and the mark shape were introduced beside them in the first
+ * place. Against OPAQUE bands two of the three stop being legible at all.
+ * Measured, contrast against the five band fills:
+ *
+ *     light   bronze 3.33 / 2.94 / 2.66 / 2.39 / 2.18   ← fails AA-large on four
+ *             bronze-800 4.96 / 4.38 / 3.96 / 3.55 / 3.25
+ *     dark    bronze 3.73 / 2.15 / 1.25 / 1.79 / 2.42   ← 1.25 on gold: invisible
+ *             bronze-800 6.62 / 3.82 / 2.21 / 3.19 / 4.30
+ *
+ * `chart.line` is the one colour already solved to clear every band in both
+ * themes (3.36 worst in light, 3.05 in dark — see LINE_LIFT), and in DARK
+ * there is no second colour available: the gold band is light enough that only
+ * the very top of the lightness range clears it, so three series cannot be
+ * separated by hue there at all without one of them failing.
+ *
+ * So series identity is carried by DASH PATTERN and MARK SHAPE, which this
+ * chart has always drawn and has always named in the legend and in the
+ * screen-reader text. That is the layer that survives greyscale and colour
+ * blindness, and it is now the layer doing the whole job rather than the
+ * backup for a colour ladder that could not exist. The product's own rule —
+ * if brighter bands bury the line, brighten the line, never dull the band —
+ * has no third colour to offer, and three legible lines beat two pretty ones.
  */
 
-/** Bronze, espresso, and a deep bronze shade — palette only. Each series also carries a distinct
- * dash pattern and dot shape, so the chart is readable in greyscale and to a colour-blind reader. */
+/**
+ * The three series, distinguished by dash and by mark. One colour, for the
+ * reason measured above; `dashLabel` is what a screen reader is told, so the
+ * distinction is stated in words as well as drawn.
+ */
 const SERIES_STYLES = [
-  { color: brand.bronze, dash: undefined, shape: 'circle' as const, dashLabel: 'solid line, round markers' },
-  { color: brand.espresso, dash: '7 4', shape: 'square' as const, dashLabel: 'dashed line, square markers' },
-  { color: scales.bronze[800], dash: '2 4', shape: 'diamond' as const, dashLabel: 'dotted line, diamond markers' },
+  { dash: undefined, shape: 'circle' as const, dashLabel: 'solid line, round markers' },
+  { dash: '7 4', shape: 'square' as const, dashLabel: 'dashed line, square markers' },
+  { dash: '2 4', shape: 'diamond' as const, dashLabel: 'dotted line, diamond markers' },
 ];
 
 function normalise(value: number, low: number, high: number): number {
@@ -78,9 +117,40 @@ function epochOf(sampleDate: string): number {
 
 const DAY_MS = 86_400_000;
 
-function SeriesDot({ cx, cy, shape, color }: { cx?: number; cy?: number; shape: 'circle' | 'square' | 'diamond'; color: string }) {
+/**
+ * THE PLOT AS AN INSET PANEL, exactly as the single-marker chart draws it —
+ * one hairline frame over a surface fractionally away from the card. It was
+ * absent here, so the same drawing appeared framed on a marker page and
+ * unframed one press away.
+ */
+function PlotPanel() {
+  const plot = usePlotArea();
+  if (!plot) return null;
+  return (
+    <rect
+      x={plot.x}
+      y={plot.y}
+      width={plot.width}
+      height={plot.height}
+      fill={chartTokens.plotSurface}
+      stroke={chartTokens.plotFrame}
+      strokeOpacity={chartTokens.plotFrameOpacity}
+      strokeWidth={1}
+      shapeRendering="crispEdges"
+      aria-hidden="true"
+    />
+  );
+}
+
+/**
+ * A point: an OUTLINE on the plot's own ground, filled with the plot surface
+ * and stroked in the line colour — so the line visibly passes behind it and
+ * the interior is a hole in the band rather than more colour on top of one.
+ * Same construction as the single-marker chart's marks.
+ */
+function SeriesDot({ cx, cy, shape }: { cx?: number; cy?: number; shape: 'circle' | 'square' | 'diamond' }) {
   if (cx == null || cy == null) return null;
-  const common = { fill: color, stroke: brand.white, strokeWidth: 1.4 };
+  const common = { fill: chartTokens.plotSurface, stroke: chartTokens.line, strokeWidth: 1.8 };
   return (
     <g>
       {/* Generous invisible hit area — the visible mark stays small. */}
@@ -92,16 +162,33 @@ function SeriesDot({ cx, cy, shape, color }: { cx?: number; cy?: number; shape: 
   );
 }
 
+/** The legend and tooltip swatch — the mark and its dash, as the plot draws them. */
+function SeriesSwatch({ index }: { index: number }) {
+  const style = SERIES_STYLES[index % SERIES_STYLES.length];
+  const common = { fill: chartTokens.plotSurface, stroke: chartTokens.line, strokeWidth: 1.4 };
+  return (
+    <svg width="26" height="10" viewBox="0 0 26 10" aria-hidden="true" className="shrink-0">
+      <line x1="0" y1="5" x2="26" y2="5" stroke={chartTokens.line} strokeWidth="2" strokeDasharray={style.dash} />
+      {style.shape === 'circle' && <circle cx="13" cy="5" r="4" {...common} />}
+      {style.shape === 'square' && <rect x="9.5" y="1.5" width="7" height="7" {...common} />}
+      {style.shape === 'diamond' && <rect x="9.6" y="1.6" width="6.8" height="6.8" transform="rotate(45 13 5)" {...common} />}
+    </svg>
+  );
+}
+
 function ChartTooltip({ active, payload, series }: { active?: boolean; payload?: unknown[]; series: TrendSeries[] }) {
   if (!active || !payload?.length) return null;
   const row = (payload[0] as { payload: Row }).payload;
 
   return (
-    <div className="rounded-card border border-taupe bg-white px-3.5 py-2.5 text-xs shadow-card">
+    // The same glass card the single-marker chart's tooltip is, at the same
+    // level: a reading OF the chart should diffuse the part it covers rather
+    // than delete it.
+    <div className="glass min-w-[11rem] rounded-card border border-taupe px-4 py-3 text-xs shadow-popover">
       {/* The row's own sampleDate, not the axis label — the axis is a time
           scale now, so its label is an epoch number. */}
-      <p className="font-medium text-espresso">{formatDate(row.sampleDate)}</p>
-      <ul className="mt-1.5 flex flex-col gap-1">
+      <p className="numeric text-[11px] uppercase tracking-eyebrow text-espresso/80">{formatDate(row.sampleDate)}</p>
+      <ul className="mt-2 flex flex-col gap-1.5">
         {series.map((s, i) => {
           const raw = row[`${s.markerId}__value`];
           // Narrowed, not cast. The row is a bag of dynamic keys, so whatever
@@ -112,12 +199,14 @@ function ChartTooltip({ active, payload, series }: { active?: boolean; payload?:
           if (raw == null) return null;
           return (
             <li key={s.markerId} className="flex items-center gap-2">
-              <span aria-hidden="true" className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: SERIES_STYLES[i % 3].color }} />
+              {/* The mark this series is drawn with, so the row can be matched
+                  to the line without counting down the legend. */}
+              <SeriesSwatch index={i} />
               <span className="tabular text-espresso">
                 {s.name}: {raw}
                 {/* The status word carries its own state's colour, as it does
-                    everywhere else. The series dot to its left stays the
-                    series' colour — that says which marker, not how it is. */}
+                    everywhere else. The swatch to its left is the series
+                    identity — that says WHICH marker, not how it is. */}
                 {st && (
                   <>
                     {', '}
@@ -209,9 +298,29 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
   const domainMin = min - pad;
   const domainMax = max + pad;
 
-  // Green across the shared reference range, then yellow and red either side
-  // of it at the shared threshold. Clipped to the domain, and dropped entirely
-  // where it would be zero-height.
+  /**
+   * THE BANDS, in normalised units — and this is the same instrument as every
+   * other band in the product rather than a second one that resembles it.
+   *
+   * The geometry is the degenerate case the ramp was built for: the axis IS a
+   * reference range, so `low` is 0 and `high` is 1, and the transition
+   * half-width is a share of the DRAWN EXTENT exactly as it is on a marker's
+   * own chart. Where the series disagree about where significantly-out begins
+   * there is no shared threshold, so only the reference range itself is
+   * shaded — a shared axis may only shade what is shared — and the note under
+   * the chart says which of the two happened.
+   */
+  const transitionHalfWidth = ((domainMax - domainMin) * TRANSITION_SHARE) / 2;
+  const rampGeometry = {
+    low: 0,
+    high: 1,
+    // With no shared threshold nothing outside the range is drawn, so the value
+    // is never read; it still has to be a finite number greater than zero for
+    // the clamps inside bandRampStops to be arithmetic rather than NaN.
+    threshold: sharedThreshold ?? 1,
+    halfWidth: transitionHalfWidth,
+  };
+
   const bands: { status: MarkerStatus; y1: number; y2: number }[] = [{ status: 'IN_RANGE', y1: 0, y2: 1 }];
   if (sharedThreshold !== null) {
     bands.push(
@@ -221,8 +330,42 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
       { status: 'SIGNIFICANT_HIGH', y1: 1 + sharedThreshold, y2: domainMax },
     );
   }
-  const shownBands = bands
-    .map((b) => ({ ...b, y1: Math.max(domainMin, b.y1), y2: Math.min(domainMax, b.y2) }))
+
+  /**
+   * Clamped to the domain, then the stops placed by VALUE and converted onto
+   * each rect's own drawn extent — the same correction the single-marker chart
+   * makes, and for the same reason: a band can reach past the axis and the
+   * outer two are open-ended, so a stop laid out as a fraction of the CLAMPED
+   * rect finishes its ramp early and puts orange in the middle of the
+   * above-range region rather than at the threshold where orange means
+   * something. Only the nearest stop outside the rect survives on each side,
+   * so where two clamp to the same edge the colour that paints it is the one
+   * still true there.
+   */
+  const withinRect = <T extends { value: number }>(stops: T[], y1: number, y2: number): T[] => {
+    const [lo, hi] = y1 <= y2 ? [y1, y2] : [y2, y1];
+    const inside = stops.filter((s) => s.value >= lo && s.value <= hi);
+    const below = stops.filter((s) => s.value < lo).pop();
+    const above = stops.find((s) => s.value > hi);
+    const kept = [...(below ? [below] : []), ...inside, ...(above ? [above] : [])];
+    return kept.length >= 2 ? kept : [...kept, ...kept].slice(0, 2);
+  };
+
+  const bandRects = bands
+    .map((b) => {
+      const y1 = Math.max(domainMin, b.y1);
+      const y2 = Math.min(domainMax, b.y2);
+      const drawnSpan = y2 - y1 || 1;
+      const stops = withinRect(bandRampStops(b.status, rampGeometry), y1, y2)
+        .map((stop) => ({
+          // SVG's y grows downward and a value grows upward, so a band's
+          // HIGH-value end is the gradient's offset 0.
+          offset: Math.max(0, Math.min(1, 1 - (stop.value - y1) / drawnSpan)),
+          colour: stop.colour,
+        }))
+        .sort((a, b2) => a.offset - b2.offset);
+      return { status: b.status, y1, y2, stops };
+    })
     .filter((b) => b.y2 > b.y1);
 
   // Which explanatory note applies is a property of the data, not a constant.
@@ -241,14 +384,16 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
 
   return (
     <div>
+      {/* Real padding on all four sides, so the framed plot is a drawing on the
+          card rather than a picture cropped to its edges — same wrapper as the
+          single-marker chart. */}
       <div
-        className="tabular h-[340px] w-full"
+        className="tabular h-[340px] w-full px-1 pb-1 sm:px-2"
         role="img"
         aria-label={`Comparison chart. Each marker is plotted against its own reference range, where the shaded band is that marker’s usual range. ${summary}`}
       >
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={rows} margin={{ top: 12, right: 16, left: 4, bottom: 0 }}>
-            <CartesianGrid stroke={chartTokens.gridline} strokeOpacity={0} />
+          <ComposedChart data={rows} margin={{ top: 18, right: 18, left: 6, bottom: 10 }}>
             {/* Real time, not one category per sample date. Plotted as
                 categories, a marker retested at three months and again at a
                 year drew as two equal steps — which says the change happened
@@ -265,60 +410,65 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
               // every other number. The tabular figures are inherited from the
               // `tabular` class on the wrapper, since Recharts' tick prop type
               // has no fontVariantNumeric.
-              tick={{ fontSize: 12, fill: chartTokens.axisText, fontFamily: 'var(--font-mono)' }}
-              axisLine={{ stroke: chartTokens.axisLine }}
+              tick={{ fontSize: 11, fill: chartTokens.axisText, fontFamily: 'var(--font-mono)' }}
+              axisLine={{ stroke: chartTokens.axisLine, strokeOpacity: 0.5 }}
               tickLine={false}
+              tickMargin={10}
               minTickGap={16}
               interval="preserveStartEnd"
             />
             <defs>
-              {shownBands.map((b) => {
-                const [atLowEnd, atHighEnd] = bandGradientStops(b.status);
-                return (
-                  <linearGradient key={b.status} id={`${gradId}-${b.status}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={atHighEnd} />
-                    <stop offset="100%" stopColor={atLowEnd} />
-                  </linearGradient>
-                );
-              })}
+              {bandRects.map((b) => (
+                <linearGradient key={b.status} id={`${gradId}-${b.status}`} x1="0" y1="0" x2="0" y2="1">
+                  {b.stops.map((stop, i) => (
+                    <stop key={i} offset={stop.offset} stopColor={stop.colour} stopOpacity={1} />
+                  ))}
+                </linearGradient>
+              ))}
             </defs>
             <YAxis
               domain={[domainMin, domainMax]}
               ticks={[0, 1]}
               tickFormatter={(v: number) => (v === 0 ? 'Range low' : 'Range high')}
-              tick={{ fontSize: 11, fill: chartTokens.axisText, fontFamily: 'var(--font-mono)' }}
+              // NOT the mono face. Every other axis label in the product is a
+              // NUMBER and takes mono for that reason; these two are words, and
+              // mono is for numerics only. They are the only axis labels in the
+              // product that are prose, which is why this is the only axis that
+              // does not name a font here.
+              tick={{ fontSize: 11, fill: chartTokens.axisText }}
               axisLine={false}
               tickLine={false}
               width={74}
             />
-            {shownBands.map((b) => (
+
+            {/* The panel first, then the bands on it, then everything else. */}
+            <PlotPanel />
+
+            {bandRects.map((b) => (
               <ReferenceArea
                 key={b.status}
                 y1={b.y1}
                 y2={b.y2}
                 fill={`url(#${gradId}-${b.status})`}
                 // See the same line in TrendChart: ReferenceArea's fillOpacity
-                // defaults to 0.5, which halves a band token that was already
-                // calibrated to be applied whole. That is what made every
-                // chart in the product read as grey while the cards, the
-                // counts strip and the summary bars read correctly — those
-                // apply the same tokens as Tailwind classes, where nothing
-                // silently halves them.
+                // defaults to 0.5, which would draw every band at half strength
+                // — the exact translucency the opaque-band change removed.
                 fillOpacity={1}
                 strokeOpacity={0}
                 ifOverflow="hidden"
               />
             ))}
-            {/* The two boundaries every series shares, drawn and labelled on
-                the axis ("Range low" / "Range high") so they are locatable
-                without the colour. */}
-            <ReferenceLine y={0} stroke={chartTokens.referenceEdge} />
-            <ReferenceLine y={1} stroke={chartTokens.referenceEdge} />
+            {/* The two boundaries every series shares, drawn as the same neutral
+                hairline every other boundary in the product uses — and labelled
+                on the axis ("Range low" / "Range high") so they are locatable
+                with the colour taken away. */}
+            <ReferenceLine y={0} stroke={chartTokens.referenceEdge} strokeOpacity={chartTokens.referenceEdgeOpacity} strokeWidth={1} />
+            <ReferenceLine y={1} stroke={chartTokens.referenceEdge} strokeOpacity={chartTokens.referenceEdgeOpacity} strokeWidth={1} />
             {sharedThreshold !== null && (
-              <ReferenceLine y={-sharedThreshold} stroke={chartTokens.referenceEdge} strokeOpacity={0.55} strokeDasharray="3 3" />
+              <ReferenceLine y={-sharedThreshold} stroke={chartTokens.referenceEdge} strokeOpacity={chartTokens.severityEdgeOpacity} strokeWidth={1} />
             )}
             {sharedThreshold !== null && (
-              <ReferenceLine y={1 + sharedThreshold} stroke={chartTokens.referenceEdge} strokeOpacity={0.55} strokeDasharray="3 3" />
+              <ReferenceLine y={1 + sharedThreshold} stroke={chartTokens.referenceEdge} strokeOpacity={chartTokens.severityEdgeOpacity} strokeWidth={1} />
             )}
             <Tooltip content={<ChartTooltip series={series} />} cursor={{ stroke: chartTokens.cursor, strokeWidth: 1 }} />
             {series.map((s, i) => {
@@ -331,14 +481,18 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
               return (
                 <Line
                   key={s.markerId}
-                  type="monotone"
+                  // Straight, never `monotone`: a spline between two blood
+                  // draws invents a shape for the months between them that
+                  // nobody measured. Same rule as the single-marker chart,
+                  // which this had quietly diverged from.
+                  type="linear"
                   dataKey={s.markerId}
                   name={s.name}
-                  stroke={connected ? style.color : 'none'}
-                  strokeWidth={2}
+                  stroke={connected ? chartTokens.line : 'none'}
+                  strokeWidth={chartTokens.lineWidth}
                   strokeDasharray={style.dash}
                   connectNulls={connected}
-                  dot={<SeriesDot shape={style.shape} color={style.color} />}
+                  dot={<SeriesDot shape={style.shape} />}
                   activeDot={false}
                   isAnimationActive={false}
                 />
@@ -354,14 +508,7 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
           const last = s.points[s.points.length - 1];
           return (
             <li key={s.markerId} className="flex items-center gap-2.5 text-sm">
-              <svg width="26" height="10" viewBox="0 0 26 10" aria-hidden="true" className="shrink-0">
-                <line x1="0" y1="5" x2="26" y2="5" stroke={style.color} strokeWidth="2" strokeDasharray={style.dash} />
-                {style.shape === 'circle' && <circle cx="13" cy="5" r="4" fill={style.color} stroke={brand.white} strokeWidth="1.2" />}
-                {style.shape === 'square' && <rect x="9.5" y="1.5" width="7" height="7" fill={style.color} stroke={brand.white} strokeWidth="1.2" />}
-                {style.shape === 'diamond' && (
-                  <rect x="9.6" y="1.6" width="6.8" height="6.8" transform="rotate(45 13 5)" fill={style.color} stroke={brand.white} strokeWidth="1.2" />
-                )}
-              </svg>
+              <SeriesSwatch index={i} />
               <span className="text-espresso">
                 <span className="font-medium">{s.name}</span>{' '}
                 <span className="tabular text-espresso/80">
@@ -375,22 +522,14 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
         })}
       </ul>
 
-      {/* What the shading is, named. Same rule as the single-marker chart: a
-          coloured region with no written entry is colour carrying meaning on
-          its own, which this product does not do. */}
-      <ul className="mt-3 flex flex-col gap-2 text-xs text-espresso/80 sm:flex-row sm:flex-wrap sm:gap-x-6">
-        {shownBands.map((b) => (
-          <li key={b.status} className="flex items-center gap-2">
-            <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true" className="shrink-0">
-              <rect x="0" y="2" width="18" height="8" fill={statusPaint(b.status).band} />
-              <line x1="0" y1="2" x2="18" y2="2" stroke={chartTokens.referenceEdge} strokeWidth="1" strokeOpacity="0.85" />
-            </svg>
-            {bandLabel(b.status)}
-          </li>
-        ))}
-      </ul>
+      {/* NO BAND ENTRIES IN THE KEY, and no coloured rectangles — the same rule
+          the single-marker chart follows. What names the bands is the FIGURES
+          on the axis ("Range low", "Range high") beside the hairlines that
+          bound them, which is a better answer to "where does my range start"
+          and one a greyscale reader gets in full. The bands are still never
+          carried by colour alone. */}
       {sharedThreshold === null && (
-        <p className="mt-3 text-sm leading-relaxed text-espresso/80">
+        <p className="mt-4 text-sm leading-relaxed text-espresso/80">
           These markers don’t share a common point at which a result counts as significantly outside its range, so
           only the reference range itself is shaded here. Each marker’s own full shading is on its detail page.
         </p>

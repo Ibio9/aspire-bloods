@@ -139,7 +139,7 @@ export function EmailCodeStep({ email, sentTo, expiresInMinutes, cooldownSeconds
       <p className="mt-[var(--auth-step)] text-sm leading-relaxed text-espresso/80">
         We’ve sent a 6-digit code to{' '}
         <span className="font-medium text-espresso">{maskedAddress ?? 'your email address'}</span>. It’s valid for{' '}
-        {expiry} minutes, and it’s the only code you’ll need today — next time you sign in, we’ll send one to confirm
+        {expiry} minutes, and it’s the only code you’ll need today. Next time you sign in, we’ll send one to confirm
         it’s you.
       </p>
 

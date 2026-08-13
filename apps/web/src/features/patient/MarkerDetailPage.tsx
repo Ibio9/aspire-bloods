@@ -368,7 +368,19 @@ export function MarkerDetailPage() {
           outside the usual range wants to know what the marker is before they
           are told who to ring about it — the definition is context for the
           prompt, not a footnote to it. */}
-      <div className="mt-12 max-w-3xl">
+      {/* FULL WIDTH, and the PROSE is what is capped (Aug 2026).
+          This wrapper carried `max-w-3xl` (768px), under a pair of cards
+          spanning the whole 990px content column — so the explanation card
+          stopped 222px short of the two above it and the page had a ragged
+          right edge that was not a measure of anything: 768 is neither the 40%
+          nor the 60% the row is built on, it is the number that was typed.
+
+          The prose inside already caps itself at 68 characters
+          (`max-w-measure` on MarkerExplanationBody's text column, and on both
+          cards below), which is where a measure belongs — on the line length,
+          not on the surface the line sits on. So the cards align with the pair
+          and nothing about the reading width changes. */}
+      <div className="mt-12">
         {detail.explanation && (
           // THE SECOND SURFACE REGISTER — see `.card-vellum` in globals.css.
           // The one class of content in the product that is prose rather than

@@ -70,10 +70,22 @@ const RESULT_TYPE_LABEL: Record<MarkerRow['resultType'], string> = {
   QUALITATIVE: 'Qualitative result',
 };
 
+/**
+ * How many catalogue rows enter the DOM at once.
+ *
+ * The catalogue is 442 analytes and this tab rendered every one of them, as a
+ * flat list inside a single card, with no search — 18,000px of one-line rows
+ * whose only ordering was whatever the API returned. Finding "Ferritin" meant
+ * Ctrl+F, which is a browser feature standing in for a missing control.
+ */
+const MARKER_PAGE = 40;
+
 function MarkersTab() {
   const { show } = useToast();
   const [markers, setMarkers] = useState<MarkerRow[] | null>(null);
   const [loadError, setLoadError] = useState<unknown>(null);
+  const [query, setQuery] = useState('');
+  const [shown, setShown] = useState(MARKER_PAGE);
   const [newMarkerKey, setNewMarkerKey] = useState('');
   const [newMarkerName, setNewMarkerName] = useState('');
   const [newMarkerUnit, setNewMarkerUnit] = useState('');
@@ -150,6 +162,15 @@ function MarkersTab() {
 
   const activeMarkers = markers.filter((m) => m.isActive);
   const retired = markers.filter((m) => !m.isActive);
+  const q = query.trim().toLowerCase();
+  // Name, key and unit: an admin looking for a marker knows one of the three,
+  // and the key is what an ingestion-log exception names it by.
+  const matching = q
+    ? activeMarkers.filter((m) =>
+        [m.name, m.key, m.defaultUnit].some((s) => (s ?? '').toLowerCase().includes(q)),
+      )
+    : activeMarkers;
+  const rendered = matching.slice(0, shown);
 
   return (
     <div className="flex flex-col gap-8">
@@ -185,20 +206,41 @@ function MarkersTab() {
       </Card>
 
       <div>
-        <p className="eyebrow mb-4">
-          {activeMarkers.length} marker{activeMarkers.length === 1 ? '' : 's'} in the catalogue
-        </p>
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+          <p className="eyebrow">
+            <span className="numeric tabular">{activeMarkers.length}</span> marker
+            {activeMarkers.length === 1 ? '' : 's'} in the catalogue
+          </p>
+          {/* 442 analytes with no way to ask for one. See MARKER_PAGE. */}
+          <div className="w-full max-w-xs">
+            <Input
+              label="Find a marker"
+              hideLabel
+              name="catalogue-search"
+              type="search"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setShown(MARKER_PAGE);
+              }}
+              placeholder="Name, key or unit…"
+              required={false}
+            />
+          </div>
+        </div>
         {activeMarkers.length === 0 ? (
           <EmptyState
             title="No markers yet"
             description="Run the catalogue import, or add one above, before it can be put on a panel."
           />
+        ) : matching.length === 0 ? (
+          <EmptyState title="No marker matches that" action={<Button onClick={() => setQuery('')}>Clear the search</Button>} />
         ) : (
           <Card>
             <div className="flex flex-col gap-2">
-              {activeMarkers.map((m) => (
+              {rendered.map((m) => (
                 <div key={m.id} className="flex flex-wrap items-center gap-3 border-b border-taupe pb-2 last:border-b-0">
-                  <span className="flex-1 text-sm text-espresso">
+                  <span className="min-w-0 flex-1 text-sm text-espresso">
                     {m.name}
                     {m.defaultUnit && <span className="text-espresso/80"> ({m.defaultUnit})</span>}
                     {m.resultType !== 'MEASURED' && (
@@ -214,6 +256,18 @@ function MarkersTab() {
                 </div>
               ))}
             </div>
+            {/* Said out loud, for the same reason the review queue says it: a
+                list that silently stops reads as the whole list. */}
+            {matching.length > rendered.length && (
+              <div className="mt-5 flex flex-col items-start gap-3 border-t border-taupe pt-5">
+                <p className="numeric tabular text-sm text-espresso/80" role="status">
+                  {rendered.length} of {matching.length} shown
+                </p>
+                <Button variant="secondary" onClick={() => setShown((n) => n + MARKER_PAGE)}>
+                  Show {Math.min(MARKER_PAGE, matching.length - rendered.length)} more
+                </Button>
+              </div>
+            )}
           </Card>
         )}
       </div>

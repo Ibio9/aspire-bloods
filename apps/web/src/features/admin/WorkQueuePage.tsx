@@ -108,7 +108,11 @@ const STATE_MEANING: Record<string, string> = {
  * difference between "just arrived" and "sat there all morning".
  */
 function formatDuration(ms: number | null): string {
-  if (ms == null) return '—';
+  // An EN dash, not an em dash. House style refuses the em dash in anything a
+  // reader sees, and this one had escaped because the copy spec only ever
+  // walked the patient portal. The en dash is the conventional nil glyph in a
+  // table of figures and is the same character a numeric range keeps.
+  if (ms == null) return '–';
   const mins = Math.floor(ms / 60_000);
   if (mins < 1) return 'just now';
   if (mins < 60) return `${mins} min`;

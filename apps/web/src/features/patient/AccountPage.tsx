@@ -124,14 +124,36 @@ export function AccountPage() {
                 <Skeleton className="h-10 w-full" />
               </div>
             )}
+            {/* ── A CONSENT IS A ROW, NOT A FORM (Aug 2026) ─────────────────
+                Each of the four stacked its label, its state and a full-size
+                secondary button one under the other, so the card read as a
+                column of four identical dark pills — four destructive-looking
+                actions with their subjects set above them — rather than as a
+                list of four things you have agreed to, one of which you might
+                change. Nothing here is a form: it is a record with an
+                occasional action against a line of it.
+
+                An explicit grid rather than `justify-between`, for the reason
+                written on `.value-row`: a flex group shrinks past its own
+                children and paints over its neighbour. The state is muted and
+                the label is not, so the pair reads in the right order. */}
             {consents?.map((c) => (
-              <div key={c.type} className="border-b border-taupe pb-4 last:border-b-0 last:pb-0">
-                <p className="font-medium text-espresso">{CONSENT_LABEL[c.type]}</p>
-                <p className="text-sm text-espresso">
-                  {c.withdrawn ? 'Withdrawn' : c.granted ? 'Granted' : 'Not granted'}
-                </p>
+              <div
+                key={c.type}
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-5 gap-y-1 border-b border-taupe pb-4 last:border-b-0 last:pb-0"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium text-espresso">{CONSENT_LABEL[c.type]}</p>
+                  <p className="text-sm text-espresso/80">
+                    {c.withdrawn ? 'Withdrawn' : c.granted ? 'Granted' : 'Not granted'}
+                  </p>
+                </div>
                 {c.granted && !c.withdrawn && (
-                  <Button variant="secondary" className="mt-2" onClick={() => setConfirmWithdraw(c.type)}>
+                  // Ghost rather than secondary: this is one row's action, and
+                  // a filled control on every row makes the loudest thing in
+                  // the card the way to undo it. The confirm modal is where
+                  // the decision is actually taken and it is not quiet.
+                  <Button variant="ghost" onClick={() => setConfirmWithdraw(c.type)}>
                     Withdraw
                   </Button>
                 )}

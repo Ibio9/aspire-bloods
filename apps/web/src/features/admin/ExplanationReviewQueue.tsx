@@ -3,6 +3,7 @@ import { formatDate, type MarkerReviewStatus } from '@aspire-bloods/shared';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Checkbox } from '../../components/ui/Checkbox';
+import { Input } from '../../components/ui/Input';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { useToast } from '../../components/ui/Toast';
@@ -44,12 +45,48 @@ const STATUS_COPY: Record<MarkerReviewStatus, { label: string; hint: string }> =
  * Bulk here is a UI affordance only: the API writes one audit entry per
  * explanation, so the record of who approved which wording is per-marker
  * exactly as it is for a single approval.
+ *
+ * ═══ 442 CARDS, AND NOTHING TO NARROW THEM WITH (fixed Aug 2026) ═════════
+ *
+ * This was the tallest screen in the product by a distance — measured at
+ * **99,981px** at 1440 and 181,743 CSS pixels on a phone, because it rendered
+ * every explanation in the catalogue as a full card with its four paragraphs
+ * of copy. Nobody reaches the bottom of a page 111 screens tall, which means
+ * in practice nobody reviews anything below the first few dozen markers, which
+ * is why 442 of them are still in draft.
+ *
+ * Two things fix it and they are different fixes for different halves:
+ *
+ *  · A SEARCH, over the marker's name and its copy. A clinician approving
+ *    explanations works through a subject — the liver ones, the thyroid ones —
+ *    and had no way to ask for them. Every other list in this product has had
+ *    one for months.
+ *  · A RENDER WINDOW. Only `PAGE` cards are in the DOM at a time, with an
+ *    explicit "N of M shown" and a button for the next batch. NOT
+ *    virtualisation: the food-sensitivity list is virtualised because it is
+ *    207 one-line rows a patient scans, and the cost there (invisible to
+ *    Ctrl+F, absent from the accessibility tree) is paid for by a search over
+ *    the one field that matters. This is prose a clinician READS before
+ *    signing it off, and hiding the words from find-in-page on the screen
+ *    whose entire job is reading them would be the wrong trade.
+ *
+ * AND THE BULK ACTION NAMES THE SET IT ACTS ON. "Select all 442 shown" was
+ * false twice over — they were not all shown in any useful sense, and after a
+ * search it would have been acting on something other than what the reader had
+ * asked for. It says "Select all N matching" and N is the FILTERED set, not
+ * the rendered window: selecting is cheap, reading is what is being paged.
  */
+
+/** How many cards enter the DOM at once. See the note above on why this is a window rather than virtualisation. */
+const PAGE = 25;
+
 export function ExplanationReviewQueue() {
   const { show } = useToast();
   const [rows, setRows] = useState<ExplanationRow[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<Filter>('DRAFT');
+  const [query, setQuery] = useState('');
+  const [shown, setShown] = useState(PAGE);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -67,8 +104,28 @@ export function ExplanationReviewQueue() {
     // Only markers that actually have copy can be approved — an empty
     // explanation isn't a draft awaiting sign-off, it's nothing to sign off.
     const withCopy = rows.filter((r) => r.hasExplanation && r.whatItIs.trim());
-    return filter === 'DRAFT' ? withCopy.filter((r) => r.reviewStatus === 'DRAFT') : withCopy;
-  }, [rows, filter]);
+    const byStatus = filter === 'DRAFT' ? withCopy.filter((r) => r.reviewStatus === 'DRAFT') : withCopy;
+    const q = query.trim().toLowerCase();
+    if (!q) return byStatus;
+    // The COPY as well as the name: somebody working through the liver
+    // explanations is looking for the word "liver", which is in the sentence
+    // rather than in "ALT (Alanine Aminotransferase)".
+    return byStatus.filter((r) =>
+      [r.markerName, r.whatItIs, r.highMeans, r.lowMeans, r.lifestyleContext]
+        .filter(Boolean)
+        .some((s) => (s as string).toLowerCase().includes(q)),
+    );
+  }, [rows, filter, query]);
+
+  // Back to the first window whenever the set changes underneath it — a reader
+  // who has pressed "show more" four times and then searches wants the top of
+  // the new answer, not 100 cards of it.
+  useEffect(() => {
+    setShown(PAGE);
+  }, [query, filter]);
+
+  /** Only these are in the DOM. `visible` is what the bulk action acts on. */
+  const rendered = useMemo(() => visible.slice(0, shown), [visible, shown]);
 
   const draftCount = rows?.filter((r) => r.hasExplanation && r.reviewStatus === 'DRAFT').length ?? 0;
   const missingCount = rows?.filter((r) => !r.hasExplanation || !r.whatItIs.trim()).length ?? 0;
@@ -169,29 +226,66 @@ export function ExplanationReviewQueue() {
             ))}
           </div>
         </div>
+
+        {/* Over the name AND the copy — see the note on `visible`. Every other
+            list in this product has had a search for months; this one, the
+            longest of them all, had none. */}
+        <div className="mt-5 max-w-md border-t border-taupe pt-5">
+          <Input
+            label="Find an explanation"
+            name="explanation-search"
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Marker name, or a word in the copy…"
+            required={false}
+          />
+        </div>
       </Card>
 
       {visible.length === 0 ? (
         <EmptyState
-          title={filter === 'DRAFT' ? 'Nothing awaiting review' : 'No marker copy yet'}
-          description={
-            filter === 'DRAFT'
-              ? 'Every marker explanation with copy written against it has been reviewed and is visible to patients.'
-              : 'No marker has an explanation written against it yet. Add copy in the Explanations tab, then approve it here.'
+          title={
+            query.trim()
+              ? 'Nothing matches that'
+              : filter === 'DRAFT'
+                ? 'Nothing awaiting review'
+                : 'No marker copy yet'
           }
+          description={
+            query.trim()
+              ? undefined
+              : filter === 'DRAFT'
+                ? 'Every marker explanation with copy written against it has been reviewed and is visible to patients.'
+                : 'No marker has an explanation written against it yet. Add copy in the Explanations tab, then approve it here.'
+          }
+          action={query.trim() ? <Button onClick={() => setQuery('')}>Clear the search</Button> : undefined}
         />
       ) : (
         <>
           {/* Sticky action bar: with 60 markers on screen the controls have to
-              stay reachable without scrolling back to the top. */}
-          <div className="sticky top-topbar z-10 flex flex-wrap items-center gap-4 rounded-card border border-taupe bg-cream-50/95 px-5 py-4 shadow-card backdrop-blur">
+              stay reachable without scrolling back to the top.
+
+              OPAQUE, not `bg-cream-50/95` — at 95% the explanation cards
+              scrolling under it were legibly showing through, so a card's
+              "Last reviewed 15 August 2026 by Ada Admin" line painted across
+              the middle of the bar's own controls. This bar has real controls
+              on it and is not one of the three glass surfaces; a bar you can
+              read the page through is a bar, not a surface. */}
+          <div className="sticky top-topbar z-10 flex flex-wrap items-center gap-4 rounded-card border border-taupe bg-cream-50 px-5 py-4 shadow-card">
             <Checkbox
               name="select-all"
               checked={allOnPageSelected}
               onChange={toggleAllOnPage}
-              label={`Select all ${visible.length} shown`}
+              // NAMES THE SET IT ACTS ON. It used to read "Select all 442
+              // shown", which was untrue in both halves: 442 cards are not
+              // shown in any sense a person would accept, and after a search it
+              // would be selecting something other than what was asked for.
+              // Selection is over the FILTERED set; the window below only
+              // decides how many are in the DOM.
+              label={`Select all ${visible.length} matching`}
             />
-            <span className="tabular text-sm text-espresso/80">{selected.size} selected</span>
+            <span className="numeric tabular text-sm text-espresso/80">{selected.size} selected</span>
             <div className="ml-auto flex flex-wrap gap-3">
               <Button
                 onClick={() => applyStatus('REVIEWED')}
@@ -213,11 +307,16 @@ export function ExplanationReviewQueue() {
           </div>
 
           <ul className="flex flex-col gap-5">
-            {visible.map((row) => {
+            {rendered.map((row) => {
               const isSelected = selected.has(row.markerId);
               return (
                 <li key={row.markerId}>
-                  <Card className={isSelected ? 'border-bronze' : ''}>
+                  {/* Bronze, which is this product's SELECTION colour (the nav's
+                      active row, a ticked checkbox) and never a status one — the
+                      no-coloured-outlines rule is about red and orange carrying a
+                      clinical finding on a card. The wash is added so the state
+                      is not a 1px edge alone. */}
+                  <Card className={isSelected ? 'border-bronze bg-bronze/[0.06]' : ''}>
                     <div className="flex items-start gap-4">
                       <div className="pt-1">
                         <Checkbox
@@ -269,6 +368,20 @@ export function ExplanationReviewQueue() {
               );
             })}
           </ul>
+
+          {/* HOW MUCH OF IT IS ON THE PAGE, SAID OUT LOUD. A window that
+              silently truncates reads as "that is all of them", which on a list
+              of 442 is the failure the window was added to prevent. */}
+          {visible.length > rendered.length && (
+            <div className="flex flex-col items-start gap-3 border-t border-taupe pt-6">
+              <p className="numeric tabular text-sm text-espresso/80" role="status">
+                {rendered.length} of {visible.length} shown
+              </p>
+              <Button variant="secondary" onClick={() => setShown((n) => n + PAGE)}>
+                Show {Math.min(PAGE, visible.length - rendered.length)} more
+              </Button>
+            </div>
+          )}
         </>
       )}
     </div>

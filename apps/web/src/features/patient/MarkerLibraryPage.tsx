@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
+import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
@@ -141,12 +142,45 @@ function LibraryCard({ entry }: { entry: LibraryEntry }) {
   );
 }
 
+/** See `shown` below: the library is 442 entries and this is how many are drawn at once. */
+const LIBRARY_PAGE = 40;
+
 export function MarkerLibraryPage() {
   const [entries, setEntries] = useState<LibraryEntry[] | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<LibraryFilter>('ALL');
+  /**
+   * ── IT OPENS ON THE READER'S OWN MARKERS (Aug 2026) ────────────────────
+   *
+   * This defaulted to "Every marker", which on the demo patient is **442
+   * cards** and a 44,000px page. The reader arriving here has a result they
+   * want to understand; the other 276 analytes are the clinic's catalogue,
+   * which is worth having and is not what somebody came for. A default nobody
+   * changes is the design, and "Every marker" is one press away.
+   *
+   * `null` until the fetch lands rather than 'MINE' outright, because a patient
+   * with no results yet must not be shown an empty library: for them the
+   * catalogue IS the page. Derived below rather than written by an effect, so
+   * there is no frame in which the wrong one is rendered — and once the reader
+   * touches the picker their choice is what applies, in both directions.
+   */
+  const [filter, setFilter] = useState<LibraryFilter | null>(null);
   const [kind, setKind] = useState<KindFilter>('ALL');
+  /**
+   * How many entries are in the DOM at once.
+   *
+   * The library is 442 markers and it rendered every one of them: **55,150px**
+   * at 1440, which is 61 screens, on a page whose whole purpose is looking one
+   * thing up. It has a search and two filters — which is what makes a window
+   * honest here rather than a way of hiding things — and each closed row is a
+   * disclosure whose copy is not in the DOM until it is opened, so find-in-page
+   * could never reach the explanations anyway.
+   *
+   * The count above the list is the FILTERED total and the button below says
+   * how much of it is on the page, so a list that stops is never mistaken for a
+   * list that has ended.
+   */
+  const [shown, setShown] = useState(LIBRARY_PAGE);
 
   const load = useCallback(() => {
     setError(null);
@@ -160,18 +194,30 @@ export function MarkerLibraryPage() {
     load();
   }, [load]);
 
+  const mineCount = entries?.filter((e) => e.hasResults).length ?? 0;
+
+  /** The reader's choice if they have made one, otherwise the one their own data asks for. */
+  const activeFilter: LibraryFilter = filter ?? (mineCount > 0 ? 'MINE' : 'ALL');
+
   const visible = useMemo(() => {
     if (!entries) return [];
     const q = query.trim().toLowerCase();
     return entries.filter(
       (e) =>
-        (filter === 'ALL' || e.hasResults) &&
+        (activeFilter === 'ALL' || e.hasResults) &&
         (kind === 'ALL' || (e.resultType ?? 'MEASURED') === kind) &&
         (q === '' || e.name.toLowerCase().includes(q)),
     );
-  }, [entries, query, filter, kind]);
+  }, [entries, query, activeFilter, kind]);
 
-  const mineCount = entries?.filter((e) => e.hasResults).length ?? 0;
+  // A narrowed set starts at the top of its own first window. Somebody who has
+  // pressed "show more" four times and then searches wants the answer, not 160
+  // cards of the previous question.
+  useEffect(() => {
+    setShown(LIBRARY_PAGE);
+  }, [query, activeFilter, kind]);
+
+  const rendered = useMemo(() => visible.slice(0, shown), [visible, shown]);
 
   return (
     <>
@@ -221,7 +267,12 @@ export function MarkerLibraryPage() {
               placeholder="Ferritin, vitamin D…"
               required={false}
             />
-            <Select label="Show" name="library-scope" value={filter} onChange={(e) => setFilter(e.target.value as LibraryFilter)}>
+            <Select
+              label="Show"
+              name="library-scope"
+              value={activeFilter}
+              onChange={(e) => setFilter(e.target.value as LibraryFilter)}
+            >
               {FILTERS.map((f) => (
                 <option key={f.value} value={f.value}>
                   {f.value === 'MINE' ? `${f.label} (${mineCount})` : f.label}
@@ -246,13 +297,25 @@ export function MarkerLibraryPage() {
               <EmptyState title="No marker matches that" />
             </div>
           ) : (
-            <div className="mt-4 flex flex-col gap-4">
-              {visible.map((entry, i) => (
-                <Reveal key={entry.markerId} delay={staggerDelay(i)}>
-                  <LibraryCard entry={entry} />
-                </Reveal>
-              ))}
-            </div>
+            <>
+              <div className="mt-4 flex flex-col gap-4">
+                {rendered.map((entry, i) => (
+                  <Reveal key={entry.markerId} delay={staggerDelay(i)}>
+                    <LibraryCard entry={entry} />
+                  </Reveal>
+                ))}
+              </div>
+              {visible.length > rendered.length && (
+                <div className="mt-8 flex flex-col items-start gap-3 border-t border-taupe pt-6">
+                  <p className="numeric tabular text-sm text-espresso/80" role="status">
+                    {rendered.length} of {visible.length} shown
+                  </p>
+                  <Button variant="secondary" onClick={() => setShown((n) => n + LIBRARY_PAGE)}>
+                    Show {Math.min(LIBRARY_PAGE, visible.length - rendered.length)} more
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </>
       )}

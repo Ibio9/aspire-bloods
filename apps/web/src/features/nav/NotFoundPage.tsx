@@ -18,12 +18,30 @@ export function NotFoundPage() {
   const { user } = useAuth();
   const location = useLocation();
   const isStaff = user?.role === 'ADMIN' || user?.role === 'CLINICIAN';
-  const home = isStaff ? '/admin/reports' : user ? '/overview' : '/login';
+  /**
+   * `/admin/reports` UNTIL Aug 2026, WHICH IS NOT A ROUTE. Only
+   * `/admin/reports/:id` is; the reports list is `/admin`. So the one control
+   * on the page that exists to get a clinician out of a bad URL sent them to
+   * another bad URL — a 404 whose way out is a 404. Found by walking the
+   * console's own routes and asserting none of them reached this page.
+   */
+  const home = isStaff ? '/admin' : user ? '/overview' : '/login';
   const homeLabel = isStaff ? 'Back to reports' : user ? 'Back to your overview' : 'Go to sign in';
 
   return (
     <RouteShell>
-      <div className="motion-safe:animate-riseIn mx-auto max-w-xl rounded-card border border-taupe bg-cream-50 p-10 text-center shadow-card sm:p-14">
+      {/* NO CARD OF ITS OWN WHEN SIGNED OUT. RouteShell puts this inside
+          whatever navigation the viewer has — and for a signed-out visitor that
+          is AuthSplitLayout, which is itself a bordered, shadowed card. So this
+          drew a hairline card inside a hairline card, two shadows deep, with
+          the message in the smaller of the two boxes and the heading wrapping
+          across two lines because of it. The auth layout is already the
+          surface; inside it this is just the content. */}
+      <div
+        className={`motion-safe:animate-riseIn text-center ${
+          user ? 'mx-auto max-w-xl rounded-card border border-taupe bg-cream-50 p-10 shadow-card sm:p-14' : ''
+        }`}
+      >
         {/* Shape, not colour alone — the state has to survive greyscale. */}
         <svg width="34" height="34" viewBox="0 0 24 24" aria-hidden="true" className="mx-auto text-bronze">
           <circle cx="12" cy="12" r="9.25" fill="none" stroke="currentColor" strokeWidth="1.5" />

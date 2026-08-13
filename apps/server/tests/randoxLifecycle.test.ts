@@ -60,7 +60,10 @@ beforeEach(() => {
 });
 
 describe('order to a report ready for release, with nobody typing anything', () => {
-  it('runs the whole chain and stops at admin-verified', async () => {
+  // "stops at admin-verified" until Aug 2026 — a test named after the stage
+  // that was deleted when the second gate went. What the chain actually does is
+  // stop at PARSED with no holds, which is "waiting for a clinician".
+  it('runs the whole chain and stops waiting for a clinician', async () => {
     seedPatient(db, {
       id: 'p1',
       firstName: 'Aisha',

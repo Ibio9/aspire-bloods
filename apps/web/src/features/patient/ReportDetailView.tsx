@@ -365,7 +365,7 @@ function PersonalMeasurementsSection({
       </h2>
       <p className="mt-2 max-w-2xl text-sm leading-relaxed text-espresso/85">
         {note ?? 'Recorded at your clinic visit, not measured from your blood sample.'} They are shown as they were
-        taken, without a range — a single reading is not something to read against one.
+        taken, without a range, because a single reading is not something to read against one.
       </p>
       <dl className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {measurements.map((m, i) => (

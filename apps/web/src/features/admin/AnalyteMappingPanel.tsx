@@ -224,8 +224,8 @@ export function AnalyteMappingPanel() {
               {c.resolvesFromOwnName} / {c.catalogueMeasured}
             </dd>
             <dd className="mt-1 text-xs leading-relaxed text-espresso/80">
-              measured markers that resolve from their own catalogue name. This is self-consistency — our catalogue
-              agreeing with itself — and it is not evidence that Randox spell any of them the same way.
+              measured markers that resolve from their own catalogue name. This is self-consistency, our catalogue
+              agreeing with itself, and it is not evidence that Randox spell any of them the same way.
             </dd>
           </div>
           <div>
@@ -267,7 +267,7 @@ export function AnalyteMappingPanel() {
           <Card className="mt-3">
             <p className="text-sm leading-relaxed text-espresso/85">
               Each of these has no alias and no override, so it resolves on its catalogue name and nothing else. If
-              Randox print any of them differently — a word order, an abbreviation, a bracket — that result lands in
+              Randox print any of them differently, whether a word order, an abbreviation or a bracket, that result lands in
               the queue below rather than on a report. These are the ones to check first against the first real
               delivery.
             </p>
@@ -291,7 +291,7 @@ export function AnalyteMappingPanel() {
       <Card className="mt-4 max-w-3xl">
         {queue.length === 0 ? (
           <p className="text-sm leading-relaxed text-espresso">
-            Nothing is waiting. That is the expected state before the first real delivery — it means no analyte has
+            Nothing is waiting. That is the expected state before the first real delivery. It means no analyte has
             failed to map, not that every mapping has been checked.
           </p>
         ) : (

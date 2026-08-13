@@ -78,14 +78,19 @@ export function PatientsListPage() {
     <>
       <TwoTierHeading eyebrow="Aspire Clinic · Clinician console" title="Patients" />
 
+      {/* Not `optional`. Every search field in existence is optional, and
+          "Search (optional)" is a label telling somebody they are permitted not
+          to use a search box. The placeholder already says what it takes. */}
       <div className="mt-8 max-w-md">
         <Input
-          label="Search"
+          label="Find a patient"
+          hideLabel
           name="query"
+          type="search"
           placeholder="Search by name or email…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          optional
+          required={false}
         />
       </div>
 
@@ -131,18 +136,53 @@ export function PatientsListPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {filtered.map((p) => (
-                <TableRow key={p.id}>
-                  <TableCell>
-                    <Link to={`/admin/patients/${p.id}`} className="font-medium text-bronze-600 underline underline-offset-2">
-                      {p.displayName}
-                    </Link>
-                  </TableCell>
-                  <TableCell>{p.email}</TableCell>
-                  <TableCell>{statusLabel(p)}</TableCell>
-                  <TableCell className="tabular">{formatDate(p.createdAt)}</TableCell>
-                </TableRow>
-              ))}
+              {/* ── THE LINK GOES ON WHAT IDENTIFIES THEM (Aug 2026) ────────
+                  `displayName` falls back to "(pending activation)" for anyone
+                  who has been invited and not yet registered, and that string
+                  was the link. On this practice's list that produced SIX
+                  consecutive rows whose only link text was the identical
+                  parenthesis — six different destinations with one accessible
+                  name, which is a failure for anybody navigating by link and a
+                  row nobody can tell from its neighbour by eye either.
+
+                  The email is the thing that is always present and always
+                  distinct, so it carries the link on those rows; the name cell
+                  says plainly that there isn't one yet, in the muted tone that
+                  means "absent" everywhere else in the product rather than in
+                  link bronze. Where a real name exists nothing changes. */}
+              {filtered.map((p) => {
+                const named = p.status !== 'INVITED' && !p.displayName.startsWith('(');
+                return (
+                  <TableRow key={p.id}>
+                    <TableCell>
+                      {named ? (
+                        <Link
+                          to={`/admin/patients/${p.id}`}
+                          className="font-medium text-bronze-600 underline underline-offset-2"
+                        >
+                          {p.displayName}
+                        </Link>
+                      ) : (
+                        <span className="text-espresso/80">Not registered yet</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {named ? (
+                        p.email
+                      ) : (
+                        <Link
+                          to={`/admin/patients/${p.id}`}
+                          className="font-medium text-bronze-600 underline underline-offset-2"
+                        >
+                          {p.email}
+                        </Link>
+                      )}
+                    </TableCell>
+                    <TableCell>{statusLabel(p)}</TableCell>
+                    <TableCell className="numeric tabular">{formatDate(p.createdAt)}</TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>

@@ -7,10 +7,11 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { MultiTrendChart } from '../../components/ui/LazyCharts';
+import { CloseIcon } from '../../components/nav/icons';
 import { Reveal } from '../../components/motion/Reveal';
 import { staggerDelay } from '../../components/motion/stagger';
 import { apiFetch } from '../../lib/api';
-import { matchesMarkerQuery, matchesStatusFilter, statusFilterCounts, statusLabel, type StatusFilter } from '../../lib/markerCopy';
+import { matchesMarkerQuery, matchesStatusFilter, statusColor, statusFilterCounts, statusLabel, type StatusFilter } from '../../lib/markerCopy';
 import { type MarkerRow, type TrendSeries } from '../../lib/patientPortal';
 import type { ResultsFilters, ViewReportsCategories } from './resultsView';
 
@@ -31,6 +32,40 @@ import type { ResultsFilters, ViewReportsCategories } from './resultsView';
  * Selection lives in the URL, so a chart someone finds useful is a link they
  * can bookmark or send to their GP rather than something they have to
  * reconstruct by hand every visit.
+ *
+ * ═══ WHAT THE CRAFT PASS CHANGED (Aug 2026) ══════════════════════════════
+ *
+ * This screen had never had a pass of its own, and it showed in five places
+ * that were each visible in one screenshot:
+ *
+ *  · THE PICKER CUT A ROW IN HALF. `max-h-96` is an arbitrary 384px, so the
+ *    list ended mid-way through a marker's second line — "ALT (Alanine
+ *    Aminotransferase) / 3 results · latest 122 U/L" sliced through the
+ *    descenders. A clipped row reads as a rendering fault rather than as a
+ *    list that continues, and nothing said it scrolled. It is a measured
+ *    height against the viewport now (the card is sticky, so the list has to
+ *    fit beside the chart), it carries the product's own thin scrollbar, and
+ *    `.scroll-shade` fades the last few pixels so the cut is deliberate.
+ *  · ROWS AT THE LIMIT WERE `opacity-40`. The opacity ladder in this product
+ *    stops at /80 and everything below it is for placeholders and decoration —
+ *    a marker name at 40% is a name nobody can read, on the rows somebody is
+ *    most likely to be trying to read (they are the ones they cannot have
+ *    yet). They keep full-tone type and lose only the affordance.
+ *  · THE SELECTION WAS INVISIBLE ONCE THE PICKER SCROLLED. On a phone the card
+ *    is above the chart and off screen by the time the chart is; there was no
+ *    way to see what was plotted, let alone change it, without scrolling back.
+ *    The three selected markers are chips above the chart now, each its own
+ *    way out.
+ *  · THREE CARDS IN A TWO-COLUMN GRID. `sm:grid-cols-2` with a hard maximum of
+ *    three items is a 2 + 1 every single time — one card alone on a row with a
+ *    card's width of nothing beside it. Three columns at lg, which is the
+ *    maximum the selection can hold.
+ *  · THE STATUS WORD IN THOSE CARDS WAS UNCOLOURED, while the same word in the
+ *    legend directly above it was in its own state's colour. One word, one
+ *    treatment.
+ *
+ * And each summary card carries the SERIES MARK the chart draws that marker
+ * with, so a card can be matched to a line without counting down the legend.
  */
 
 const MAX_SELECTED = 3;
@@ -42,6 +77,26 @@ const SUGGESTED_PAIRS: { label: string; markers: string[] }[] = [
   { label: 'Cholesterol balance', markers: ['HDL Cholesterol', 'LDL Cholesterol'] },
   { label: 'Thyroid', markers: ['TSH', 'Free T4'] },
 ];
+
+/**
+ * The mark the chart draws each series with, repeated beside its summary card
+ * and its chip. Kept in step with SERIES_STYLES in MultiTrendChart by being the
+ * same three shapes in the same order — the chart owns the drawing, this owns
+ * the tie-back, and a fourth series cannot exist because the selection is
+ * capped at three.
+ */
+function SeriesMark({ index, className = '' }: { index: number; className?: string }) {
+  const common = { fill: 'rgb(var(--c-chart-plot-surface))', stroke: 'rgb(var(--c-chart-line))', strokeWidth: 1.4 };
+  const dash = [undefined, '7 4', '2 4'][index % 3];
+  return (
+    <svg width="26" height="10" viewBox="0 0 26 10" aria-hidden="true" className={`shrink-0 ${className}`}>
+      <line x1="0" y1="5" x2="26" y2="5" stroke="rgb(var(--c-chart-line))" strokeWidth="2" strokeDasharray={dash} />
+      {index % 3 === 0 && <circle cx="13" cy="5" r="4" {...common} />}
+      {index % 3 === 1 && <rect x="9.5" y="1.5" width="7" height="7" {...common} />}
+      {index % 3 === 2 && <rect x="9.6" y="1.6" width="6.8" height="6.8" transform="rotate(45 13 5)" {...common} />}
+    </svg>
+  );
+}
 
 export function CompareView({
   filters,
@@ -174,6 +229,18 @@ export function CompareView({
     }).filter((p) => p.ids.length >= 2);
   }, [plottable]);
 
+  /**
+   * The selection, in the order it is plotted — so the chips, the summary
+   * cards and the chart's own legend all name the same marker with the same
+   * mark. Read from `plottable` rather than from the fetched series, because
+   * the chips have to be right the instant a box is ticked rather than a
+   * request later.
+   */
+  const selectedMarkers = useMemo(
+    () => selected.map((id) => plottable.find((m) => m.markerId === id)).filter((m): m is MarkerRow => !!m),
+    [selected, plottable],
+  );
+
   return (
     <>
       {error ? (
@@ -208,18 +275,26 @@ export function CompareView({
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-10">
           <div className="lg:sticky lg:top-8 lg:self-start">
             <Card padding="tight">
-              <p className="eyebrow mb-4">Choose markers</p>
+              {/* The label and the count on one line: they are the same fact
+                  from two directions, and the count used to sit below the
+                  suggestions where it read as a caption on them. */}
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <p className="eyebrow">Choose markers</p>
+                <p className="numeric tabular text-xs text-espresso/80" role="status">
+                  {selected.length} of {MAX_SELECTED}
+                </p>
+              </div>
 
               {suggestions.length > 0 && (
-                <div className="mb-5 border-b border-taupe pb-5">
-                  <p className="mb-2.5 text-xs text-espresso/80">Common comparisons</p>
+                <div className="mt-5 border-b border-taupe pb-5">
+                  <p className="sublabel mb-2.5">Common comparisons</p>
                   <div className="flex flex-wrap gap-2">
                     {suggestions.map((s) => (
                       <button
                         key={s.label}
                         type="button"
                         onClick={() => setSelected(s.ids.slice(0, MAX_SELECTED))}
-                        className="rounded-full border border-taupe px-3 py-1.5 text-xs font-medium text-espresso transition duration-150 ease-out hover:border-bronze hover:bg-white"
+                        className="rounded-full border border-taupe px-3 py-1.5 text-xs font-medium text-espresso transition duration-150 ease-out hover:border-bronze hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
                       >
                         {s.label}
                       </button>
@@ -228,11 +303,14 @@ export function CompareView({
                 </div>
               )}
 
-              <p className="text-xs text-espresso/80" role="status">
-                {selected.length} of {MAX_SELECTED} selected
-              </p>
-
-              <div className="scroll-thin mt-3 flex max-h-96 flex-col gap-1 overflow-y-auto pr-1">
+              {/* A MEASURED HEIGHT, NOT AN ARBITRARY ONE. The card is sticky, so
+                  the list has to fit beside the chart at whatever height the
+                  window is — and `max-h-96` was 384px whether the window was
+                  700px or 1400px. The subtraction is the card's own chrome plus
+                  the sticky offset; `.scroll-shade` fades the last few pixels so
+                  a row continuing below the fold reads as a list that goes on
+                  rather than as one that has been cut. */}
+              <div className="scroll-thin scroll-shade mt-4 flex max-h-[min(30rem,calc(100vh-20rem))] flex-col gap-0.5 overflow-y-auto pr-1">
                 {matching.length === 0 && (
                   <p className="py-3 text-sm text-espresso/80">No marker with more than one result matches those filters.</p>
                 )}
@@ -242,7 +320,9 @@ export function CompareView({
                   return (
                     <div
                       key={m.markerId}
-                      className={`rounded-input px-2 transition-colors duration-150 ${atLimit ? 'opacity-40' : 'hover:bg-cream-200'}`}
+                      className={`rounded-input px-2 transition-colors duration-150 ${
+                        isSelected ? 'bg-bronze/[0.08]' : atLimit ? '' : 'hover:bg-cream-200'
+                      }`}
                     >
                       <Checkbox
                         id={`trend-marker-${m.markerId}`}
@@ -250,10 +330,17 @@ export function CompareView({
                         disabled={atLimit}
                         onChange={() => toggle(m.markerId)}
                         label={
+                          // FULL TONE EVEN AT THE LIMIT. The row that cannot be
+                          // ticked is the one somebody is most likely to be
+                          // reading, and /80 is the floor of the opacity ladder
+                          // — a name at 40% is a name nobody can read. What a
+                          // limited row gives up is the hover and the tick box,
+                          // both of which are already visibly gone.
                           <span className="block">
                             <span className="block font-medium text-espresso">{m.name}</span>
-                            <span className="tabular block text-xs text-espresso/80">
-                              {m.resultCount} results · latest {m.valueText ?? m.value} {m.unit}
+                            <span className="block text-xs text-espresso/80">
+                              <span className="numeric tabular">{m.resultCount}</span> results · latest{' '}
+                              <span className="numeric tabular">{m.valueText ?? m.value}</span> {m.unit}
                             </span>
                           </span>
                         }
@@ -264,56 +351,109 @@ export function CompareView({
               </div>
 
               {/* No "that's the maximum, deselect one to swap it out": the
-                  count above already reads "3 of 3 selected" and the remaining
-                  boxes are visibly disabled. */}
+                  count above already reads "3 of 3" and the remaining boxes are
+                  visibly disabled. */}
             </Card>
           </div>
 
           <div>
             {selected.length === 0 ? (
-              // Same min-height as the loading and chart panels beside it, so
-              // choosing a first marker never jumps the layout.
-              <Card className="flex min-h-96 flex-col items-center justify-center text-center">
-                {/* The picker is beside it, labelled "Choose markers", with the
-                    common comparisons at the top of it. Restating that here in
-                    a sentence tells a competent adult nothing. */}
-                <p className="font-display text-2xl text-espresso">Pick a marker to begin</p>
-              </Card>
+              /* A DESIGNED EMPTY STATE, not a sentence in a tall box. It used
+                 to be `Pick a marker to begin` centred in a `min-h-96` card
+                 with nothing else in it — which is the shape of a page that
+                 failed to load. EmptyState is the product's own answer to
+                 "there is deliberately nothing here": the arch behind it, a
+                 title, and one line that says something the title cannot. */
+              <EmptyState
+                title="Nothing plotted yet"
+                description={`Tick up to ${MAX_SELECTED} markers beside this, or take one of the common comparisons, to see them on one timeline.`}
+              />
             ) : loadingSeries || series === null ? (
               <Card aria-busy="true" aria-label="Loading chart" className="min-h-96">
-                <Skeleton className="h-80 w-full" />
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="mt-5 h-80 w-full" />
               </Card>
             ) : series.length === 0 ? (
-              <EmptyState title="No released results for that selection" />
+              <EmptyState
+                title="No released results for that selection"
+                description="Nothing has been released for these markers yet. Try another pair."
+              />
             ) : (
               <>
                 <Card>
                   <p className="eyebrow mb-1">Compared over time</p>
-                  <p className="mb-6 text-sm leading-relaxed text-espresso/80">
+                  <p className="mb-6 max-w-measure text-sm leading-relaxed text-espresso/80">
                     Each marker is plotted against its own reference range, so the shaded band is shared: a line
                     inside it is in range for that marker.
                   </p>
+
+                  {/* WHAT IS PLOTTED, AND THE WAY OUT OF EACH — above the chart
+                      and therefore on screen with it. The picker is a sticky
+                      column at lg and a card far above the chart on a phone, so
+                      until this there was no way to see or change the selection
+                      while looking at the thing it produced. */}
+                  <ul aria-label="Markers on this chart" className="mb-6 flex flex-wrap gap-2">
+                    {selectedMarkers.map((m, i) => (
+                      <li key={m.markerId}>
+                        <button
+                          type="button"
+                          onClick={() => toggle(m.markerId)}
+                          aria-label={`${m.name}. Remove from this chart`}
+                          className="inline-flex max-w-full items-center gap-2 rounded-full border border-taupe bg-cream-100 py-1.5 pl-2.5 pr-2.5 text-xs font-medium text-espresso transition duration-150 ease-out hover:border-bronze hover:text-bronze focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
+                        >
+                          <SeriesMark index={i} />
+                          <span aria-hidden="true" className="truncate">
+                            {m.name}
+                          </span>
+                          <CloseIcon className="h-3 w-3 shrink-0" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+
                   <MultiTrendChart series={series} />
                 </Card>
 
-                <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2">
+                {/* THREE ACROSS, because the selection is capped at three. Two
+                    columns made a 2 + 1 on every possible input, which is a
+                    card's width of nothing beside the last one. `items-start`
+                    for the same reason "What's changed" carries it: a row of
+                    unequal cards is allowed to be ragged along the bottom, and
+                    a stretched short card draws its slack as empty card. */}
+                <div className="mt-6 grid grid-cols-1 items-start gap-5 sm:grid-cols-2 lg:grid-cols-3">
                   {series.filter((s) => s.points.length > 0).map((s, i) => {
                     const last = s.points[s.points.length - 1];
                     const first = s.points[0];
                     return (
-                      <Reveal key={s.markerId} delay={staggerDelay(i)} className="h-full">
-                        <Link to={`/markers/${s.markerId}`} className="block h-full rounded-card">
-                          <Card interactive padding="tight" className="h-full">
-                            <p className="font-display opsz-small text-lg leading-tight text-espresso">{s.name}</p>
-                            <p className="tabular mt-2 text-sm text-espresso">
-                              {first.value} → {last.value} {s.unit}
+                      <Reveal key={s.markerId} delay={staggerDelay(i)}>
+                        <Link to={`/markers/${s.markerId}`} className="block rounded-card">
+                          <Card interactive padding="tight">
+                            {/* The mark this marker is drawn with, so a card
+                                can be matched to a line without counting down
+                                the legend. */}
+                            <SeriesMark index={i} className="mb-3" />
+                            <p className="text-balance font-display opsz-small text-lg leading-tight text-espresso">{s.name}</p>
+                            <p className="numeric tabular mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-espresso">
+                              <span className="text-espresso/80">{first.value}</span>
+                              <span aria-hidden="true" className="text-taupe">
+                                →
+                              </span>
+                              <span className="text-xl font-semibold">{last.value}</span>
+                              <span className="text-sm text-espresso/80">{s.unit}</span>
                             </p>
-                            <p className="mt-1 text-xs text-espresso/80">
-                              {formatDate(first.sampleDate)} to {formatDate(last.sampleDate)} ·{' '}
+                            {/* The status word takes its own state's colour,
+                                exactly as it does in the legend directly above
+                                and everywhere else in the product. It was the
+                                one place the word was set in body tone. */}
+                            <p className="mt-2.5 text-sm font-medium" style={{ color: statusColor(last.status) }}>
                               {/* statusLabel is total: it says "not compared to a range"
                                   for a point with no status, so the caller no longer
                                   carries its own copy of that sentence. */}
                               {statusLabel(last.status)}
+                            </p>
+                            <p className="mt-2 text-xs leading-snug text-espresso/80">
+                              <span className="numeric">{formatDate(first.sampleDate)}</span> to{' '}
+                              <span className="numeric">{formatDate(last.sampleDate)}</span>
                             </p>
                           </Card>
                         </Link>

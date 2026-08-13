@@ -140,10 +140,19 @@ export function IngestionLogPage() {
   return (
     <>
       <TwoTierHeading eyebrow="Aspire Clinic · Clinician console" title="Ingestion log" />
+      {/* ── A LEFTOVER FROM A REMOVED STAGE (fixed Aug 2026) ────────────────
+          This said a clean result "stops at admin-verified". ADMIN_VERIFIED was
+          deleted from the pipeline when the second gate went (see
+          lib/reportStatus.ts: it existed to catch transcription errors from a
+          PDF, and results arrive structured through the API now) — so the one
+          screen that explains where a result comes to rest was naming a state
+          it can no longer be in, to the people whose job is to know. The
+          pipeline is UPLOADED → PARSED → CLINICIAN_REVIEWED → RELEASED, and
+          "waiting for a clinician" is where a clean result stops. */}
       <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
         Every attempt to pull a result in from Randox’s API, successful or not. A clean result attaches itself to the
-        patient its order was placed for and stops at admin-verified; anything ambiguous stops earlier and says so
-        here. A clinician still reviews and releases before a patient sees anything.
+        patient its order was placed for and waits there for a clinician; anything ambiguous stops earlier and says
+        so here. A clinician reviews and releases before a patient sees anything.
       </p>
 
       {error != null ? (

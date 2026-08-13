@@ -168,21 +168,51 @@ test.describe('screenshots', () => {
       await login(ctx.request, ADMIN_EMAIL, ADMIN_PASSWORD);
       const page = await ctx.newPage();
 
+      /**
+       * ── THREE OF THESE USED TO BE 404s (fixed Aug 2026) ──────────────────
+       *
+       * `/admin/reports`, `/admin/audit` and `/admin/explanations` are not
+       * routes. The first is only ever `/admin/reports/:id`, the audit log
+       * lives at `/admin/audit-log`, and the explanation review queue is a TAB
+       * inside `/admin/markers` rather than a page. So a third of this walk had
+       * been photographing NotFoundPage — the same picture three times, under
+       * three names that each claimed to be a screen somebody could look at —
+       * and the audit log had never been in a screenshot at all.
+       *
+       * A walk whose job is "so a person can look at them" is worth nothing on
+       * a route that does not exist, and nothing here failed, because the walk
+       * only asserts that SOMETHING mounted and a 404 page mounts fine. The
+       * assertion below is what closes that: NotFoundPage is the one thing this
+       * walk must never photograph, since by construction every path in the
+       * list is meant to be real.
+       *
+       * `/` and `/admin/queue` are added for the opposite reason: they are the
+       * two screens a clinician actually lands on, and neither was ever walked.
+       * `/` is the console (HomeRouter sends an admin to AdminDashboard);
+       * `/admin` is the reports list.
+       */
       const routes = [
-        { name: 'dashboard', path: '/admin' },
+        { name: 'console', path: '/' },
+        { name: 'queue', path: '/admin/queue' },
+        { name: 'reports', path: '/admin' },
         { name: 'patients', path: '/admin/patients' },
-        { name: 'reports', path: '/admin/reports' },
         { name: 'panels', path: '/admin/panels' },
         { name: 'markers', path: '/admin/markers' },
         { name: 'ingestion-log', path: '/admin/ingestion-log' },
         { name: 'linking', path: '/admin/linking' },
-        { name: 'explanations', path: '/admin/explanations' },
-        { name: 'audit', path: '/admin/audit' },
+        { name: 'audit-log', path: '/admin/audit-log' },
       ];
 
       for (const route of routes) {
         await page.goto(route.path);
         await settle(page);
+        // The one page this walk must never photograph. Every path above is
+        // meant to be a real screen, so this reaching NotFoundPage means the
+        // route was renamed and the picture beneath it is a lie.
+        await expect(
+          page.getByRole('heading', { name: /this page doesn’t exist/i }),
+          `${route.path} is not a route`,
+        ).toHaveCount(0);
         await page.screenshot({ path: path.join(OUT, `admin-${route.name}-${theme}${size.key}.png`), fullPage: true });
       }
       await ctx.close();

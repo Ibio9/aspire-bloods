@@ -440,11 +440,43 @@ function PanelCard({
         <Checkbox name={`active-${panel.id}`} checked={panel.isActive} onChange={onToggleActive} label="Offered" />
       </div>
 
-      <div className="mt-6">
-        <p className="eyebrow mb-3">
-          {base.length} marker{base.length === 1 ? '' : 's'}
-          {addOns.length > 0 ? ` · ${addOns.length} available as an add-on` : ''}
-        </p>
+      {/* ── THE CONTENTS ARE SHUT UNTIL SOMEBODY ASKS (Aug 2026) ─────────────
+          Every panel rendered every one of its markers inline, as an editable
+          row with a checkbox, a number field and a Remove control — Core is 70
+          of them and Signature is 436, so this page came to **45,846px** and a
+          clinician who came to see which levels the clinic offers had to scroll
+          past five hundred editable rows to find out. A screen called "Panels"
+          should answer "what are the panels" on its first screen.
+
+          The count line is the summary and is always visible; opening one is
+          how you get at its contents, which is an editing job rather than a
+          reading one. A `<details>` rather than state, so the browser handles
+          the toggle, find-in-page still opens it, and it prints open. */}
+      <details className="group mt-6">
+        <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-input transition-colors duration-150 ease-out hover:text-bronze focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-bronze">
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            fill="none"
+            aria-hidden="true"
+            className="shrink-0 -rotate-90 text-bronze-700 transition-transform duration-150 ease-out group-open:rotate-0"
+          >
+            <path d="M1.5 3.5 5 7l3.5-3.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span className="eyebrow">
+            <span className="numeric tabular">{base.length}</span> marker{base.length === 1 ? '' : 's'}
+            {addOns.length > 0 ? (
+              <>
+                {' · '}
+                <span className="numeric tabular">{addOns.length}</span> available as an add-on
+              </>
+            ) : (
+              ''
+            )}
+          </span>
+        </summary>
+        <div className="mt-4">
         {panel.markers.length === 0 ? (
           <p className="text-sm text-espresso/80">No markers on this panel yet. Add one below.</p>
         ) : (
@@ -475,7 +507,8 @@ function PanelCard({
             ))}
           </div>
         )}
-      </div>
+        </div>
+      </details>
 
       <div className="mt-5 flex flex-wrap items-end gap-3">
         <div className="min-w-48">

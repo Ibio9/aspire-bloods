@@ -163,9 +163,18 @@ export function DocumentsPage() {
                   </Link>
                 </div>
 
+                {/* ONE OF THESE THREE IS THE ONE (Aug 2026). All three were
+                    `secondary` — three identical near-white pills, so the card
+                    offered a patient a choice of three files with nothing
+                    saying which is theirs. The Aspire summary is the document
+                    this page exists for: it is generated from the current
+                    released values, it is the one written for them, and it is
+                    the only one every report has. It takes the primary fill;
+                    the laboratory's own PDF stays secondary because it is the
+                    raw article, and the GP handover is quieter still because it
+                    is for somebody else entirely. */}
                 <div className="mt-6 flex flex-wrap gap-3 border-t border-taupe pt-5">
                   <Button
-                    variant="secondary"
                     loading={downloading?.reportId === doc.reportId && downloading.kind === 'summary-pdf-link'}
                     onClick={() => void download(doc, 'summary-pdf-link')}
                   >

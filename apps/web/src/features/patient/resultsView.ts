@@ -89,6 +89,41 @@ export const DEFAULT_ARRANGEMENT: ResultsArrangement = {
 };
 
 /**
+ * ═══ GROUPING BY HEALTH AREA IS NOT THE DEFAULT, AND HERE IS THE MEASUREMENT
+ *
+ * A Signature report opens as one flat grid of 165 cards, 24,753px tall, and
+ * the obvious answer to "nobody reaches the bottom" is to make health-area
+ * grouping the default above some size — twenty short lists rather than one
+ * wall. ReportDetailView's own note argues for exactly that, and it is wrong.
+ * It was tried, and measured on the demo patient's Signature panel:
+ *
+ *     flat      165 cards                        24,753px
+ *     grouped   218 cards, 27 area headings      38,410px   (+55%)
+ *
+ * Health areas OVERLAP by design — a marker belongs to every area it is
+ * relevant to, and `groupByHealthArea` draws it under all of them (the counts
+ * stay distinct, the cards do not). So grouping this panel adds 53 duplicate
+ * cards: a patient scrolling sees their own Albumin four times, under four
+ * headings, and the page they could not reach the bottom of got half as long
+ * again. It makes the document longer AND makes the same result appear
+ * repeatedly, which is the opposite of both things that were wanted.
+ *
+ * It remains exactly right as a CHOICE, which is what it already is: a reader
+ * who asks to read by area gets the overlap explained by the heading itself
+ * ("3 of 21 markers"), because they asked the question that answer belongs to.
+ *
+ * WHAT ACTUALLY ANSWERS THE LENGTH is already on the page and is not an
+ * arrangement: the section index above the control bar, which names every
+ * section this report has with its count, so a reader knows that the markers
+ * are 165 of 433 and can jump past them. 165 results is 165 results; the fault
+ * was never that they were all shown, it was that nothing said how far down
+ * the page went.
+ *
+ * Do not re-derive this. Any scheme that groups by an overlapping taxonomy
+ * duplicates cards, and the duplication is the cost that decides it.
+ */
+
+/**
  * Which sort vocabulary the thing currently on screen speaks, or null where it
  * has no order to choose — the report LIST and the comparison both arrange
  * themselves, so the bar drops Group by and Sort by entirely rather than

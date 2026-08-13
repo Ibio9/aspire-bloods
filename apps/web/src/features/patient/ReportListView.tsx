@@ -58,9 +58,9 @@ function ReleasedReportCard({ report }: { report: ReportSummary }) {
       }}
       onKeyDown={handleKeyDown}
       aria-label={`${title}, sample taken ${formatDate(report.sampleDate)}`}
-      className="block h-full rounded-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
+      className="block rounded-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
     >
-      <Card interactive className="flex h-full flex-col">
+      <Card interactive>
         <p className="eyebrow mb-2">{formatDate(report.sampleDate)}</p>
         <p className="font-display text-2xl leading-tight text-espresso">{title}</p>
         <p className="mt-6 text-sm text-espresso">
@@ -78,7 +78,7 @@ function ReleasedReportCard({ report }: { report: ReportSummary }) {
 /** Not released yet: says so plainly and looks inert, rather than looking clickable and doing nothing. */
 function PendingReportCard({ report }: { report: ReportSummary }) {
   return (
-    <Card inert className="flex h-full flex-col">
+    <Card inert>
       <p className="eyebrow mb-2">{formatDate(report.sampleDate)}</p>
       <p className="font-display text-2xl leading-tight text-espresso">
         {formatReportHeading(report.panelName, report.markerCount)}
@@ -132,7 +132,7 @@ export function ReportListView() {
   if (reports === null) {
     return (
       <div
-        className="grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3"
+        className="grid grid-cols-1 items-start gap-7 sm:grid-cols-2 lg:grid-cols-3"
         aria-busy="true"
         aria-label="Loading your results"
       >
@@ -165,10 +165,15 @@ export function ReportListView() {
     );
   }
 
+  // `items-start`, and no `h-full` on the cards. A grid stretches its items, so
+  // the one report carrying a source label was setting the height of every card
+  // beside it and the difference was drawn as empty card under a count line —
+  // the same hole "What's changed" and the attention list were each reshaped to
+  // close. A row of unequal things is allowed to be ragged along the bottom.
   return (
-    <div className="grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 items-start gap-7 sm:grid-cols-2 lg:grid-cols-3">
       {reports.map((r, i) => (
-        <Reveal key={r.reportId} delay={staggerDelay(i)} className="h-full">
+        <Reveal key={r.reportId} delay={staggerDelay(i)}>
           {r.patientStatus === 'RELEASED' ? <ReleasedReportCard report={r} /> : <PendingReportCard report={r} />}
         </Reveal>
       ))}

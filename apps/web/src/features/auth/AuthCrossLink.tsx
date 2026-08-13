@@ -18,9 +18,21 @@ import { LinkButton } from '../../components/ui/LinkButton';
  * global bronze :focus-visible ring (globals.css). Deliberately NOT a button
  * calling navigate(), so cmd-click and "open in new tab" work.
  */
+/**
+ * NOT `mt-auto` (Aug 2026). On the sign-in card this was a no-op — it is
+ * followed by more content in a card whose height is its own content's. In the
+ * REGISTRATION card it is the last thing in the narrow introduction column,
+ * beside a form column three times as tall, so pushing it to the floor opened
+ * about 200px of nothing between the introduction and it: an empty half-card
+ * that reads as content which failed to load. It is the same failure this
+ * codebase has already fixed twice with the same sentence — a column of unequal
+ * things is allowed to be ragged along the bottom, and slack at the bottom of a
+ * short column reads as nothing at all, where slack in the middle of one reads
+ * as a hole. See ChangeCard and MarkerResultCard.
+ */
 export function AuthCrossLink({ prompt, to, label }: { prompt: string; to: string; label: string }) {
   return (
-    <div className="mt-auto border-t border-taupe pt-[calc(var(--auth-step)*1.25)]">
+    <div className="mt-[calc(var(--auth-step)*1.6)] border-t border-taupe pt-[calc(var(--auth-step)*1.25)]">
       <p className="text-sm leading-relaxed text-espresso/90">{prompt}</p>
       <LinkButton to={to} variant="secondary" className="mt-[calc(var(--auth-step)*0.75)] w-full">
         {label}

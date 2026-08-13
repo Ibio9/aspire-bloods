@@ -551,7 +551,7 @@ export function LinkingPage() {
       <TwoTierHeading eyebrow="Aspire Clinic · Clinician console" title="Result linking" />
       <p className="mt-5 max-w-3xl text-lg leading-relaxed text-espresso">
         The exceptions. A result that arrives against an order we placed is attached to that patient on the order
-        reference, once the name and date of birth agree — nobody types anything. What reaches this page is
+        reference, once the name and date of birth agree, and nobody types anything. What reaches this page is
         everything that did not: an order we have no record of, an identity that disagreed, an account that does not
         exist yet. In normal running it is empty.
       </p>

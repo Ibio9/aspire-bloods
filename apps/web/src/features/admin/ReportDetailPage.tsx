@@ -551,7 +551,7 @@ export function ReportDetailPage() {
       {/* Negative margin has to track the shell's own padding scale (px-5 / sm:px-8 /
           md:px-14), or the bar hangs past the viewport edge — it was -mx-6 against
           20px of mobile padding, which scrolled the page 4px sideways. */}
-      <div className="sticky top-topbar z-20 -mx-5 mb-4 border-b border-taupe bg-cream/95 px-5 py-2.5 backdrop-blur sm:-mx-8 sm:px-8 md:-mx-14 md:px-14">
+      <div className="glass sticky top-topbar z-20 -mx-5 mb-4 border-b border-panel-edge px-5 py-2.5 sm:-mx-8 sm:px-8 md:-mx-14 md:px-14">
         <p className="truncate text-sm font-medium text-espresso">
           {patientName} <span className="text-espresso/50">·</span> {reportHeading}{' '}
           <span className="text-espresso/50">·</span> <span className="tabular">{sampleDateLabel}</span>
@@ -589,11 +589,36 @@ export function ReportDetailPage() {
         </p>
       )}
 
-      <div className="mt-8 flex flex-wrap gap-3">
-        {/* Publish leads. It is the action on a routine report, and putting it
-            behind the parse table was most of why publishing took so long. */}
+      {/* ═══ ONE PRIMARY, AND IT IS THIS REPORT'S NEXT STEP (Aug 2026) ══════
+          Six controls sat in one row and TWO of them were bronze-filled:
+          Publish and Approve, separated by three secondaries, with a red
+          destructive on the end. That is the screen where the pipeline is
+          enforced, and its two loudest controls were the pair a clinician must
+          never confuse — Approve is the review gate, Publish releases to the
+          patient — offered at identical weight regardless of which one the
+          report was actually ready for. On a report reading "Needs clinician
+          review" the first bronze button on the screen was the one that skips
+          the review.
+
+          `advancing` names the single control that moves THIS report from THIS
+          state, and it is the only filled one. Everything else — the PDF, a
+          re-parse, requesting changes — is a secondary, and voiding is pushed
+          out of the row entirely: it is not a step in the pipeline, it is the
+          way of ending one, and it should not sit at the end of a row of
+          buttons somebody is working left to right along.
+
+          Nothing about who may do what has changed. The conditions are the same
+          conditions, in the same order; only the weight moved. */}
+      <div className="mt-8 flex flex-wrap items-center gap-3">
+        {/* Publish is the ADMIN shortcut past the gate and stays available where
+            it always was — but it only LEADS on a report that has been reviewed,
+            which is the one state where publishing is the step. */}
         {user?.role === 'ADMIN' && rows.length > 0 && !report.voidedAt && (
-          <Button onClick={() => setPublishOpen(true)} disabled={parsing || busy}>
+          <Button
+            variant={report.status === 'CLINICIAN_REVIEWED' ? 'primary' : 'secondary'}
+            onClick={() => setPublishOpen(true)}
+            disabled={parsing || busy}
+          >
             Publish
           </Button>
         )}
@@ -635,13 +660,19 @@ export function ReportDetailPage() {
             Release to patient
           </Button>
         )}
+      </div>
 
-        {user?.role === 'ADMIN' && !report.voidedAt && (
+      {/* OUT OF THE ROW. Voiding is not a step along the pipeline, it is how one
+          is abandoned, and a red control at the end of a row of buttons is one
+          overshoot away from being pressed by somebody working along it. Below
+          the row, quieter, on its own line. */}
+      {user?.role === 'ADMIN' && !report.voidedAt && (
+        <div className="mt-4">
           <Button variant="destructive" onClick={() => setVoidOpen(true)}>
             Void report
           </Button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ---------------------------------------------------------------------
           WHAT IS WRONG WITH THIS DELIVERY, ABOVE THE DECISION ABOUT IT.
@@ -1105,7 +1136,7 @@ function RowTable({
                     title={row.rangeProvenanceDetail ?? undefined}
                   >
                     <span className="font-medium">{row.rangeProvenanceLabel}</span>
-                    {row.rangeProvenance !== 'RANDOX' && row.rangeProvenanceDetail ? ` — ${row.rangeProvenanceDetail}` : ''}
+                    {row.rangeProvenance !== 'RANDOX' && row.rangeProvenanceDetail ? ` · ${row.rangeProvenanceDetail}` : ''}
                   </p>
                 )}
                 {row.sampleType && <p className="mt-0.5 text-xs text-espresso/80">{row.sampleType}</p>}

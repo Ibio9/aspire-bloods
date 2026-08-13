@@ -201,7 +201,14 @@ function SidebarContents({
 
 function AdminTopBar({ onOpenSearch, onOpenDrawer }: { onOpenSearch: () => void; onOpenDrawer: () => void }) {
   return (
-    <div className="sticky top-0 z-30 flex items-center justify-between border-b border-taupe bg-cream/90 px-4 py-3 backdrop-blur md:px-8">
+    // THE GLASS MATERIAL, not a fourth one-off translucent fill. This was
+    // `bg-cream/90 backdrop-blur` — the page colour at 90% with an unspecified
+    // blur — which is the same idea as `.glass` written a different way, with
+    // its own alpha and its own radius, on the one surface in the console that
+    // the console's own content scrolls under. Glass the colour of the PAGE is
+    // invisible against the page; `.glass` is the card tone, which is why it
+    // reads as a surface. One material, three numbers, one class.
+    <div className="glass sticky top-0 z-30 flex items-center justify-between border-b border-panel-edge px-4 py-3 md:px-8">
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -344,7 +351,17 @@ export function AdminShell({ children }: { children?: ReactNode }) {
           </div>
         </main>
 
-        <Footer className="px-5 sm:px-8 md:px-14" inset="max-w-6xl" />
+        {/* NOT the patient disclaimer. See the note on Footer's `text` prop:
+            the seeded block tells the reader to contact their GP about their
+            own results, which on a screen full of other people's reports is
+            addressed to the wrong person. What is true of every screen in here
+            — and worth a clinician having permanently in view — is that all of
+            it is patient data and all of it is recorded. */}
+        <Footer
+          className="px-5 sm:px-8 md:px-14"
+          inset="max-w-6xl"
+          text="Everything in this console is patient data. Every view and every action is recorded in the audit log against your name."
+        />
       </div>
 
       <CommandPalette open={searchOpen} onClose={() => setSearchOpen(false)} />

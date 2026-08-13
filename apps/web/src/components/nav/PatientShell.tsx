@@ -482,7 +482,7 @@ export function PatientShell({ children }: { children?: ReactNode }) {
             child happens to be is a number that changes when somebody swaps an
             icon, and the bar would then pin a few pixels off with a strip of
             scrolling content showing through the gap. */}
-        <div className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-taupe bg-cream/90 px-4 backdrop-blur md:hidden print-hide">
+        <div className="glass sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-panel-edge px-4 md:hidden print-hide">
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
@@ -496,15 +496,42 @@ export function PatientShell({ children }: { children?: ReactNode }) {
           </Link>
         </div>
 
+        {/* ═══ THE CONTENT COLUMN IS WIDER THAN A MEASURE (Aug 2026) ═══════
+            `max-w-5xl` is 1024px, and it was capping EVERY patient screen —
+            including the two whose main content is a card GRID. Measured, on
+            the by-marker view:
+
+                1440   grid 992px  → 3 columns of 317px   18,198px tall
+                1680   grid 1024px → 4 columns of 241px   14,877px
+                1920   grid 1024px → 4 columns of 241px   14,877px, and 608px
+                                     of the window empty beside it
+
+            So at 1440 the grid missed a fourth column by 28px — 4 × 15rem plus
+            three gaps is 1020 and it had 992 — and at 1920 it stopped dead at
+            1024 while the main column had 1632 to give. A cap belongs on a LINE
+            OF TEXT, which is what `max-w-measure` (68ch) is for and what every
+            paragraph in this product already carries. Putting the same cap on
+            the page is a cap on the layout, and a grid of 165 cards is not
+            prose.
+
+            1280px: a fourth column at 1440 with room to spare, a fifth from
+            about 1600, and a page that keeps using the window rather than
+            leaving a third of a large display blank. Nothing about reading
+            width changes — the prose caps are on the paragraphs, where they
+            were already. */}
         <main className="flex-1 px-5 py-10 sm:px-8 md:px-14 md:pt-12 md:pb-16 lg:px-20">
-          <div className="mx-auto max-w-5xl">
+          <div className="mx-auto max-w-content">
             <PageTransition>{children ?? <Outlet />}</PageTransition>
           </div>
         </main>
 
         {/* The on-screen disclaimer footer is chrome; the printed one is the
             clinic's contact details repeating on every sheet. */}
-        <Footer className="px-5 sm:px-8 md:px-14 lg:px-20 print-hide" />
+        {/* `inset` has to match main's own column or the disclaimer sits on a
+            different left-and-right edge from the content above it — which is
+            the whole reason Footer takes the width from its shell. It defaulted
+            to max-w-5xl, which was right only while main was also 5xl. */}
+        <Footer className="px-5 sm:px-8 md:px-14 lg:px-20 print-hide" inset="max-w-content" />
         <PrintFooter />
       </div>
     </div>

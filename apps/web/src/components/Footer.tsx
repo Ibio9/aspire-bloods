@@ -18,15 +18,42 @@ import { apiFetch } from '../lib/api';
  * the disclaimer is about how to read results, which is not what those screens
  * are for. They carry the clinic's identity block on the left panel instead.
  */
-export function Footer({ className = '', inset = 'max-w-5xl' }: { className?: string; inset?: string }) {
-  const [text, setText] = useState('');
+export function Footer({
+  className = '',
+  inset = 'max-w-5xl',
+  text: fixedText,
+}: {
+  className?: string;
+  inset?: string;
+  /**
+   * WHOSE FOOTER THIS IS (Aug 2026).
+   *
+   * The seeded block is addressed to a PATIENT — "if you have concerns about
+   * your results, contact your GP … in a medical emergency, call 999" — and
+   * the clinician console was rendering it on every screen, under a queue of
+   * other people's reports. It is not merely redundant there, it is addressed
+   * to the wrong person: a clinician reading it is being told to ring NHS 111
+   * about results that are not theirs.
+   *
+   * Passed in rather than seeded as a second block, deliberately. The stored
+   * copy blocks are clinician-EDITABLE and carry a `supersedes` history that
+   * has to be maintained by hand (see seed.ts); adding one for a sentence no
+   * clinician would ever edit buys a migration and a maintenance obligation
+   * for nothing. Where this is absent the patient block is fetched exactly as
+   * before.
+   */
+  text?: string;
+}) {
+  const [fetched, setFetched] = useState('');
 
   useEffect(() => {
+    if (fixedText) return;
     apiFetch<{ body: string }>('/content/footer-disclaimer')
-      .then((r) => setText(r.body))
+      .then((r) => setFetched(r.body))
       .catch(() => {});
-  }, []);
+  }, [fixedText]);
 
+  const text = fixedText ?? fetched;
   if (!text) return null;
 
   return (

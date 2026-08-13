@@ -44,9 +44,28 @@ export function EmptyState({ title, description, action }: EmptyStateProps) {
     // `overflow-hidden` card, which clipped the curve away entirely and drew
     // two bare vertical hairlines straight through the sentence.
     <div className="motion-safe:animate-riseIn relative min-h-[14rem] overflow-hidden rounded-card border border-taupe bg-cream-50 px-8 py-14 text-center shadow-card sm:py-16">
+      {/* STANDING ON THE CARD'S FLOOR, not floating inside it. `inset-y-8`
+          held it 32px clear of the bottom, so its (now removed) bottom rule
+          crossed the message and its two sides stopped in mid-air. `bottom-0`
+          runs them off the edge of the card, which is the same composition the
+          full-size arch uses on the results-ready moment at a hundredth of the
+          weight.
+
+          It is still comfortably taller than half its own width — 192px of
+          height against 256px of width in the shortest card this renders in —
+          which is the condition for the browser not to cap the corner radii
+          and turn a doorway into a rounded box. */}
+      {/* WIDER THAN THE MESSAGE IT STANDS BEHIND, at every card width, or its
+          two sides are hairlines drawn down through the sentence — which is the
+          exact failure the first version of this shape made and the reason the
+          note above exists. The description is `mx-auto max-w-sm` (384px)
+          inside 32px of padding each side, so the arch has to beat
+          min(384, cardWidth - 64). 28rem with an 86% cap does: below a 457px
+          card 0.86W is always more than W-64, and above it the arch is 448
+          against the copy's 384. */}
       <div
         aria-hidden="true"
-        className="arch-outline pointer-events-none absolute inset-y-8 left-1/2 w-64 max-w-[80%] -translate-x-1/2"
+        className="arch-outline pointer-events-none absolute bottom-0 left-1/2 top-8 w-[28rem] max-w-[86%] -translate-x-1/2"
       />
       <div className="relative">
         <p className="font-display opsz-section text-xl leading-tight text-espresso">{title}</p>

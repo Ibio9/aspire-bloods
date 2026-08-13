@@ -622,23 +622,18 @@ export function AdminReportsPage() {
     <>
       <TwoTierHeading eyebrow="Aspire Clinic · Clinician console" title="Reports" />
 
-      <div className="mt-8">
-        <Tabs
-          items={[
-            {
-              id: 'upload',
-              label: 'Upload PDF',
-              content: <PdfUploadForm patients={patients} panels={panels} sources={sources} onDone={loadAll} />,
-            },
-            {
-              id: 'manual',
-              label: 'Manual entry',
-              content: <ManualEntryForm patients={patients} panels={panels} markers={markers} onDone={loadAll} />,
-            },
-          ]}
-        />
-      </div>
+      {/* ═══ THE LIST LEADS. ENTRY IS BELOW IT (Aug 2026) ═══════════════════
+          This page opened on two full screens of data-entry form — a patient
+          picker, a panel picker, a source picker, a date field and a dropzone
+          — and the report list started somewhere below the fold. So the screen
+          a clinician spends their morning on answered "add a report" before
+          "what is waiting", and every `?queue=HELD` link from the console
+          landed two screens above the thing it was pointing at.
 
+          Uploading a PDF is the occasional job (results arrive structured
+          through the Randox API now) and manual entry is the exception path.
+          Triage is the routine one. The forms are unchanged and are one press
+          away, in a disclosure at the foot of the page. */}
       <div className="mt-10">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="eyebrow">
@@ -733,7 +728,16 @@ export function AdminReportsPage() {
             ))}
           </div>
         )}
-        <div className="flex flex-col gap-3">
+        {/* TIGHT PADDING, AND A GRID RATHER THAN A FLEX ROW.
+            These rows carried the default card padding (p-7 sm:p-9), which is
+            36px of air around two lines of text — a triage list where every
+            row is 130px tall and eight of them fill a laptop screen. And
+            `justify-between` with no `min-w-0` on the left group is the
+            overflow this codebase has already fixed twice (see .value-row):
+            a long patient name shrinks the group past its own children and
+            paints over the status word beside it. Declared columns cannot do
+            that. */}
+        <div className="flex flex-col gap-2">
           {visibleReports.map((r, i) => (
             <Link
               key={r.id}
@@ -746,21 +750,24 @@ export function AdminReportsPage() {
               // lists already use.
               style={{ animationDelay: `${staggerDelay(i, 30)}ms` }}
             >
-              <Card interactive className="flex items-center justify-between gap-4">
-                <div>
+              <Card interactive padding="tight" className="grid gap-x-6 gap-y-1 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                <div className="min-w-0">
                   <p className="font-medium text-espresso">
                     {r.patient.patientProfile
                       ? `${r.patient.patientProfile.firstName} ${r.patient.patientProfile.lastName}`
                       : r.patient.email}{' '}
                     · {r.title}
                   </p>
-                  <p className="text-sm text-espresso">
-                    Sample date: {formatDate(r.sampleDate)} · {r.source.name}
+                  {/* Secondary, and set as secondary. Both lines were full-tone
+                      espresso, so the name and the sample date read at the same
+                      weight and the row had no first thing to look at. */}
+                  <p className="text-sm text-espresso/80">
+                    Sample date: <span className="numeric">{formatDate(r.sampleDate)}</span> · {r.source.name}
                   </p>
                 </div>
                 {/* Held reads as HELD on the row, not as "Awaiting review" —
                     the row is where somebody decides what to open next. */}
-                <span className="eyebrow">
+                <span className="eyebrow sm:text-right">
                   {r.voidedAt ? 'Voided' : statusLabel(r.status, (r.holdReasons ?? []).length > 0)}
                 </span>
               </Card>
@@ -769,18 +776,73 @@ export function AdminReportsPage() {
           {/* Two different nothings: no reports exist at all, versus reports
               exist but none survive the current filter. They need different
               wording — telling someone to upload their first report when they
-              have forty and a filter applied is just wrong. */}
+              have forty and a filter applied is just wrong. Both are the
+              product's own empty state now; the second used to be a bare
+              sentence, so the same page answered "there is nothing here" in
+              two visual languages. */}
           {reports !== null &&
             (reports.length === 0 ? (
               <EmptyState
                 title="No reports yet"
-                description="Upload a PDF or enter results manually above once a patient exists."
+                description="Add the first one below, once a patient exists."
               />
             ) : (
-              visibleReports.length === 0 && <p className="text-sm text-espresso/80">No reports match.</p>
+              visibleReports.length === 0 && (
+                <EmptyState
+                  title="No reports match"
+                  action={
+                    <Button
+                      onClick={() => {
+                        setStatusFilter('');
+                        setQuery('');
+                      }}
+                    >
+                      Clear filter
+                    </Button>
+                  }
+                />
+              )
             ))}
         </div>
       </div>
+
+      {/* ADDING A REPORT — the occasional job, below the routine one and shut
+          until it is asked for. Both forms are exactly as they were. */}
+      <details className="group mt-14 border-t border-taupe pt-8">
+        <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-input text-sm font-medium text-espresso transition-colors duration-150 ease-out hover:text-bronze focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-bronze">
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            fill="none"
+            aria-hidden="true"
+            className="shrink-0 -rotate-90 transition-transform duration-150 ease-out group-open:rotate-0"
+          >
+            <path d="M1.5 3.5 5 7l3.5-3.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Add a report
+        </summary>
+        <p className="mt-2 max-w-measure text-sm leading-relaxed text-espresso/80">
+          Results from Randox arrive on their own. Use these for a PDF the laboratory sent outside the API, or to key
+          in a test the clinic ran itself.
+        </p>
+        <div className="mt-6">
+          <Tabs
+            items={[
+              {
+                id: 'upload',
+                label: 'Upload PDF',
+                content: <PdfUploadForm patients={patients} panels={panels} sources={sources} onDone={loadAll} />,
+              },
+              {
+                id: 'manual',
+                label: 'Manual entry',
+                content: <ManualEntryForm patients={patients} panels={panels} markers={markers} onDone={loadAll} />,
+              },
+            ]}
+          />
+        </div>
+      </details>
     </>
   );
 }

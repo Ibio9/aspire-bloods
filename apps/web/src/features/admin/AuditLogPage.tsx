@@ -75,13 +75,39 @@ export function AuditLogPage() {
         Every admin and clinician action, and every view of patient data. Nothing is filtered out for anyone.
       </p>
 
+      {/* THREE "(optional)"s IN A ROW, and a filled bronze button as the
+          loudest thing on a page of records. Every filter is optional — saying
+          so three times is three labels telling a clinician they are permitted
+          not to type — and the primary fill belongs to the action a screen is
+          FOR, which on an audit log is reading it. `required={false}` keeps
+          Input from marking them required without printing the word. */}
       <Card className="mt-6">
         <form onSubmit={handleFilter} className="grid grid-cols-1 gap-4 sm:grid-cols-4" noValidate>
-          <Input label="Actor email contains" name="actorEmail" optional value={actorEmail} onChange={(e) => setActorEmail(e.target.value)} />
-          <Input label="Action" name="action" optional placeholder="e.g. REPORT_RELEASED" value={action} onChange={(e) => setAction(e.target.value)} />
-          <Input label="Target type" name="targetType" optional placeholder="e.g. Report" value={targetType} onChange={(e) => setTargetType(e.target.value)} />
+          <Input
+            label="Actor email contains"
+            name="actorEmail"
+            required={false}
+            value={actorEmail}
+            onChange={(e) => setActorEmail(e.target.value)}
+          />
+          <Input
+            label="Action"
+            name="action"
+            required={false}
+            placeholder="e.g. REPORT_RELEASED"
+            value={action}
+            onChange={(e) => setAction(e.target.value)}
+          />
+          <Input
+            label="Target type"
+            name="targetType"
+            required={false}
+            placeholder="e.g. Report"
+            value={targetType}
+            onChange={(e) => setTargetType(e.target.value)}
+          />
           <div className="flex items-end">
-            <Button type="submit" className="w-full">
+            <Button type="submit" variant="secondary" className="w-full">
               Filter
             </Button>
           </div>
@@ -118,14 +144,27 @@ export function AuditLogPage() {
               <TableBody>
                 {rows.map((r) => (
                   <TableRow key={r.id}>
-                    <TableCell className="tabular whitespace-nowrap">{formatDateTime(r.createdAt)}</TableCell>
-                    <TableCell>{r.action}</TableCell>
+                    {/* Dates rendered AS DATA take the mono face, like every
+                        other figure in the product. This column had the tabular
+                        figures and not the family. */}
+                    <TableCell className="numeric tabular whitespace-nowrap">{formatDateTime(r.createdAt)}</TableCell>
+                    {/* THE ACTION IS A CODE, so it is set as one. Left in the
+                        body face it was a column of SCREAMING_SNAKE_CASE
+                        shouting down a table of ordinary sentences — and the
+                        raw value is the right thing to print, because it is
+                        what the audit record stores and what somebody matches
+                        against a server log. Mono at the small step says
+                        "identifier" rather than "emphasis"; the same treatment
+                        the object key on the backup card already takes. */}
+                    <TableCell>
+                      <span className="numeric text-xs">{r.action}</span>
+                    </TableCell>
                     <TableCell>
                       {r.targetType}
-                      {r.targetId ? ` (${r.targetId.slice(0, 8)}…)` : ''}
+                      {r.targetId ? <span className="numeric text-xs text-espresso/80"> ({r.targetId.slice(0, 8)}…)</span> : ''}
                     </TableCell>
                     <TableCell>{r.actorType === 'SYSTEM' ? 'System' : (r.actorName ?? r.actorEmail ?? 'Unknown')}</TableCell>
-                    <TableCell className="tabular">{r.ipAddress ?? 'Not recorded'}</TableCell>
+                    <TableCell className="numeric tabular text-xs">{r.ipAddress ?? 'Not recorded'}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

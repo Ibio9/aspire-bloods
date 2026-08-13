@@ -290,6 +290,23 @@ export default {
         // than a max-w-2xl chosen by eye, which is how three different
         // measures ended up on three pages that read the same way.
         measure: MEASURE,
+        /**
+         * THE PATIENT SHELL'S CONTENT COLUMN — and it is not a measure.
+         *
+         * It was `max-w-5xl` (1024px), a Tailwind default doing duty as a
+         * layout decision, and it capped every patient screen including the two
+         * whose content is a card grid. Measured on the by-marker view: 3
+         * columns at 1440 (missing a fourth by 28px), and still 1024px of grid
+         * at 1920 with 608px of the window left empty.
+         *
+         * 1280 is chosen against the grid rather than against a line of text:
+         * the marker card's floor is 15rem and the gap is 20px, so 1280 holds
+         * FOUR columns with 260px to spare (a fifth arrives around 1600) where
+         * 1024 holds four only exactly. Reading width is unaffected because it
+         * was never this element's job — every paragraph in the product carries
+         * `max-w-measure` itself.
+         */
+        content: '80rem',
       },
       minHeight: {
         // WCAG 2.5.8 minimum touch target. One token, not forty copies of
