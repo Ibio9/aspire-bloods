@@ -197,7 +197,9 @@ export function MarkerDetailPage() {
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
         <div>
           <p className="eyebrow mb-3">Marker detail</p>
-          <h1 className="section-heading break-words">{detail.name}</h1>
+          {/* No `break-words`: a marker's name never breaks mid-word, here or
+              on a result card. At 38px the page simply gives it another line. */}
+          <h1 className="section-heading">{detail.name}</h1>
         </div>
         {navState && (siblingIndex >= 0) && (
           <div className="flex items-center gap-2">

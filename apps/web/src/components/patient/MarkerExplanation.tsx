@@ -112,10 +112,19 @@ export function MarkerExplanationBody({
     // THE TEXT COLUMN. `text-reading` is what the 68ch is measured at — see the
     // note above. Everything inside is capped to this one line length.
     <div className="max-w-measure text-reading">
-      {/* THE LEAD. Fraunces, section optical size, one step below a page title,
-          regular weight. WONK is carried by `font-display` and stays at 0 — a
-          whimsical axis on the definition of somebody's blood marker. */}
-      <p className="font-display opsz-section text-xl leading-snug text-espresso">{explanation.whatItIs}</p>
+      {/* THE LEAD. Fraunces, section optical size, regular weight. WONK is
+          carried by `font-display` and stays at 0 — a whimsical axis on the
+          definition of somebody's blood marker.
+
+          21px, DOWN from 28px (Aug 2026), and the heading above it is what
+          moved it. `WHAT THIS MARKER MEANS` has to be larger than this
+          sentence — it is the card's own label and it was the third largest
+          thing in the card — and the way to get there was to bring this line
+          down rather than push the label up to 38px, where it is wider than
+          the card at every width this product is read at. It is still the
+          loudest thing under the heading, still the only Fraunces line in the
+          card, and still a step above the answers at 18px. */}
+      <p className="font-display opsz-section text-lg leading-snug text-espresso">{explanation.whatItIs}</p>
       {explanation.highMeans && <Block label={words.high} body={explanation.highMeans} />}
       {explanation.lowMeans && <Block label={words.low} body={explanation.lowMeans} />}
       {explanation.lifestyleContext && <Block label={words.lifestyle} body={explanation.lifestyleContext} />}

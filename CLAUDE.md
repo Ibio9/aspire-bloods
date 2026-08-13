@@ -47,80 +47,71 @@ at `max-w-measure` (68ch). Tabular figures on every number without exception —
 `.numeric` for mono data, `.tabular` for a number inside a sentence.
 
 **THREE LABEL CLASSES, AND A CARD MAY NOT USE ONE OF THEM TWICE.**
-`.eyebrow` is the ordinary section label. It cannot also be the HEADING of a
-card whose contents carry labels, and on the marker explanation card it was
-exactly that: "What this marker means" in `.eyebrow` above three of "If it's
-high" in `.eyebrow` — four peers, in which the one that is a heading had nothing
-to say so, and three repetitions of a treatment out-read one instance of it. So
-`.card-eyebrow` is the heading and `.sublabel` is the label half of a pair
-inside such a card, in **sentence case** with no tracking. What a subordinate
-label gives up is the SHOUT — uppercase at 0.14em is what makes a label loud —
-and never the size or the tone. The weight stays at medium in all three:
-"quieter" must never become "fainter". All three carry `break-after: avoid` in
-`@media print`.
+`.eyebrow` is the ordinary section label (12px, medium, uppercase, tracked,
+/80). It cannot also be the HEADING of a card whose contents carry labels, and
+on the marker explanation card it was exactly that: "What this marker means" in
+`.eyebrow` above three of "If it's high" in `.eyebrow` — four peers, in which
+the one that is a heading had nothing to say so, and three repetitions of a
+treatment out-read one instance of it. So `.card-eyebrow` is the heading and
+`.sublabel` is the label half of a pair inside such a card (12px, medium, /80,
+**sentence case**). 12px is the floor of the type scale and /80 the floor of the
+opacity ladder, so what a subordinate label gives up is the SHOUT — uppercase at
+0.14em is what makes 12px loud. The weight stays at medium in all three: a thin
+12px label disappears on the dark page, and "quieter" must never become
+"fainter". All three carry `break-after: avoid` in `@media print`.
 
-**A LABEL GOES ABOVE THE TEXT IT LABELS, IN BOTH SENSES (Aug 2026, fourth and
-last attempt).** The three classes are **21 / 28 / 21px**, not 12 / 16 / 12, and
-every label in the product is now LARGER than the copy it introduces:
+**ONE LABEL IS LARGER THAN THE COPY UNDER IT, AND IT IS THE ONLY ONE (Aug
+2026).** `.card-eyebrow` is **28px**, over a lead sentence brought DOWN to 21px.
+Every other eyebrow in the product is 12px and stays 12px.
 
-    .card-eyebrow   28px semibold uppercase tracked   a card's heading
-    .eyebrow        21px medium   uppercase tracked   every section label
-    .sublabel       21px medium   sentence case       a label inside a heading
-    body copy       14 / 16 / 18px
+    .card-eyebrow   28px  uppercase, tracked, semibold, full tone
+    the lead        21px  Fraunces, opsz-section — down from 28px
+    the answers     18px
+    .sublabel       12px
 
-`WHAT THIS MARKER MEANS` at 16px stood over a 28px sentence; `LATEST RESULT`,
-`TREND OVER TIME` and `PREVIOUS RESULTS` at 12px stood over 14–18px body copy.
-**The three previous attempts all moved WEIGHT, TONE, TRACKING and SPACE and
-left the SIZE alone, and all three failed for one reason: at two-thirds the size
-of what it labels, no amount of weight makes a label the stronger element.**
+The card's own ladder decides both numbers uniquely: the answers are 18px and
+the sub-labels 12px, neither of which moves, so the lead has to clear 18 and the
+heading has to clear the lead. **THE LEAD CAME DOWN RATHER THAN THE HEADING
+GOING FURTHER UP** — the step past 28px is 38px, and a 38px uppercase tracked
+label sets "WHAT THIS MARKER MEANS" at ~670px, wider than the card at any width
+this product is read at. On a phone it is a two-line label whatever it is set in
+(493px of text in a 286px card), so `text-wrap: balance` decides where it
+breaks: "WHAT THIS / MARKER MEANS" rather than an orphan.
 
-**TWO THINGS A LABEL MAY NEVER OVERTAKE**, and both are content rather than
-chrome: **the value on a result** (`LATEST RESULT` sits over a 72px hero value
-and a card's figures are 28px) and **a page title in Fraunces**
-(`.display-heading` clamp(38→72px), `.section-heading` 38px). That is what fixes
-the eyebrow at 21px exactly — one step above the largest body copy (18px) and
-one step below the smallest thing it may not beat (28px, which is both a card's
-numeric value and the Fraunces lead in the explanation card). It is the only
-step that satisfies both, so it is a step of the scale and not a number.
+**AND EVERY OTHER EYEBROW WENT TO 21px FOR A DAY. DO NOT DO IT AGAIN.**
+The inverted hierarchy was real and was confined to that one card. Raising the
+whole product's labels to fix it was the wrong shape of fix, and the damage was
+measurable everywhere:
 
-**`.card-eyebrow` is the one that stops at EQUAL rather than larger**, and
-deliberately: the step past 28px is 38px, and a 38px uppercase tracked label
-sets "WHAT THIS MARKER MEANS" at ~670px, wraps in the card and reads as the
-page's title. Equal size plus semibold plus uppercase plus 0.14em against
-Fraunces regular is not a close contest.
+- `ALT (ALANINE AMINOTRANSFERASE)` on a result card broke **mid-word** across
+  three lines in a 15rem column — a marker's name hyphenated inside the analyte.
+- `IN THE USUAL RANGE` became 267px of label in a 237px cell, so one figure of
+  three sat 31px below its neighbours and needed cell-alignment scaffolding.
+- `OPENING HOURS` and `EMERGENCY LINE` wrapped in the 288px sidebar and the
+  contact block clipped its own last line — which needed a `.chrome .eyebrow`
+  exception to survive. **An exception invented to hold up a change is the
+  change telling you it is wrong**, and that is the signal to watch for.
 
-**AN EYEBROW IS SIZED AGAINST WHAT IT LABELS, AND IN CHROME THAT IS 14px.**
-`.chrome .eyebrow` is 16px — still a step above what it names. `.chrome` is a
-closed list of surfaces where an eyebrow labels navigation or controls rather
-than reading matter: both shells' sidebars and their mobile drawers, the account
-menu, a Listbox popup and the command palette. NOT a fourth label class and
-never put on a page, a card or a section. Two measured reasons, both from the
-288px sidebar: `OPENING HOURS` and `EMERGENCY LINE` at 21px are 250px and 268px
-in a 232px column, so both wrapped and the contact block then clipped its own
-last line; and `PATIENT PORTAL` at 21px was larger than every nav label under it
-and louder than the wordmark above it, which is `.nav-label`'s own recorded
-argument one level up. The same component can land on both sides of the line —
-`ClinicContactLines` renders ADDRESS at 16px in the sidebar and 21px in the
-out-of-range card, which is right in both places because the content beside it
-differs.
+A label is not improved by being big; it is improved by being unambiguous about
+what it labels, which at 12px uppercase and tracked it already was. If the
+hierarchy looks inverted again, change the ONE card where it genuinely is.
 
-**A LABEL THAT WRAPS SHOULD LOOK LIKE IT MEANT TO.** `text-wrap: balance` on
-`.eyebrow` and `.card-eyebrow`. At 21px with 0.14em a long label is half again
-as wide as it was, so on a phone some now take two lines — the problem is not
-the wrap, it is the ORPHAN: `ASPIRE CLINIC · PATIENT PORTAL` broke after
-"PATIENT" and left PORTAL alone under a 30-character run.
-
-**AND A ROW OF LABEL/VALUE PAIRS ALIGNS ITS VALUES.** A wider label wraps in
-more places, and in the Overview's most-recent-panel strip "In the usual range"
-is 267px of text in a 237px cell while "Markers" is 118px — so one figure of
-three sat 31px below the other two. `flex flex-col` on the pair and `mt-auto` on
-the value pins every figure to the floor of its own cell, for a label of any
-length. It costs a uniform gap under the short labels and that is the cheaper
-half of the trade.
+**A MARKER'S NAME NEVER BREAKS MID-WORD.** No `break-words` on a name anywhere —
+not the result card, not the change card, not the marker page's own h1. It wraps
+at spaces and at the seams the name already has (`Gamma-Glutamyltransferase`,
+`Microalbumin/Creatinine Ratio`) and the CARD GETS TALLER when it needs to; a
+grid row is allowed to grow and a name is not allowed to be wrong. The longest
+atomic run in the catalogue is `Glutamyltransferase` at 19 characters, ~161px
+against the ~200px a 15rem card gives it. `e2e/marker-name-wrapping.spec.ts`
+checks it two ways and **needs both**: the painted line breaks (every
+character's rect, so the check is on glyphs rather than on CSS) AND the computed
+`overflow-wrap` / `word-break` / `hyphens`. At 12px in a 267px column nothing
+breaks whatever the CSS permits, so a painted-only check would have passed the
+exact markup that caused this.
 
 **If this ever looks wrong again, MEASURE the computed style, the margins AND
 the natural width of the longest label before touching a value** — it has been
-eyeballed wrongly three times.
+eyeballed wrongly four times.
 
 **Loading.** Self-hosted from this origin, latin only, from
 `apps/web/public/assets/fonts` — see the README there for why the files are
@@ -1316,6 +1307,22 @@ it: at four rows in the two-line arrangement it overflowed.
   been told their result is outside the usual range wants to know what the
   marker IS before they are told who to ring about it — the definition is
   context for the prompt, not a footnote to it.
+
+# "What's changed" is two cards across, each its own height (Aug 2026)
+
+Three columns inside a section that already gives 144px of its width to the
+rail left each card about 270px at 1440 — narrow enough that a marker's name
+took three lines while the card below it was mostly empty. These cards hold a
+name, two figures with an arrow between them, a movement label, a date and a
+badge: a wide, short shape forced into a tall, thin one with a hole in it.
+
+Two things fix it and both are needed. **`sm:grid-cols-2`** gives each card the
+room its content wants. **`items-start`, and no `h-full` on the card**, is what
+closes the hole: a grid stretches its items, so the tallest card in a row was
+setting the height of every card beside it and that space was drawn as empty
+card rather than as nothing at all. A row of unequal things is allowed to be
+ragged along the bottom. `e2e/marker-name-wrapping.spec.ts` measures the slack
+below each card's last element and holds it at its own bottom padding.
 
 # Vellum: the second surface register (Aug 2026)
 

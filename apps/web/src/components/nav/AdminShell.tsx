@@ -298,7 +298,7 @@ export function AdminShell({ children }: { children?: ReactNode }) {
           dissolves into the page would be worse than either. See PatientShell
           and the note on --c-panel in tokens.ts. */}
       <aside
-        className={`chrome panel-wash h-viewport sticky top-0 hidden shrink-0 flex-col border-r border-panel-edge transition-[width] duration-200 ease-out md:flex ${
+        className={`panel-wash h-viewport sticky top-0 hidden shrink-0 flex-col border-r border-panel-edge transition-[width] duration-200 ease-out md:flex ${
           collapsed ? 'w-[76px]' : 'w-[272px]'
         }`}
       >
@@ -315,7 +315,7 @@ export function AdminShell({ children }: { children?: ReactNode }) {
             role="dialog"
             aria-modal="true"
             aria-label="Clinician console navigation"
-            className="chrome absolute left-0 top-0 flex h-full w-72 flex-col bg-cream-50 shadow-card outline-none motion-safe:animate-riseIn"
+            className="absolute left-0 top-0 flex h-full w-72 flex-col bg-cream-50 shadow-card outline-none motion-safe:animate-riseIn"
           >
             {/* Tapping the scrim closes it, but a scrim is not a discoverable
                 control — and on a phone the drawer covers most of the screen. */}

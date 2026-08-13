@@ -93,9 +93,23 @@ function MovementArrow({ direction }: { direction: 'UP' | 'DOWN' }) {
 function ChangeCard({ change }: { change: ChangeItem }) {
   const copy = MOVEMENT_COPY[change.movement];
   return (
+    /* NO `h-full`, and that is the fix rather than an omission (Aug 2026).
+       Three cards in a row, each stretched to the tallest of the three, left
+       the short ones with a hand's width of nothing under "In range" — an
+       empty half-card that reads as content that failed to load. A card's
+       height is its own content's; the row is allowed to be ragged along the
+       bottom, which is what a row of unequal things looks like. `items-start`
+       on the grid is the other half of it. */
     <Link to={`/markers/${change.markerId}`} className="rounded-card">
-      <Card interactive className="flex h-full flex-col">
-        <p className="font-display opsz-small text-lg leading-tight text-espresso">{change.name}</p>
+      <Card interactive>
+        {/* No `break-words` anywhere on a marker's name — see MarkerResultCard
+            for the failure that rule exists against. `text-balance` decides
+            WHICH of the legal breaks to take: greedy line-breaking fitted as
+            much as it could and left "hs-CRP (High-Sensitivity C-" hanging on a
+            hyphen, where balanced it splits at the space before "C-Reactive".
+            It changes no text and permits no new break — it only picks
+            better among the ones the name already had. */}
+        <p className="text-balance font-display opsz-small text-lg leading-tight text-espresso">{change.name}</p>
         <p className="numeric tabular mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-espresso">
           <span className="text-espresso/80">{change.previousValue}</span>
           <span aria-hidden="true" className="text-taupe">
@@ -615,32 +629,27 @@ export function PatientOverview() {
                 tabular, like every other pure number in the product, so the
                 three line up as a row rather than drifting with their digits.
 
-                THE LABELS ALIGN AT THE TOP AND THE VALUES AT THE BOTTOM, which
-                needs saying because it costs a uniform gap and buys something
-                worth more. At the label scale these carry now, "In the usual
-                range" is 267px of text in a 237px cell and takes two lines,
-                while "Markers" takes one — so a row of three figures had one of
-                them sitting 31px below the other two, which is the one thing a
-                row of figures may not do. `flex flex-col` plus `mt-auto` pins
-                every value to the floor of its own cell whatever its label did
-                above it, and it holds for a label of any length rather than for
-                the two lines this one happens to need. */}
+                No cell alignment scaffolding: at 12px every one of these
+                labels is a single line in its own column, so the three figures
+                sit on one baseline because the cells are the same shape.
+                `flex flex-col` and `mt-auto` were added here to survive 21px
+                labels that wrapped, and they went back with the labels. */}
             <dl className="mt-9 grid grid-cols-2 gap-8 border-t border-taupe pt-8 sm:grid-cols-3">
-              <div className="flex flex-col">
+              <div>
                 <dt className="eyebrow mb-2">Markers</dt>
-                <dd className="numeric tabular mt-auto text-xl font-semibold leading-none text-espresso">
+                <dd className="numeric tabular text-xl font-semibold leading-none text-espresso">
                   <AnimatedNumber value={data.latest.markerCount} />
                 </dd>
               </div>
-              <div className="flex flex-col">
+              <div>
                 <dt className="eyebrow mb-2">In the usual range</dt>
-                <dd className="numeric tabular mt-auto text-xl font-semibold leading-none text-espresso">
+                <dd className="numeric tabular text-xl font-semibold leading-none text-espresso">
                   <AnimatedNumber value={data.latest.inRangeCount} />
                 </dd>
               </div>
-              <div className="flex flex-col">
+              <div>
                 <dt className="eyebrow mb-2">Needs attention</dt>
-                <dd className="numeric tabular mt-auto text-xl font-semibold leading-none text-espresso">
+                <dd className="numeric tabular text-xl font-semibold leading-none text-espresso">
                   <AnimatedNumber value={data.latest.attentionCount} />
                 </dd>
               </div>
@@ -713,10 +722,25 @@ export function PatientOverview() {
           </h2>
           {/* No standfirst: every card below carries its own movement label and
               the date it is compared with, which is the whole of what the
-              sentence said. */}
-          <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              sentence said.
+
+              ── TWO ACROSS, NOT THREE, AND EACH AS TALL AS ITS OWN CONTENT ──
+              Three columns inside a section that already gives 144px of its
+              width to the rail left each card about 270px at 1440 — narrow
+              enough that a marker's name took three lines while the card below
+              it was mostly empty. These cards hold a name, two figures with an
+              arrow between them, a movement label, a date and a badge; that is
+              a wide, short shape, and forcing it into a third of the column
+              made it a tall, thin one with a hole in it.
+
+              `items-start` is the half that fixes the hole. A grid stretches
+              its items by default, so the tallest card in a row — the one whose
+              name wrapped — was setting the height of every card beside it, and
+              the space that bought was drawn as empty card rather than as
+              nothing at all. */}
+          <div className="mt-8 grid grid-cols-1 items-start gap-6 sm:grid-cols-2">
             {data.changes.map((change, i) => (
-              <Reveal key={change.markerId} delay={staggerDelay(i)} className="h-full">
+              <Reveal key={change.markerId} delay={staggerDelay(i)}>
                 <ChangeCard change={change} />
               </Reveal>
             ))}

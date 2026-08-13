@@ -86,7 +86,7 @@ export function AccountMenu({ links = [] }: { links?: AccountMenuLink[] }) {
         <div
           role="menu"
           aria-label="Account menu"
-          className="chrome absolute right-0 top-[calc(100%+8px)] z-40 w-64 origin-top-right rounded-card border border-taupe bg-cream-50 py-1.5 shadow-card motion-safe:animate-riseIn"
+          className="absolute right-0 top-[calc(100%+8px)] z-40 w-64 origin-top-right rounded-card border border-taupe bg-cream-50 py-1.5 shadow-card motion-safe:animate-riseIn"
         >
           {links.map((link, i) => (
             <Link

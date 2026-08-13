@@ -148,9 +148,29 @@ export function MarkerResultCard({
           chevron and the word below still carry the status on their own, in
           greyscale and to a colourblind reader. */}
       <Card interactive tint={status} padding="tight" className="flex h-full flex-col">
-        {/* The only text above the bar. break-words, because "Anti-Thyroid
-            Peroxidase Antibodies" in a 15rem column has nowhere else to go. */}
-        <p className="eyebrow break-words leading-snug">{m.name}</p>
+        {/* ── A MARKER'S NAME NEVER BREAKS MID-WORD (Aug 2026) ─────────────
+            This carried `break-words` — `overflow-wrap: break-word` — which is
+            a licence to hyphenate inside a word when one will not fit, and it
+            was taken: `ALT (ALANINE AMINOTRANSFE / RASE)` on a result card, a
+            marker's name split across three lines with a break in the middle of
+            the analyte. A patient scanning a grid for "Aminotransferase" does
+            not find it there, and a clinical name broken at an arbitrary letter
+            reads as a rendering fault whatever the width.
+
+            So it wraps at ORDINARY break opportunities only — spaces, and the
+            hyphens and slashes that are already part of a name
+            (`Gamma-Glutamyltransferase`, `Microalbumin/Creatinine Ratio`) — and
+            where that needs another line the CARD GETS TALLER. A grid row is
+            allowed to grow; a name is not allowed to be wrong.
+
+            IT FITS, AND THAT IS MEASURED RATHER THAN HOPED. The longest atomic
+            run in the catalogue is `Glutamyltransferase` at 19 characters,
+            which at 12px with 0.14em of tracking is ~161px against the ~200px
+            a 15rem card gives it. `e2e/marker-name-wrapping.spec.ts` renders
+            the longest names in the catalogue at the narrowest card the product
+            draws and checks that no word is broken and nothing paints outside
+            the card. */}
+        <p className="eyebrow text-balance leading-snug">{m.name}</p>
 
         {/* A textual result has no position on a numeric scale, and a result
             with no status was never placed on one — the bar would be a guess

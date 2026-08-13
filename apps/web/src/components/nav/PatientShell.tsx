@@ -425,7 +425,7 @@ export function PatientShell({ children }: { children?: ReactNode }) {
           because it is the whole of the separation wherever the glow does not
           reach — which on a wide window is most of this column. */}
       <aside
-        className={`chrome panel-wash h-viewport sticky top-0 hidden shrink-0 flex-col border-r border-panel-edge transition-[width] duration-200 ease-out md:flex print-hide ${
+        className={`panel-wash h-viewport sticky top-0 hidden shrink-0 flex-col border-r border-panel-edge transition-[width] duration-200 ease-out md:flex print-hide ${
           collapsed ? 'w-[84px]' : 'w-[288px]'
         }`}
       >
@@ -453,7 +453,7 @@ export function PatientShell({ children }: { children?: ReactNode }) {
             role="dialog"
             aria-modal="true"
             aria-label="Patient portal navigation"
-            className="chrome absolute left-0 top-0 flex h-full w-[86vw] max-w-[320px] flex-col bg-cream-50 shadow-card outline-none motion-safe:animate-riseIn"
+            className="absolute left-0 top-0 flex h-full w-[86vw] max-w-[320px] flex-col bg-cream-50 shadow-card outline-none motion-safe:animate-riseIn"
           >
             <button
               type="button"

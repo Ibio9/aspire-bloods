@@ -488,99 +488,41 @@
 }
 
 @layer components {
-  /* ═══ A LABEL GOES ABOVE THE TEXT IT LABELS, IN BOTH SENSES (Aug 2026) ═══
-     The three label classes are 21 / 28 / 21px, not 12 / 16 / 12. Every one of
-     them is now LARGER than the copy it introduces rather than smaller than it.
+  /* The label half of every label/value pair, and every section label.
+     ONE tracking value (--tracking-eyebrow) everywhere — there used to be
+     three, which is three different products' worth of small caps on one
+     page. Medium weight, because at 12px with 0.14em of tracking a regular
+     weight goes thin enough to disappear on the dark page.
 
-     WHAT WAS WRONG. `WHAT THIS MARKER MEANS` at 16px stood over a 28px
-     sentence; `LATEST RESULT`, `TREND OVER TIME` and `PREVIOUS RESULTS` at 12px
-     stood over 14–18px body copy. So every label in the product was the
-     smallest thing in its own block — which reads as a caption on the paragraph
-     beneath it rather than as the name of the section above it. The previous
-     three attempts at this all moved WEIGHT, TONE and TRACKING and left the
-     size alone, and all three failed for the same reason: at two-thirds the
-     size of what it labels, no amount of weight makes a label the stronger
-     element.
+     ── IT WENT TO 21px FOR A DAY, AND THAT WAS THE WRONG SHAPE OF FIX ───────
+     The card heading below was smaller than the sentence it labelled, which is
+     a real fault and is fixed there. Raising EVERY eyebrow in the product to
+     21px to fix it was not: the label is 12px because that is the right size
+     for a label sitting over 14–18px of copy, and at 21px with 0.14em of
+     tracking the same string is 75% wider. What that bought, measured:
 
-     THE LADDER, and every step of it is a real step of the nine-step scale:
+       · `ALT (ALANINE AMINOTRANSFERASE)` on a result card broke MID-WORD
+         across three lines in a 15rem column — a marker's name hyphenated
+         inside a word, on a clinical result.
+       · `IN THE USUAL RANGE` was 267px of label in a 237px cell, so one
+         figure of three sat 31px below its neighbours.
+       · `OPENING HOURS` and `EMERGENCY LINE` wrapped in the 288px sidebar and
+         the contact block clipped its own last line — which needed a
+         `.chrome .eyebrow` exception to survive, and an exception invented to
+         hold up a change is the change telling you it is wrong.
 
-       .card-eyebrow   28px  the heading of a card whose contents carry labels
-       .eyebrow        21px  every section label and every label/value pair
-       .sublabel       21px  the label half of a pair inside a carded heading
-       body copy       14 / 16 / 18px
-
-     TWO THINGS A LABEL MAY NEVER OVERTAKE, and both are content rather than
-     chrome:
-
-       · THE VALUE ON A RESULT. `LATEST RESULT` sits over a 72px hero value and
-         a card's figures are 28px; the eyebrow is 21px and stays under both.
-         The number is what somebody came to the page for.
-       · A PAGE TITLE IN FRAUNCES. `.display-heading` is clamp(38→72px) and
-         `.section-heading` 38px, both above every label here. A label that
-         out-shouts the name of the page is a page with two titles.
-
-     So the eyebrow lands at 21px precisely: one step above the largest body
-     copy in the product (18px `text-reading`) and one step below the smallest
-     thing it is not allowed to beat (28px `text-xl`, which is both a card's
-     numeric value and its Fraunces lead). It is the only step that satisfies
-     both, which is why it is a step of the scale and not a number.
-
-     The tracking is unchanged and is still ONE value everywhere
-     (--tracking-eyebrow). The medium weight is unchanged too, though the reason
-     for it has expired — it was there because 12px at 0.14em goes thin enough
-     to disappear on the dark page — and it stays because a label that has just
-     grown 75% does not also need to grow a weight. */
+     A label is not improved by being big. It is improved by being unambiguous
+     about what it labels, which at 12px uppercase and tracked it already was.
+     If this comes up again, the thing to change is the ONE card where the
+     hierarchy is genuinely inverted, and nothing else. */
   .eyebrow {
-    @apply font-eyebrow text-lg font-medium uppercase tracking-eyebrow text-espresso/80;
-    /* A LABEL THAT WRAPS SHOULD LOOK LIKE IT MEANT TO. At 21px with 0.14em of
-       tracking a long eyebrow is half again as wide as it was, so on a phone
-       some of them now take two lines — `ASPIRE CLINIC · PATIENT PORTAL` is
-       504px of text in a 342px column. Wrapping is not the problem; an ORPHAN
-       is, and the default broke that one after "PATIENT", leaving the word
-       PORTAL alone on a line under a 30-character run. Balanced it splits
-       evenly and reads as a two-line label. Ignored by any browser that does
-       not implement it, which then gets exactly what it gets today. */
-    text-wrap: balance;
-  }
-
-  /* ── AN EYEBROW IS SIZED AGAINST WHAT IT LABELS, AND IN CHROME THAT IS 14px ──
-     One rule, two contexts, and NOT a fourth label class — the classes stay at
-     three and this is the same class measured against different content.
-
-     On a page an eyebrow labels body copy at 14–18px, so it is 21px. Inside the
-     navigation panel, a menu, a dropdown or the command palette it labels
-     CHROME at 14px (`.nav-label`, an option row, a menu item), so it is 16px —
-     still a step above the thing it names, which is the whole rule, and not the
-     three steps that would make it something else.
-
-     TWO MEASURED REASONS, both from the sidebar at 288px:
-
-       · `OPENING HOURS` and `EMERGENCY LINE` at 21px with 0.14em of tracking
-         are 250px and 268px of text in a 232px column, so both WRAPPED — and
-         the contact block, which is capped at 45% of the panel height, then
-         clipped its own last line. At 16px they are 190px and 204px and stand
-         on one line each. This is exactly the "recheck line length" the change
-         was specified with.
-       · `PATIENT PORTAL` at 21px was larger than every nav label under it and
-         louder than the wordmark above it, which is `.nav-label`'s own recorded
-         argument one level up: a navigation column set at page weight reads as
-         a second page competing with the first.
-
-     `.chrome` marks the surfaces where that is true, and it is a closed list:
-     the two shells' sidebars and their mobile drawers, the account menu, a
-     Listbox popup and the command palette. It is never put on a page, a card or
-     a section — an eyebrow over reading matter is 21px everywhere. Note the
-     same component can land on both sides of it: `ClinicContactLines` renders
-     ADDRESS at 16px in the sidebar and at 21px in the out-of-range card on a
-     marker page, which is correct in both places because the content beside it
-     differs. */
-  .chrome .eyebrow {
-    @apply text-base;
+    @apply font-eyebrow text-xs font-medium uppercase tracking-eyebrow text-espresso/80;
   }
 
   /* THE LABEL ON A CARD WHOSE CONTENTS ALSO CARRY LABELS.
-     One step up from `.eyebrow` (28px), semibold, full tone — the eyebrow's own
-     tracking and case, so it is the same family and not a new one.
+     Uppercase, tracked and semibold like `.eyebrow`, so it is the same family
+     and not a new one — and the only class in this file that is deliberately
+     LARGER than the copy beneath it.
 
      It exists because `.eyebrow` cannot be both the heading of a card and the
      labels inside it. On the marker explanation card it was exactly that: "What
@@ -591,7 +533,7 @@
      it was not.
 
      ── AND 14px WAS NOT ENOUGH OF A STEP (Aug 2026, third attempt) ──────────
-     Measured off the rendered card at 1440 in both themes, before this change:
+     Measured off the rendered card at 1440 in both themes:
 
        .card-eyebrow  14px / 600 / 1.96px tracking / uppercase / rgb(66,60,54)
        .sublabel      12px / 500 / 0.05px tracking / sentence  / rgba(...,0.8)
@@ -602,63 +544,59 @@
      different letter-cases — and the SPACE was running the other way entirely:
      each sub-label sat alone in 36px of air while the heading had 20px under
      it, so three isolated small labels each read as the start of something and
-     the heading read as a caption on the paragraph beneath it.
-
-     16px was a whole step of the scale, a third larger than the sub-labels, and
-     the space was inverted with it at the call site (MarkerExplanation): the
-     heading owns more room below it than any block gets above it. Five signals,
-     all pointing the same way.
+     the heading read as a caption on the paragraph beneath it. 16px, and the
+     space inverted with it at the call site.
 
      ── AND 16px WAS STILL UNDER THE SENTENCE IT LABELS (Aug 2026, fourth) ────
-     All three previous attempts compared this label with the SUB-LABELS and
-     never with the LEAD — the definition of the marker, Fraunces at 28px,
-     directly beneath it and 75% larger. So the card's heading was the third
-     largest thing in its own card, which is the same failure one level up. It
-     is 28px now: level with the lead in size and decisively ahead of it in
-     weight, case and tracking, and a full step of the scale above the
-     sub-labels so their subordination is wider than it has ever been.
+     All three of those attempts compared this label with the SUB-LABELS and
+     never with the LEAD — the definition of the marker, Fraunces, directly
+     beneath it and 75% larger at 28px. So the card's heading was the third
+     largest thing in its own card, which is the same failure one level up, and
+     it is the ONLY place in the product where that was true.
 
-     ONE STEP BEHIND THE RULE THE OTHER TWO FOLLOW, and deliberately. Every
-     other label in the product is now strictly larger than the copy under it;
-     this one is EQUAL to the copy under it, because the step past 28px is 38px
-     — `.section-heading` — and a 38px uppercase tracked label sets
-     "WHAT THIS MARKER MEANS" at roughly 670px, which wraps to two lines in this
-     card and reads as the page's title rather than as a card's label. Equal
-     size plus semibold plus uppercase plus 0.14em against Fraunces regular is
-     not a close contest.
+     THE CARD'S LADDER IS WHAT DECIDES BOTH NUMBERS, and it decides them
+     uniquely. The answers are 18px and the sub-labels 12px, neither of which
+     moves. So the lead has to clear 18 and the heading has to clear the lead:
+
+       .card-eyebrow  28px   uppercase, tracked, semibold, full tone
+       the lead       21px   Fraunces, opsz-section — DOWN from 28px
+       the answers    18px
+       .sublabel      12px
+
+     THE LEAD CAME DOWN RATHER THAN THE HEADING GOING FURTHER UP. The step past
+     28px is 38px — `.section-heading` — and a 38px uppercase tracked label sets
+     "WHAT THIS MARKER MEANS" at roughly 670px, which is wider than the card at
+     any width this product is read at and reads as the page's title rather than
+     as a card's label. 28px is 493px, which fits the card on a laptop with room
+     to spare and takes two balanced lines on a phone, where a 286px column
+     wraps anything above 16px whatever it is set in.
 
      Never a substitute for a section heading, which is Fraunces (see
      `.section-heading`). This is still an eyebrow: it labels a card whose
      content is the thing to read. */
   .card-eyebrow {
     @apply font-eyebrow text-xl font-semibold uppercase tracking-eyebrow text-espresso;
-    /* Same reasoning as `.eyebrow`, and it bites sooner here: at 28px
-       "WHAT THIS MARKER MEANS" is 493px and a phone's card holds 286px. */
+    /* On a phone this is a two-line label whatever is done to it — 493px of
+       text in a 286px card — so the only question is where it breaks. Balanced
+       it splits "WHAT THIS / MARKER MEANS"; left alone it orphans the last
+       word. Ignored by any browser that does not implement it. */
     text-wrap: balance;
   }
 
   /* THE LABEL HALF OF A PAIR INSIDE A CARD THAT ALREADY HAS A HEADING.
-     WHAT IT GIVES UP IS THE SHOUT, AND ONLY THE SHOUT. That was the mechanism
-     when this was 12px and it is still the mechanism at 21px: uppercase at
-     0.14em is what makes a label loud, and three of them running down a card
-     out-read one of them at the top however the heading is set. Sentence case,
-     the body face, no tracking — so it is quieter than `.eyebrow` at the same
-     size and a full step under `.card-eyebrow` in size as well.
+     12px is the floor of the type scale and /80 is the floor of the text
+     opacity ladder, so a label that has to go quieter than an eyebrow cannot do
+     it with size or tone. What it drops is the SHOUT: uppercase at 0.14em is
+     what makes 12px loud, and three of them running down a card out-read one of
+     them at the top however the heading is set.
 
-     IT ROSE WITH THE REST OF THEM (Aug 2026), and it had to. Left at 12px under
-     a 28px heading it would have been the one label in the product still
-     smaller than its own answer — `If it’s high` at 12px introducing an 18px
-     sentence — which is the exact inversion the ladder was rebuilt to remove,
-     surviving in the one card that had already been through three rounds of it.
-     21px keeps it above its answer and below its heading, which is both halves
-     of what it is for.
-
-     Medium weight, for the same reason `.eyebrow` is: "quieter" must never
-     become "fainter". It pairs with its answer by proximity (see
-     MarkerExplanation) and reads as an introduction to one rather than as a
-     fourth heading. */
+     Sentence case, the body face, medium weight — kept at medium rather than
+     dropped to regular for the same reason `.eyebrow` is: a thin 12px label
+     disappears on the dark page, and "quieter" must not become "fainter". It
+     pairs with its answer by proximity (see MarkerExplanation) and reads as an
+     introduction to one rather than as a fourth heading. */
   .sublabel {
-    @apply font-body text-lg font-medium text-espresso/80;
+    @apply font-body text-xs font-medium text-espresso/80;
   }
 
   /* Sidebar navigation labels, in both shells.

@@ -93,7 +93,7 @@ function FastingRequired({
       className={`overflow-hidden rounded-card border border-night bg-night text-oncolor shadow-card ${className}`}
     >
       <div className="p-6 sm:p-9">
-        <p className="flex items-center gap-2.5 font-eyebrow text-lg uppercase tracking-eyebrow text-oncolor/80">
+        <p className="flex items-center gap-2.5 font-eyebrow text-xs uppercase tracking-eyebrow text-oncolor/80">
           <NoFoodIcon className="shrink-0" />
           Before this appointment
         </p>
@@ -130,7 +130,7 @@ function FastingRequired({
       </div>
 
       <div className="border-t border-oncolor/20 p-6 sm:p-9">
-        <p className="font-eyebrow text-lg uppercase tracking-eyebrow text-oncolor/80">During the fast</p>
+        <p className="font-eyebrow text-xs uppercase tracking-eyebrow text-oncolor/80">During the fast</p>
         {/* Tick and cross are shape-distinct and each row names its own state
             in words — the two halves never rely on colour to separate. */}
         <ul className="mt-4 grid grid-cols-1 gap-x-10 gap-y-4 sm:grid-cols-2">
@@ -178,7 +178,7 @@ function NoFastingNeeded({ headingId, panelName, className }: { headingId: strin
       aria-labelledby={headingId}
       className={`rounded-card border border-taupe bg-cream-100 p-6 shadow-card sm:p-9 ${className}`}
     >
-      <p className="flex items-center gap-2.5 font-eyebrow text-lg uppercase tracking-eyebrow text-espresso/80">
+      <p className="flex items-center gap-2.5 font-eyebrow text-xs uppercase tracking-eyebrow text-espresso/80">
         <FoodOkIcon className="shrink-0 text-bronze-700" />
         Before this appointment
       </p>
