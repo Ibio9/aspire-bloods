@@ -18,7 +18,7 @@
  * So the card read as a flat list of four paragraphs and nothing in it said
  * what to read first. Rebuilt as four levels:
  *
- *   1. HEADING. `.card-eyebrow`: one step up the scale (14px), semibold, full
+ *   1. HEADING. `.card-eyebrow`: two steps up the scale (16px), semibold, full
  *      tone, and the only uppercase tracked line in the card. It labels the
  *      card; it is not competing to be read — but it does have to be the most
  *      prominent LABEL in it.
@@ -82,10 +82,13 @@ const LABELS = {
 
 function Block({ label, body }: { label: string; body: string }) {
   return (
-    // mt-9 from the block above, mt-1.5 to its own answer. Six to one, which is
-    // what makes this a pair rather than two paragraphs that happen to be
-    // adjacent.
-    <div className="mt-9">
+    // mt-7 (28px) from the block above, mt-1.5 (6px) to its own answer. Still
+    // nearly five to one, which is what makes this a pair rather than two
+    // paragraphs that happen to be adjacent — and now LESS than the 32px the
+    // card heading has under it, which is the half of the hierarchy that was
+    // running backwards. A sub-label alone in more air than the heading gets
+    // reads as the start of a section however the heading is set.
+    <div className="mt-7">
       {/* `.sublabel`, not `.eyebrow` — see globals.css. Same size, same tone,
           sentence case: 12px is the floor of the scale and /80 the floor of the
           opacity ladder, so what a label subordinate to a card heading can give

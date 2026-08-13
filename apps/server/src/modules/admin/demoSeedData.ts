@@ -39,13 +39,21 @@
  * makes the seed idempotent in the way that matters: re-running it does not
  * silently rewrite the patient's history into a different story.
  *
- * REFERENCE RANGES. Taken from the catalogue's own ReferenceRange rows where
- * they exist, preferring a sex-specific row over ANY for the demo patient. The
- * catalogue only carries ranges for a minority of the ~195 measured analytes
- * (Randox publish them on the report, not in the product catalogue), so the
- * rest get a deterministic synthetic band — counted and reported in the run
- * log as `syntheticRanges`, never silently. Either way the band lands on the
- * RESULT ROW via verifyReport, never on the marker.
+ * REFERENCE RANGES. ONE PER MARKER, FOR THE WHOLE HISTORY. `resolveBand` in
+ * buildDemoReports answers once per marker and every report reads that same
+ * object — a scripted band from NARRATIVE_RANGE, else the catalogue's own
+ * ReferenceRange row (preferring a sex-specific one over ANY for the demo
+ * patient), else a deterministic synthetic band. The catalogue only carries
+ * ranges for a minority of the ~195 measured analytes (Randox publish them on
+ * the report, not in the product catalogue), so the synthetic ones are counted
+ * and reported in the run log as `syntheticRanges`, never silently. Either way
+ * the band lands on the RESULT ROW via verifyReport, never on the marker.
+ *
+ * A DEMO TREND NEVER STEPS. A marker whose range changes between two results
+ * makes the chart draw a step, a dashed rule, two pairs of axis labels and a
+ * sentence saying the laboratory moved the range — machinery that is right and
+ * that must not fire over a generator with two places to get a band from. The
+ * check at the foot of buildDemoReports throws on any change at all.
  */
 import type { MarkerStatus, ResultType } from '@aspire-bloods/shared';
 import { FOOD_SENSITIVITY_GROUPS, formatReferenceRange, sameReferenceRange } from '@aspire-bloods/shared';
@@ -94,10 +102,10 @@ export interface DemoDataDiagnostics {
   /** Out-of-range results that followed a correlated partner rather than being rolled independently. */
   correlatedFollowers: number;
   /**
-   * Every marker whose reference range changes partway through the history — the
-   * markers that render a stepped trend. In the run log so the count is a fact
-   * somebody sees, rather than something only the chart knows. Undeclared entries
-   * never reach here; the build throws on them.
+   * Every marker whose reference range changes partway through the history.
+   * ALWAYS EMPTY — a marker's band is resolved once and read by every report —
+   * and reported anyway, so the run log states the fact rather than leaving it
+   * to be inferred from an absence. The build throws before it can be non-empty.
    */
   rangeChanges: DemoRangeChange[];
   /** Per report, so a partial panel is visible in the run log rather than only in the database. */
@@ -547,80 +555,86 @@ function nonMeasuredValue(marker: MarkerRow, reportIndex: number): string {
 
 interface ScriptedValue {
   value: number | string;
-  low?: number;
-  high?: number;
 }
 
 /**
- * A MARKER'S REFERENCE RANGE STAYS THE SAME ACROSS THE DEMO PATIENT'S HISTORY
- * UNLESS IT IS DECLARED HERE.
+ * ===========================================================================
+ *  ONE REFERENCE RANGE PER MARKER, FOR THE WHOLE OF THE PATIENT'S HISTORY.
+ *  IT IS A STRUCTURAL GUARANTEE NOW, NOT A DECLARED EXCEPTION LIST (Aug 2026).
+ * ===========================================================================
  *
  * The trend chart draws a step, a dashed rule, both ranges on the axis and a
  * sentence naming them wherever a marker's range changes between two results,
  * because a silent change of reference range is exactly what makes a trend
- * misleading. That machinery is right and it needs something real to draw. What
- * it does not need is a range that drifted because three rows of a table were
- * hand-written and two of them happened to differ.
+ * misleading. That machinery is right and it stays. What it must not be fed is
+ * a range that moved because a demo generator had two places to get one from.
  *
- * Three markers were stepping. Only one of them meant to:
+ * WHAT THIS REPLACED. `ScriptedValue` carried its own `low`/`high` per REPORT
+ * INDEX, so a marker's range was authored once per row of a narrative table and
+ * a marker could differ from itself between two draws by a typo. A
+ * `DECLARED_RANGE_CHANGES` allow-list stood in front of that, which caught the
+ * accidents (vitamin-d 50–250 → 75–200, ferritin 30–400 → 20–200: both drew a
+ * step, a dashed rule and a sentence about the laboratory moving a range, over
+ * a change that altered no status) and legitimised one deliberate one. But an
+ * allow-list is a check on a thing that can still happen; the range being
+ * resolved ONCE PER MARKER is the thing not happening.
  *
- *  · fasting-insulin — 2–25 for the first two draws (the catalogue's own band,
- *    reached by fall-through) and 2–25 → 2–10 on the third. DELIBERATE, and
- *    load-bearing: 24.6 is IN_RANGE against 2–25 and SIGNIFICANT_HIGH against
- *    2–10, so the chart's own story depends on the change.
- *  · vitamin-d — 50–250, 50–250, then 75–200. INCIDENTAL. 104 is inside both,
- *    so the step changed nothing except to claim the laboratory had moved the
- *    range under the patient's third result.
- *  · ferritin — 30–400, 30–400, then 20–200. INCIDENTAL. 18 is LOW against
- *    both (the severity threshold is a multiple of a width of 370 and of 180,
- *    and 18 clears neither), so again the step said something happened and
- *    nothing had.
+ * So a band is decided in exactly one place — `resolveBand` in
+ * buildDemoReports, which is NARRATIVE_RANGE, then the catalogue, then a
+ * synthetic band — and every report reads that same object. The narrative table
+ * below carries VALUES only; it cannot express a range at all, which is what
+ * makes "the same bounds on every result for that marker" true by construction
+ * rather than by inspection. The guard at the foot of buildDemoReports now
+ * throws on ANY change, and there is no list to add a marker to.
  *
- * Both are now constant at the catalogue's own band, and the check at the foot
- * of buildDemoReports THROWS on any range that changes between two reports
- * without an entry here — including a change produced by the fall-through, where
- * a scripted range on one report meets a generated one on the next, which is how
- * fasting-insulin's step actually arises and is not visible in this table alone.
+ * WHAT WENT WITH IT. fasting-insulin used to step 2–25 → 2–10 on the third
+ * report, which is what made 24.6 read as significantly high rather than as a
+ * shrug. The story is unchanged and the step is gone: the functional band is
+ * simply the band, on all three draws (see NARRATIVE_RANGE). 24.6 against 2–10
+ * is still SIGNIFICANT_HIGH, and the earlier two draws are generated inside it.
+ *
+ * THE STEPPED CASE IS STILL TESTED, and better than it was — by explicit
+ * fixtures against `referenceRangePeriods` (packages/shared/src/statusBands.ts)
+ * rather than by hoping the demo produces one. See
+ * apps/server/tests/referenceRangePeriods.test.ts.
  */
-const DECLARED_RANGE_CHANGES: Record<string, string> = {
-  'fasting-insulin':
-    'The third report applies a functional band (2–10) narrower than the assay range (2–25) used on the earlier two, which is what makes 24.6 read as significantly high rather than as a shrug. The chart draws the step, names both ranges and dates the change.',
+
+/**
+ * The band a scripted marker is measured against, for its WHOLE history.
+ *
+ * These exist because the narrative values were written against a specific
+ * band and have to keep computing to the statuses the story needs: 31 is
+ * clearly low for a vitamin D against 50–250 and unremarkable against a
+ * synthetic one. A marker with no entry takes the catalogue's own row, and
+ * failing that a synthetic band — both of which are already one value per
+ * marker for the whole history.
+ */
+const NARRATIVE_RANGE: Record<string, { low: number; high: number }> = {
+  'vitamin-d': { low: 50, high: 250 },
+  hba1c: { low: 20, high: 42 },
+  ferritin: { low: 30, high: 400 },
+  'hs-crp': { low: 0, high: 3 },
+  // The FUNCTIONAL band, narrower than the assay's 2–25, and now the band on
+  // every draw rather than one substituted on the third. It is what makes 24.6
+  // read as significantly high rather than as a shrug, and it says the same
+  // thing without claiming the laboratory changed anything.
+  'fasting-insulin': { low: 2, high: 10 },
 };
 
 /** markerKey → per-report-index value. Absent entries fall through to generation. */
 const NARRATIVE: Record<string, Record<number, ScriptedValue>> = {
-  // Clearly low at baseline, then the classic supplementation recovery. One
-  // range throughout — the catalogue's own 50–250. See DECLARED_RANGE_CHANGES.
-  'vitamin-d': {
-    0: { value: 31, low: 50, high: 250 },
-    1: { value: 58, low: 50, high: 250 },
-    2: { value: 104, low: 50, high: 250 },
-  },
+  // Clearly low at baseline, then the classic supplementation recovery.
+  'vitamin-d': { 0: { value: 31 }, 1: { value: 58 }, 2: { value: 104 } },
   // Creeping up, tipping just over on the newest panel.
-  hba1c: {
-    0: { value: 34, low: 20, high: 42 },
-    1: { value: 39, low: 20, high: 42 },
-    2: { value: 44, low: 20, high: 42 },
-  },
-  // A steady fall, ending frankly low. One range throughout — the catalogue's
-  // own 30–400. See DECLARED_RANGE_CHANGES.
-  ferritin: {
-    0: { value: 88, low: 30, high: 400 },
-    1: { value: 52, low: 30, high: 400 },
-    2: { value: 18, low: 30, high: 400 },
-  },
+  hba1c: { 0: { value: 34 }, 1: { value: 39 }, 2: { value: 44 } },
+  // A steady fall, ending frankly low.
+  ferritin: { 0: { value: 88 }, 1: { value: 52 }, 2: { value: 18 } },
   // Below the assay's detection limit on report 2 (textual, skipped by the
   // trend line), a one-off spike on report 3, settled by report 4.
-  'hs-crp': {
-    0: { value: 0.8, low: 0, high: 3 },
-    1: { value: '< 0.6', low: 0, high: 3 },
-    2: { value: 9.6, low: 0, high: 3 },
-    3: { value: 1.1, low: 0, high: 3 },
-  },
-  // The earliest marker of the insulin resistance the HbA1c drift hints at.
-  // A functional band (2–10), narrower than the assay's, is what makes this
-  // read as significantly high rather than a shrug.
-  'fasting-insulin': { 2: { value: 24.6, low: 2, high: 10 } },
+  'hs-crp': { 0: { value: 0.8 }, 1: { value: '< 0.6' }, 2: { value: 9.6 }, 3: { value: 1.1 } },
+  // The earliest marker of the insulin resistance the HbA1c drift hints at,
+  // read against the functional band in NARRATIVE_RANGE.
+  'fasting-insulin': { 2: { value: 24.6 } },
 };
 
 // ---------------------------------------------------------------------------
@@ -793,8 +807,6 @@ export interface DemoRangeChange {
   markerKey: string;
   from: { low: number; high: number; sampleDate: string };
   to: { low: number; high: number; sampleDate: string };
-  /** True where DECLARED_RANGE_CHANGES names this marker. */
-  declared: boolean;
 }
 
 /**
@@ -806,10 +818,11 @@ export interface DemoRangeChange {
  * directly would let the seed and the chart disagree about whether the demo has
  * a stepped trend in it, which is the one thing this check exists to prevent.
  *
- * Reads the built reports rather than the NARRATIVE table, because that is where
- * the two sources of a range meet: fasting-insulin's step is a SCRIPTED range on
- * report 3 against the CATALOGUE's own band on reports 1 and 2, and nothing in
- * the narrative table shows it.
+ * Reads the BUILT REPORTS rather than any table, because a range reaching a
+ * result is the only thing a chart can see. With `resolveBand` deciding a band
+ * once per marker this should now always come back empty, and the guard at the
+ * foot of buildDemoReports throws if it does not — this function is the check on
+ * that guarantee rather than an inventory of allowed exceptions.
  */
 export function findRangeChanges(reports: GeneratedReport[]): DemoRangeChange[] {
   const seen = new Map<string, { low: number; high: number; sampleDate: string }>();
@@ -826,12 +839,7 @@ export function findRangeChanges(reports: GeneratedReport[]): DemoRangeChange[] 
       const previous = seen.get(res.markerKey);
       const current = { low: res.referenceLow, high: res.referenceHigh, sampleDate };
       if (previous && !sameReferenceRange(previous, current)) {
-        changes.push({
-          markerKey: res.markerKey,
-          from: previous,
-          to: current,
-          declared: res.markerKey in DECLARED_RANGE_CHANGES,
-        });
+        changes.push({ markerKey: res.markerKey, from: previous, to: current });
       }
       seen.set(res.markerKey, current);
     }
@@ -902,6 +910,43 @@ export async function buildDemoReports(opts: {
     bandByMarkerId.set(r.markerId, { low: r.low, high: r.high, unit: r.unit, fromCatalogue: true });
   }
 
+  /**
+   * THE ONE PLACE A MARKER'S REFERENCE RANGE IS DECIDED, and it is decided ONCE.
+   *
+   * Memoised per marker id and read by every report, which is what makes "the
+   * same bounds on every result for that marker" structural rather than
+   * checked. NARRATIVE_RANGE first (the scripted markers, whose values were
+   * written against a specific band), then the catalogue's own row, then a
+   * deterministic synthetic band.
+   *
+   * The counters are incremented HERE and only here, so `syntheticRanges` and
+   * `catalogueRanges` in the run log count markers rather than marker-reports.
+   */
+  const resolvedBands = new Map<string, Band>();
+  const resolveBand = (m: MarkerRow): Band => {
+    const already = resolvedBands.get(m.id);
+    if (already) return already;
+    const scripted = NARRATIVE_RANGE[m.key];
+    const catalogue = bandByMarkerId.get(m.id);
+    let band: Band;
+    if (scripted) {
+      // Scripted bounds, the catalogue's unit where there is one — the unit is
+      // not the thing being overridden, and a scripted band with a blank unit
+      // would print a bare number where every other range prints one with a
+      // unit after it.
+      band = { low: scripted.low, high: scripted.high, unit: catalogue?.unit || m.defaultUnit, fromCatalogue: false };
+      catalogueRangeMarkers.add(m.key);
+    } else if (catalogue) {
+      band = catalogue;
+      catalogueRangeMarkers.add(m.key);
+    } else {
+      band = syntheticBand(m);
+      syntheticRangeMarkers.add(m.key);
+    }
+    resolvedBands.set(m.id, band);
+    return band;
+  };
+
   // The marker for report 4 that appears nowhere else: something real from the
   // catalogue that is on none of the three panels, so the single-trend-point
   // case is genuine rather than manufactured.
@@ -960,19 +1005,15 @@ export async function buildDemoReports(opts: {
     }
 
     // --- decide a band for every marker -----------------------------------
+    // Every band comes from `resolveBand`, which answers once per marker and
+    // remembers. A report cannot reach a different band from the one the
+    // previous report used, because there is nowhere else to get one.
     const bands = new Map<string, Band>();
     for (const m of markers) {
       if (m.resultType !== 'MEASURED' || m.defaultUnit === '') continue;
       // No band for a physical measurement, ever. See PHYSICAL_MEASUREMENT_KEYS.
       if (PHYSICAL_MEASUREMENT_KEYS.has(m.key)) continue;
-      const catalogue = bandByMarkerId.get(m.id);
-      if (catalogue) {
-        bands.set(m.id, catalogue);
-        catalogueRangeMarkers.add(m.key);
-      } else {
-        bands.set(m.id, syntheticBand(m));
-        syntheticRangeMarkers.add(m.key);
-      }
+      bands.set(m.id, resolveBand(m));
     }
 
     // --- assign statuses by quota, then make them cohere --------------------
@@ -1040,8 +1081,8 @@ export async function buildDemoReports(opts: {
     for (const m of markers) {
       const scripted = NARRATIVE[m.key]?.[index];
       if (!scripted || typeof scripted.value !== 'number') continue;
-      const low = scripted.low ?? bands.get(m.id)?.low;
-      const high = scripted.high ?? bands.get(m.id)?.high;
+      const low = bands.get(m.id)?.low;
+      const high = bands.get(m.id)?.high;
       if (low == null || high == null || !(high > low)) continue;
       const anchorStatus = computeMarkerStatus(scripted.value, low, high, m.severityMultiplier, m.severityAbsoluteDelta);
       if (anchorStatus === 'IN_RANGE') continue;
@@ -1083,8 +1124,10 @@ export async function buildDemoReports(opts: {
       const r = mulberry32(hash32(`${m.key}:${index}`));
 
       if (scripted) {
-        const low = scripted.low ?? bands.get(m.id)?.low ?? 0;
-        const high = scripted.high ?? bands.get(m.id)?.high ?? 0;
+        // The marker's own band, from the one resolver — never a per-report
+        // pair off the narrative table, which is what let a scripted range on
+        // one report meet a catalogue range on the next.
+        const band = bands.get(m.id);
         if (typeof scripted.value === 'string') nonNumericResults += 1;
         results.push({
           markerId: m.id,
@@ -1092,8 +1135,8 @@ export async function buildDemoReports(opts: {
           resultType: m.resultType,
           value: scripted.value,
           unit: m.defaultUnit,
-          referenceLow: low,
-          referenceHigh: high,
+          referenceLow: band?.low ?? 0,
+          referenceHigh: band?.high ?? 0,
           intendedStatus: null,
         });
         byResultType[m.resultType] += 1;
@@ -1208,28 +1251,33 @@ export async function buildDemoReports(opts: {
     });
   }
 
-  // --- a range may not change by accident -----------------------------------
+  // --- a range may not change AT ALL ----------------------------------------
   //
-  // Loud rather than logged. An undeclared change puts a step, a dashed rule, a
-  // second pair of axis labels and a sentence about the laboratory changing a
-  // reference range onto a chart, over data where nothing of the kind happened —
-  // and it does it in the artefact used to show the product to people. There is
-  // no version of that worth shipping past a warning nobody reads.
+  // Loud rather than logged, and no longer an allow-list. A change of reference
+  // range puts a step, a dashed rule, a second pair of axis labels and a
+  // sentence about the laboratory having moved a range onto a chart — in the
+  // artefact used to show the product to people, over data where nothing of the
+  // kind happened. `resolveBand` decides a band once per marker, so this should
+  // be unreachable; it is the assertion on that, not a place to add exceptions.
+  //
+  // THE STEPPED CASE IS TESTED ELSEWHERE. The chart's period, step, key and
+  // sentence machinery is pinned by explicit fixtures in
+  // tests/referenceRangePeriods.test.ts, which is a better test than a demo that
+  // happens to contain one and does not go quiet when the demo changes.
   const rangeChanges = findRangeChanges(reports);
-  const undeclared = rangeChanges.filter((c) => !c.declared);
-  if (undeclared.length > 0) {
+  if (rangeChanges.length > 0) {
     throw new Error(
-      `Demo reference range changed without being declared:\n` +
-        undeclared
+      `A demo marker's reference range changed between two reports:\n` +
+        rangeChanges
           .map(
             (c) =>
               `  · ${c.markerKey}: ${formatReferenceRange(c.from.low, c.from.high)} on ${c.from.sampleDate} ` +
               `→ ${formatReferenceRange(c.to.low, c.to.high)} on ${c.to.sampleDate}`,
           )
           .join('\n') +
-        `\nA marker's reference range stays the same across the demo patient's results. If the change is ` +
-        `intentional, add the marker to DECLARED_RANGE_CHANGES in demoSeedData.ts with the reason; ` +
-        `otherwise make the range constant across the NARRATIVE entries for it.`,
+        `\nA marker's reference range is the same on every result in the demo patient's history. ` +
+        `Every band comes from resolveBand() in demoSeedData.ts, which answers once per marker — ` +
+        `if one has drifted, something else is writing a range behind it.`,
     );
   }
 

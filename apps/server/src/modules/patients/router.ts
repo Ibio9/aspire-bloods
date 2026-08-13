@@ -77,10 +77,86 @@ patientsRouter.get(
     try {
       const report = await getReleasedReportForPatient(req.user!.id, req.params.id);
       await auditIfAdminViewer(req, 'own_report_detail', 'Report', req.params.id);
+      // OPENING THE REPORT SPENDS ITS RESULTS-READY MOMENT. A patient who
+      // reached their results from an emailed link, a bookmark or the reports
+      // list has seen that they are ready, and announcing it to them on their
+      // next sign-in would be the product telling them something they told IT.
+      await markResultsReadySeen(req.user!.id, req.params.id);
       res.json(report);
     } catch (e) {
       if (!handleAccessError(e, res)) throw e;
     }
+  }),
+);
+
+/**
+ * ---------------------------------------------------------------------------
+ * THE RESULTS-READY MOMENT — ONCE PER REPORT, AND NEVER AGAIN.
+ * ---------------------------------------------------------------------------
+ *
+ * `updateMany` with the null in the WHERE clause rather than `update`, for two
+ * reasons that are both about it being idempotent by construction: the first
+ * stamp is the fact ("when were they first told"), and a patient who opens the
+ * same report twice must not have that moved; and it is scoped to the caller's
+ * own row, so a report id belonging to somebody else matches nothing rather
+ * than throwing. RELEASED only — a report at any earlier stage has no moment to
+ * spend and stamping one would silently swallow the announcement it will make
+ * when it is finally released.
+ */
+async function markResultsReadySeen(patientId: string, reportId: string): Promise<void> {
+  await prisma.report.updateMany({
+    where: { id: reportId, patientId, status: 'RELEASED', voidedAt: null, resultsReadySeenAt: null },
+    data: { resultsReadySeenAt: new Date() },
+  });
+}
+
+/**
+ * THE ONE REPORT THE MOMENT WOULD BE ABOUT, or null.
+ *
+ * The most recently RELEASED report this patient has never opened. Newest
+ * rather than oldest: if three landed while they were away, the moment is about
+ * the fact that results are ready and the newest is the one they came for — and
+ * the other two are marked seen with it, because showing the same screen three
+ * times in a row is a queue rather than a moment.
+ */
+patientsRouter.get(
+  '/results-ready',
+  asyncHandler(async (req, res) => {
+    const report = await prisma.report.findFirst({
+      where: { patientId: req.user!.id, status: 'RELEASED', voidedAt: null, resultsReadySeenAt: null },
+      orderBy: [{ releasedAt: 'desc' }, { sampleDate: 'desc' }],
+      select: { id: true, sampleDate: true, releasedAt: true, panel: { select: { name: true } } },
+    });
+    if (!report) return res.json({ report: null });
+    res.json({
+      report: {
+        reportId: report.id,
+        panelName: report.panel?.name ?? null,
+        sampleDate: report.sampleDate.toISOString(),
+        releasedAt: report.releasedAt?.toISOString() ?? null,
+      },
+    });
+  }),
+);
+
+/**
+ * SPEND IT. Called by the moment on both of its exits — the button that opens
+ * the results and the one that dismisses — because "dismissing it, or viewing
+ * the results, means it never appears for that report again" is one rule with
+ * two doors, not two rules.
+ *
+ * Every unopened released report is stamped, not only the one named. See above:
+ * the moment is about results being ready, and it is shown once.
+ */
+patientsRouter.post(
+  '/results-ready/seen',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    await prisma.report.updateMany({
+      where: { patientId: req.user!.id, status: 'RELEASED', voidedAt: null, resultsReadySeenAt: null },
+      data: { resultsReadySeenAt: new Date() },
+    });
+    res.json({ ok: true });
   }),
 );
 

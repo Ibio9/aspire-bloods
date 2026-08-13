@@ -20,11 +20,11 @@ import {
   bandRampStops,
   TRANSITION_SHARE,
   OPTIMAL_FILL,
-  severityThresholdFor,
+  referenceRangePeriods,
+  periodStepBoundaries,
   formatOptimalRange,
   formatReferenceBound,
   formatReferenceRange,
-  sameReferenceRange,
   formatDate,
   type MarkerStatus,
   type MarkerStatusInput,
@@ -342,8 +342,15 @@ function StatusMark({
  * Nothing about the SHAPE layer changes with the size — a triangle at 0.82 is
  * the same triangle, and the tooltip and the key say the same words about it.
  */
-function CustomDot(props: { cx?: number; cy?: number; payload?: PlottedPoint; latestT?: number }) {
-  const { cx, cy, payload, latestT } = props;
+function CustomDot(props: {
+  cx?: number;
+  cy?: number;
+  payload?: PlottedPoint;
+  latestT?: number;
+  /** The most recent value, printed beside its own point. See LatestValueLabel. */
+  latestLabel?: string;
+}) {
+  const { cx, cy, payload, latestT, latestLabel } = props;
   if (cx == null || cy == null || !payload) return null;
   const known = asMarkerStatus(payload.status);
   const latest = payload.t === latestT;
@@ -356,7 +363,67 @@ function CustomDot(props: { cx?: number; cy?: number; payload?: PlottedPoint; la
           visible mark stays small and precise, the tappable area doesn't. */}
       <circle cx={cx} cy={cy} r={16} fill="transparent" />
       <StatusMark cx={cx} cy={cy} status={payload.status} size={latest ? 1.2 : 0.9} ring={latest ? 2.2 : 1.6} />
+      {latest && latestLabel && <LatestValueLabel cx={cx} cy={cy} text={latestLabel} />}
     </g>
+  );
+}
+
+/**
+ * ---------------------------------------------------------------------------
+ * THE MOST RECENT VALUE, PRINTED ON THE PLOT (Aug 2026).
+ * ---------------------------------------------------------------------------
+ *
+ * Every point on this chart was an anonymous mark: to read what any of them
+ * actually WAS you had to hover, which is a gesture that does not exist on a
+ * phone and is not one anybody thinks to try on a page they came to read. The
+ * latest result is the one the reader came for — it is already drawn larger and
+ * haloed for exactly that reason — so it says its own number.
+ *
+ * ONE POINT, NOT ALL OF THEM. A number beside every mark is a table drawn on top
+ * of a chart: it fights the line, it collides with itself on a tight series, and
+ * it removes the reason the shape is there. The history stays a shape; the
+ * latest result is a figure.
+ *
+ * NO BOX BEHIND IT. The label stands on an opaque band, so it needs to survive
+ * whatever colour that band is — done with a STROKE in the plot's own ground
+ * under `paint-order: stroke`, which is a halo the shape of the letters rather
+ * than a chip that would be a second small rectangle on a plot that already has
+ * a frame and five regions.
+ *
+ * PLACED ABOVE THE POINT, or below it when the point is near the ceiling, and
+ * clamped into the plot on both sides — the latest point sits in the last 6% of
+ * the domain, so a middle-anchored label would otherwise hang out over the axis
+ * gutter.
+ */
+function LatestValueLabel({ cx, cy, text }: { cx: number; cy: number; text: string }) {
+  const plot = usePlotArea();
+  // Outside a chart there is no plot area to clamp against, and a label that
+  // cannot be placed is better absent than placed wrongly.
+  if (!plot) return null;
+  // A crude width, and crude is the right amount of effort: it is only used to
+  // keep the label inside the plot, and mono digits are near enough uniform.
+  const halfWidth = text.length * 3.6 + 4;
+  const below = cy - plot.y < plot.height * 0.2;
+  const x = Math.min(Math.max(cx, plot.x + halfWidth), plot.x + plot.width - halfWidth);
+  return (
+    <text
+      x={x}
+      y={below ? cy + 26 : cy - 19}
+      textAnchor="middle"
+      className="numeric"
+      fontSize={13}
+      fontWeight={600}
+      fill={chartTokens.boundLabel}
+      stroke={chartTokens.plotSurface}
+      strokeWidth={3.5}
+      paintOrder="stroke"
+      strokeLinejoin="round"
+      // The value is already in the accessible summary and the tooltip; a third
+      // reading of it is noise to a screen reader.
+      aria-hidden="true"
+    >
+      {text}
+    </text>
   );
 }
 
@@ -775,6 +842,19 @@ export function TrendChart({
   const tMin = tFirst - tPad;
   const tMax = tLast + tPad;
 
+  /**
+   * The most recent value, as it is printed beside its own point.
+   *
+   * THE NUMBER ONLY, no unit. The unit is already stated once above the axis
+   * (see the note there — printing it on every tick was the thing that removed),
+   * and repeating it inside the plot on the one label there is would be the same
+   * mistake at a smaller scale. `String(value)` rather than a formatter: this is
+   * the same number the axis is scaled in and the tooltip repeats, and a
+   * rounding applied here and nowhere else is a label that disagrees with the
+   * point it is attached to.
+   */
+  const latestLabel = String(rows[rows.length - 1].value);
+
   const values = data.map((d) => d.value);
   const allLows = data.map((d) => d.referenceLow);
   const allHighs = data.map((d) => d.referenceHigh);
@@ -843,33 +923,15 @@ export function TrendChart({
    * the range is printed at, so a step exists exactly when the two printed ranges
    * differ. The BAND GEOMETRY still uses the exact numbers the server sent (the
    * period takes its first row's), so no band edge moves to suit a rounding.
+   *
+   * THE DERIVATION ITSELF IS IN packages/shared (`referenceRangePeriods` /
+   * `periodStepBoundaries`), so it can be tested from explicit fixtures rather
+   * than only through a browser measuring whatever the demo seed happens to
+   * hold — and the demo deliberately holds no step at all now. See
+   * apps/server/tests/referenceRangePeriods.test.ts.
    */
-  const periods: {
-    rows: PlottedPoint[];
-    low: number;
-    high: number;
-    threshold: number;
-  }[] = [];
-  for (const point of rows) {
-    const open = periods[periods.length - 1];
-    if (open && sameReferenceRange(open, { low: point.referenceLow, high: point.referenceHigh })) {
-      open.rows.push(point);
-    } else {
-      periods.push({
-        rows: [point],
-        low: point.referenceLow,
-        high: point.referenceHigh,
-        // From the period's own bounds, so it is one number for the whole
-        // period rather than one per row that happens to agree.
-        threshold: severityThresholdFor(point.referenceLow, point.referenceHigh, point.severityThreshold),
-      });
-    }
-  }
-
-  /** One x per change of range, midway between the two samples it happened between. */
-  const stepBoundaries = periods
-    .slice(1)
-    .map((next, i) => (periods[i].rows[periods[i].rows.length - 1].t + next.rows[0].t) / 2);
+  const periods = referenceRangePeriods(rows);
+  const stepBoundaries = periodStepBoundaries(periods);
 
   /**
    * ONE X EXTENT PER PERIOD, AND EVERYTHING IN THAT PERIOD IS DRAWN TO IT.
@@ -1350,7 +1412,7 @@ export function TrendChart({
               strokeWidth={chartTokens.lineWidth}
               strokeLinecap="round"
               strokeLinejoin="round"
-              dot={<CustomDot latestT={tLast} />}
+              dot={<CustomDot latestT={tLast} latestLabel={latestLabel} />}
               activeDot={false}
               isAnimationActive={animate}
               animationDuration={620}

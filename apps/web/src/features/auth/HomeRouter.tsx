@@ -47,6 +47,33 @@ export function HomeRouter() {
     return <Navigate to="/welcome" replace />;
   }
 
+  /**
+   * THEN THE RESULTS-READY MOMENT, ONCE PER REPORT.
+   *
+   * After the introduction rather than before it: a patient who has never seen
+   * the portal is told how to read it first, and then told their results are
+   * ready. The other order announces an answer to somebody who has not been
+   * shown the question.
+   *
+   * Here rather than on /overview for the same reason the walkthrough redirect
+   * is: "/" is where a sign-in lands, and a redirect on the overview route
+   * would also fire when somebody navigated to it from the sidebar.
+   *
+   * `=== true` and not truthiness, mirroring `walkthroughSeen === false`: an
+   * older payload omits the field, and `undefined` must mean "nothing waiting".
+   * The two defaults point in opposite directions because the two failures do —
+   * showing an introduction to a returning patient, and showing a moment about
+   * results that may not exist, are both the screen appearing when it should
+   * not.
+   *
+   * The flag itself is per REPORT and lives on the report
+   * (`Report.resultsReadySeenAt`). Nothing here is keyed on the session, which
+   * is what made an earlier version of this fire on every single sign-in.
+   */
+  if (user?.resultsReadyPending === true) {
+    return <Navigate to="/results-ready" replace />;
+  }
+
   return page(
     <PatientShell>
       <PatientOverview />

@@ -358,6 +358,28 @@ authRouter.get('/me', authGuard, asyncHandler(async (req, res) => {
   });
   if (!user) return res.status(404).json({ error: 'Not found' });
 
+  /**
+   * IS THERE A RESULTS-READY MOMENT WAITING?
+   *
+   * Answered HERE rather than by the screen itself, and the difference is what
+   * the patient sees. HomeRouter runs on "/" and has to decide where a sign-in
+   * lands; if it had to fetch this separately it would render the Overview
+   * first and then replace it, so a moment meant to be the first thing somebody
+   * sees would arrive as an interruption of the page behind it.
+   *
+   * A BOOLEAN, like `walkthroughSeen` and for the same reason: the only
+   * question here is "send them there or not", and shipping the report id
+   * invites something to render it. The screen fetches its own detail.
+   *
+   * Only for accounts with a patient profile — a clinician-only account has no
+   * reports of their own and the query would be a round trip to learn zero.
+   */
+  const resultsReadyPending = user.patientProfile
+    ? (await prisma.report.count({
+        where: { patientId: user.id, status: 'RELEASED', voidedAt: null, resultsReadySeenAt: null },
+      })) > 0
+    : false;
+
   res.json({
     id: user.id,
     email: user.email,
@@ -378,5 +400,9 @@ authRouter.get('/me', authGuard, asyncHandler(async (req, res) => {
     // than the timestamp: the client's only question is "show it or not", and
     // sending a date invites somebody to render it.
     walkthroughSeen: user.walkthroughSeenAt !== null,
+    // Whether a released report this patient has never opened is waiting. See
+    // above; it is per REPORT and stored on the report, so it cannot come back
+    // on the next sign-in the way anything session- or storage-keyed would.
+    resultsReadyPending,
   });
 }));

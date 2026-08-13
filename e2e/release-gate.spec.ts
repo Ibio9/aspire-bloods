@@ -136,9 +136,17 @@ test('nothing patient-visible until a report is RELEASED', async ({ page, browse
   // as it did before the walkthrough existed.
   await pressThroughWalkthrough(patientPage, /Good (morning|afternoon|evening)/);
 
-  // PARSED, not yet reviewed or released — Overview says a result is coming
-  // and nothing about its contents.
-  await expect(patientPage.getByText('A result is on its way')).toBeVisible();
+  // PARSED, not yet reviewed or released — the Overview says a result is coming
+  // and nothing whatever about its contents.
+  //
+  // THE COPY THIS ASSERTED HAD BEEN GONE FOR SOME TIME. "A result is on its
+  // way" is not in the product and is not at HEAD; the sentence a patient with
+  // a pending first sample actually reads is the one below, and this line had
+  // been failing silently against a string nobody had written since the
+  // Overview was restructured. Asserted against the product's own words, and
+  // the claim underneath — that nothing about the contents leaks — is
+  // unchanged and is the half that matters.
+  await expect(patientPage.getByText('Your first sample is with the clinical team')).toBeVisible();
   await expect(patientPage.getByText('in range')).not.toBeVisible();
 
   // Same on the panel list itself

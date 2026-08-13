@@ -332,8 +332,14 @@ export function PatientOverview() {
     // H1 and the first card, which is not the same relationship and made this
     // page read differently from every other one. Out here it takes the same
     // mt-10 the rest of the portal uses, and the sections keep their rhythm.
+    // `stagger-in` on the header only: the eyebrow, the greeting and the three
+    // at-a-glance figures arrive in that order on first paint, once. The
+    // SECTIONS below already enter on scroll (see Reveal), and a page that
+    // staggered both would be two motion systems disagreeing about the same
+    // content. Pure CSS, so a filter, a hover or a state change cannot replay
+    // it — see `.stagger-in`.
     <>
-      <header>
+      <header className="stagger-in">
         <p className="eyebrow mb-3">Aspire Clinic · Patient portal</p>
         <h1 className="display-heading break-words">
           {greeting()}

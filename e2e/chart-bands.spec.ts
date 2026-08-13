@@ -1,4 +1,6 @@
-import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { test, expect, type APIRequestContext, type BrowserContext, type Page } from '@playwright/test';
 
 /**
  * ---------------------------------------------------------------------------
@@ -26,7 +28,18 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
  *  3. The chart SAYS the range changed, in words, and names it in the key.
  *  4. In neither case is any band narrower than a tenth of the plot.
  *
- * Requires EXPOSE_DEV_OTP_CODE=true and the dev seed's demo account.
+ * THE STEPPED SERIES IS BUILT BY THIS FILE (Aug 2026). It used to be found —
+ * whichever demo marker happened to have drifted — and the demo deliberately
+ * has none now: one reference range per marker for the whole of a patient's
+ * history, because a step drawn over a change that never happened is noise in
+ * the artefact used to show the product. `buildSteppedSeries` publishes two
+ * reports with two ranges on one marker, so the numbers being measured are
+ * written down rather than inherited. The derivation underneath is unit-tested
+ * from fixtures too (apps/server/tests/referenceRangePeriods.test.ts); this
+ * file is the half of it that has to happen in a browser, because two boxes
+ * overlapping and a 1px band edge out of place are facts you measure.
+ *
+ * Requires EXPOSE_DEV_OTP_CODE=true and the dev seed's demo and admin accounts.
  */
 
 const DEMO_EMAIL = process.env.SEED_DEMO_EMAIL ?? 'demo.showcase@aspireshield.dev';
@@ -138,6 +151,125 @@ async function bandGeometry(page: Page): Promise<BandGeometry> {
   });
 }
 
+// ---------------------------------------------------------------------------
+// THE STEPPED FIXTURE.
+//
+// Two reports for one patient, one marker, two reference ranges. Everything
+// about the step this file measures — the period extents, the dashed rule, the
+// key entry, the sentence, the two label columns — comes from these numbers,
+// so a failure names a range rather than "whichever marker the seed drifted".
+// ---------------------------------------------------------------------------
+
+const STEP_FIXTURE = {
+  /**
+   * The two ranges, and the values read against them. The RANGES are the
+   * fixture — the marker they are attached to is only a carrier, so it is the
+   * first matched analyte on the sample report rather than a name typed in
+   * here that the report may or may not contain.
+   */
+  first: { sampleDate: '2025-02-01', value: 88, low: 30, high: 400 },
+  second: { sampleDate: '2026-02-01', value: 18, low: 20, high: 200 },
+} as const;
+
+const SAMPLE_REPORT = fileURLToPath(
+  new URL('../apps/server/src/modules/randox/specs/HSC5-Randox-Basic-Screen-Example-Report.pdf', import.meta.url),
+);
+
+async function signInAs(request: APIRequestContext, email: string, password: string) {
+  const login = await request.post('/api/auth/login', { data: { email, password } });
+  const body = await login.json();
+  if (body.status === 'authenticated') return;
+  const otp = await request.post('/api/auth/otp/verify', {
+    data: { challengeId: body.challengeId, code: body.devOtpCode, trustDevice: false },
+  });
+  expect(otp.ok(), `${email} could not complete 2FA`).toBeTruthy();
+}
+
+/**
+ * One patient, two released reports, one marker whose reference range changes
+ * between them. Returns the marker to plot and how to sign in as its patient.
+ */
+async function buildSteppedSeries(ctx: BrowserContext) {
+  const admin = ctx.request;
+  await signInAs(admin, 'admin@aspireshield.dev', process.env.SEED_ADMIN_PASSWORD ?? 'DevAdminPass123!');
+  const csrf = (await admin.storageState()).cookies.find((c) => c.name === 'csrf_token')?.value ?? '';
+  const email = `e2e-step-${Date.now()}@example.com`;
+  const password = 'SteppedRange123!';
+
+  const invite = await (
+    await admin.post('/api/auth/invite', { data: { email }, headers: { 'X-CSRF-Token': csrf } })
+  ).json();
+  await admin.post('/api/auth/activate', {
+    data: {
+      inviteToken: new URL(invite.devActivationUrl).searchParams.get('token'),
+      password,
+      profile: { firstName: 'Step', lastName: 'Patient', sex: 'FEMALE', dob: '1985-05-05', contactNumber: '+44 7000 555666' },
+      consents: { dataProcessing: true, resultsStorage: true, commsEmail: false, commsSms: false },
+    },
+  });
+  const sources = await (await admin.get('/api/panels/sources')).json();
+  const source = sources.find((s: { key: string }) => s.key === 'randox_portal') ?? sources[0];
+
+  let markerId = '';
+  let unit = '';
+  let markerName = '';
+  for (const draw of [STEP_FIXTURE.first, STEP_FIXTURE.second]) {
+    const created = await (
+      await admin.post('/api/reports', {
+        multipart: {
+          patientId: invite.userId,
+          sourceId: source.id,
+          sampleDate: draw.sampleDate,
+          file: { name: 'hsc5.pdf', mimeType: 'application/pdf', buffer: readFileSync(SAMPLE_REPORT) },
+        },
+        headers: { 'X-CSRF-Token': csrf },
+      })
+    ).json();
+    const rows = created.parse.rows as {
+      rawName: string;
+      matchedMarkerId?: string;
+      value?: number;
+      resultText?: string;
+      unit: string;
+      referenceLow?: number;
+      referenceHigh?: number;
+    }[];
+    // The first matched analyte with a two-sided range, in document order — so
+    // it is the same marker on both reports without naming one the sample
+    // report might not carry.
+    const target = rows.find(
+      (r) => r.matchedMarkerId && r.referenceLow != null && r.referenceHigh != null && typeof r.value === 'number',
+    );
+    expect(target, 'the sample report should carry a numeric analyte with a two-sided range').toBeTruthy();
+    markerId = target!.matchedMarkerId!;
+    unit = target!.unit;
+    markerName = target!.rawName;
+
+    const publish = await admin.post(`/api/reports/${created.id}/publish`, {
+      data: {
+        sampleDate: `${draw.sampleDate}T00:00:00.000Z`,
+        confirm: true,
+        results: rows
+          .filter((r) => r.matchedMarkerId && r.referenceLow != null && r.referenceHigh != null)
+          .map((r) =>
+            r.matchedMarkerId === markerId
+              ? { markerId, value: draw.value, unit, referenceLow: draw.low, referenceHigh: draw.high }
+              : {
+                  markerId: r.matchedMarkerId!,
+                  value: r.value ?? r.resultText,
+                  unit: r.unit,
+                  referenceLow: r.referenceLow!,
+                  referenceHigh: r.referenceHigh!,
+                },
+          ),
+      },
+      headers: { 'X-CSRF-Token': csrf },
+    });
+    expect(publish.ok(), await publish.text()).toBeTruthy();
+  }
+  return { id: markerId, name: markerName, email, password };
+}
+
 /** Every marker with a plottable trend, split by whether its range changes. */
 async function findTrends(ctx: { request: APIRequestContext }) {
   const markers = (await (await ctx.request.get('/api/patient/markers')).json()) as {
@@ -188,15 +320,30 @@ test('a series on one reference range gets one full-width band set', async ({ br
 });
 
 test('a series whose reference range changes steps, and says so', async ({ browser }) => {
-  test.setTimeout(180_000);
-  const ctx = await browser.newContext();
-  await signIn(ctx.request);
-  const { changing } = await findTrends(ctx);
-  expect(changing.length, 'the demo data should contain a trend whose range changes').toBeGreaterThan(0);
+  test.setTimeout(240_000);
+  /**
+   * THE STEPPED SERIES IS BUILT, NOT BORROWED (Aug 2026).
+   *
+   * This used to read the demo patient for a marker whose range happened to
+   * change. The demo deliberately has none now — one reference range per
+   * marker, for the whole of a patient's history, because a step drawn over a
+   * change that never happened is noise in the artefact used to show the
+   * product to people. So the fixture is made here: one patient, two reports,
+   * one marker measured against 2–25 and then against 2–10.
+   *
+   * That is a better test than the one it replaces, and not only because the
+   * demo stopped supplying one. `changing[0]` was whichever marker the seed
+   * happened to drift, so the numbers this measured were not written down
+   * anywhere; these are.
+   */
+  const adminCtx = await browser.newContext();
+  const marker = await buildSteppedSeries(adminCtx);
+  await adminCtx.close();
 
+  const ctx = await browser.newContext();
+  await signInAs(ctx.request, marker.email, marker.password);
   const page = await ctx.newPage();
   await page.setViewportSize({ width: 1440, height: 1100 });
-  const marker = changing[0];
   await page.goto(`/markers/${marker.id}`);
   await page.getByText('Trend over time').waitFor({ timeout: 30_000 });
   await page.waitForTimeout(900);

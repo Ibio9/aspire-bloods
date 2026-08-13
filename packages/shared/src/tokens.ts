@@ -91,27 +91,73 @@ function reHsl(hex: string, saturation: number, lightness: number): string {
 }
 
 /**
- * `hex`'s own hue AND its own saturation (capped), at a different lightness.
+ * `hex`'s own HUE ANGLE, at a saturation and a lightness that are both solved.
  *
- * The operation an OPAQUE band fill needs, and the reason it is not `reHsl`
- * with a number typed in beside it: the saturation is not a free parameter
- * here. A band is painted rather than composited now, so nothing stops a call
- * site asking for 100% — and 100% of any of these five hues is a signal green,
- * a lemon and a web red, which is the one thing this palette has never been.
- * Keeping the hue's own saturation is what makes an opaque band the brand
- * colour at a chosen weight rather than a new colour at a chosen weight.
- *
- * THE CAP EXISTS BECAUSE THE FIVE HUES ARE NOT EQUALLY SATURATED. They were
- * picked to survive a WASH — see the note on `statusHue` — so the gold is 80%
- * saturated where the green is 41%, a difference a 15% composite damped almost
- * out of existence and a solid fill does not. Painted at their own values the
- * in-range band was a soft sage beside an above-range band in full gold: the
- * LADDER is meant to be the only thing that varies between two bands, and the
- * hues were quietly adding a second, unequal multiplier on top of it.
+ * The operation an OPAQUE band fill needs. It used to take the hue's own
+ * saturation capped at one shared number, and that cap is what this replaced —
+ * see `BAND_FILL` for the measurement and `bandChroma` for what a saturation is
+ * solved against now. Only the hue angle survives untouched, which is what
+ * keeps a band the brand colour rather than a new one.
  */
-function reLightness(hex: string, lightness: number, saturationCap = 1): string {
-  const [h, s] = rgbToHsl(hexToRgb(hex));
-  return rgbToHex(hslToRgb([h, Math.min(s, saturationCap), lightness]));
+function reLightness(hex: string, lightness: number, saturation: number): string {
+  const [h] = rgbToHsl(hexToRgb(hex));
+  return rgbToHex(hslToRgb([h, saturation, lightness]));
+}
+
+/** A hex's own saturation — for the call sites that deliberately keep it. */
+function ownSaturation(hex: string): number {
+  return rgbToHsl(hexToRgb(hex))[1];
+}
+
+/**
+ * HOW COLOURFUL SOMETHING LOOKS — the OKLab chroma, i.e. the distance from the
+ * neutral axis in a space built so that equal distances look equally colourful.
+ *
+ * It exists because the two obvious measures both lie, and both lies are
+ * recorded in this file's history:
+ *
+ *  · HSL SATURATION is a ratio. It calls a pale pink and a fire-engine red the
+ *    same figure, and it was the thing being capped when the bands read as
+ *    "green mutters, red shouts".
+ *  · THE RGB SPAN (max − min channel) is what tokenContrast.test.ts measures as
+ *    a FLOOR, and it is right for a floor and wrong for a target. Solved for an
+ *    equal RGB span the three bands came out `#98db65`, `#cfb158`, `#eb8677` —
+ *    a highlighter green beside a dull gold — because a green at 63% lightness
+ *    can hold an enormous RGB span while looking ordinary and a red cannot.
+ *
+ * Not exported: it is used to solve `BAND_FILL` at authoring time and the
+ * solved numbers are what ship. Kept here rather than in a script because the
+ * numbers below are meaningless without it.
+ */
+function okChroma(hex: string): number {
+  const [r, g, b] = hexToRgb(hex).map((v) => {
+    const c = v / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  return Math.hypot(
+    1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+    0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s,
+  );
+}
+
+/**
+ * THE CEILING ON A BAND FILL'S COLOURFULNESS, PER HUE — and it is not a number
+ * anybody typed in.
+ *
+ * A band fill may be as colourful as the BRAND HUE it is derived from, and no
+ * more. That is what "still in the palette" means, stated as something
+ * measurable: `statusHue.green` is the greenest green this product has, so a
+ * green band as chromatic as it is cannot be out of the palette, and one more
+ * chromatic than it has left. Per hue by construction, because the three brand
+ * hues are not equally colourful — 0.1235, 0.1405 and 0.1590 in OKLab chroma —
+ * and forcing them to one figure is the single-cap mistake wearing a different
+ * hat.
+ */
+export function bandChromaCeiling(hue: 'green' | 'yellow' | 'red'): number {
+  return okChroma(statusHue[hue]);
 }
 
 /** Tailwind-style 50-900 scale: light tints (toward white) through the base
@@ -489,10 +535,56 @@ const DARK_FILL_HUE: Record<StatusHue, number> = { green: 1, olive: 0.9, yellow:
  * without moving a single rung of the ladder. Saturation is therefore the thing
  * that has to be held DOWN rather than pushed up — an unconstrained solve for
  * maximum chroma returns #66e900 and #ff7c68, a highlighter green and a neon
- * salmon, which are correct answers to the wrong question. So the saturation is
- * not solved at all: **it is each hue's own**, and only the LIGHTNESS is
- * solved. See `reLightness`. An opaque band is the brand hue at the weight the
- * ladder asked for, and cannot be anything else.
+ * salmon, which are correct answers to the wrong question.
+ *
+ * ── THE CAP IS PER HUE NOW, AND IT IS SOLVED (Aug 2026) ────────────────────
+ *
+ * It was ONE saturation cap, `BAND_FILL_SAT_CAP = 0.6`, applied to all three:
+ * green kept its own 41% (under the cap, so untouched), gold and red were both
+ * pulled to 60%. The complaint that produced this rewrite was that red read as
+ * red while green read as olive and gold as brown, and the cause is exactly
+ * that one number.
+ *
+ * A SINGLE CAP CANNOT WORK, because HSL saturation is a RATIO and the three
+ * hues sit at very different lightnesses — the ladder puts them there on
+ * purpose. Measured, at the old numbers, in OKLab chroma (how colourful a thing
+ * actually looks):
+ *
+ *     light   green 0.0915   gold 0.1242   red 0.1037     spread 36%
+ *     dark    green 0.0696   gold 0.0727   red 0.1412     spread 103%
+ *
+ * So one cap flattered gold in light and red in dark and starved green in both.
+ * "Green has less headroom at its lightness than red does" is a fact about the
+ * sRGB gamut, and a cap that ignores it is a cap that hits one hue and misses
+ * the others.
+ *
+ * WHAT IT IS SOLVED AGAINST. Each hue is given as much chroma as it can carry
+ * at the lightness its own rung puts it at, bounded by `bandChromaCeiling` —
+ * the colourfulness of the BRAND HUE it derives from. A green band as chromatic
+ * as `statusHue.green` cannot be out of the palette, because that IS the
+ * palette's green; one more chromatic than it has left. So the bound is per hue
+ * by construction and is not a number anybody chose. Both the saturation and
+ * the lightness are then solved together, since changing one moves the other's
+ * contrast.
+ *
+ * MEASURED AFTER, same units:
+ *
+ *     light   green 0.1234   gold 0.1407   red 0.1341     spread 14%
+ *     dark    green 0.0985   gold 0.0812   red 0.1593     spread 96%
+ *
+ * Every band gained: green +35% / +42%, gold +13% / +11%, red +29% / +13%. In
+ * light the three are now within 14% of each other, which is what "comparable
+ * intensity" looks like as a number.
+ *
+ * DARK'S GOLD IS THE ONE THAT IS STILL SHORT, and the reason is worth writing
+ * down so nobody re-solves it hoping for a different answer. The rungs are
+ * contrast ratios against a near-black surface, so a dark band's LUMINANCE is
+ * fixed low by the ladder: gold's rung of 1.88 puts it at 21% lightness, and a
+ * yellow at 21% lightness is a brown in any colour space, because that is what
+ * a dark yellow is. Its 0.0812 is the most sRGB will hold there. Lifting the
+ * whole ladder ~30% buys gold 0.0937 and costs the chart the thing the ladder
+ * is for — the bands are context and the line is content — so it was measured
+ * and not taken.
  *
  * ── WHICH SURFACE THE LADDER IS MEASURED AGAINST, AND WHY IT IS BOTH ────────
  *
@@ -541,37 +633,33 @@ const DARK_FILL_HUE: Record<StatusHue, number> = { green: 1, olive: 0.9, yellow:
  * than either neighbour and drew a bright chartreuse stripe along the reference
  * bound, which is the opposite of a blend.
  */
-const BAND_FILL: Record<'light' | 'dark', { green: number; yellow: number; red: number; optimal: number }> = {
-  // Lightness only. The hue is the brand hue's own; the saturation is too,
-  // capped at BAND_FILL_SAT_CAP.
+interface BandFill {
+  /** Solved per hue against `bandChromaCeiling`, never one shared cap. */
+  saturation: number;
+  /** Solved so the fill lands on its own rung of BAND_CONTRAST. */
+  lightness: number;
+}
+
+const BAND_FILL: Record<'light' | 'dark', Record<'green' | 'yellow' | 'red' | 'optimal', BandFill>> = {
+  // The hue angle is the brand hue's own and is never touched. Both other
+  // coordinates are solved: the lightness by the ladder, the saturation by the
+  // palette's own ceiling on that hue. See the note above for the measurement.
   light: {
-    green: 0.705, // #b0d395
-    yellow: 0.561, // #d2b04c
-    red: 0.688, // #df8c80
-    // The optimal narrowing: the same green, one rung deeper. 1.14:1 off the
-    // in-range band — a visible shading-in, and nothing like the step a
-    // boundary makes.
-    optimal: 0.636, // #9dc97c
+    green: { saturation: 0.514, lightness: 0.673 }, // #a6d681, okC 0.1234
+    yellow: { saturation: 0.676, lightness: 0.527 }, // #d8af35, okC 0.1407
+    red: { saturation: 0.793, lightness: 0.695 }, // #ef8474, okC 0.1341
+    // The optimal narrowing: the same green at the same saturation, a rung
+    // deeper. 1.13:1 off the in-range band — a visible shading-in, and nothing
+    // like the step a boundary makes.
+    optimal: { saturation: 0.514, lightness: 0.6 }, // #93cd65
   },
   dark: {
-    green: 0.191, // #2e451d
-    yellow: 0.227, // #5d4b17
-    red: 0.389, // #9f3728
-    optimal: 0.217, // #354e20
+    green: { saturation: 0.795, lightness: 0.156 }, // #244808, okC 0.0985
+    yellow: { saturation: 0.789, lightness: 0.211 }, // #604a0b, okC 0.0812
+    red: { saturation: 0.707, lightness: 0.382 }, // #a72f1d, okC 0.1593
+    optimal: { saturation: 0.795, lightness: 0.174 }, // #285009
   },
 };
-
-/**
- * The ceiling on a band fill's saturation — see `reLightness` for why one is
- * needed at all.
- *
- * 0.6 is above green's own 41% and olive's 57% (so neither moves) and below
- * gold's 80%, amber's 73% and red's 63%, which is exactly the group that was
- * shouting. Measured chroma across the five, before the cap → after: light
- * 0.243 / 0.561 / 0.776 / 0.553 / 0.396 → 0.243 / 0.318 / 0.525 / 0.451 /
- * 0.373 — a ladder rather than a spike at the gold.
- */
-const BAND_FILL_SAT_CAP = 0.6;
 
 /**
  * THE TREND LINE, AND IT IS BRIGHTER BECAUSE THE BANDS ARE (Aug 2026).
@@ -875,6 +963,45 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
   out['--c-glass'] = glassColour;
 
   /**
+   * ── VELLUM: THE SECOND SURFACE REGISTER (Aug 2026) ──────────────────────
+   *
+   * The product had exactly one move — near-black plus a gold corner glow, or
+   * cream plus the same layout — and every screen was therefore the same
+   * weight. Nothing changed as a reader moved between pages, so nothing told
+   * them they had moved.
+   *
+   * ONE CLASS OF CONTENT GETS THIS, AND IT IS EXPLANATORY PROSE: the marker
+   * explanation card, and the same component wherever else it appears
+   * (Understanding results). It is the only content in the portal that is
+   * WRITING rather than DATA — everything else on a results page is a number, a
+   * range, a status or a date — and the move from "what was measured" to "what
+   * it means" is the one boundary in this product worth marking with a change
+   * of ground rather than another heading. It also happens to be where somebody
+   * settles in to read a few hundred words, and a reading surface is a real
+   * thing rather than a decorative one.
+   *
+   * THE OPERATION IS "TOWARD PAPER", NOT "UP ONE RUNG", and that is why it goes
+   * in opposite directions in the two themes. Paper is warm and mid-toned: on a
+   * near-black page it is lighter than the card, and on a page whose card is
+   * already a near-white it is a shade deeper and distinctly warmer. Measured:
+   *
+   *     light  #f0ede7 — 1.14:1 off the page, 1.14:1 off the card, text 9.3:1
+   *     dark   #3d3933 — 1.66:1 off the page, 1.30:1 off the card, text 9.8:1
+   *
+   * IT DOES NOT BREAK THE LADDER. page → panel → card is untouched in both
+   * themes and tokenContrast.test.ts still holds it; the vellum is a REGISTER
+   * beside that ladder rather than a rung on it. And it does not fight the
+   * glow, because it is a card-sized surface and not a page background — the
+   * rule that nothing may paint over the glow is about the shell, and cards
+   * have always been opaque.
+   *
+   * NO NEW HUE. Light is cream carried toward white; dark is the night base
+   * carried toward the same warm mid-brown the surface scale already lifts
+   * with. Both are inside bronze / espresso / cream / taupe.
+   */
+  out['--c-vellum'] = dark ? mix(nightBase, nightLift, 0.36) : mix(brand.cream, brand.white, 0.45);
+
+  /**
    * Text and icons on a FILLED accent — a bronze button, a selected option, an
    * avatar, the current step of a progress bar.
    *
@@ -902,8 +1029,10 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * one; orange is exactly half of the gold and the red. That is the claim a
    * boundary blend makes, made where the blend is actually drawn.
    */
-  const bandFill = (hue: 'green' | 'yellow' | 'red' | 'optimal'): string =>
-    reLightness(hue === 'optimal' ? statusHue.green : statusHue[hue], BAND_FILL[mode][hue], BAND_FILL_SAT_CAP);
+  const bandFill = (hue: 'green' | 'yellow' | 'red' | 'optimal'): string => {
+    const { saturation, lightness } = BAND_FILL[mode][hue];
+    return reLightness(hue === 'optimal' ? statusHue.green : statusHue[hue], lightness, saturation);
+  };
   const FILL: Record<StatusHue, string> = {
     green: bandFill('green'),
     yellow: bandFill('yellow'),
@@ -978,7 +1107,10 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * along a scale whose dark end has had the bronze mixed out of it.
    * Paired with `chart.lineWidth`.
    */
-  out['--c-chart-line'] = reLightness(brand.bronze, LINE_LIFT[mode]);
+  // Bronze's OWN saturation, and nothing higher — the bronze hue sits at 19°,
+  // between the status red at 8° and the status orange at 30°, so a saturated
+  // bronze line would read as a status colour crossing the plot.
+  out['--c-chart-line'] = reLightness(brand.bronze, LINE_LIFT[mode], ownSaturation(brand.bronze));
   out['--c-chart-point'] = out['--c-chart-line'];
   /**
    * The ring around a plotted point, and it is THE CARD'S OWN SURFACE in both

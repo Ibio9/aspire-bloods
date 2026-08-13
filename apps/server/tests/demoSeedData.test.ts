@@ -296,21 +296,27 @@ describe('demo values stay inside the outpatient envelope', () => {
 });
 
 /**
- * A MARKER'S REFERENCE RANGE DOES NOT DRIFT ACROSS THE DEMO PATIENT'S HISTORY.
+ * A MARKER'S REFERENCE RANGE DOES NOT CHANGE ACROSS THE DEMO PATIENT'S HISTORY.
+ * NOT "UNLESS DECLARED" — AT ALL (Aug 2026).
  *
  * A range that changes between two results makes the trend chart draw a step, a
  * dashed rule, a second pair of axis labels and a sentence saying the laboratory
- * changed the range. That machinery is right; what it must not be handed is a
- * range that differs because three rows of a hand-written table happened not to
- * match.
+ * changed the range. That machinery is right and it stays; what it must not be
+ * handed is a range that moved because a demo generator had two places to get
+ * one from.
  *
- * Three markers were stepping and only fasting-insulin meant to. Vitamin D
- * (50–250, 50–250, 75–200) and ferritin (30–400, 30–400, 20–200) both computed to
- * the SAME status against either range, so the step was drawn, named and
- * explained over a change that did nothing. Both are constant now, and
- * buildDemoReports throws on any undeclared change rather than shipping one.
+ * It used to be an allow-list — `DECLARED_RANGE_CHANGES`, with fasting-insulin
+ * on it and vitamin-d and ferritin caught by it. An allow-list is a check on a
+ * thing that can still happen. `resolveBand` answers once per marker and every
+ * report reads that same object, so there is no second source for a band and
+ * `findRangeChanges` on a built demo is empty by construction.
+ *
+ * THE STEPPED CASE IS TESTED WITH EXPLICIT FIXTURES, in
+ * referenceRangePeriods.test.ts, against the derivation the chart actually
+ * draws from — which is a better test than one that depends on the demo
+ * happening to contain a step and goes quiet the moment it stops.
  */
-describe('demo reference ranges are stable unless the change is declared', () => {
+describe('demo reference ranges do not change across the history', () => {
   const report = (
     sampleDate: string,
     rows: { markerKey: string; referenceLow: number; referenceHigh: number }[],
@@ -341,22 +347,18 @@ describe('demo reference ranges are stable unless the change is declared', () =>
     expect(changes).toEqual([]);
   });
 
-  it('flags an undeclared change as undeclared', () => {
-    const changes = findRangeChanges([
-      report('2025-02-11', [{ markerKey: 'vitamin-d', referenceLow: 50, referenceHigh: 250 }]),
-      report('2025-08-19', [{ markerKey: 'vitamin-d', referenceLow: 75, referenceHigh: 200 }]),
-    ]);
-    expect(changes).toHaveLength(1);
-    expect(changes[0].declared).toBe(false);
-  });
-
-  it('accepts the one change that is declared, which is the step the chart exists to draw', () => {
-    const changes = findRangeChanges([
-      report('2025-02-11', [{ markerKey: 'fasting-insulin', referenceLow: 2, referenceHigh: 25 }]),
-      report('2026-02-03', [{ markerKey: 'fasting-insulin', referenceLow: 2, referenceHigh: 10 }]),
-    ]);
-    expect(changes).toHaveLength(1);
-    expect(changes[0].declared).toBe(true);
+  it('finds a change wherever one exists — there is no allowed one', () => {
+    // Both of these used to be answered differently: vitamin-d was an accident
+    // to be caught and fasting-insulin a step to be permitted. They are one
+    // answer now, and buildDemoReports throws on either.
+    for (const key of ['vitamin-d', 'fasting-insulin']) {
+      const changes = findRangeChanges([
+        report('2025-02-11', [{ markerKey: key, referenceLow: 2, referenceHigh: 25 }]),
+        report('2025-08-19', [{ markerKey: key, referenceLow: 2, referenceHigh: 10 }]),
+      ]);
+      expect(changes, key).toHaveLength(1);
+      expect(changes[0].markerKey).toBe(key);
+    }
   });
 
   it('reads oldest first, whatever order the reports arrive in', () => {

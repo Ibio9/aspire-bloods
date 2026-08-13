@@ -9,6 +9,7 @@ import {
   hueTint,
   chart,
   BAND_CONTRAST,
+  bandChromaCeiling,
   CONTRAST_AT_BOUND,
   CONTRAST_AT_THRESHOLD,
   NO_STATUS_PAINT,
@@ -95,10 +96,39 @@ function bandRung(mode: (typeof MODES)[number], hue: string): number {
   return Math.sqrt(contrastRatio(fill, card) * contrastRatio(fill, plot));
 }
 
+/**
+ * What the ONE saturation cap (`BAND_FILL_SAT_CAP = 0.6`) produced, measured in
+ * OKLab chroma before it was replaced. The floor every band now has to beat.
+ */
+const SINGLE_CAP_CHROMA = {
+  light: { green: 0.0915, yellow: 0.1242, red: 0.1037 },
+  dark: { green: 0.0696, yellow: 0.0727, red: 0.1412 },
+} as const;
+
 function tone(mode: (typeof MODES)[number], name: string): string {
   const hex = themeTokens[mode][name];
   if (!hex) throw new Error(`no such token: ${name} (${mode})`);
   return hex;
+}
+
+/**
+ * How colourful a colour LOOKS — OKLab chroma, computed here rather than
+ * imported so the measurement is independent of the one tokens.ts solved
+ * against. The RGB span below is a FLOOR and a fine one; it is not a measure of
+ * appearance, which is why an equal-RGB-span solve returned a highlighter green
+ * beside a dull gold.
+ */
+function okChroma(hex: string): number {
+  const [r, g, b] = [1, 3, 5]
+    .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  return Math.hypot(
+    1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+    0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
+  );
 }
 
 /** The three surfaces text is ever set on: the page, a card, and an input. */
@@ -312,6 +342,43 @@ describe.each(MODES)('%s theme', (mode) => {
       const [r, g, b] = [1, 3, 5].map((i) => parseInt(band.slice(i, i + 2), 16));
       const chroma = (Math.max(r, g, b) - Math.min(r, g, b)) / 255;
       expect(chroma, `the ${hue} band is ${band}, chroma ${chroma.toFixed(3)}`).toBeGreaterThan(0.15);
+    }
+  });
+
+  it('gives each band as much colour as its own brand hue carries — a cap PER HUE, not one for all three', () => {
+    // THE COMPLAINT THIS ANSWERS: red read as red, green read as olive and gold
+    // read as brown. The cause was one saturation cap (0.6) across all three,
+    // and the reason one cap cannot work is that HSL saturation is a RATIO
+    // while the three hues sit at very different lightnesses — the ladder puts
+    // them there deliberately. Measured in OKLab chroma at the old numbers:
+    // light 0.0915 / 0.1242 / 0.1037, dark 0.0696 / 0.0727 / 0.1412. One cap
+    // flattered gold in light and red in dark and starved green in both.
+    //
+    // The bound is now per hue and is the colourfulness of the BRAND HUE each
+    // band derives from: a green band as chromatic as `statusHue.green` cannot
+    // be out of the palette, because that IS the palette's green. So this is
+    // both halves of the claim — each band reaches its own ceiling (within the
+    // rounding of a 24-bit channel and the ladder it also has to satisfy), and
+    // none of them passes it.
+    for (const [hue] of BAND_STATES) {
+      const measured = okChroma(tone(mode, `--c-hue-${hue}-fill`));
+      const ceiling = bandChromaCeiling(hue as 'green' | 'yellow' | 'red');
+      expect(measured, `the ${hue} band is more chromatic than statusHue.${hue} itself`).toBeLessThanOrEqual(
+        ceiling * 1.02,
+      );
+      // And the floor is what the single cap actually produced, hue by hue.
+      // Stated as the old numbers rather than as a share of the ceiling,
+      // because two of the six are bound by the sRGB GAMUT rather than by the
+      // palette — at dark's rungs, green sits at 16% lightness and gold at 21%,
+      // and neither can reach the brand hue's colourfulness down there whatever
+      // it is given. A share-of-ceiling floor would either fail on those two or
+      // be loose enough to let a single cap back in. This cannot: every one of
+      // the six has to be measurably more colourful than it was.
+      const before = SINGLE_CAP_CHROMA[mode][hue as 'green' | 'yellow' | 'red'];
+      expect(
+        measured,
+        `the ${hue} band is ${measured.toFixed(4)}; the single 0.6 cap gave ${before.toFixed(4)}`,
+      ).toBeGreaterThan(before * 1.05);
     }
   });
 

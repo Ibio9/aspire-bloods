@@ -148,18 +148,75 @@
     inset: 0;
     z-index: -1;
     pointer-events: none;
-    background: radial-gradient(
-      62% 58% at 96% 1%,
-      rgb(var(--c-glow) / 0.4) 0%,
-      rgb(var(--c-glow) / 0.28) 9%,
-      rgb(var(--c-glow) / 0.165) 19%,
-      rgb(var(--c-glow) / 0.1) 30%,
-      rgb(var(--c-glow) / 0.055) 42%,
-      rgb(var(--c-glow) / 0.027) 55%,
-      rgb(var(--c-glow) / 0.011) 70%,
-      rgb(var(--c-glow) / 0.003) 85%,
-      rgb(var(--c-glow) / 0) 100%
-    );
+  }
+
+  /* ── GRAIN ON THE PAGE, AND A VIGNETTE AWAY FROM THE LIGHT (Aug 2026) ───
+     The product was pure type and colour, which reads as a well-made dashboard
+     rather than as a clinic. The sidebar already had grain — a very faint
+     turbulence tile at `soft-light`, which is what stops a large flat surface
+     reading as a fill — and there is no reason the largest flat surface in the
+     product should be the one without it.
+
+     THE TILE IS THE SIDEBAR'S OWN, at a lower opacity. A few hundred bytes of
+     inline SVG rather than a raster, and `soft-light` rather than a plain
+     opacity, for exactly the reason recorded on `.panel-wash`: grey noise at
+     any opacity LIFTS a dark surface toward grey instead of texturing it, and
+     soft-light darkens where the tile is dark and lightens where it is light,
+     which is what texture is.
+
+     LOWER THAN THE PANEL'S because it covers a hundred times the area: 0.018
+     light / 0.03 dark, against the panel's 0.035 / 0.055. The test is that it
+     is invisible as texture and visible in its absence.
+
+     THE VIGNETTE IS DARK-ONLY AND IS ANCHORED TO THE GLOW, not to the centre
+     of the screen. A centred vignette is a photographic effect applied to a
+     document; this one is the same radial as the light source, running the
+     other way — so the page darkens with distance FROM the light, which is
+     what an unlit corner of a room does. It reaches 0.34 of the shadow tone at
+     the far corner. Light mode gets none: there is no source to be far from,
+     and darkening the edges of a cream page is just a smaller page.
+
+     Fixed, pointer-events none, z-index -1, static at every motion preference —
+     the same three rules the glow follows, and for the same reasons. */
+  .dark body::before {
+    background-image:
+      radial-gradient(
+        62% 58% at 96% 1%,
+        rgb(var(--c-glow) / 0.4) 0%,
+        rgb(var(--c-glow) / 0.28) 9%,
+        rgb(var(--c-glow) / 0.165) 19%,
+        rgb(var(--c-glow) / 0.1) 30%,
+        rgb(var(--c-glow) / 0.055) 42%,
+        rgb(var(--c-glow) / 0.027) 55%,
+        rgb(var(--c-glow) / 0.011) 70%,
+        rgb(var(--c-glow) / 0.003) 85%,
+        rgb(var(--c-glow) / 0) 100%
+      ),
+      /* The vignette, under the light. Ends at the shadow tone at zero alpha
+         rather than at `transparent`, for the same reason the glow does. */
+        radial-gradient(
+          125% 115% at 96% 1%,
+          rgb(var(--c-shadow) / 0) 0%,
+          rgb(var(--c-shadow) / 0) 45%,
+          rgb(var(--c-shadow) / 0.08) 65%,
+          rgb(var(--c-shadow) / 0.19) 82%,
+          rgb(var(--c-shadow) / 0.34) 100%
+        );
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.018;
+    mix-blend-mode: soft-light;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)'/%3E%3C/svg%3E");
+  }
+
+  .dark body::after {
+    opacity: 0.03;
   }
 
   /* Theme switching. Every colour in the product resolves through a custom
@@ -336,6 +393,67 @@
     }
   }
 
+  /* ── CONTENT ARRIVES IN SEQUENCE, ONCE (Aug 2026) ──────────────────────
+     Nothing in this product used to arrive. Things simply appeared, which is
+     why the one screen that does move — the results-ready moment — would
+     otherwise read as the only animated thing in an otherwise static product.
+
+     A container class rather than a component, and that is the mechanism
+     rather than a preference. A CSS animation on a mounted node runs when the
+     NODE is created and never again: React re-rendering a component does not
+     recreate its DOM, so this cannot replay on a filter change, a hover, a
+     state update or a scroll back up. A JavaScript version would have to be
+     told all four of those things, and would get one of them wrong.
+
+     The direct children go in document order at 55ms apart, capped at the
+     sixth — past about a third of a second the tail stops reading as a
+     sequence and starts reading as a queue, which is the same cap
+     `staggerDelay` applies to a list.
+
+     SUBTLE ON PURPOSE: 6px and 260ms, the product's ordinary `riseIn`. If a
+     reader notices the animation AS animation it is too much.
+
+     `both` fill mode, so a child is invisible for its own delay rather than
+     flashing in at full opacity and then animating. And the reduced-motion
+     rule removes the animation outright rather than shortening it — a page
+     that renders at `opacity: 0` waiting for a suppressed animation is a blank
+     page, which is the exact failure the print stylesheet had with `.reveal`. */
+  .stagger-in > * {
+    animation: riseIn 260ms ease-out both;
+  }
+  .stagger-in > *:nth-child(1) {
+    animation-delay: 0ms;
+  }
+  .stagger-in > *:nth-child(2) {
+    animation-delay: 55ms;
+  }
+  .stagger-in > *:nth-child(3) {
+    animation-delay: 110ms;
+  }
+  .stagger-in > *:nth-child(4) {
+    animation-delay: 165ms;
+  }
+  .stagger-in > *:nth-child(5) {
+    animation-delay: 220ms;
+  }
+  .stagger-in > *:nth-child(n + 6) {
+    animation-delay: 275ms;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .stagger-in > * {
+      animation: none;
+    }
+  }
+  /* Printing does not scroll and does not animate; a page whose content is
+     mid-`riseIn` prints its content at whatever opacity the animation was
+     paused at. Same reasoning as the `.reveal` rule further down, and the same
+     failure it was written for. */
+  @media print {
+    .stagger-in > * {
+      animation: none !important;
+    }
+  }
+
   /* ── The results control bar's filters panel ───────────────────────────
      (see features/patient/ResultsControlBar.tsx)
 
@@ -380,7 +498,7 @@
   }
 
   /* THE LABEL ON A CARD WHOSE CONTENTS ALSO CARRY LABELS.
-     One step up the scale (14px), full weight, full tone — the eyebrow's own
+     TWO steps up the scale (16px), semibold, full tone — the eyebrow's own
      tracking and case, so it is the same family and not a new one.
 
      It exists because `.eyebrow` cannot be both the heading of a card and the
@@ -391,11 +509,30 @@
      to be the most prominent LABEL in its own card, and at identical treatment
      it was not.
 
+     ── AND 14px WAS NOT ENOUGH OF A STEP (Aug 2026, third attempt) ──────────
+     Measured off the rendered card at 1440 in both themes, before this change:
+
+       .card-eyebrow  14px / 600 / 1.96px tracking / uppercase / rgb(66,60,54)
+       .sublabel      12px / 500 / 0.05px tracking / sentence  / rgba(...,0.8)
+
+     So the heading was ahead on all four axes and STILL read as the weaker of
+     the two, which means the axes were not where the contest was being decided.
+     Two pixels is not a step anybody sees — it is 17%, inside the noise of two
+     different letter-cases — and the SPACE was running the other way entirely:
+     each sub-label sat alone in 36px of air while the heading had 20px under
+     it, so three isolated small labels each read as the start of something and
+     the heading read as a caption on the paragraph beneath it.
+
+     16px is a whole step of the scale, a third larger than the sub-labels, and
+     the space is inverted with it at the call site (MarkerExplanation): the
+     heading now owns more room below it than any block gets above it. Five
+     signals, all pointing the same way.
+
      Never a substitute for a section heading, which is Fraunces (see
      `.section-heading`). This is still an eyebrow: it labels a card whose
      content is the thing to read. */
   .card-eyebrow {
-    @apply font-eyebrow text-sm font-semibold uppercase tracking-eyebrow text-espresso;
+    @apply font-eyebrow text-base font-semibold uppercase tracking-eyebrow text-espresso;
   }
 
   /* THE LABEL HALF OF A PAIR INSIDE A CARD THAT ALREADY HAS A HEADING.
@@ -678,6 +815,80 @@
      sit flush; the hairline taupe border only defines the edge. */
   .card {
     @apply bg-cream-50 border border-taupe rounded-card shadow-card;
+  }
+
+  /* ── THE SECOND SURFACE REGISTER (Aug 2026) ────────────────────────────
+     A card on the warm reading ground rather than on the ordinary card
+     surface. ONE class of content takes it — explanatory prose, i.e. the
+     marker explanation wherever it appears — and the reasoning for that
+     choice, the two measured tones and why the operation goes in opposite
+     directions in the two themes are all on `--c-vellum` in tokens.ts.
+
+     Everything else about a card is unchanged: the same hairline, the same
+     radius, the same warm shadow. It is a different GROUND, not a different
+     kind of object, which is what keeps it from reading as a callout. */
+  .card-vellum {
+    background-color: rgb(var(--c-vellum));
+  }
+
+  /* ── THE ONE HERO VALUE ON A MARKER PAGE ───────────────────────────────
+     Fraunces at the hero optical size, semibold, and the biggest thing on the
+     page by a clear margin — which it was NOT until Aug 2026. The marker's
+     name carried `.display-heading` (clamp 38→72px, so 72px at 1440) and the
+     value was `text-3xl` at 52px, so a page about somebody's result was headed
+     by the word "Ferritin" at nearly half again the size of the number they
+     came for. The name is a `.section-heading` now and the value takes the
+     display clamp; at 1440 that is 72px against 38px.
+
+     The same clamp as `.display-heading` deliberately: one page-scale display
+     size, used by whichever element is actually the headline on that page. */
+  .hero-value {
+    @apply font-display opsz-hero font-semibold text-espresso;
+    font-size: clamp(2.375rem, 1.2rem + 3.6vw, 4.5rem);
+    line-height: 1;
+    letter-spacing: -0.028em;
+  }
+
+  /* ═══ THE ARCH ═══════════════════════════════════════════════════════════
+     The product's one repeating shape: a rectangle with one semicircular end,
+     standing upright. A doorway. It is already the section rail's node shape
+     (laid on its side there, so the curve points into the page), which is what
+     makes the rest of it read as consistent rather than decorative.
+
+     IT APPEARS IN EXACTLY THREE PLACES AND NOWHERE ELSE:
+       1. The results-ready moment — full size, as the frame the name and the
+          button sit inside. The ONLY time it appears large.
+       2. Empty states — a single faint arch behind the message.
+       3. The rail nodes — already built, unchanged, and not this class.
+
+     IT DOES NOT APPEAR on the Overview, on Results, on a report, on a marker
+     page, in the sidebar, or anywhere else carrying real data. Nothing with
+     content in it gets a shape behind it. A patient should meet this three or
+     four times ever, in the quietest moments the product has.
+
+     `border-radius` and not a clip-path or an SVG: the top two corners take a
+     radius the browser then caps at half the width, which IS a semicircular
+     top for any element at least half as tall as it is wide — so the shape is
+     correct at every size without a viewBox to keep in step.
+
+     `.arch-outline` is the faint one: a hairline, no fill, and low enough that
+     it reads as a watermark rather than as a box round the message. */
+  .arch {
+    border-top-left-radius: 9999px;
+    border-top-right-radius: 9999px;
+  }
+
+  .arch-outline {
+    @apply arch border border-taupe;
+    opacity: 0.5;
+  }
+
+  /* A TEXTUAL result — "Not detected", "Sinus rhythm" — in the same slot.
+     Two or three words at 72px is a sentence set as a poster, and it wraps to
+     three lines on a phone. It is still the loudest thing on the page and
+     still Fraunces; it is simply set at a size a phrase can be set at. */
+  .hero-value-text {
+    @apply font-display opsz-section text-2xl font-semibold leading-tight text-espresso;
   }
 
   /* A card that is itself the click target. Lifts almost imperceptibly and the shadow spreads,

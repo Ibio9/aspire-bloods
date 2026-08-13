@@ -422,10 +422,11 @@ export async function runDemoSeed(opts: { trigger: DemoSeedTrigger; allowProduct
       intendedStatusSpread: diagnostics.byIntendedStatus,
       correlatedFollowers: diagnostics.correlatedFollowers,
       // The markers that render a STEPPED trend — a dashed rule, both ranges on
-      // the axis, and a sentence saying the laboratory changed the range. Named
-      // in the run log rather than counted, because the whole point of the check
-      // in buildDemoReports is that this list is short and every entry is on it
-      // deliberately. An undeclared change never gets this far: it throws.
+      // the axis, and a sentence saying the laboratory changed the range. It is
+      // ALWAYS EMPTY: a marker's band is resolved once and read by every report,
+      // and buildDemoReports throws before a change can reach here. Printed
+      // anyway, so the run log states the fact rather than leaving somebody to
+      // infer it from a line that is not there.
       steppedTrends: diagnostics.rangeChanges.map(
         (c) => `${c.markerKey}: ${c.from.low}–${c.from.high} → ${c.to.low}–${c.to.high} on ${c.to.sampleDate}`,
       ),

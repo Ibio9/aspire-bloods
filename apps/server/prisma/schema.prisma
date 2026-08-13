@@ -780,6 +780,26 @@ model Report {
   voidedBy     User?     @relation("VoidedByStaff", fields: [voidedById], references: [id])
   voidReason   String?
 
+  // THE RESULTS-READY MOMENT HAS BEEN SPENT FOR THIS REPORT.
+  //
+  // A patient signing in with a newly released report they have not opened gets
+  // one full-screen moment before the Overview: their name, "your results are
+  // ready", and a button. It fires ONCE PER REPORT and this column is what makes
+  // that true.
+  //
+  // PER REPORT AND SERVER-SIDE, deliberately, and both halves matter. Anything
+  // keyed on the SESSION ("have they seen it this sign-in") brings the screen
+  // back on every sign-in, which is the bug this was specified against — a
+  // moment that happens every time is a splash screen. Anything in localStorage
+  // brings it back on their phone, in a private window and after any cookie
+  // clear-out; whether somebody has seen their own results is a fact about the
+  // person and the report, not about a browser.
+  //
+  // Stamped by the moment itself (viewing or dismissing both spend it) AND by
+  // simply opening the report, because a patient who reached their results some
+  // other way has, by any honest reading, seen that they are ready.
+  resultsReadySeenAt DateTime?
+
   originalPdfFileId String?     @unique
   originalPdfFile   StoredFile? @relation("OriginalPdf", fields: [originalPdfFileId], references: [id])
   generatedFiles    StoredFile[] @relation("GeneratedFiles")

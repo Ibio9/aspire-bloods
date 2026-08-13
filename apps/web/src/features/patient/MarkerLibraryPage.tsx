@@ -111,7 +111,14 @@ function LibraryCard({ entry }: { entry: LibraryEntry }) {
       </h3>
 
       {open && (
-        <div id={panelId} className="border-t border-taupe px-5 pb-6 pt-5 sm:px-6">
+        // THE SECOND SURFACE REGISTER, on the same content class as the marker
+        // page's explanation card: this is that component, and a reading ground
+        // that appeared under one instance of it and not the other would be a
+        // register that means "this page" rather than "this kind of writing".
+        // Only the opened panel takes it — the closed row is a list item, and a
+        // wall of four hundred vellum bars is a texture rather than a signal.
+        // `rounded-b-card` because it is the foot of the card it sits in.
+        <div id={panelId} className="card-vellum rounded-b-card border-t border-taupe px-5 pb-6 pt-5 sm:px-6">
           {/* One presentation for every entry. Whether a clinician has yet
               signed the wording off is recorded server-side and shown in the
               admin review queue; it changes nothing here, on purpose. */}

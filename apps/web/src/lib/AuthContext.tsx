@@ -21,6 +21,18 @@ interface CurrentUser {
    * shown an introduction because a deploy was mid-flight.
    */
   walkthroughSeen?: boolean;
+  /**
+   * Whether a released report this patient has never opened is waiting — the
+   * results-ready moment.
+   *
+   * Per REPORT and stored on the report (`Report.resultsReadySeenAt`), never on
+   * the session and never in storage. A moment keyed on the session fires on
+   * every sign-in, which makes it a splash screen; one keyed on storage fires
+   * again on their phone. Absent on an older payload, which reads as
+   * `undefined` and therefore as "nothing waiting" — the same defensive
+   * direction `walkthroughSeen` takes, for the same reason.
+   */
+  resultsReadyPending?: boolean;
 }
 
 interface AuthContextValue {

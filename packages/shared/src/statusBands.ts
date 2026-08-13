@@ -111,6 +111,98 @@ export function sameReferenceRange(
   );
 }
 
+// ---------------------------------------------------------------------------
+// PERIODS — CONSECUTIVE RESULTS SHARING A REFERENCE RANGE ARE ONE THING
+// ---------------------------------------------------------------------------
+//
+// The trend chart draws its bands PER PERIOD, not per point: a series measured
+// against one range is ONE band set spanning the whole plot, and a genuine
+// change of range is a step midway between the two samples it happened between.
+// Everything else the change produces — the dashed rule, both periods' bound
+// labels, the sentence in the key — is derived from the same list, so the four
+// cannot disagree about whether or where a range moved.
+//
+// IT LIVES HERE, AND OUTSIDE THE COMPONENT, SO IT CAN BE TESTED FROM FIXTURES
+// (Aug 2026). It used to be twenty lines inside TrendChart, which meant the only
+// coverage of a stepped chart was e2e/chart-bands.spec.ts measuring rectangles
+// in a browser against WHATEVER THE DEMO SEED HAPPENED TO CONTAIN. The demo now
+// deliberately contains no step at all — one reference range per marker, for the
+// whole of a patient's history — so that coverage would have gone silent while
+// the code it was covering stayed in the product for the day a laboratory really
+// does move a range. Fixtures do not go quiet.
+//
+// The x axis here is a NUMBER and is deliberately unnamed as time: the caller
+// passes epoch milliseconds today, and nothing in the derivation cares.
+
+/** What a period needs from a plotted point. Anything else on the row travels with it. */
+export interface PeriodPoint {
+  /** Position on the x axis. Epoch milliseconds, in every caller today. */
+  t: number;
+  referenceLow: number;
+  referenceHigh: number;
+  /** The marker's own severity threshold, where the server sent one. */
+  severityThreshold?: number;
+}
+
+export interface ReferenceRangePeriod<P extends PeriodPoint> {
+  /** The rows measured against this range, in the order they were given. */
+  rows: P[];
+  low: number;
+  high: number;
+  /** One number for the whole period, from the period's own bounds. */
+  threshold: number;
+}
+
+/**
+ * Consecutive rows grouped by the range they were measured against.
+ *
+ * `sameReferenceRange` decides identity, NOT a float compare — the bounds
+ * arriving here have been through a unit conversion, and 99/18.0182 is not
+ * float-equal to 5.5. A period therefore exists exactly where the two printed
+ * ranges differ, which is what stops the drawn step and the written sentence
+ * ever disagreeing.
+ *
+ * ROWS MUST ALREADY BE SORTED. The caller sorts (the chart reads its series as a
+ * sequence in time for the line as well), and grouping is by ADJACENCY: a range
+ * that goes away and comes back is two periods, because that is what happened.
+ */
+export function referenceRangePeriods<P extends PeriodPoint>(rows: P[]): ReferenceRangePeriod<P>[] {
+  const periods: ReferenceRangePeriod<P>[] = [];
+  for (const point of rows) {
+    const open = periods[periods.length - 1];
+    if (open && sameReferenceRange(open, { low: point.referenceLow, high: point.referenceHigh })) {
+      open.rows.push(point);
+    } else {
+      periods.push({
+        rows: [point],
+        low: point.referenceLow,
+        high: point.referenceHigh,
+        threshold: severityThresholdFor(point.referenceLow, point.referenceHigh, point.severityThreshold),
+      });
+    }
+  }
+  return periods;
+}
+
+/**
+ * One x per change of range, MIDWAY between the two samples it happened between.
+ *
+ * We know the range changed between those two draws and not when, so the
+ * midpoint is the only honest x for it — and it is also what guarantees every
+ * period is at least half a sampling gap wide, which is what makes a sliver
+ * impossible even when the change lands on the final result. Anchoring the step
+ * ON the new point is what once drew the newest range as a 24px strip in the
+ * plot's padding gutter.
+ *
+ * n periods give n−1 boundaries; one period gives none, which is what "no step"
+ * is.
+ */
+export function periodStepBoundaries<P extends PeriodPoint>(periods: ReferenceRangePeriod<P>[]): number[] {
+  return periods
+    .slice(1)
+    .map((next, i) => (periods[i].rows[periods[i].rows.length - 1].t + next.rows[0].t) / 2);
+}
+
 export interface StatusBandRange {
   /** Null means "open" — this band runs to the edge of whatever domain it's drawn in. */
   from: number | null;

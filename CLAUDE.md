@@ -52,14 +52,28 @@ at `max-w-measure` (68ch). Tabular figures on every number without exception —
 on the marker explanation card it was exactly that: "What this marker means" in
 `.eyebrow` above three of "If it's high" in `.eyebrow` — four peers, in which
 the one that is a heading had nothing to say so, and three repetitions of a
-treatment out-read one instance of it. So `.card-eyebrow` is the heading (one
-step up, 14px, semibold, full tone) and `.sublabel` is the label half of a pair
-inside such a card (12px, medium, /80, **sentence case**). 12px is the floor of
-the type scale and /80 the floor of the opacity ladder, so what a subordinate
-label gives up is the SHOUT — uppercase at 0.14em is what makes 12px loud. The
-weight stays at medium in all three: a thin 12px label disappears on the dark
-page, and "quieter" must never become "fainter". All three carry
-`break-after: avoid` in `@media print`.
+treatment out-read one instance of it. So `.card-eyebrow` is the heading and
+`.sublabel` is the label half of a pair inside such a card (12px, medium, /80,
+**sentence case**). 12px is the floor of the type scale and /80 the floor of the
+opacity ladder, so what a subordinate label gives up is the SHOUT — uppercase at
+0.14em is what makes 12px loud. The weight stays at medium in all three: a thin
+12px label disappears on the dark page, and "quieter" must never become
+"fainter". All three carry `break-after: avoid` in `@media print`.
+
+**AND 14px WAS NOT ENOUGH OF A STEP (Aug 2026, third attempt).** `.card-eyebrow`
+is **16px semibold**, two steps of the scale above `.sublabel` rather than one.
+Measured off the rendered card before the change: heading 14px / 600 / 1.96px
+tracking / uppercase / full tone, label 12px / 500 / 0.05px / sentence / 80%. The
+heading was ahead on all four axes and still read as the weaker of the two, which
+means the axes were not where the contest was being decided. Two pixels is 17%,
+inside the noise of two different letter-cases — and **the SPACE was running the
+other way entirely**: each sub-label sat alone in 36px of air while the heading
+had 20px under it, so three isolated small labels each read as the start of
+something and the heading read as a caption on the paragraph beneath it. The
+block gap is 28px now and the heading's is 32px, so the heading owns more room
+than anything under it. Five signals, all pointing the same way. **If this ever
+looks wrong again, MEASURE the computed style and the margins before touching a
+value** — it has been eyeballed wrongly three times.
 
 **Loading.** Self-hosted from this origin, latin only, from
 `apps/web/public/assets/fonts` — see the README there for why the files are
@@ -377,18 +391,30 @@ both significants share one.
    not read what it stepped from. `e2e/chart-bands.spec.ts` measures all of it:
    two overlapping boxes and a 1px band edge out of place are facts you
    measure, not things anybody notices in a screenshot.
-   **THE DEMO SEED DOES NOT DRIFT A RANGE BY ACCIDENT.** Three markers were
-   stepping and one meant to. `fasting-insulin` is deliberate and load-bearing
-   (2–25 → 2–10 is what makes 24.6 significantly high rather than a shrug);
-   `vitamin-d` (50–250 → 75–200) and `ferritin` (30–400 → 20–200) were
-   hand-written rows that happened to differ, and both computed to the SAME
-   status against either range — so the step was drawn, named and explained over
-   a change that did nothing. Both are constant now.
-   `DECLARED_RANGE_CHANGES` in demoSeedData.ts is the closed list, and
-   `buildDemoReports` THROWS on any change not on it, including one produced by
-   the fall-through where a scripted range on one report meets the catalogue's
-   own band on the next — which is how fasting-insulin's step actually arises
-   and is invisible in the narrative table alone.
+   **THE DEMO SEED CONTAINS NO STEP AT ALL — ONE REFERENCE RANGE PER MARKER,
+   FOR THE WHOLE OF A PATIENT'S HISTORY (changed Aug 2026).** It was an
+   allow-list (`DECLARED_RANGE_CHANGES`) with `fasting-insulin` on it, catching
+   `vitamin-d` and `ferritin`, which had drifted because three rows of a
+   hand-written table happened to differ and both computed to the SAME status
+   against either range. An allow-list is a check on a thing that can still
+   happen. **`resolveBand` in demoSeedData.ts answers ONCE PER MARKER** —
+   NARRATIVE_RANGE, then the catalogue, then a synthetic band — and every report
+   reads that same object, so there is no second source for a band and
+   `findRangeChanges` on a built demo is empty by construction.
+   `buildDemoReports` throws on ANY change and there is no list to add a marker
+   to. fasting-insulin's story is unchanged: the functional band (2–10) is
+   simply the band on all three draws, and 24.6 against it is still
+   significantly high.
+   **THE STEP MACHINERY STAYS AND IS TESTED FROM EXPLICIT FIXTURES.** Randox
+   will move a range for real eventually. `referenceRangePeriods` /
+   `periodStepBoundaries` (packages/shared/src/statusBands.ts) are the one
+   derivation the chart's bands, step rules, per-period bound labels and
+   range-change sentence all read, pinned by
+   `apps/server/tests/referenceRangePeriods.test.ts`; and
+   `e2e/chart-bands.spec.ts` BUILDS its stepped series — two reports, one
+   marker, 30–400 then 20–200 — rather than hunting the demo for one. A test
+   that depends on the demo happening to contain a step goes quiet the moment
+   the demo stops.
    **THE BANDS ARE CONTEXT AND THE LINE IS CONTENT.** They were four opaque
    saturated slabs edge to edge with a near-solid rule over every boundary,
    which is a fill tool rather than a chart: at equal weight and full strength
@@ -415,16 +441,36 @@ both significants share one.
    `BAND_CONTRAST` (statusBands.ts): the contrast each rung's fill is solved to
    stand off the surface it is drawn on — **1.5 / 1.88 / 2.3**, with the two
    hinges at the derived midpoints. `--c-hue-*-fill` is the painted colour and
-   `BAND_FILL` (tokens.ts) is the solve. **Only the LIGHTNESS is solved**: the
-   hue and the saturation are the brand hue's own, capped at
-   `BAND_FILL_SAT_CAP` (0.6), because an opaque fill has no ceiling on chroma
-   and an unconstrained solve for it returns #66e900 and #ff7c68 — a highlighter
-   green and a neon salmon, correct answers to the wrong question. The cap
-   exists because the five hues are NOT equally saturated (gold 80%, green 41%,
-   picked to survive a wash), a difference a 15% composite damped almost out of
-   existence and a solid fill does not: uncapped, the in-range band was a soft
-   sage beside an above-range band in full gold, i.e. the hues adding a second
-   unequal multiplier on top of the ladder.
+   `BAND_FILL` (tokens.ts) is the solve. Only the HUE ANGLE is the brand hue's
+   own; the lightness and the saturation are both solved.
+   **THE CHROMA CAP IS PER HUE, AND IT IS DERIVED FROM THE PALETTE (Aug 2026).**
+   It was ONE saturation cap, `BAND_FILL_SAT_CAP = 0.6`, applied to all three —
+   green kept its own 41% and gold and red were both pulled to 60% — and the
+   complaint that killed it was that red read as red while green read as olive
+   and gold as brown. **A single cap cannot work**, because HSL saturation is a
+   RATIO and the ladder deliberately puts the three hues at very different
+   lightnesses. Measured in OKLab chroma at the old numbers: light 0.0915 /
+   0.1242 / 0.1037, dark 0.0696 / 0.0727 / 0.1412 — one cap flattering gold in
+   light and red in dark and starving green in both.
+   Each hue now gets as much chroma as it can carry at its own rung's lightness,
+   bounded by **`bandChromaCeiling`: the colourfulness of the BRAND HUE it
+   derives from**. A green band as chromatic as `statusHue.green` cannot be out
+   of the palette, because that IS the palette's green. Per hue by construction,
+   and not a number anybody typed in. After: light 0.1234 / 0.1407 / 0.1341
+   (within 14% of each other), dark 0.0985 / 0.0812 / 0.1593. Every band gained
+   — green +35%/+42%, gold +13%/+11%, red +29%/+13%.
+   **THE MEASURE IS OKLab CHROMA, NEVER HSL SATURATION AND NEVER THE RGB SPAN.**
+   Saturation is a ratio and calls a pale pink and a fire-engine red the same
+   figure. The RGB span is the FLOOR tokenContrast.test.ts holds and is right for
+   a floor; solved for an equal RGB span the three came out `#98db65`, `#cfb158`,
+   `#eb8677` — a highlighter green beside a dull gold — because a green at 63%
+   lightness holds an enormous span while looking ordinary and a red does not.
+   **DARK'S GOLD IS THE ONE THAT IS STILL SHORT, and it is the GAMUT and not the
+   cap.** The rungs are contrasts against a near-black surface, so gold's 1.88
+   puts it at 21% lightness, and a yellow at 21% lightness is a brown in any
+   colour space. Uncapping its saturation entirely buys 7% and still returns a
+   dark ochre; lifting the whole ladder ~30% buys 15% and costs the chart the
+   thing the ladder is for. Both were measured and neither was taken.
    **THE MEASURE IS THE GEOMETRIC MEAN OF TWO SURFACES.** One fill is drawn on
    the chart's plot panel and on the card a range bar sits on, and those two are
    not the same distance apart in the two themes. Solving against the card alone
@@ -555,6 +601,18 @@ both significants share one.
    **THE LINE IS STRAIGHT AND HAS NO AREA UNDER IT.** `type="linear"`, never
    `monotone`: a spline between two blood draws three months apart invents a
    shape for the whole quarter that nobody measured.
+   **THE MOST RECENT POINT PRINTS ITS OWN NUMBER (Aug 2026).** Every mark on
+   this chart was anonymous: reading what one WAS meant hovering, which is a
+   gesture that does not exist on a phone and is not one anybody thinks to try
+   on a page they came to read. The latest result is the one the reader came
+   for — it is already drawn larger and haloed for that reason — so it says its
+   value beside itself. **ONE point, not all of them**: a number beside every
+   mark is a table drawn on top of a chart, it fights the line and it collides
+   with itself on a tight series. The history stays a shape; the latest result
+   is a figure. **The NUMBER only, no unit** — the unit is stated once above the
+   axis already. **No box behind it**: a stroke in the plot's own ground under
+   `paint-order: stroke`, which is a halo the shape of the letters rather than a
+   second small rectangle on a plot that already has a frame and five regions.
    **A POINT IS AN OUTLINE ON THE PLOT'S GROUND**, filled with the plot surface
    and stroked in its status colour — so the line visibly passes behind it and
    the interior is a hole in the band rather than more saturated colour. The
@@ -1170,6 +1228,130 @@ It refuses to run unless the target database's name contains "drill" or
 - **The name and avatar are a second route into Account & privacy**, beside the
   nav item, with Sign out as a SIBLING and never a child: a button inside an
   anchor is invalid markup and gives one control two behaviours.
+
+# The marker page is a value, then a trend, then everything else (Aug 2026)
+
+It was four blocks of roughly equal weight — latest result, chart, explanation,
+previous results — each in its own card, so nothing said what to read first and
+the number the patient came for competed with three neighbours drawn exactly
+like it. Worse, **the biggest thing on the page was the marker's NAME**:
+`.display-heading` is clamp(38→72px) and the value was `text-3xl` at 52px, so
+"Ferritin" was set half again as large as the result.
+
+The order the eye lands in is now fixed and is carried by size, weight and
+space — **not by boxes and rules**:
+
+1. **THE VALUE**, uncarded, `.hero-value` (the display clamp, semibold, 72px at
+   1440), with the mono unit beside it, the status badge, both ranges and the
+   range bar under it. A card is a way of saying "this is one of several
+   things", and the value is not one of several things.
+2. **THE TREND**, uncarded and full width. The plot is already an inset panel
+   with its own hairline frame, so a card round it was a box drawn immediately
+   outside a box — and at 60% of a five-column grid the plot was narrower than
+   it was tall, which is the shape that exaggerates every movement in a series.
+3. **EVERYTHING ELSE**, after a wide margin so the drop in weight is announced
+   by space before anything is read. The h1 is a `.section-heading` (38px): it
+   is still the first thing read and has simply stopped competing with its own
+   answer.
+
+**THE EXPLANATION COMES BEFORE THE OUT-OF-RANGE CARD.** Somebody who has just
+been told their result is outside the usual range wants to know what the marker
+IS before they are told who to ring about it — the definition is context for the
+prompt, not a footnote to it.
+
+# Vellum: the second surface register (Aug 2026)
+
+The product had one move — near-black plus a gold corner glow — so every screen
+was the same weight and nothing told a reader they had moved. `--c-vellum` is
+the second register and **ONE class of content takes it: explanatory prose**,
+i.e. the marker explanation card and the same component in Understanding
+results. It is the only content in the portal that is WRITING rather than DATA,
+and the move from "what was measured" to "what it means" is the one boundary
+worth marking with a change of ground rather than another heading.
+
+**The operation is "toward paper", not "up one rung"**, which is why it goes in
+opposite directions in the two themes: paper is warm and mid-toned, so on a
+near-black page it is lighter than the card and on a page whose card is already
+near-white it is a shade deeper and distinctly warmer. Measured — light #f0ede7
+(1.14:1 off the page, 1.14:1 off the card, text 9.3:1), dark #3d3933 (1.66:1,
+1.30:1, 9.8:1). It does NOT break the page → panel → card ladder, which is
+untouched in both themes: the vellum is a register beside that ladder rather
+than a rung on it. No new hue — light is cream toward white, dark is the night
+base toward the same warm mid-brown the surface scale already lifts with.
+Applied by `.card-vellum`, which changes the background and nothing else.
+
+# The results-ready moment (Aug 2026)
+
+A patient signs in, a released report they have never opened is waiting, and
+before the Overview they get one full-screen screen: their name, "your results
+are ready", and a button. It is the only moment in the product allowed to be
+about a feeling rather than a number, and **the whole of its value is that it
+happens once**.
+
+**`Report.resultsReadySeenAt` — per REPORT, on the report.** Not the session,
+not localStorage, not "have they signed in before". The failure this exists
+against is a moment that fires on EVERY sign-in, which is a splash screen, and
+the cause of that failure is always the same shape: **a condition keyed on
+something that resets**. A session resets on every sign-in; localStorage resets
+on their phone, in a private window and after any cookie clear-out; a column on
+the report resets never. `/auth/me` carries `resultsReadyPending` as a boolean
+(same reasoning as `walkthroughSeen`: the only question is "send them there or
+not", and shipping the report id invites something to render it), and HomeRouter
+decides — introduction FIRST, then the moment, because announcing an answer to
+somebody who has not been shown the question is the wrong order.
+
+**Both exits spend it**, and so does opening the report by any other route: a
+patient who followed an emailed link has seen that their results are ready.
+It is a route OUTSIDE the patient shell — no sidebar, no breadcrumbs, no
+footer — and it stands aside for the Overview when nothing is waiting, because
+a moment about a report that is not there is worse than no moment.
+`e2e/results-ready.spec.ts` builds its own patient and report rather than
+borrowing the demo: "has this person seen this report" is one-way by design, so
+a spec on the demo account would pass once per re-seed and assert nothing after.
+
+**WelcomePage navigates to "/" and not "/overview"**, so HomeRouter re-decides.
+Going straight to the Overview jumped over that decision and skipped the moment
+on the one sign-in it is most obviously for.
+
+# Motion, texture and the arch (Aug 2026)
+
+**MOTION.** Restraint is the whole point: if a reader notices the animation as
+animation it is too much. `.stagger-in` is a CONTAINER CLASS and that is the
+mechanism rather than a preference — a CSS animation runs when the NODE is
+created and never again, so React re-rendering cannot replay it on a filter
+change, a hover, a state update or a scroll back. Direct children, 55ms apart,
+capped at the sixth. Everything else was already here and is unchanged: `Reveal`
+for scroll entrance (once, never again), `AnimatedNumber` for counts only and
+never for a clinical value, `PageTransition` for the route crossfade, and the
+trend chart's own mount (the line draws, the bands fade up under it). All of it
+off under `prefers-reduced-motion`, and `.stagger-in` also off in `@media print`
+— a page whose content is mid-animation prints at whatever opacity it paused at,
+which is the failure `.reveal` already had.
+
+**GRAIN AND THE VIGNETTE.** The sidebar's turbulence tile at `soft-light` now
+covers the page too, at 0.018 light / 0.03 dark against the panel's 0.035 /
+0.055 — lower because it covers a hundred times the area. The test is that it is
+invisible as texture and visible in its absence. The vignette is DARK-ONLY and
+is anchored to the GLOW rather than to the centre of the screen: it is the same
+radial as the light source running the other way, so the page darkens with
+distance FROM the light, which is what an unlit corner of a room does. A centred
+vignette is a photographic effect applied to a document. Light mode gets none —
+there is no source to be far from, and darkening the edges of a cream page is
+just a smaller page.
+
+**THE ARCH.** A rectangle with one semicircular end, standing upright. A
+doorway. It appears in **exactly three places**: the results-ready moment (full
+size, the only time it is large), empty states (a single faint hairline behind
+the message, `.arch-outline`), and the section rail's nodes (already built, laid
+on its side, unchanged and not this class). It does NOT appear on the Overview,
+on Results, on a report, on a marker page, in the sidebar, or anywhere else
+carrying real data — **nothing with content in it gets a shape behind it**. A
+patient should meet it three or four times ever. `border-radius` rather than a
+clip-path or an SVG, so the shape is correct at every size without a viewBox to
+keep in step — but the element must be TALLER than half its own width or the
+browser caps the radii and a doorway becomes a rounded box. The first empty
+state got that wrong (`h-[150%]` inside an `overflow-hidden` card) and drew two
+bare vertical hairlines through the sentence.
 
 # Rules
 - Never colour alone for status — text label + icon shape carry it first

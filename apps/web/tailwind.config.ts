@@ -177,6 +177,11 @@ export default {
           DEFAULT: v('--c-panel'),
           edge: v('--c-panel-edge'),
         },
+        // THE SECOND SURFACE REGISTER — the warm reading ground under
+        // explanatory prose, and nothing else. See `--c-vellum` in tokens.ts
+        // for what it is for and why it goes in opposite directions in the two
+        // themes, and `.card-vellum` in globals.css for how a card takes it.
+        vellum: v('--c-vellum'),
         // Retained under its original name so nothing that already referenced
         // the deep warm near-black has to change; `night` is the same scale
         // with a name that says what it is for.
@@ -355,12 +360,30 @@ export default {
       keyframes: {
         fadeIn: { from: { opacity: '0' }, to: { opacity: '1' } },
         riseIn: { from: { opacity: '0', transform: 'translateY(6px)' }, to: { opacity: '1', transform: 'translateY(0)' } },
+        /**
+         * THE BREATH, on the results-ready moment and nowhere else.
+         *
+         * One element, drifting in scale and opacity together. NINE SECONDS a
+         * cycle — roughly half the rate of resting breathing and several times
+         * slower than anything else in this product moves, which is the whole
+         * of what makes it read as REST rather than as loading. A spinner, a
+         * pulse or a progress bar all say "wait"; there is nothing to wait for
+         * on that screen, the results are already there.
+         *
+         * The amplitude is deliberately small (6% of scale, a third of the
+         * opacity) so it is noticed as movement only if you look at it.
+         */
+        breathe: {
+          '0%, 100%': { transform: 'scale(1)', opacity: '0.45' },
+          '50%': { transform: 'scale(1.06)', opacity: '0.85' },
+        },
       },
       animation: {
         // Short, eased, purposeful (brief §3.8) — motion-safe: variants at
         // every call site respect prefers-reduced-motion automatically.
         fadeIn: 'fadeIn 200ms ease-out',
         riseIn: 'riseIn 250ms ease-out',
+        breathe: 'breathe 9s cubic-bezier(0.45, 0, 0.55, 1) infinite',
       },
     },
   },
