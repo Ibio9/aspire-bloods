@@ -999,6 +999,63 @@
     padding-bottom: 3rem;
   }
 
+  /* ── THE ARCH'S EDGE DISSOLVES RATHER THAN ENDING ON A LINE (Aug 2026) ───
+     The doorway used to be a hairline border and a hard alpha step: 58% of the
+     glass tone on one side of a pixel and nothing on the other, over a
+     near-black ground. That reads as a shape pasted onto the page rather than
+     one standing in it, and it is worst along the crown, where the cut runs
+     across the darkest part of the background with nothing else near it.
+
+     THE SURFACE IS ITS OWN ELEMENT, and that is what makes this possible at
+     all. A mask applies to an element's whole subtree, so masking the arch
+     would fade the heading and the button with it. The surface is an empty
+     absolutely-positioned sibling of the content instead — same box, same
+     radius, no children — so the fade can be as strong as it likes without
+     touching a word of what is inside it.
+
+     TWO GRADIENTS, INTERSECTED. Down the page, from nothing at the apex to
+     solid by 42% — which is the whole of the falloff and is ENTIRELY INSIDE THE
+     CROWN, because the content box starts at the spring line at 50% (see
+     `padding-top` above). Across, a 26px feather at each side against the 32px
+     of padding the text already sits behind. Neither reaches the content, and
+     that is arithmetic rather than judgement.
+
+     `backdrop-filter` still works on it because nothing here creates a stacking
+     context above it: an ancestor with `isolation`, `opacity` or a `filter`
+     would become the backdrop root and the glass would have nothing left to
+     sample but itself. The one thing not to do to this element is isolate it.
+
+     The border goes with the fade — a hairline that survived the mask would be
+     the hard cut, drawn in one more place. And no shadow: a drop shadow around
+     a shape whose edge is dissolving is an edge asserted twice, and the outer
+     one is the crisp one. */
+  .moment-arch-surface {
+    position: absolute;
+    inset: 0;
+    border: 1px solid rgb(var(--c-taupe) / 0.7);
+    border-bottom: 0;
+    background-color: rgb(var(--c-glass) / var(--glass-wash));
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    -webkit-mask-image:
+      linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.25) 14%, rgba(0, 0, 0, 0.72) 28%, #000 42%),
+      linear-gradient(to right, transparent 0, #000 26px, #000 calc(100% - 26px), transparent 100%);
+    mask-image:
+      linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.25) 14%, rgba(0, 0, 0, 0.72) 28%, #000 42%),
+      linear-gradient(to right, transparent 0, #000 26px, #000 calc(100% - 26px), transparent 100%);
+    -webkit-mask-composite: source-in;
+    mask-composite: intersect;
+  }
+
+  /* A browser with no mask support gets the shape it had before rather than a
+     slab: the fade is the improvement, the hairline was never wrong. */
+  @supports not ((mask-composite: intersect) or (-webkit-mask-composite: source-in)) {
+    .moment-arch-surface {
+      -webkit-mask-image: none;
+      mask-image: none;
+    }
+  }
+
   /* ── THE GROUND: THE OVERVIEW, BLURRED ──────────────────────────────────
      `z-index: -2` so it sits UNDER the corner glow at -1 — see the note in
      MomentBackdrop.tsx, which is also why it is portalled onto <body> rather

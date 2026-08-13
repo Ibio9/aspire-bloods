@@ -154,17 +154,27 @@ export function ResultsReadyPage() {
               button ended up 700px below the bottom of the window. Capping the
               width one level up makes the two the same number and the rule
               exact. */}
-          <div className="w-full max-w-md">
+          <div className="relative w-full max-w-md">
+            {/* THE ARCH'S SURFACE, and it is an element of its own with nothing
+                inside it. Its edge fades into the ground rather than ending on
+                a line (see `.moment-arch-surface`), and a mask applies to an
+                element's whole subtree — so the fade and the content cannot
+                live on the same box. Same shape, same radius, absolutely
+                positioned behind the words. `aria-hidden` because it is the
+                doorway, not the message. */}
+            <div className="moment-arch-surface arch" aria-hidden="true" />
             {/* THE ARCH. A doorway, full size, once, standing on the floor of
                 the window — `justify-end` above and no padding under it, so its
-                bottom edge is the bottom edge of the screen. `border-b-0`
-                because the one thing a doorway must not have is a bottom: at a
-                hairline across the foot of the viewport the whole shape reads
-                as a card that happens to be tall. The glass material rather
-                than a fill — the corner glow, and now the reader's own blurred
-                results, pass through it. Its height, the crown and where the
-                content sits are all in `.moment-arch`. */}
-            <div className="moment-arch glass arch relative flex w-full flex-col justify-center border border-b-0 border-taupe/70 px-8 text-center shadow-card sm:px-12">
+                bottom edge is the bottom edge of the screen. `border-b-0` on
+                the surface because the one thing a doorway must not have is a
+                bottom: at a hairline across the foot of the viewport the whole
+                shape reads as a card that happens to be tall. The glass
+                material rather than a fill — the corner glow, and the reader's
+                own blurred results, pass through it. `relative` so the content
+                paints over the surface behind it: an absolutely-positioned
+                sibling would otherwise cover in-flow text. Its height, the
+                crown and where the content sits are all in `.moment-arch`. */}
+            <div className="moment-arch relative flex w-full flex-col justify-center px-8 text-center sm:px-12">
               {/* THE BREATH. One element, and it is the wordmark's own dot
                   rather than a new object invented to move: the thing that
                   drifts should be something already on the page. In the crown

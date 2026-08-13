@@ -236,7 +236,11 @@ test('the moment stands on the blurred Overview, and the arch runs off the botto
   await expect(page).toHaveURL(/\/results-ready$/, { timeout: 20_000 });
 
   const backdrop = page.locator('.moment-backdrop');
-  const arch = page.locator('.moment-arch');
+  // THE SHAPE LIVES ON THE SURFACE ELEMENT (Aug 2026). The arch's edge fades
+  // into the ground rather than ending on a line, and a mask applies to a whole
+  // subtree — so the surface is an empty sibling of the content and the two are
+  // measured separately: the doorway's geometry here, where the words sit below.
+  const arch = page.locator('.moment-arch-surface');
   await expect(arch).toBeVisible();
 
   // ── IT IS THE REAL OVERVIEW ──────────────────────────────────────────────
@@ -304,8 +308,9 @@ test('the moment stands on the blurred Overview, and the arch runs off the botto
     const m = await arch.evaluate((el) => {
       const box = el.getBoundingClientRect();
       const s = getComputedStyle(el);
-      const heading = el.querySelector('h1')!.getBoundingClientRect();
-      const dismiss = [...el.querySelectorAll('button')].find((b) => b.textContent?.includes('Not just now'));
+      // The heading is in the sibling, not in the surface.
+      const heading = document.querySelector('h1')!.getBoundingClientRect();
+      const dismiss = [...document.querySelectorAll('button')].find((b) => b.textContent?.includes('Not just now'));
 
       // THE CROWN IS HIT-TESTED AND NOT READ OFF THE COMPUTED STYLE, and that
       // is not fussiness: `border-top-left-radius` computes to the SPECIFIED
@@ -326,7 +331,13 @@ test('the moment stands on the blurred Overview, and the arch runs off the botto
       //     "no" everywhere.
       const r = box.width / 2;
       const cx = box.left + r;
-      const hit = (x: number, y: number) => !!document.elementFromPoint(x, y)?.closest('.moment-arch');
+            // `elementsFromPoint`, plural: the content sits in a sibling painted OVER
+      // the surface, so the topmost element at the apex is the content box and
+      // the singular form would answer about a rectangle. The plural returns
+      // everything under the point, and a rounded corner still excludes itself
+      // from that list — which is the property being measured.
+      const hit = (x: number, y: number) =>
+        document.elementsFromPoint(x, y).some((el) => el.classList.contains('moment-arch-surface'));
 
       return {
         top: Math.round(box.top),

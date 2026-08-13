@@ -1220,6 +1220,83 @@ It refuses to run unless the target database's name contains "drill" or
 - The "stay signed in" warning lead is a share of the window, capped:
   5 minutes for a patient, 3 for staff (`idleWarningLeadMsForRole`).
 
+**A SESSION'S CLOCKS BELONG TO THE SESSION, NOT TO THE ROUTE (Aug 2026).**
+A patient was signed out ~15 minutes into an ordinary session, mid-use, with no
+warning. It looked exactly like an idle-timeout bug and was not one.
+
+`useNavigate()` memoises its callback on the current pathname — read it in
+react-router's own source, the deps are `[basename, navigator,
+routePathnamesJson, locationPathname, dataRouterContext]` — so it returns a NEW
+IDENTITY ON EVERY ROUTE CHANGE. `SessionGuard`'s `signOutAndRedirect` closed
+over it, the main effect depended on that, and the effect's first three lines
+reset the activity, refresh and ping timestamps. **So every navigation restarted
+every clock in the guard.** The token rotation runs every 10 minutes and never
+reached it, the 15-minute access token lapsed on its own wall clock, and the
+next request came back 401 → "Your session has expired."
+
+Measured, before the fix, by `e2e/zz-session-endurance.spec.ts`: a session
+navigating every 30 seconds made **zero** `/auth/refresh` calls, **zero**
+`/auth/activity` calls, and was signed out at **t+922s**. The 90-minute idle
+window was working correctly the whole time — a reader who scrolls WITHOUT
+navigating was never affected, which is why reading was the case that worked.
+
+What holds it now, and all four matter:
+- **`navigate` is behind a ref**, so nothing route-derived is in a dependency
+  list. The effect depends on `userId` and the two window lengths.
+- **The reset is keyed on the session id**, not on the effect running. A stable
+  dependency list is one innocuous callback away from breaking again; a reset
+  guarded on the session cannot break that way at all.
+- **Every decision is `lib/sessionClock.ts`**, pure, so three hours of use can
+  be pushed through it in a millisecond. `sessionClock.test.ts` runs five
+  rhythms across 180 minutes and asserts survival AND that the gap between
+  rotations never reaches the access token's TTL — a run that never goes idle
+  but leaves a 20-minute hole is a session that dies on the next request. One
+  test models the old resets and asserts it reproduces the failure.
+- **The countdown is the SERVER's deadline.** `/auth/activity` already returned
+  `idleDeadlineMs` and the client threw it away; it aligns to it now, so the two
+  cannot drift. Signing out needs both clocks to agree the window is gone.
+
+**ANY interaction counts**: `mousemove` and `pointermove` are the additions that
+mattered (reading with the mouse in hand used to register as idle unless you
+also scrolled), plus `focus` and `visibilitychange`. Throttled to one timestamp
+write a second.
+
+**AND FIXING THE TIMER IS NOT SUFFICIENT, BECAUSE A TIMER CAN BE MISSED.**
+`apiFetch` gives a 401 that is NOT an idle timeout **one silent rotation and one
+retry** (lib/api.ts). A suspended laptop, a backgrounded tab, a page reload, one
+slow request — any of them can put the 15-minute access token past its life, and
+none of them is a reason to end somebody's session mid-read. **The access
+token's lifetime is bookkeeping and the idle window is the decision**, and only
+the second may end a session.
+
+Four rules, each with a failure behind it:
+- **The idle 401 is never retried.** It carries `IDLE_TIMEOUT_ERROR_CODE` and is
+  the server exercising the timeout; retrying would be the client trying to talk
+  it out of one.
+- **`/auth/refresh`, `/auth/login`, `/auth/logout` and `/auth/otp/verify` are
+  never retried**, or a dead refresh token loops.
+- **ONE rotation at a time, shared.** A page mid-load can have six requests in
+  flight; six rotations would revoke each other — the refresh token rotates on
+  use — and five would come back 401 for real, turning a recoverable moment into
+  a sign-out.
+- **The single-flight promise is cleared SYNCHRONOUSLY**, not on a timer. It was
+  on a timer for one revision, which is a stale-answer bug wearing a tidy hat: a
+  later 401 could be handed the `true` from a rotation that had already
+  finished, skip its own, and retry against the same dead token. `api.test.ts`
+  caught it.
+- **The CSRF header is re-read per attempt.** A rotation issues a new csrf
+  cookie, so a retry replaying the old header fails CSRF instead of succeeding —
+  which would look exactly like the failure the retry exists to prevent.
+
+**A FULL PAGE LOAD RESTARTS EVERY CLIENT TIMER**, so somebody reloading more
+often than the rotation interval never reaches one either. No cadence fixes
+that — the timer is what is being reset — and the retry above is what makes it
+harmless. `e2e/zz-session-endurance.spec.ts` covers both: clicking links for 18
+minutes, and reloading every 2.5 minutes for 18. **It clicks links and never
+calls `page.goto`** — the first version used `goto`, which is a full document
+load, so the app remounted every 30 seconds and the run failed identically with
+or without the bug. It was measuring the harness.
+
 # The sidebar (Aug 2026)
 
 - **THE BLUR IS NOT WHAT MAKES IT GLASS, AND NO RADIUS WILL BE. STOP TUNING IT.**
@@ -1505,6 +1582,23 @@ distance FROM the light, which is what an unlit corner of a room does. A centred
 vignette is a photographic effect applied to a document. Light mode gets none —
 there is no source to be far from, and darkening the edges of a cream page is
 just a smaller page.
+
+**THE ARCH'S EDGE DISSOLVES ON THE MOMENT (Aug 2026).** It was a hairline and a
+hard alpha step — 58% of the glass tone on one side of a pixel and nothing on
+the other, over a near-black ground — which reads as a shape pasted onto the
+page rather than one standing in it, worst along the crown where the cut runs
+across the darkest part of the background. **THE SURFACE IS ITS OWN ELEMENT**
+(`.moment-arch-surface`, an empty absolutely-positioned sibling of the content)
+because a mask applies to a whole subtree and masking the arch would fade the
+heading with it. Two gradients, intersected: down the page from nothing at the
+apex to solid by 42%, and a 26px feather at each side. Both are ENTIRELY OUTSIDE
+the content — the content box starts at the spring line at 50% and the text sits
+behind 32px of padding — so "the words keep their contrast" is arithmetic rather
+than judgement. The border fades with it; a hairline that survived the mask
+would be the hard cut drawn in one more place, and there is no shadow for the
+same reason. **Do not put `isolation`, `opacity` or a `filter` on any ancestor
+of it**: any of the three becomes the backdrop root and the glass has nothing
+left to sample but itself.
 
 **THE ARCH.** A rectangle with one semicircular end, standing upright. A
 doorway. It appears in **exactly three places**: the results-ready moment (full
