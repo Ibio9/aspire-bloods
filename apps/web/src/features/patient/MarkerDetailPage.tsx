@@ -247,11 +247,14 @@ export function MarkerDetailPage() {
           sits at the end of are ONE answer read side by side, and stacked they
           became two screens with the second one below the fold.
 
-          40/60, not an even split, because the two are not equal weight — the
-          left card holds a number, a bar and a short history, the right holds
-          the chart that is the reason to be on this page. Five columns split
-          two and three, the closest simple ratio. Below `lg` they stack full
-          width, where a 60% plot would be a slot.
+          37.5/62.5, not an even split, because the two are not equal weight —
+          the left card holds a number, a bar and a short history, the right
+          holds the chart that is the reason to be on this page. EIGHT columns
+          split three and five (it was five split two and three, i.e. 40/60):
+          the chart was too narrow for its own height and the fix is a little
+          of each, so it takes 2.5 points of the row here and gives back 64px
+          of height in TrendChart. Below `lg` they stack full width, where a
+          62.5% plot would be a slot.
 
           THE HIERARCHY THE UNCARDED VERSION WON IS KEPT, and it was never about
           the cards: the VALUE is bigger than the marker's NAME. The name is a
@@ -266,8 +269,8 @@ export function MarkerDetailPage() {
           a card whose height comes from the chart beside it. The sections
           follow each other at ordinary spacing and any slack falls at the
           bottom, where slack reads as nothing at all. */}
-      <div className="mt-10 grid grid-cols-1 gap-7 lg:grid-cols-5">
-        <Card className="lg:col-span-2">
+      <div className="mt-10 grid grid-cols-1 gap-7 lg:grid-cols-8">
+        <Card className="lg:col-span-3">
           <p className="eyebrow mb-4">Latest result</p>
           {/* THE ONE EXCEPTION to "every number is mono": Fraunces at the hero
               optical size, like a headline, with the unit in mono beside it at
@@ -348,7 +351,7 @@ export function MarkerDetailPage() {
           <PreviousResults trend={detail.trend} className="mt-7" />
         </Card>
 
-        <Card className="lg:col-span-3">
+        <Card className="lg:col-span-5">
           <p className="eyebrow mb-4">Trend over time</p>
           <TrendChart
             data={detail.trend}
@@ -392,21 +395,17 @@ export function MarkerDetailPage() {
           // height was air. `default` (28px / 36px), and a 16px gap under the
           // heading.
           //
-          // The ladder inside it is 28px definition, 16px heading, 12px
-          // sub-labels, 18px answers — the FIFTH setting of it, and the one
-          // that stopped moving the heading and put the definition on top
-          // where it belongs. See MarkerExplanation.tsx for the full record;
-          // do not adjust any of the four by eye.
+          // The ladder inside it is three levels — 16px labels, a 14px
+          // Fraunces definition, 12px answers — the SIXTH setting of it and
+          // the first with only one label class in the card. See
+          // MarkerExplanation.tsx for the full record; do not adjust any of
+          // the three by eye.
+          //
+          // "What this marker means" USED TO BE TYPED HERE, in a different
+          // class from the three labels below it, which is precisely how four
+          // labels of one kind ended up in two competing tiers. It is rendered
+          // by the component now, with its three siblings, in one class.
           <Card className="card-vellum">
-            {/* Heading, then the definition as the loudest thing in the card,
-                then quiet label-and-answer pairs. Four levels, one component,
-                shared with the library — see MarkerExplanation.tsx. */}
-            {/* mb-4 (16px), and it is deliberately LESS than the 36px between
-                the label/answer pairs below. The heading and the definition are
-                ONE unit — the card's header — and the three pairs are three
-                others; a heading floating in as much air as a block boundary
-                reads as a fourth block rather than as the label on the first. */}
-            <p className="card-eyebrow mb-4">What this marker means</p>
             <MarkerExplanationBody explanation={detail.explanation} />
           </Card>
         )}

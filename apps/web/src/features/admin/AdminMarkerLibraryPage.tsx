@@ -532,7 +532,11 @@ export function AdminMarkerLibraryPage() {
   return (
       <ConsolePage
         title="Marker library"
-        purpose="Every analyte the clinic can report, and the wording a patient reads beside it. Explanation copy is not visible to any patient until somebody here has reviewed it. The review queue below is where that happens."
+        // Three sentences became one. The second and third described the review
+        // queue, which is a section on this page with its own heading and its
+        // own count — a paragraph explaining a thing that is visible two inches
+        // below it is the same thing said twice.
+        purpose="Every analyte the clinic can report, and the wording a patient reads beside it."
       >
 
       <div className="mt-10">

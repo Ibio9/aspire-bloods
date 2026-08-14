@@ -16,6 +16,12 @@ import path from 'node:path';
  * CAPACITY` crosses the low bound and the high bound in four points, which is
  * the other shape a series takes.
  *
+ * IT IS THE GLOW'S EVIDENCE TOO (Aug 2026), and it is what found both of that
+ * change's failures — a spark fainter in light than the flat disc it replaced,
+ * and a two-layer casing that ended at a visible edge down each side of the
+ * line in dark. Neither was visible in the tokens and both were obvious in the
+ * render, which is the whole argument for a before/after stage.
+ *
  * Written to `screenshots/line/`, `E2E_LINE=1`, asserts nothing — the other
  * specs make the claims, this one produces the evidence.
  */
@@ -79,7 +85,7 @@ test.describe('the status-carrying line', () => {
         }
         await page.goto(`/markers/${marker.markerId}`);
         await page.getByText('Trend over time').first().waitFor({ timeout: 30_000 });
-        // The line draws on mount and the bands fade up under it; a shot taken
+        // The line and its casing draw themselves in on mount; a shot taken
         // mid-animation is a picture of the animation.
         await page.waitForTimeout(2200);
 
@@ -89,7 +95,7 @@ test.describe('the status-carrying line', () => {
         await card.screenshot({ path: path.join(OUT, `${STAGE}-${target.slug}-${theme}.png`) });
 
         // And the plot alone, tight, because the whole question is how the line
-        // reads against the bands rather than how the card is laid out.
+        // and its points read on the card rather than how the card is laid out.
         const svg = card.locator('svg.recharts-surface').first();
         await svg.screenshot({ path: path.join(OUT, `${STAGE}-${target.slug}-${theme}-plot.png`) });
 

@@ -337,7 +337,9 @@ export function IngestionLogPage() {
          stop at all — it is released to the patient by the call that wrote it.
          What stops is a HELD one, which is what the exception queues below are
          for. */
-      purpose="Every attempt to pull a result in from Randox’s API, successful or not, and below it the two ways a delivery can go quiet: a code we cannot read, and an analyte spelling no marker answered to."
+      // The colon and everything after it described two sections of this page,
+      // both of which have their own headings and their own counts. One clause.
+      purpose="Every attempt to pull a result in from Randox’s API, successful or not."
     >
 
       {error != null ? (

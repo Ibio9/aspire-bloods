@@ -48,68 +48,69 @@ at `max-w-measure` (68ch). Tabular figures on every number without exception —
 
 **THREE LABEL CLASSES, AND A CARD MAY NOT USE ONE OF THEM TWICE.**
 `.eyebrow` is the ordinary section label (12px, medium, uppercase, tracked,
-/80). It cannot also be the HEADING of a card whose contents carry labels, and
-on the marker explanation card it was exactly that: "What this marker means" in
-`.eyebrow` above three of "If it's high" in `.eyebrow` — four peers, in which
-the one that is a heading had nothing to say so, and three repetitions of a
-treatment out-read one instance of it. So `.card-eyebrow` is the heading and
-`.sublabel` is the label half of a pair inside such a card (12px, medium, /80,
-**sentence case**). 12px is the floor of the type scale and /80 the floor of the
-opacity ladder, so what a subordinate label gives up is the SHOUT — uppercase at
-0.14em is what makes 12px loud. The weight stays at medium in all three: a thin
-12px label disappears on the dark page, and "quieter" must never become
+/80). `.card-label` is the explanation card's ONE label class — all four of its
+labels, 16px, Plex 600, sentence case, 0.01em, full tone. `.sublabel` is the
+quiet label half of a pair inside a card whose heading is elsewhere (12px,
+semibold, sentence case), which since Aug 2026 means Compare's "Common
+comparisons" and nothing else. The weight stays at medium or above in all three:
+a thin 12px label disappears on the dark page, and "quieter" must never become
 "fainter". All three carry `break-after: avoid` in `@media print`.
 
-**THE EXPLANATION CARD'S FOUR LEVELS. FIFTH SETTING, AND THE FIRST FOUR ASKED
-THE WRONG QUESTION (Aug 2026).** Each earlier attempt was a contest between the
-card's HEADING and one other thing in the card — the sub-labels three times, then
-the lead — and each ended by moving the heading: 12px → 14 → 16 → 28, with the
-lead brought DOWN to 21px to get out of its way. At which point a label was
-shouting over the sentence it labels, which is the point of the card.
+**THE EXPLANATION CARD. SIXTH SETTING, AND THE FIRST FIVE ASKED THE WRONG
+QUESTION (Aug 2026).** Every one of them was the same move: adjust the size of
+the card's HEADING against something else in the card. Five different answers —
+12px → 14 → 16 → 28 → 16, with the definition dragged down to 21px in the fourth
+to get out of the way — because the question had no answer. A heading and three
+sub-labels of the same kind, in a card that small, is a contest nothing wins.
 
-The question is not how big the label should be. It is: **THE DEFINITION IS THE
-CONTENT. IT WINS. THE REST IS STRUCTURE, AND STRUCTURE IS READ BEFORE THE
-CONTENT AND NOT INSTEAD OF IT.** Which settles all four at once, each distinct
-from the one above on more than one axis:
+**THERE IS NO HEADING. ALL FOUR LABELS ARE ONE CLASS.** "What this marker
+means", "If it's high", "If it's low", "Lifestyle context" — one size, one
+weight, one case, one tone, rendered by one component so no call site can
+disagree with the other one. That is the whole change, and it is why this
+setting is different in kind from the five before it rather than a sixth guess.
 
-    the lead      28px  Fraunces 400, opsz-section, full tone   ← the content
-    .card-eyebrow 16px  Plex 600, UPPERCASE, 0.14em, full tone
-    .sublabel     12px  Plex 600, sentence, 0.01em, full tone
-    the answers   18px  Plex 400, sentence, 0, /90
+**AND THE LADDER INVERTED WITH IT: THE LABELS LEAD.** The card is a reference
+somebody scans for the one question they have, not an essay — so the labels are
+the most prominent text in it and the prose is subordinate to them:
+
+    .card-label      16px  Plex 600, sentence, 0.01em, full tone  ← scanned
+    the definition   14px  Fraunces 400, opsz-small, full tone
+    the answers      12px  Plex 400, sentence, 0, /85
 
 Every other eyebrow in the product is 12px and stays 12px.
 
-**16px, NOT 21 AND NOT 14.** 16 is the value the THIRD attempt landed on and the
-record says it worked against the sub-labels — it was only ever overruled by a
-comparison with the lead, which no longer applies now the lead is the largest
-thing in the card. 16 against 12 is a 33% step on top of uppercase against
-sentence case. 14 is what the record already rejected (two pixels is 17%, inside
-the noise of two letter-cases), and 21px would put an uppercase tracked semibold
-label within one step of the definition, where the extra presence uppercase and
-tracking carry makes the two read as equals.
+**UPPERCASE IS THE LOAD-BEARING CHANGE, NOT THE SIZES.** Uppercase at 0.14em
+reads as loud REGARDLESS OF SIZE, which is the sentence the whole history was
+missing and is why five attempts to referee this by size alone all failed: 16px
+uppercase and tracked has the footprint and all of the shout of a 21px
+sentence-case line, so "make it smaller" bought a quieter number and the same
+volume. Drop the case and 16px IS the middle ground between the old heading
+(16px uppercase, too loud) and the old sub-labels (12px sentence, too quiet).
 
-**LEVELS 3 AND 4 WERE RUNNING BACKWARDS**, which is why they read as one flat
-level: the sub-label was 500 at /80 and its answer 400 at /90, so THE LABEL WAS
-FAINTER THAN THE TEXT IT LABELS, and the only size difference between them
-favours the answer. `.sublabel` is semibold at full tone now — the darkest and
-heaviest text in its own pair. **The answers were NOT dimmed to achieve it:**
-raising the label costs no contrast, and dimming body copy in a medical portal to
-win a typographic argument is not a trade worth making.
+⚠ **THE ANSWERS SIT AT THE FLOOR OF THE TYPE SCALE.** 12px is as small as
+anything in this product is allowed to be and body copy is not usually set
+there. It is deliberate and it is the price of the ordering above: three
+descending steps starting at 16 is 16/14/12, and the scale has nothing under 12.
+If it ever has to give, RAISE THE ANSWERS and take the labels to 18 with them,
+keeping the order. Do not open a fourth level, and do not set the four labels
+differently from each other.
 
-**AND THE SPACING WAS MEASURED AT THE WRONG THING.** The margins were 24px
-between blocks and 6px inside a pair, which reads as 4:1 in the source. What a
-reader sees includes HALF-LEADING: an 18px answer at 1.65 puts ~5.9px above its
-own first line and a 12px label ~3px below its last, so the real gaps were ~33px
-and ~15px — barely 2:1, which is exactly "a sub-label sits almost as far from its
-own answer as from the block above". 36px and 4px now, landing at ~45px against
-~13px. The heading sits 16px above the lead, deliberately LESS than a block
-boundary, because the heading and the definition are one unit.
+**THE SPACING IS MEASURED AT THE PAINT, NOT AT THE MARGIN.** Half-leading is
+part of what a reader sees: a 12px answer at 1.5 carries ~3px above its own
+first line and a 16px label ~4.8px below its last. So 36px between blocks and
+14px inside a pair land at about 28px against 6px on screen. An earlier setting
+of 24/6 read as 4:1 in the source and rendered at barely 2:1, which is exactly
+"a sub-label sits almost as far from its own answer as from the block above".
+The first label sits the same 14px above the definition as every other label
+sits above its answer, because that is what the pair is.
 
-⚠ **MEASURE BEFORE TOUCHING ANY OF THE FOUR.** It has been adjusted by eye five
+⚠ **MEASURE BEFORE TOUCHING ANY OF THE THREE.** It has been adjusted by eye five
 times and come back wrong in a new direction each time.
 `e2e/explanation-card-hierarchy.spec.ts` reads the computed size, weight,
-tracking and colour of all four off the rendered card in both themes, plus the
-painted gaps, and asserts the ORDER rather than the values.
+tracking, case and colour of all three levels off the rendered card in both
+themes, plus the painted gaps, and asserts the ORDER rather than the values —
+including that all four labels are byte-identical to each other and all three
+answers are byte-identical to each other.
 
 **AND EVERY OTHER EYEBROW WENT TO 21px FOR A DAY. DO NOT DO IT AGAIN.**
 The inverted hierarchy was real and was confined to that one card. Raising the
@@ -450,6 +451,84 @@ both significants share one.
    significantly-out thresholds dashed and lighter) each labelled with its value
    on the axis; the POINTS; and the axis with the unit above it.
 
+   **AND ALL OF IT IS LIT, AND EVERY POINT IS THE SAME WHITE SPARK (Aug
+   2026).** A point is a tight WHITE core inside a wide radial falloff,
+   identical at every status — same colour, same size, same treatment, whatever
+   the value is doing — with the most recent one brighter and slightly larger,
+   which is the only variation permitted. The line carries a faint casing of
+   light along its length, in whatever STATUS colour it is at that stretch.
+   `SPARK` in tokens.ts is the whole of it: the core radius, the halo's multiple
+   of it, the ramp, and one strength per theme.
+
+   **THE POINTS ARE WHITE AND THE LINE IS THE STATUS.** A point drawn in its own
+   state's colour is the same fact the line already carries at that exact x, and
+   it costs the point the one thing it is uniquely placed to say, which is where
+   it is. The chevrons, triangles and doubled chevrons that used to be the point
+   marks are OFF THIS CHART — see the named exception under "Non-negotiables"
+   below, which is where the reasoning lives and is the note to read before
+   putting them back.
+
+   **TWO THEMES, TWO PHENOMENA, ONE IDEA.** In dark the halo is WHITE — light
+   added to a near-black card, which reads as emission. In light a white halo on
+   a cream card measures 1.05:1, which is not a dim bloom but nothing at all, so
+   the halo there is a warm DARK and the same white core reads as the brightest
+   thing inside a soft shadow. The two alphas (0.22 dark, 0.34 light) are
+   therefore NOT comparable with each other and the old "dark carries more of
+   it" rule is retired with the colour it was about; what is asserted instead is
+   that the halo lands at the same measured presence in both rooms — 2.06:1 and
+   1.87:1 off the card.
+
+   **AND THE CORE FLIPS TO ESPRESSO IN PRINT.** The halo goes to zero on paper
+   with every other glow, and with no shape layer left on this chart a white
+   bead would then be a white dot on white paper — every point simply gone from
+   a printed trend. `--c-chart-spark-core` is espresso under `@media print`;
+   `zz-print.spec.ts` reads the painted fill off a printed point rather than
+   trusting the stylesheet.
+
+   **IT DOES NOT REOPEN "NO FILLED REGIONS".** That rule is about REGIONS OF THE
+   PLOT — bands, the optimal narrowing, the inset panel — areas of colour that
+   said where the range sits and out-read the reader's own result doing it. A
+   halo is part of the point mark, drawn at the mark and nowhere else, and one
+   has been drawn here all along: it was a flat 13px disc at 0.16, which is what
+   made it read as a dot inside a ring rather than as light. A disc of constant
+   alpha has an EDGE; a falloff cannot be written as one number.
+
+   **NO FILTER, AND THAT IS A PERFORMANCE DECISION ALREADY ON THE RECORD.**
+   `feGaussianBlur` is the obvious way to draw a glow: a filter inside a
+   Recharts SVG is re-rasterised as the tooltip moves, which is the same reason
+   the plot panel's inner shadow was two gradients rather than a filter. The
+   spark is a `radialGradient` and the casing is three wider strokes of the
+   line's own path at 0.4 / 0.7 / 1 of one alpha — painted like any other fill,
+   free per frame, and an exact falloff rather than an approximated one.
+
+   **SOLVED PER THEME, BECAUSE IT IS TWO DIFFERENT PHENOMENA.** In dark the halo
+   is LIGHT ADDED to a near-black card and reads as emission; in light the same
+   tokens are dark colours (#507e2c, #c14836) on a near-white card, so the
+   identical gradient is a soft coloured SHADOW under the point. Ink carries
+   further per unit of alpha than light does, hence roughly half the strength —
+   `core` 0.34 light / 0.58 dark, the casing 0.08 / 0.13. **The first pass
+   shipped one steeper ramp and light came out FAINTER than the flat disc it
+   replaced**, which is the one direction this was not allowed to go; the second
+   used two casing layers at a flat alpha and dark grew a visible EDGE down each
+   side of the line — a second, wider, dimmer line. Both were found by looking
+   at the render, not at the numbers (screenshots/line).
+
+   **WHAT IT MAY NOT DO.** Change a status colour — the glow is applied to
+   colours already solved at `LINE_FILL_TARGET` off the card and it changes none
+   of them. Cost the point its legibility: the pair that carries a mark is its
+   stroke against its own card-coloured INTERIOR, the halo sits behind the glyph
+   (the ramp's plateau ends exactly at the glyph's edge), and
+   `tokenContrast.test.ts` holds the point at 1.75× its own halo's separation
+   from the card and the line at 3× its casing's — the same ordering the bands
+   used to answer to. Be noticed AS an effect: if it reads as decorative it is
+   too strong. It is also OFF IN PRINT, at the token layer with the shadow
+   alphas, and `zz-print.spec.ts` reads the applied `fill-opacity` off a printed
+   point rather than trusting the stylesheet.
+
+   **THE COMPARISON CHART AND THE RANGE BARS ARE UNTOUCHED.** Neither carries a
+   status colour along a line, and a glow on a range bar's mark would be light
+   spilling across the segment boundaries the bar exists to draw.
+
    **WHY, IN ONE SENTENCE.** The bands were re-solved four times and every solve
    hit the same wall: they had to be legible enough to say where the range is
    and quiet enough that the reader's own result out-read them, and every gain
@@ -489,7 +568,14 @@ both significants share one.
    `e2e/chart-bands.spec.ts` and `e2e/status-colour.spec.ts` measure the NEW
    evidence: zero filled regions, the line's gradient stops in the token
    colours, the line's weight, the two rule weights, and the period geometry
-   read off the boundary rules rather than off band rects.
+   read off the boundary rules rather than off band rects — plus, since the
+   glow, that every point is lit at its own theme's declared strength, in its
+   own status colour, ending at nothing at the rim, with the latest brightest.
+   **Both select `.trend-line-core .recharts-line-curve` and neither may go back
+   to the bare class**: the casing is three more `.recharts-line-curve` paths
+   under the line, so a `querySelector` for the bare class silently measures the
+   outermost one — 21px, painted with the glow gradient — and goes on passing
+   about the wrong element.
 
    ---
 
@@ -635,15 +721,39 @@ both significants share one.
 5. Tooltips and legends — the status word carries the colour.
 
 **Non-negotiables.**
-- The shape-and-label layer is unchanged and still carries status on its own:
-  level mark in range, chevron out, doubled chevron significantly out, plus the
-  word. Colour is reinforcement, never the sole carrier — red and green are the
-  commonest confusion pair there is. A chart band therefore always carries a
-  boundary hairline AND its bounds stated in figures on the axis; every POINT
-  state is named in words in the key and in the tooltip. (Until Aug 2026 the
-  bands themselves had key entries; the axis labels replaced them, which is more
+- The shape-and-label layer carries status on its own everywhere except the
+  trend chart's own points (see the exception below): level mark in range,
+  chevron out, doubled chevron significantly out, plus the word. Colour is
+  reinforcement, never the sole carrier — red and green are the commonest
+  confusion pair there is. A chart band therefore always carries a boundary
+  hairline AND its bounds stated in figures on the axis; every POINT state is
+  named in words in the key and in the tooltip. (Until Aug 2026 the bands
+  themselves had key entries; the axis labels replaced them, which is more
   specific and equally greyscale-legible. What may never happen is a band with
   neither.)
+- ⚠ **THE ONE NAMED EXCEPTION: THE TREND CHART'S POINTS ARE UNIFORM WHITE
+  SPARKS (Aug 2026). DO NOT PUT THE SHAPES BACK.** Every point on the
+  single-marker trend chart is the same white bead inside the same soft
+  falloff — no chevrons, no doubled chevrons, no per-status colour, no
+  variation of any kind except the most recent point being brighter and
+  slightly larger. Three kinds of mark on one line is noise, and it was noise
+  saying what the line already says in colour along its own length at that
+  exact x.
+  **WHAT MAKES THIS SAFE, and it is not "colour is enough":** the chart has a
+  second non-colour carrier no other surface has — every point's POSITION
+  against four labelled boundary rules, each drawn across the plot and printed
+  with its own value on the axis. A reader who cannot separate the green
+  stretch of line from the red one still sees which side of the reference bound
+  each point falls on, which is more specific than a chevron and survives
+  greyscale and a printed page in full. The status is still named IN WORDS on
+  every point in the tooltip and in the key, and the key's swatches are
+  stretches of LINE in each state's colour — the mark the chart actually draws,
+  never a coloured rectangle.
+  **THE EXCEPTION IS THE CHART'S POINTS AND NOTHING ELSE.** Result cards, range
+  bars, the counts strip, the status words, the badges and both PDFs keep the
+  shape layer exactly as it is. `e2e/status-colour.spec.ts` asserts the plot
+  draws zero `<polygon>`s and exactly ONE spark gradient, so both halves of
+  this come back as a test failure rather than as a review comment.
 - Surfaces and marks, not body copy. A tinted card keeps its taupe border,
   espresso text and ordinary shadow. The one text that takes a status colour is
   the status word itself. No warning icons, no pulsing.
@@ -1763,72 +1873,144 @@ sensitivities and the genetic panel on one side only — with "never reported"
 clamped to 0 to stop it printing a negative. Two populations under one heading,
 and the clamp hiding it.
 
-# The clinician console: nine screens, two bands, one landing page (Aug 2026)
+# The clinician console: FIVE screens, and far less prose (Aug 2026)
 
-**THE ROUTE LIST, AFTER.** `/` (work queue) · `/admin` (reports) ·
-`/admin/reports/:id` · `/admin/analytics` · `/admin/patients` ·
-`/admin/patients/:id` · `/admin/linking` · `/admin/panels` · `/admin/markers` ·
-`/admin/ingestion-log` · `/admin/audit-log`, plus two redirects
-(`/admin/queue` → `/`, `/admin/content` → `/admin/panels`).
+**THE ROUTE LIST, AFTER.** `/` (Overview) · `/admin` (Reports) ·
+`/admin/reports/:id` · `/admin/patients` · `/admin/patients/:id` ·
+`/admin/analytics` · `/admin/settings`. Seven routes, of which two are detail
+pages, plus **seven redirects**: `/admin/queue` → `/`, `/admin/linking` →
+`/admin#unmatched`, and `/admin/panels`, `/admin/content`, `/admin/markers`,
+`/admin/ingestion-log`, `/admin/audit-log` → the matching `#hash` on
+`/admin/settings`.
 
-**WHAT WAS REMOVED: THE CONSOLE LANDING SCREEN.** `AdminDashboard` answered
-"what is waiting for you", which is word for word what the work queue answers
-and answers better — sorted by how long each report has waited, with the
-exception counts, the turnaround figures and the backup state above it. Two
-screens, one question, and the one an admin landed on was the weaker. `/` renders
-the WORK QUEUE now, so the daily screen is the landing screen. Its three unique
-pieces were re-homed rather than dropped: **erasure requests** onto the queue (an
-outstanding decision with a clock on it, which is what every other band there
-is), the **demo-seed diagnostic** onto the ingestion log (the other "what has
-this deployment actually done" screen), and **"Recently viewed" deleted** — it
-duplicated ⌘K, which is faster and is on every screen.
+**IT WAS ELEVEN ROUTES AND NINE SIDEBAR ITEMS.** Nine peers in a navigation is
+an index rather than a navigation, and six of the nine were screens a practice
+opens a few times a year — so the three opened every day were outnumbered two to
+one. The previous pass tried to fix that with two BAND HEADINGS ("Every day",
+"Records & setup") and a one-line hint under each label. Both are gone with the
+four entries they existed to manage: a list of five needs no headings, and a
+label that needs a sublabel to be understood needs rewriting.
 
-**THE NAVIGATION IS TWO BANDS.** *Every day* (Work queue, Reports, Patients) and
-*Records & setup* (Analytics, Result linking, Panels, Marker library, Ingestion
-log, Audit log). Nine peers is an index, not a navigation: the three screens a
-clinician opens every day sat in a flat list with six they open a few times a
-year and nothing said which was which. The split is by HOW OFTEN, because that
-is what a reader filters on. Collapsed, a band heading becomes a rule — six
-characters of tracked uppercase do not fit a 76px rail — and the `aria-label` on
-the `<section>` carries it either way. A band whose every item is admin-only
-disappears entirely for a clinician rather than leaving a heading over nothing.
+**THE FIVE, AND WHAT EACH ABSORBED:**
 
-**EVERY SCREEN SAYS WHAT IT IS FOR, IN ONE LINE, AT THE TOP.** `ConsolePage`,
-and `purpose` is a REQUIRED prop — seven of the nine screens had a noun and a
-table and nothing else, so the only way to find out what a screen was for was to
-read the table and infer it. A good purpose line names the DECISION the screen
-supports, not its contents.
+    Overview   `/`. What needs doing, then the analytics headlines. Replaced
+               the work queue, which replaced the console landing page.
+    Reports    every report, and — as a section at its foot — the results
+               nobody could place, absorbed from `/admin/linking`.
+    Patients   its own item on purpose: daily clinical work rather than
+               configuration, and what somebody reaches for when a patient
+               rings.
+    Analytics  the full set, windowed.
+    Settings   one page, five disclosures: Edit packages, Marker library,
+               Ingestion log, Audit log, Backup status.
 
-**A DETAIL PAGE KEEPS ITS SECTION LIT.** `/admin/reports/:id` and
-`/admin/patients/:id` are where a clinician spends the most time and NOTHING in
-the sidebar was active on either. `ALSO_ACTIVE_ON` is a prefix list per item,
-rather than loosening `end` on `/admin`, which would light Reports everywhere.
+**OVERVIEW IS TWO SECTIONS AND NOTHING ELSE.** *What needs doing* — everything
+waiting on a person, oldest first, one list rather than three, every row a link
+to the place the work is done. Then *Analytics*, three figures (released, median
+turnaround, out-of-range per 1,000 over 30 days), each linked through. The four
+bands that came off the work queue each moved somewhere they belong rather than
+being deleted: the backup state to Settings (it is a thing you check, not a row
+you clear), the turnaround figures to Analytics (a figure over a window belongs
+with the other figures over that window), and the BUCKET SUMMARY nowhere at all,
+because it was a second arrangement of the list directly beneath it.
 
-**THE AMBIGUOUS CONTROLS THAT WERE FOUND, and the worst was two buttons in one
-row.** "Publish" and "Release to patient" sat side by side on a reviewed report,
-both filled, and nothing said which was which — they are not the same act, since
-Publish is the ADMIN shortcut PAST the clinician gate. It is now HIDDEN once a
-report has been reviewed (there is nothing left to skip) and where it does appear
-it reads **"Release without clinician review"**. Also: "Approve" →
-**"Mark as reviewed"** (it does not release, and "approve" reads as though it
-does); "Parse PDF" → **"Read results from the PDF"** ("parse" is what the code
-calls it); "Filter" → "Apply these filters"; "Remove" → "Remove from this panel";
-"Dismiss" → "Dismiss this result"; "Unlink" → "Unlink from this patient";
-"Reactivate" → "Reactivate this marker/panel"; "Reset 2FA" → "Reset two-factor
-authentication"; "Upload"/"Save entry" → "Upload this PDF"/"Save this report".
-Destructive actions already used the `destructive` variant and still do.
+**REPORTS ABSORBED RESULT LINKING BECAUSE AN UNMATCHED RESULT IS A REPORT.** A
+separate screen for one class of report meant two places to look for the same
+thing, and the second was normally empty — automatic linking means an admin
+checking it daily finds nothing almost every day, which is how a screen stops
+being checked at all. It is `#unmatched` at the foot of Reports, ADMIN only as
+the route was, and the Overview's own row links straight to that anchor.
 
-**A HINT THAT IS CUT OFF IS WORSE THAN NO HINT.** The sidebar sublabel carries
-`truncate` and has about 33 characters at 272px; four of the new ones ran past
-it. The hints are written to fit. The LABEL is still never truncated.
+**SETTINGS MOUNTS THE OLD PAGES UNCHANGED.** `ConsoleSection` (ConsolePage.tsx)
+is a context that tells `ConsolePage` to render its children without a heading
+or a purpose line, so each section is the component that used to be the page,
+mounted as it is. A context rather than an `embedded` prop because the wrapper
+appears in three branches of most of those files (loading, error, real) and a
+prop would be forgotten in whichever branch nobody looks at. Each section's
+component is behind `lazyPage` INSIDE SettingsPage, so the four chunks are still
+four chunks, fetched when a disclosure opens — importing all five eagerly there
+would undo four lazy boundaries at once and be invisible in the entry size.
+**"Edit packages", not "Panels"**: the clinic sells packages; panel is the
+laboratory's word and the schema's.
 
-# The clinician work queue (Aug 2026)
+**A REDIRECT INTO SETTINGS CARRIES A HASH AND THE SECTION OPENS ITSELF.**
+Landing somebody on a page of shut disclosures answers "where is the audit log"
+with "somewhere under one of these". `admin-route-console.spec.ts` asserts the
+URL AND `aria-expanded` on the disclosure, because the URL half passes on its
+own with the door shut.
 
-`/admin/queue`. What is waiting and what is stuck: the buckets with a count and
-the oldest item in each, every open report sorted by time in its current state
-longest first, arrival-to-release median and worst over 30 days, and **the
-exception queue leading the page** — with the verification stage gone it is the
-only thing between a bad parse and a clinician's screen, and it was invisible.
+**THE COMMAND PALETTE OUTLIVES THE SIDEBAR ENTRIES.** All five screens plus the
+five things that stopped being screens, each pointing at its own anchor. That is
+the argument for a palette existing: a destination not worth a permanent
+navigation entry is still worth being able to type the name of. The `hint` stays
+there — it is what tells "Audit log" from "Ingestion log" in a list of search
+results, where there is room for it and no truncation.
+
+## And the prose was cut hard
+
+**THE TARGET IS A LIMIT, NOT A STYLE NOTE: no console screen carries more than
+ONE SENTENCE of prose above the data.** Everything else is the data.
+
+- **`purpose` IS OPTIONAL NOW.** Reports carried 46 words describing a list of
+  reports, above a list of reports, on the screen a clinician opens every day —
+  and it is one of five that were two or three sentences. A purpose line is read
+  on the first day and is in the way on every day after it. Reports, Overview
+  and Settings carry none at all; the rest carry one clause naming the DECISION
+  the screen supports.
+- **THE ANALYTICS NOTES ARE BEHIND ONE AFFORDANCE.** Eighteen figures each
+  carried a sentence and seven bands each carried a paragraph — roughly 25
+  explanations on one screen, including three sentences on what a median is.
+  None of it is deleted: all of it is in `DEFINITIONS` in AnalyticsPage.tsx,
+  behind a closed "How to read these figures" disclosure at the top. The
+  reasoning for those sentences was always right — "42" under "Reports" is a
+  number nobody can check — and what was wrong was the placement.
+- **SIDEBAR HINTS ARE GONE ENTIRELY.** They also said what the screen says: the
+  work queue's hint read "What is waiting, oldest first" above a screen headed
+  "What needs doing" above a purpose line saying it a third time. **Say a thing
+  once.**
+
+**THE UNIT SITS AGAINST ITS NUMBER.** `36 h ago` was set with an ordinary space,
+which at the 2xl step is about 9px of nothing between a figure and the letter
+that gives it meaning — three things rather than one measurement. U+202F NARROW
+NO-BREAK SPACE now, about a third the width and unable to leave "36" at the end
+of a line with "h" at the start of the next. Every duration in the console goes
+through `formatDuration` in workQueueData.ts or the one in AnalyticsPage.tsx,
+both of which use the `UNIT` constant. ⚠ It is written as `' '` and never
+as the literal character: ESLint's `no-irregular-whitespace` refuses one in
+source, rightly — a whitespace character nobody can see is one nobody can
+review.
+
+## Analytics: what was added, and the two rules that did not move
+
+**MARKERS OUT OF RANGE, BY PACKAGE** is the new breakdown. "Ferritin is our
+commonest out-of-range result" is interesting; "Ferritin is our commonest
+out-of-range result on Signature" is something the owner of the catalogue can
+act on, because a package is a thing they choose the contents of. Grouped by
+(marker, report) in the database and folded onto the package in node, because
+Prisma's `groupBy` cannot reach through a relation — the row count is bounded by
+the number of OUT-OF-RANGE results rather than by all results, which is the
+status filter doing roughly an order of magnitude of work and is what keeps this
+off the "pull tens of thousands of rows into node" list. A report released
+inside the window but received before it is fetched rather than dropped.
+
+**SUPPRESSION BITES HARDER ON IT, and that is correct rather than unfortunate.**
+Splitting a count across the packages it came from makes every cell smaller, so
+more fall under the threshold — and a (package, marker) cell of 2 points at one
+person more sharply than a marker total of 2, because the package narrows it
+further. The withheld rows are stated, as everywhere else.
+
+**NO PRICES AND NO REVENUE, in the console as in the portal.** `stripPricing()`
+deletes Randox's `cost` and `currency` at the transport boundary and nothing
+here reintroduces them. **Nothing new is tracked**, aggregate only, small cells
+suppressed and stated, CSV is a rendering of the same object from one service
+call, and both the view and the export are audited as distinct actions.
+
+# The clinician work queue → Overview (Aug 2026)
+
+`/` renders Overview; `/admin/queue` redirects to it. What survives from the
+work queue is the LIST — everything waiting on a person, sorted by time in its
+current state, longest first, with each held report's own reasons printed under
+it rather than a count of them.
 
 **Nothing here is new tracking, and that is a constraint.** Every figure comes
 from the report's own columns (`receivedDate`, `heldAt`, `reviewedAt`,
@@ -2187,7 +2369,7 @@ it. `sourceLabel` is imported by `patients/service.ts` and `reports/service.ts`
 only (both ADMIN read models), and `sourceAttribution.test.ts` pins that list,
 pins the handover's row and pins its absence from the patient PDF.
 
-# The marker page: two cards, 40/60, then everything else (Aug 2026)
+# The marker page: two cards, 37.5/62.5, then everything else (Aug 2026)
 
 **THE STATUS IS THE SECOND THING ON THE PAGE (Aug 2026).** It was a 14px label —
 the same one a card in a grid of forty gets — in a row of small print between the
@@ -2206,15 +2388,24 @@ the optimal figures line (the card further down says it in a sentence WITH its
 published source, which is the form advisory guidance belongs in); and "Analysed
 by Randox Health".
 
-**THE CHART IS 28rem AT lg, UP FROM 22.** That budget was given back by the left
-card losing three lines and the header losing the standfirst. Measured at
-1440 × 900: the pair is 380×625 + 584×625 and ends at **790 of 900** with the
-page header above it. 30rem ends at 876, which fits and leaves no room for a
-longer marker name. **`e2e/marker-pair-fit.spec.ts` measures it in both themes**
-— that file is NEW, because TrendChart's comment had cited a spec for this figure
-through three different heights and the file it named did not exist. A number
-protected by a comment pointing at nothing reads as covered and is worse than an
-uncovered number that admits it.
+**THE CHART IS 24rem AT lg AND THE CARD TAKES 62.5% OF THE ROW (Aug 2026).** It
+went 30rem → 22 → 28 by adding and removing HEIGHT alone, which is the axis that
+was already wrong: at 28rem in a 60% card the plot was about 490 × 432, which is
+very nearly square, and a trend read in a square is a trend read at 45° where
+every movement looks like a cliff.
+
+Both dimensions move a little, in opposite directions. The grid is **eight
+columns split three and five** (it was five split two and three) and the plot
+loses 64px. The inner plot goes from about 490 × 432 to 514 × 368 — from 1.13:1
+to **1.40:1**, a landscape chart rather than a squat one, on 2.5% of width and
+14% of height. The LEFT card now sets the row height, which is the right way
+round: its content is fixed and the plot's is elastic.
+
+**`e2e/marker-pair-fit.spec.ts` measures the pair at 1440 × 900 in both themes**
+— that file is NEW, because TrendChart's comment had cited a spec for this
+figure through three different heights and the file it named did not exist. A
+number protected by a comment pointing at nothing reads as covered and is worse
+than an uncovered number that admits it.
 
 
 **LATEST RESULT and TREND OVER TIME are one row of two cards**, with PREVIOUS
@@ -2277,12 +2468,13 @@ below each card's last element and holds it at its own bottom padding.
 `padding="roomy"` is 48px on every side at sm+, on a card whose content is a
 label, a sentence and three short label/answer pairs — that plus a 32px gap
 under the heading was roughly 130px of air. It takes the ORDINARY card padding
-(28px / 36px), a 20px gap under the heading, and 24px between blocks instead of
-28. **The four-level ladder inside it is UNTOUCHED** — 28px heading, 21px lead,
-18px answers, 12px sub-labels — because that ladder took four attempts to get
-right and none of the complaints were about it. What changed is the space
-around it. The block ratio (four to one between blocks and within a pair) is
-what does the grouping and is unchanged; only the absolute figures moved.
+(28px / 36px) and 36px between blocks. **The ladder inside it is a separate
+decision from the padding around it** and has since been rebuilt to three
+levels — 16px labels, a 14px Fraunces definition, 12px answers (see "THE
+EXPLANATION CARD" near the top of this file). What this note settles is the
+card's own padding, and that is unchanged by the rebuild. The block ratio
+(roughly four to one between blocks and within a pair, measured at the PAINTED
+gap) is what does the grouping.
 
 # Vellum: the second surface register (Aug 2026)
 
@@ -2681,8 +2873,16 @@ hit-tested.
   handover used to sit below the other two behind its own rule with four lines of
   explanation under it — "one page, take it to your GP", which is what the button
   already says. Both the rule and the paragraph were doing the LABEL's job:
-  "Summary for your doctor (PDF)" is unambiguous about whose document it is.
+  "Summary for your doctor" is unambiguous about whose document it is.
   Hierarchy is the button variants, not a divider.
+  **AND "(PDF)" CAME OFF ALL THREE.** Three buttons on one row each ending in
+  the same parenthesis is the format stated three times and distinguishing
+  none of them — 42 characters of the row spent saying one thing. It is said
+  ONCE, in an eyebrow above the row, where it is a property of the group. With
+  it gone and the labels cut to their subjects (**Aspire summary · Original lab
+  report · Summary for your doctor**) the three fit one line from `lg` up.
+  **`flex-col lg:flex-row`, NEVER `flex-wrap`** — wrapping is what put them on
+  two ragged lines at desktop widths, and a row that CAN wrap eventually will.
 - **THE GP HANDOVER PDF CARRIES NOTHING INTERPRETIVE.** One page, on the
   Documents page, clearly labelled as being for a doctor: name, date of birth,
   sample date, and every marker outside its reference range with the range and

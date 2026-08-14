@@ -45,13 +45,15 @@ const AdminShell = lazyPage(() => import('./components/nav/AdminShell'), 'AdminS
 const AdminReportsPage = lazyPage(() => import('./features/admin/AdminReportsPage'), 'AdminReportsPage');
 const AdminReportDetailPage = lazyPage(() => import('./features/admin/ReportDetailPage'), 'ReportDetailPage');
 const PatientsListPage = lazyPage(() => import('./features/admin/PatientsListPage'), 'PatientsListPage');
-const LinkingPage = lazyPage(() => import('./features/admin/LinkingPage'), 'LinkingPage');
 const PatientDetailPage = lazyPage(() => import('./features/admin/PatientDetailPage'), 'PatientDetailPage');
-const AuditLogPage = lazyPage(() => import('./features/admin/AuditLogPage'), 'AuditLogPage');
-const IngestionLogPage = lazyPage(() => import('./features/admin/IngestionLogPage'), 'IngestionLogPage');
-const PanelsPage = lazyPage(() => import('./features/admin/PanelsPage'), 'PanelsPage');
-const AdminMarkerLibraryPage = lazyPage(() => import('./features/admin/AdminMarkerLibraryPage'), 'AdminMarkerLibraryPage');
 const AdminAnalyticsPage = lazyPage(() => import('./features/admin/AnalyticsPage'), 'AnalyticsPage');
+/**
+ * Settings is one route holding five sections, and each section's component is
+ * lazily imported INSIDE it — see SettingsPage. So the audit log, the ingestion
+ * log, the package editor and the marker library are still four chunks of their
+ * own, fetched when a disclosure opens; they simply no longer have routes.
+ */
+const SettingsPage = lazyPage(() => import('./features/admin/SettingsPage'), 'SettingsPage');
 
 const PatientOverview = lazyPage(() => import('./features/patient/PatientOverview'), 'PatientOverview');
 const ResultsPage = lazyPage(() => import('./features/patient/ResultsPage'), 'ResultsPage');
@@ -217,40 +219,30 @@ export default function App() {
                 }
               >
                 <Route path="/admin" element={page(<AdminReportsPage />)} />
-                {/* The work queue IS the console now — it is what "/" renders
-                    (see HomeRouter). This path is in bookmarks and in the
-                    sidebar of every build so far, so it redirects rather than
-                    404ing, exactly as /admin/content does. */}
-                <Route path="/admin/queue" element={<Navigate to="/" replace />} />
                 <Route path="/admin/analytics" element={page(<AdminAnalyticsPage />)} />
                 <Route path="/admin/reports/:id" element={page(<AdminReportDetailPage />)} />
                 <Route path="/admin/patients" element={page(<PatientsListPage />)} />
                 <Route path="/admin/patients/:id" element={page(<PatientDetailPage />)} />
-                <Route path="/admin/panels" element={page(<PanelsPage />)} />
-                <Route path="/admin/markers" element={page(<AdminMarkerLibraryPage />)} />
-                {/* "Panels & content" split in two: panel configuration, and
-                    the marker library that holds the analyte catalogue, the
-                    explanation review queue, the explanation editor and the
-                    patient-facing copy blocks. The old path is kept as a
-                    redirect rather than a 404 — it is in browser histories and
-                    in at least one server-side error message. */}
-                <Route path="/admin/content" element={<Navigate to="/admin/panels" replace />} />
-              </Route>
-              {/* Audit log is ADMIN-only (not CLINICIAN) — kept as its own guarded route rather
-                  than loosening the shell group above. */}
-              <Route
-                element={
-                  <RoleProtectedRoute roles={['ADMIN']}>
-                    {page(<AdminShell />)}
-                  </RoleProtectedRoute>
-                }
-              >
-                <Route path="/admin/audit-log" element={page(<AuditLogPage />)} />
-                <Route path="/admin/ingestion-log" element={page(<IngestionLogPage />)} />
-                {/* Deciding whose results these are is a records action, and
-                    the one the practice most wants a single accountable
-                    identity attached to — ADMIN only, like the audit log. */}
-                <Route path="/admin/linking" element={page(<LinkingPage />)} />
+                {/* ═══ FIVE SCREENS (Aug 2026) ═══════════════════════════════
+                    Overview · Reports · Patients · Analytics · Settings. Six
+                    routes closed and every one of them redirects rather than
+                    404ing: all six are in bookmarks, several are in browser
+                    histories and at least one is in a server-side error
+                    message. A redirect into Settings carries a HASH, and the
+                    matching disclosure opens itself — landing somebody on a
+                    page of shut sections answers "where is the audit log" with
+                    "somewhere under one of these".
+
+                    `/admin/linking` goes to the Reports section that absorbed
+                    it; `/admin/queue` to the Overview that replaced it. */}
+                <Route path="/admin/settings" element={page(<SettingsPage />)} />
+                <Route path="/admin/queue" element={<Navigate to="/" replace />} />
+                <Route path="/admin/linking" element={<Navigate to="/admin#unmatched" replace />} />
+                <Route path="/admin/panels" element={<Navigate to="/admin/settings#packages" replace />} />
+                <Route path="/admin/content" element={<Navigate to="/admin/settings#packages" replace />} />
+                <Route path="/admin/markers" element={<Navigate to="/admin/settings#markers" replace />} />
+                <Route path="/admin/ingestion-log" element={<Navigate to="/admin/settings#ingestion-log" replace />} />
+                <Route path="/admin/audit-log" element={<Navigate to="/admin/settings#audit-log" replace />} />
               </Route>
 
               {/* Dev-only design system review — tree-shaken out of production builds entirely, not just hidden. */}

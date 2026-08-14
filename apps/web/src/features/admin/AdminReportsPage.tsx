@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { formatDate } from '@aspire-bloods/shared';
 import { Card } from '../../components/ui/Card';
@@ -9,7 +9,18 @@ import { ErrorState } from '../../components/ui/ErrorState';
 import { FileDropzone } from '../../components/ui/FileDropzone';
 import { DateField } from '../../components/ui/DateField';
 import { Tabs } from '../../components/ui/Tabs';
-import { ConsolePage } from './ConsolePage';
+import { ConsolePage, ConsoleSection } from './ConsolePage';
+import { useAuth } from '../../lib/AuthContext';
+import { lazyPage } from '../../lib/lazyPage';
+
+/**
+ * The absorbed result-linking screen, LAZILY. It is a 680-line screen behind an
+ * ADMIN check, at the foot of the page a clinician opens every day — a static
+ * import would put all of it in the Reports chunk for everybody, including the
+ * clinicians who can never see the section. Same reasoning as SettingsPage's
+ * four sections.
+ */
+const LinkingPage = lazyPage(() => import('./LinkingPage'), 'LinkingPage');
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { apiFetch, ApiError, extractErrorMessage } from '../../lib/api';
@@ -54,7 +65,7 @@ function PanelSummary({ panel }: { panel: PanelOption }) {
 function ConfigureLink({ what }: { what: 'panels' | 'markers' | 'sources' }) {
   // Sources have no screen of their own (they are seeded, and added over the
   // API); panels and markers each land on the page that actually creates them.
-  const destination = what === 'panels' ? { to: '/admin/panels', label: 'add one under Panels' } : { to: '/admin/markers', label: 'add one in the Marker library' };
+  const destination = what === 'panels' ? { to: '/admin/settings#packages', label: 'add one under Edit packages' } : { to: '/admin/settings#markers', label: 'add one in the Marker library' };
   return (
     <>
       No {what} configured yet.{' '}
@@ -386,7 +397,7 @@ function ManualEntryForm({
         {markers.length === 0 && (
           <p className="text-sm text-espresso/80">
             No markers configured yet.{' '}
-            <Link to="/admin/markers" className="underline underline-offset-2">add one</Link> in the Marker library before entering results.
+            <Link to="/admin/settings#markers" className="underline underline-offset-2">add one</Link> in the Marker library before entering results.
           </p>
         )}
 
@@ -519,6 +530,7 @@ function sortReports(reports: ReportRow[]): ReportRow[] {
 }
 
 export function AdminReportsPage() {
+  const { user } = useAuth();
   const [patients, setPatients] = useState<PatientOption[]>([]);
   const [panels, setPanels] = useState<PanelOption[]>([]);
   const [sources, setSources] = useState<SourceOption[]>([]);
@@ -619,10 +631,16 @@ export function AdminReportsPage() {
   }
 
   return (
-    <ConsolePage
-      title="Reports"
-      purpose="Every report the practice holds, newest first: open one to review it, release it to the patient, or correct a value. Adding a report by hand is at the foot of the page. Results from Randox arrive on their own."
-    >
+    // ── THE PURPOSE LINE IS GONE (Aug 2026) ───────────────────────────────
+    // It read: "Every report the practice holds, newest first: open one to
+    // review it, release it to the patient, or correct a value. Adding a report
+    // by hand is at the foot of the page. Results from Randox arrive on their
+    // own." Forty-six words describing a list of reports, above a list of
+    // reports, on the screen a clinician opens every day. The first sentence
+    // says what the table shows; the second is a note about where a control is,
+    // which is the disclosure's own label's job; the third is a fact about the
+    // integration that belongs nowhere near here. The title is "Reports".
+    <ConsolePage title="Reports">
 
       {/* ═══ THE LIST LEADS. ENTRY IS BELOW IT (Aug 2026) ═══════════════════
           This page opened on two full screens of data-entry form — a patient
@@ -845,6 +863,30 @@ export function AdminReportsPage() {
           />
         </div>
       </details>
+
+      {/* ═══ RESULTS NOBODY COULD PLACE — ABSORBED FROM /admin/linking ══════
+          A report that could not be matched to a patient is a REPORT, and it
+          was on a screen of its own with its own sidebar entry. Two places to
+          look for the same class of thing, and the second one is normally empty
+          — automatic linking means an admin who checked it daily would find
+          nothing almost every day, which is how a screen stops being checked at
+          all. It is a section here, at the foot of the list it belongs to, and
+          the linking action happens in it exactly as it did.
+
+          ADMIN only, as the route was: deciding whose results these are is the
+          records action the practice most wants one accountable name against.
+
+          The `#unmatched` anchor is what the Overview's own row links to. */}
+      {user?.role === 'ADMIN' && (
+        <section id="unmatched" className="mt-16 border-t border-taupe pt-10">
+          <p className="eyebrow mb-4">Results nobody could place</p>
+          <Suspense fallback={<Skeleton className="h-24 w-full" />}>
+            <ConsoleSection>
+              <LinkingPage />
+            </ConsoleSection>
+          </Suspense>
+        </section>
+      )}
     </ConsolePage>
   );
 }

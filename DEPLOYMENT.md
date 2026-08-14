@@ -414,8 +414,11 @@ cannot upload; admin is more than it needs.
 
 1. Cloudflare → R2 → the bucket. There is an object named
    `aspire-bloods-<timestamp>.sql.gz` and the bucket is no longer 0 B.
-2. The portal → **Clinician console → Work queue**. The first band reads
-   **"under an hour ago — last successful backup"**.
+2. The portal → **Clinician console → Settings → Backup status** (open by
+   default, at the foot of the page). It reads **"under an hour ago — last
+   successful backup"**. It used to lead the Work queue; the console became five
+   screens in Aug 2026 and a backup is something you check rather than a row you
+   clear, so it moved to Settings and `/admin/queue` now redirects to Overview.
 3. Run the restore drill below against that object. Until it has been restored
    once, it is a file, not a backup.
 

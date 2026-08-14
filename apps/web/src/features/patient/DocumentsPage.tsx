@@ -183,31 +183,47 @@ export function DocumentsPage() {
                     rather than by a divider. The Aspire summary is the document
                     this page exists for and takes the primary fill; the
                     laboratory's own PDF is the raw article; the handover is for
-                    somebody else entirely. `flex-wrap` so a phone stacks them
-                    rather than clipping the third. */}
-                <div className="mt-6 flex flex-wrap gap-3 border-t border-taupe pt-5">
-                  <Button
-                    loading={downloading?.reportId === doc.reportId && downloading.kind === 'summary-pdf-link'}
-                    onClick={() => void download(doc, 'summary-pdf-link')}
-                  >
-                    Aspire summary (PDF)
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    disabled={!doc.hasOriginalPdf}
-                    disabledReason="These results were entered by the clinical team, so there’s no original laboratory PDF."
-                    loading={downloading?.reportId === doc.reportId && downloading.kind === 'original-pdf-link'}
-                    onClick={() => void download(doc, 'original-pdf-link')}
-                  >
-                    Original laboratory report (PDF)
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    loading={downloading?.reportId === doc.reportId && downloading.kind === 'gp-handover-pdf'}
-                    onClick={() => void downloadHandover(doc)}
-                  >
-                    Summary for your doctor (PDF)
-                  </Button>
+                    somebody else entirely.
+
+                    ── AND "(PDF)" CAME OFF ALL THREE (Aug 2026) ──────────────
+                    Three buttons on one row, each ending in the same
+                    parenthesis, is the format stated three times and
+                    distinguishing none of them — and it was 42 characters of
+                    the row spent saying one thing. It is said ONCE, in the
+                    label above the row, where it is a property of the group.
+                    With it gone and the labels cut to their subjects
+                    ("Original lab report", not "Original laboratory report")
+                    the three fit one line from `lg` up; below that they stack,
+                    which is `flex-col lg:flex-row` rather than `flex-wrap` —
+                    wrapping is what put them on two ragged lines at desktop
+                    widths, and a row that CAN wrap will. `items-start` so a
+                    stacked button is its own width rather than full-bleed. */}
+                <div className="mt-6 border-t border-taupe pt-5">
+                  <p className="eyebrow mb-3">Download as PDF</p>
+                  <div className="flex flex-col items-start gap-3 lg:flex-row lg:items-center">
+                    <Button
+                      loading={downloading?.reportId === doc.reportId && downloading.kind === 'summary-pdf-link'}
+                      onClick={() => void download(doc, 'summary-pdf-link')}
+                    >
+                      Aspire summary
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      disabled={!doc.hasOriginalPdf}
+                      disabledReason="These results were entered by the clinical team, so there’s no original laboratory PDF."
+                      loading={downloading?.reportId === doc.reportId && downloading.kind === 'original-pdf-link'}
+                      onClick={() => void download(doc, 'original-pdf-link')}
+                    >
+                      Original lab report
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      loading={downloading?.reportId === doc.reportId && downloading.kind === 'gp-handover-pdf'}
+                      onClick={() => void downloadHandover(doc)}
+                    >
+                      Summary for your doctor
+                    </Button>
+                  </div>
                 </div>
               </Card>
               </Reveal>

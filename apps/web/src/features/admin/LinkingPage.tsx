@@ -12,9 +12,21 @@ import { useToast } from '../../components/ui/Toast';
 import { apiFetch } from '../../lib/api';
 import { ConsolePage } from './ConsolePage';
 
-/** One line, at the top, saying what a clinician comes here to do. */
-const LINKING_PURPOSE =
-  'Results that arrived and could not be attached to a patient, with the reason each one stopped. In normal running this page is empty: linking is automatic, and what lands here is what it refused to guess at.';
+/**
+ * ── NO PURPOSE LINE (Aug 2026) ────────────────────────────────────────────
+ *
+ * It read: "Results that arrived and could not be attached to a patient, with
+ * the reason each one stopped. In normal running this page is empty: linking is
+ * automatic, and what lands here is what it refused to guess at." Both
+ * sentences are true and neither is needed any more — this is a SECTION of
+ * Reports now, under the heading "Results nobody could place", which says the
+ * first sentence in five words. The second was a reassurance about an empty
+ * screen, and an empty section makes that point by being empty.
+ *
+ * The constant stays rather than being deleted at both call sites, so the two
+ * branches below cannot drift apart; `purpose` is optional on ConsolePage.
+ */
+const LINKING_PURPOSE = undefined;
 
 interface Agreement {
   dob: boolean;

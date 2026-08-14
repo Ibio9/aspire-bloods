@@ -17,14 +17,32 @@ interface StaticDestination {
   hint: string;
 }
 
+/**
+ * ── THE PALETTE OUTLIVES THE SIDEBAR ENTRIES (Aug 2026) ────────────────────
+ *
+ * The console is five screens now, and four things that used to be screens are
+ * sections of two of them. Those four stay HERE, pointing at their section's
+ * own anchor, and that is the whole argument for a command palette: a thing
+ * that is not worth a permanent navigation entry is still worth being able to
+ * type the name of. Somebody who knows the audit log exists gets there in three
+ * keystrokes without knowing it lives under Settings.
+ *
+ * The `hint` stays here too, unlike in the sidebar — it is what tells "Audit
+ * log" from "Ingestion log" in a list of search results, where there is room
+ * for it and no truncation.
+ */
 const DESTINATIONS: StaticDestination[] = [
-  { label: 'Reports & entry', to: '/admin', hint: 'Upload PDFs, enter results, verify and release' },
+  { label: 'Overview', to: '/', hint: 'What needs doing, and the headline figures' },
+  { label: 'Reports', to: '/admin', hint: 'Every report: open one to review, release or correct' },
   { label: 'Patients', to: '/admin/patients', hint: 'Search and manage patient accounts' },
-  { label: 'Result linking', to: '/admin/linking', hint: 'Match an unlinked result to a patient' },
-  { label: 'Panels', to: '/admin/panels', hint: 'The test levels and what each contains' },
-  { label: 'Marker library', to: '/admin/markers', hint: 'Analytes, explanations, patient-facing wording' },
-  { label: 'Audit log', to: '/admin/audit-log', hint: 'Full system-wide activity' },
-  { label: 'Ingestion log', to: '/admin/ingestion-log', hint: 'Results arriving from Randox' },
+  { label: 'Analytics', to: '/admin/analytics', hint: 'Volume, turnaround, out-of-range rates, packages' },
+  { label: 'Settings', to: '/admin/settings', hint: 'Packages, markers, the two logs, backups' },
+  { label: 'Results nobody could place', to: '/admin#unmatched', hint: 'Match an unlinked result to a patient' },
+  { label: 'Edit packages', to: '/admin/settings#packages', hint: 'What the clinic sells and what is in each' },
+  { label: 'Marker library', to: '/admin/settings#markers', hint: 'Analytes, explanations, patient-facing wording' },
+  { label: 'Ingestion log', to: '/admin/settings#ingestion-log', hint: 'Results arriving from Randox' },
+  { label: 'Audit log', to: '/admin/settings#audit-log', hint: 'Full system-wide activity' },
+  { label: 'Backup status', to: '/admin/settings#backup', hint: 'Whether last night’s backup ran' },
 ];
 
 /**

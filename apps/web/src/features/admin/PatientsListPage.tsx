@@ -77,7 +77,10 @@ export function PatientsListPage() {
   return (
       <ConsolePage
         title="Patients"
-        purpose="Everyone registered with the practice. Open one to see their reports, their consents and every staff action taken on their record."
+        // One clause. The second sentence listed what a patient's own page
+        // contains, which is a description of a different screen read on this
+        // one — and the way to find out is to open a row.
+        purpose="Everyone registered with the practice."
       >
 
       {/* Not `optional`. Every search field in existence is optional, and

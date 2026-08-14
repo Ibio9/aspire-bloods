@@ -71,7 +71,11 @@ export function AuditLogPage() {
   return (
       <ConsolePage
         title="Audit log"
-        purpose="Every action a member of staff has taken and every view of patient data, with who did it and when. Nothing is filtered out for anyone, including yourself."
+        // One sentence. "Nothing is filtered out for anyone, including
+        // yourself" was the second and is a good line; it is a property of the
+        // log rather than a reason to open it, and it is enforced server-side
+        // where it matters.
+        purpose="Every staff action and every view of patient data, with who did it and when."
       >
 
       {/* THREE "(optional)"s IN A ROW, and a filled bronze button as the

@@ -20,6 +20,7 @@ import {
   PANEL_WASH_ALPHA,
   PANEL_SHEEN,
   GLASS,
+  SPARK,
   type StatusKey,
 } from '@aspire-bloods/shared';
 
@@ -775,6 +776,122 @@ describe.each(MODES)('%s theme', (mode) => {
     }
   });
 
+  it('lights every point identically, and the bead always out-reads its own light', () => {
+    /**
+     * ── ONE WHITE SPARK, AND IT IS BOUNDED AT BOTH ENDS (Aug 2026) ─────────
+     *
+     * A point is a bright white core inside a wide soft falloff, IDENTICAL AT
+     * EVERY STATUS — no shapes, no per-status colour, nothing varying but the
+     * most recent point being brighter and a little larger. So this test no
+     * longer loops the five hues: there is one core colour, one halo colour per
+     * theme, and the loop would be the same assertion five times.
+     *
+     * Two things can go wrong and neither is visible in a screenshot review,
+     * because a glow looks plausible at almost any strength until it is
+     * compared with something:
+     *
+     *   TOO STRONG   the halo becomes a filled disc behind the bead, the bead
+     *                dissolves into its own light, and the chart has grown a
+     *                region — which is the one thing the bands' removal was for.
+     *   TOO WEAK     there is no spark, and the most recent point reads exactly
+     *                like the four behind it.
+     *
+     * MEASURED AT THE CORE'S OWN EDGE, which is where the ramp's plateau ends.
+     * That is the hottest part of the gradient anybody ever sees, so every
+     * bound below is a worst case rather than an average.
+     *
+     * ── AND THE TWO THEMES ARE TWO DIFFERENT PHENOMENA ────────────────────
+     *
+     * Dark is a white core inside a WHITE falloff: light added to a near-black
+     * card. Light is the same white core inside a WARM DARK falloff, because a
+     * white halo on a cream card measures about 1.05:1 — not a dim bloom,
+     * nothing at all. So in light the pair that makes the point exist is the
+     * HALO against the card, and the bead is what sits brightest inside it;
+     * that inversion is asserted rather than assumed.
+     */
+    const card = tone(mode, '--c-chart-surface');
+    const core = tone(mode, '--c-chart-spark-core');
+    const haloTone = tone(mode, '--c-chart-spark-halo');
+    const halo = blend(haloTone, card, SPARK.core[mode]);
+
+    // 1. THE BEAD IS ALWAYS THE BRIGHTEST PART OF ITS OWN SPARK, in both
+    //    themes and by construction rather than by two numbers agreeing. In
+    //    dark that means white against a dimmer white; in light, white against
+    //    a soft dark. Either way the reader's eye lands on the point rather
+    //    than on the light around it.
+    const bead = contrastRatio(core, halo);
+    expect(bead, `${mode}: the core is ${bead.toFixed(2)}:1 off its own halo`).toBeGreaterThan(1.6);
+
+    // 2. AND THERE IS ACTUALLY A SPARK. A halo that does not separate from the
+    //    card at all is an effect nobody has, which is how a token quietly
+    //    becomes decoration that was tuned to nothing.
+    const light = contrastRatio(halo, card);
+    expect(light, `${mode}: the halo is ${light.toFixed(3)}:1 off the card`).toBeGreaterThan(1.1);
+
+    // 3. THE POINT IS VISIBLE AT ALL. In dark the white core does that on its
+    //    own (15:1 off a near-black card). In light it cannot — white on cream
+    //    is about 1.05:1 — and the halo is what carries it, which is exactly
+    //    why light's halo is dark rather than a weaker version of dark's. The
+    //    pair that has to clear is whichever of the two is doing the work.
+    const beadOnCard = contrastRatio(core, card);
+    expect(
+      Math.max(beadOnCard, light),
+      `${mode}: the core is ${beadOnCard.toFixed(2)}:1 off the card and the halo ${light.toFixed(2)}:1`,
+    ).toBeGreaterThan(1.25);
+
+    // 4. THE HALO IS NOT A REGION. It stays under the separation a CARD has
+    //    from the page — past that it stops being light around a mark and
+    //    becomes a filled shape on the plot.
+    expect(light, `${mode}: the halo is ${light.toFixed(2)}:1 off the card`).toBeLessThan(3);
+  });
+
+  it('never varies a point by status', () => {
+    /**
+     * THE ONE ASSERTION THAT SAYS WHAT THIS CHANGE WAS. The spark's colours are
+     * not indexed by status and must never become so — a point drawn in its own
+     * state's colour is the same fact the line already carries along its length
+     * at that exact x, and it costs the point the one thing it is uniquely
+     * placed to say, which is where it is.
+     *
+     * Written as a check on the TOKEN NAMES rather than on the component,
+     * because a per-status spark would arrive as `--c-chart-spark-core-high`
+     * long before it arrived as a prop.
+     */
+    const perStatus = Object.keys(solveTokens(mode)).filter(
+      (name) => name.startsWith('--c-chart-spark') && BAND_HUES.some((hue) => name.includes(hue)),
+    );
+    expect(perStatus, 'the spark is uniform: no per-status core or halo token').toEqual([]);
+  });
+
+  it('keeps the line’s casing three times quieter than the line', () => {
+    /**
+     * The line's glow is three wider strokes of its own path at shares of one
+     * alpha, so what lands on the card is their composite — 1−∏(1−aᵢ) — and
+     * that is the number worth bounding rather than any single layer's.
+     *
+     * THE ORDERING IS THE SAME ONE THE BANDS ANSWERED TO: the line is the
+     * content, its casing is context, and the content stands at least 3× as far
+     * off the surface as the context. It is the claim that stops a glow being
+     * turned up until the chart has two lines on it — which is exactly what the
+     * first two-layer version looked like, because a flat outermost layer ends
+     * at a visible edge.
+     */
+    const card = tone(mode, '--c-chart-surface');
+    const alpha = SPARK.line.alpha[mode];
+    const composite = SPARK.line.layers.reduce((acc, l) => 1 - (1 - acc) * (1 - alpha * l.share), 0);
+    for (const hue of BAND_HUES) {
+      const line = tone(mode, `--c-hue-${hue}-mark`);
+      const casing = contrastRatio(blend(line, card, composite), card);
+      expect(
+        contrastRatio(line, card) / casing,
+        `${mode}: the ${hue} line is ${contrastRatio(line, card).toFixed(2)}:1 off the card ` +
+          `and its casing ${casing.toFixed(3)}:1`,
+      ).toBeGreaterThanOrEqual(3);
+      // And it is drawn at all — see the third bound above.
+      expect(casing, `${mode}: the ${hue} casing is ${casing.toFixed(3)}:1 off the card`).toBeGreaterThan(1.1);
+    }
+  });
+
   it('keeps the five line colours far enough apart to be told apart', () => {
     /**
      * WITH NOTHING BEHIND IT, THE LINE IS THE WHOLE CHART — so "green reads as
@@ -905,6 +1022,105 @@ describe.each(MODES)('%s theme', (mode) => {
       const ratio = contrastRatio(tone(mode, '--c-chart-reference-edge'), swatch);
       expect(ratio, `the key swatch hairline on ${hue} is ${ratio.toFixed(2)}:1`).toBeGreaterThan(1.3);
     }
+  });
+});
+
+/**
+ * THE SPARK'S SHAPE, which is one shape in both themes.
+ *
+ * `radius` and `ramp` are geometry — a spark is the same object whichever room
+ * it is in, and only how much of it there is changes with the ground. So these
+ * are asserted once rather than per theme, and the per-theme half is measured
+ * above.
+ */
+describe('the point spark’s falloff', () => {
+  it('is a falloff: ascending offsets, descending shares, nothing at the rim', () => {
+    const offsets = SPARK.ramp.map(([offset]) => offset);
+    const shares = SPARK.ramp.map(([, share]) => share);
+    expect(offsets[0], 'the ramp starts at the centre').toBe(0);
+    expect(offsets[offsets.length - 1], 'the ramp ends at the rim').toBe(1);
+    expect(shares[0], 'the core is the full strength').toBe(1);
+    // NOTHING AT THE RIM, and it is not a nicety: a gradient that ends above
+    // zero ends at an EDGE, which is the flat 13px disc this replaced.
+    expect(shares[shares.length - 1], 'the ramp reaches nothing at its rim').toBe(0);
+    for (const [i, offset] of offsets.entries()) {
+      if (i === 0) continue;
+      expect(offset, `offset ${offset} does not follow ${offsets[i - 1]}`).toBeGreaterThan(offsets[i - 1]);
+      expect(shares[i], `share ${shares[i]} rises above ${shares[i - 1]}`).toBeLessThanOrEqual(shares[i - 1]);
+    }
+  });
+
+  it('holds its plateau behind the glyph, and falls fast once outside it', () => {
+    // A mark of radius r sits inside a halo of `radius`×r, so the glyph's own
+    // edge is at 1/radius of the way out. THE PLATEAU MUST REACH IT: that is
+    // what makes the mark's stroke sit on flat light rather than on a gradient
+    // (which would shade one side of a 5px triangle differently from the other)
+    // and it is what makes the visible part of the halo start on the falloff.
+    const glyphEdge = 1 / SPARK.radius;
+    const plateau = SPARK.ramp.filter(([, share]) => share === 1).map(([offset]) => offset).pop() ?? 0;
+    expect(plateau, `the plateau ends at ${plateau} and the glyph's edge is at ${glyphEdge.toFixed(3)}`).toBeGreaterThanOrEqual(
+      glyphEdge,
+    );
+    // TIGHT CORE, WIDE TAIL. Half the strength must be gone by the time the
+    // halo is halfway out, or what is drawn is a disc with soft edges.
+    const halfway = SPARK.ramp.find(([offset]) => offset >= 0.5)?.[1] ?? 1;
+    expect(halfway, `the ramp still carries ${halfway} of its core at half the radius`).toBeLessThanOrEqual(0.6);
+  });
+
+  it('is solved per theme rather than reused, and the two land at the same presence', () => {
+    /**
+     * THE TWO THEMES CANNOT SHARE A NUMBER HERE, and it is not a preference.
+     * In dark the halo is white — light added to a near-black card, which reads
+     * as emission. In light it is espresso on a near-white card, which is a soft
+     * shadow. Two different phenomena rendering one idea.
+     *
+     * ── AND THE ALPHAS ARE NO LONGER COMPARABLE (Aug 2026) ─────────────────
+     *
+     * This test used to assert `dark > light`, on the reasoning that ink
+     * carries further per unit of alpha than light does. That was true while
+     * BOTH halos were the same status colour. They are different colours now,
+     * so their alphas answer different questions and neither ordering means
+     * anything — asserting one would be pinning a coincidence.
+     *
+     * What is asserted instead is the thing the ordering was a proxy for: the
+     * spark has COMPARABLE PRESENCE in the two rooms, measured off the card.
+     * The per-theme bounds are in the theme suites above; this is the pair.
+     */
+    const separation = (mode: 'light' | 'dark') => {
+      const card = tone(mode, '--c-chart-surface');
+      return contrastRatio(blend(tone(mode, '--c-chart-spark-halo'), card, SPARK.core[mode]), card);
+    };
+    const [light, dark] = [separation('light'), separation('dark')];
+    const ratio = Math.max(light, dark) / Math.min(light, dark);
+    expect(
+      ratio,
+      `the halo stands ${light.toFixed(2)}:1 off the card in light and ${dark.toFixed(2)}:1 in dark`,
+    ).toBeLessThan(1.5);
+
+    // The line's casing IS still the same colour in both themes — the status
+    // hues — so its two alphas remain comparable and the old ordering holds.
+    expect(SPARK.line.alpha.dark, 'the casing is no brighter in dark than in light').toBeGreaterThan(
+      SPARK.line.alpha.light,
+    );
+    // And the earlier points are always quieter than the most recent one.
+    expect(SPARK.pastShare).toBeGreaterThan(0);
+    expect(SPARK.pastShare).toBeLessThan(1);
+  });
+
+  it('draws its casing outermost-first and faintest-first', () => {
+    // The layers composite, so a wider layer painted at a HIGHER share would
+    // put the strongest light furthest from the line — which is not a falloff,
+    // it is a halo with a hole in it.
+    const layers = [...SPARK.line.layers];
+    for (const [i, layer] of layers.entries()) {
+      if (i === 0) continue;
+      expect(layer.extra, `layer ${i} is ${layer.extra}px wide, no narrower than ${layers[i - 1].extra}`).toBeLessThan(
+        layers[i - 1].extra,
+      );
+      expect(layer.share, `layer ${i} is fainter than the wider one outside it`).toBeGreaterThan(layers[i - 1].share);
+    }
+    expect(layers[layers.length - 1].share, 'the innermost layer carries the full casing alpha').toBe(1);
+    expect(layers.length, 'two layers leave a visible edge — see SPARK.line').toBeGreaterThanOrEqual(3);
   });
 });
 

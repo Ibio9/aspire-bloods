@@ -200,16 +200,25 @@ test.describe('screenshots', () => {
        * `/admin/analytics` is added: it is a new screen and it is the one a
        * practice owner opens.
        */
+      /**
+       * ── FIVE SCREENS (Aug 2026) ──────────────────────────────────────────
+       *
+       * Four of the nine routes this used to walk are sections now, so they are
+       * photographed AS sections: each Settings disclosure gets its own frame,
+       * reached by the hash the old route redirects to, which is the state a
+       * reader actually arrives in. `linking` is a section of Reports and is in
+       * the Reports frame.
+       */
       const routes = [
-        { name: 'queue', path: '/' },
+        { name: 'overview', path: '/' },
         { name: 'reports', path: '/admin' },
         { name: 'analytics', path: '/admin/analytics' },
         { name: 'patients', path: '/admin/patients' },
-        { name: 'panels', path: '/admin/panels' },
-        { name: 'markers', path: '/admin/markers' },
-        { name: 'ingestion-log', path: '/admin/ingestion-log' },
-        { name: 'linking', path: '/admin/linking' },
-        { name: 'audit-log', path: '/admin/audit-log' },
+        { name: 'settings', path: '/admin/settings' },
+        { name: 'settings-packages', path: '/admin/settings#packages' },
+        { name: 'settings-markers', path: '/admin/settings#markers' },
+        { name: 'settings-ingestion-log', path: '/admin/settings#ingestion-log' },
+        { name: 'settings-audit-log', path: '/admin/settings#audit-log' },
       ];
 
       for (const route of routes) {

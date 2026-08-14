@@ -171,7 +171,13 @@ async function chartGeometry(page: Page): Promise<ChartGeometry> {
     const lineStops = gradient
       ? [...gradient.querySelectorAll('stop')].map((st) => st.getAttribute('stop-color') ?? '')
       : [];
-    const curve = svg.querySelector('.recharts-line-curve') as SVGPathElement | null;
+    // THE CORE LINE BY NAME. The line carries a glow along its length now (two
+    // wider strokes of the same path under it, see SPARK), so a bare
+    // `.recharts-line-curve` returns whichever came first in the document —
+    // which is the outermost casing, 19px wide and painted with the glow
+    // gradient. This assertion would have gone on running and measuring the
+    // wrong path.
+    const curve = svg.querySelector('.trend-line-core .recharts-line-curve') as SVGPathElement | null;
 
     const boundLabels = ([...svg.querySelectorAll('g[data-boundary-label]')] as SVGGElement[]).map((g) => {
       const text = g.querySelector('text');

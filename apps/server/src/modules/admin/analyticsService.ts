@@ -54,6 +54,18 @@ export interface CountedRow {
   count: number;
 }
 
+/**
+ * THE FOUR STATUSES THAT MEAN "OUTSIDE THE RANGE", in one place.
+ *
+ * NOT `!== 'IN_RANGE'`. A result with no status was never compared against a
+ * range at all — the nine measured markers with no numeric range, every
+ * physical measurement, every qualitative finding — and counting one as out of
+ * range is the same false claim the patient-facing tallies refuse to make (see
+ * `countable()` in shared). Written down once because it is now asked in three
+ * places: the total, the per-marker breakdown and the per-package one.
+ */
+const OUT_OF_RANGE_STATUSES = ['HIGH', 'LOW', 'SIGNIFICANT_HIGH', 'SIGNIFICANT_LOW'] as const;
+
 export interface SuppressibleBreakdown {
   rows: CountedRow[];
   /** How many rows fell under the threshold, and how many observations they held between them. */
@@ -82,6 +94,8 @@ export interface PracticeAnalytics {
   suppressBelow: number;
   panels: SuppressibleBreakdown;
   markersOutOfRange: SuppressibleBreakdown;
+  /** The same count split by the package the report was drawn against. */
+  markersOutOfRangeByPanel: SuppressibleBreakdown;
   markerCoverage: { measuredMarkers: number; markersEverReported: number; markersNeverReported: number };
   weekly: PeriodPoint[];
   monthly: PeriodPoint[];
@@ -140,7 +154,15 @@ export async function getPracticeAnalytics(days: number): Promise<PracticeAnalyt
   const now = new Date();
   const from = new Date(now.getTime() - days * 86_400_000);
 
-  const [reports, resultRows, patients, activePatients, measuredMarkerCount, markersEverReported] = await Promise.all([
+  const [
+    reports,
+    resultRows,
+    patients,
+    activePatients,
+    measuredMarkerCount,
+    markersEverReported,
+    outOfRangeByReport,
+  ] = await Promise.all([
     prisma.report.findMany({
       where: { receivedDate: { gte: from } },
       select: {
@@ -184,6 +206,30 @@ export async function getPracticeAnalytics(days: number): Promise<PracticeAnalyt
       where: { report: { status: 'RELEASED' }, marker: { resultType: 'MEASURED' } },
       select: { markerId: true },
       distinct: ['markerId'],
+    }),
+    /**
+     * ── WHICH MARKERS COME BACK OUT OF RANGE, AND IN WHICH PACKAGE ──────────
+     *
+     * "Ferritin is our commonest out-of-range result" is interesting. "Ferritin
+     * is our commonest out-of-range result ON THE SIGNATURE PANEL" is something
+     * a practice owner can act on — it is a statement about a package they
+     * choose the contents of and sell.
+     *
+     * GROUPED BY (marker, report) IN THE DATABASE and folded onto the package
+     * here, because Prisma's `groupBy` cannot reach through a relation to the
+     * report's panel. The row count is bounded by the number of OUT-OF-RANGE
+     * results in the window rather than by all results — the status filter is
+     * what makes that difference, and it is roughly an order of magnitude on a
+     * real panel. Without it this would be the "pull tens of thousands of rows
+     * into node" query the note above exists to refuse.
+     */
+    prisma.reportResult.groupBy({
+      by: ['markerId', 'reportId'],
+      where: {
+        report: { status: 'RELEASED', releasedAt: { gte: from }, voidedAt: null },
+        status: { in: [...OUT_OF_RANGE_STATUSES] },
+      },
+      _count: { _all: true },
     }),
   ]);
 
@@ -237,17 +283,59 @@ export async function getPracticeAnalytics(days: number): Promise<PracticeAnalyt
     // NOT `!== 'IN_RANGE'`. A result with no status was never compared against
     // a range, and counting one as out of range is the same false claim the
     // patient-facing tallies refuse to make (see countable() in shared).
-    const out =
-      row.status === 'HIGH' ||
-      row.status === 'LOW' ||
-      row.status === 'SIGNIFICANT_HIGH' ||
-      row.status === 'SIGNIFICANT_LOW';
-    if (!out) continue;
+    if (!row.status || !(OUT_OF_RANGE_STATUSES as readonly string[]).includes(row.status)) continue;
     totalOutOfRange += n;
     const key = row.markerId;
     const existing = outOfRangeByMarker.get(key) ?? { key, label: markerNames.get(key) ?? 'Unknown marker', count: 0 };
     existing.count += n;
     outOfRangeByMarker.set(key, existing);
+  }
+
+  /**
+   * ── AND THE SAME COUNT BROKEN DOWN BY PACKAGE ────────────────────────────
+   *
+   * One row per (package, marker) pair, labelled with both, so the table reads
+   * "Signature · Ferritin · 34". A report with no catalogue panel behind it
+   * keeps its own label rather than being dropped, for the same reason the
+   * "what was ordered" breakdown does: a breakdown whose rows do not add up to
+   * the total above it is a breakdown nobody can check.
+   *
+   * SUPPRESSION BITES HARDER HERE and that is correct rather than unfortunate.
+   * Splitting one count across the packages it came from makes every cell
+   * smaller, so more of them fall under the threshold — a (package, marker)
+   * cell of 2 is a much sharper pointer at one person than a marker total of 2,
+   * because the package narrows it further. The withheld rows are stated, as
+   * everywhere else.
+   */
+  const panelById = new Map(reports.map((r) => [r.id, r.panel]));
+  const missingPanelFor = outOfRangeByReport.filter((r) => !panelById.has(r.reportId)).map((r) => r.reportId);
+  if (missingPanelFor.length > 0) {
+    // A report RELEASED inside the window but RECEIVED before it is not in
+    // `reports`, which is filtered on receivedDate. Fetched rather than
+    // dropped: a long-running report is exactly the kind this table should
+    // show, and silently omitting it would make the breakdown disagree with
+    // the total above it for reasons nobody could see.
+    for (const r of await prisma.report.findMany({
+      where: { id: { in: [...new Set(missingPanelFor)] } },
+      select: { id: true, panel: { select: { id: true, name: true } } },
+    })) {
+      panelById.set(r.id, r.panel);
+    }
+  }
+
+  const outOfRangeByPanelMarker = new Map<string, CountedRow>();
+  for (const row of outOfRangeByReport) {
+    const panel = panelById.get(row.reportId) ?? null;
+    const panelKey = panel?.id ?? '__none';
+    const panelName = panel?.name ?? 'No catalogue panel';
+    const key = `${panelKey}::${row.markerId}`;
+    const existing = outOfRangeByPanelMarker.get(key) ?? {
+      key,
+      label: `${panelName} · ${markerNames.get(row.markerId) ?? 'Unknown marker'}`,
+      count: 0,
+    };
+    existing.count += row._count._all;
+    outOfRangeByPanelMarker.set(key, existing);
   }
 
   // ── Volume over time ──────────────────────────────────────────────────────
@@ -277,6 +365,7 @@ export async function getPracticeAnalytics(days: number): Promise<PracticeAnalyt
     suppressBelow: SUPPRESS_BELOW,
     panels: suppress([...panelCounts.values()]),
     markersOutOfRange: suppress([...outOfRangeByMarker.values()]),
+    markersOutOfRangeByPanel: suppress([...outOfRangeByPanelMarker.values()]),
     markerCoverage: {
       measuredMarkers: measuredMarkerCount,
       markersEverReported: markersEverReported.length,
@@ -370,6 +459,24 @@ export function analyticsToCsv(a: PracticeAnalytics): string {
     row(
       `${a.markersOutOfRange.suppressedRows} markers withheld (under ${a.suppressBelow})`,
       a.markersOutOfRange.suppressedCount,
+    );
+  }
+  lines.push('');
+
+  // The same count as the section above, split by the package it came from —
+  // two columns rather than one label, because a spreadsheet somebody is going
+  // to pivot wants the package in a column of its own.
+  row('Markers outside the reference range, by package');
+  row('Package', 'Marker', 'Out-of-range results');
+  for (const r of a.markersOutOfRangeByPanel.rows) {
+    const [panel, marker] = r.label.split(' · ');
+    row(panel ?? '', marker ?? '', r.count);
+  }
+  if (a.markersOutOfRangeByPanel.suppressedRows > 0) {
+    row(
+      `${a.markersOutOfRangeByPanel.suppressedRows} package/marker pairs withheld (under ${a.suppressBelow})`,
+      '',
+      a.markersOutOfRangeByPanel.suppressedCount,
     );
   }
   lines.push('');

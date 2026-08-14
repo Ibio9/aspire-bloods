@@ -548,18 +548,60 @@
     @apply font-eyebrow text-xs font-medium uppercase tracking-eyebrow text-espresso/80;
   }
 
-  /* THE LABEL ON A CARD WHOSE CONTENTS ALSO CARRY LABELS.
-     Uppercase, tracked and semibold like `.eyebrow`, so it is the same family
-     and not a new one — and the only class in this file that is deliberately
-     LARGER than the copy beneath it.
+  /* ── THE EXPLANATION CARD'S ONE LABEL CLASS (Aug 2026, sixth and last) ────
+     ALL FOUR LABELS IN THE CARD ARE THIS CLASS. "What this marker means", "If
+     it's high", "If it's low", "Lifestyle context" — one treatment, no heading
+     tier, nothing varying by which fields a marker happens to have. That is
+     what the five previous attempts were missing, and it is why they all
+     failed the same way: every one of them was a CONTEST between the card's
+     heading and the labels inside it, refereed by size, and the loser was
+     whichever one had been moved last. There is no contest now because there
+     is no second label class in this card.
 
+     ── WHY THE HISTORY IS KEPT BELOW ────────────────────────────────────────
+     Five settings, and the record of each is the argument against re-opening
+     it by eye. It went 12px → 14 → 16 → 28 → 16, uppercase throughout, with
+     the definition dragged down to 21px in the fourth attempt to get out of
+     its way. Every one of those moves was a size move, and:
+
+         UPPERCASE AT 0.14em READS AS LOUD REGARDLESS OF SIZE.
+
+     That is the sentence the whole history was missing, and it is why size
+     alone never settled it: at 16px, uppercase and tracked, the heading has
+     roughly the footprint and all of the shout of a 21px sentence-case line,
+     so "make it smaller" bought a quieter number and the same volume. The
+     case is the loudness. Drop the case and 16px is the MIDDLE GROUND between
+     the old heading (16px uppercase, too loud) and the old sub-labels (12px
+     sentence, too quiet) — which is where all four sit now.
+
+     ── THE THREE LEVELS, AND THE LABELS ARE THE TOP ONE ─────────────────────
+
+         .card-label      16px  Plex 600, sentence, 0.01em, full tone
+         the definition   14px  Fraunces 400, opsz-small, full tone
+         the answers      12px  Plex 400, sentence, 0, /85
+
+     LABELS LARGEST. The card is a reference, not an essay: a reader scans it
+     for the question they have ("if it's high…") and reads only the answer to
+     that one. So the four labels are the most prominent text in the card and
+     the prose is subordinate to them, which is the opposite of the ladder
+     every previous attempt built and is the point of this one.
+
+     ⚠ THE ANSWERS ARE AT THE FLOOR OF THE TYPE SCALE. 12px is as small as
+     anything in this product is allowed to be, and body copy is not usually
+     set there. It is deliberate and it is the cost of the ordering above —
+     three descending steps starting at 16 is 16/14/12 and the scale has
+     nothing under 12. If this ever has to give, the thing to raise is the
+     ANSWERS, and the labels go to 18 with them. Do not open a fourth level.
+
+     ── WHAT THE OLD `.card-eyebrow` DOC SAID, KEPT FOR THE REASONING ────────
      It exists because `.eyebrow` cannot be both the heading of a card and the
      labels inside it. On the marker explanation card it was exactly that: "What
      this marker means" at 12px medium /80, above three of "If it's high" at
      12px medium /80 — four peers, in which the one that is a heading has
      nothing to say so. A heading is not competing to be read, but it does have
      to be the most prominent LABEL in its own card, and at identical treatment
-     it was not.
+     it was not. THE ANSWER TO THAT IS NOT A SECOND CLASS, which is what it
+     became: it is one class for all four and the prose set below them.
 
      ── AND 14px WAS NOT ENOUGH OF A STEP (Aug 2026, third attempt) ──────────
      Measured off the rendered card at 1440 in both themes:
@@ -614,18 +656,29 @@
      read as equals — which is the failure being fixed, one notch quieter.
 
      Never a substitute for a section heading, which is Fraunces (see
-     `.section-heading`). This is an eyebrow: it labels a card whose content is
-     the thing to read. */
-  .card-eyebrow {
-    @apply font-eyebrow text-base font-semibold uppercase tracking-eyebrow text-espresso;
+     `.section-heading`). This is a label: it names the thing under it. */
+  .card-label {
+    @apply font-body text-base font-semibold text-espresso;
+    /* A hair of tracking, not the eyebrow's 0.14em — see the note above on why
+       the eyebrow's tracking is exactly what this class must not have. */
+    letter-spacing: 0.01em;
     /* On a phone this wraps to two lines whatever it is set in, so the only
-       question is where it breaks. Balanced it splits "WHAT THIS / MARKER
-       MEANS"; left alone it orphans the last word. Ignored by any browser that
+       question is where it breaks. Balanced it splits "What this / marker
+       means"; left alone it orphans the last word. Ignored by any browser that
        does not implement it. */
     text-wrap: balance;
   }
 
   /* THE LABEL HALF OF A PAIR INSIDE A CARD THAT ALREADY HAS A HEADING.
+
+     ⚠ THIS IS NO LONGER THE EXPLANATION CARD'S CLASS (Aug 2026). That card has
+     one label class for all four of its labels — `.card-label` above — and the
+     whole reason it does is that a heading tier and a sub-label tier in one
+     small card is a contest nothing wins. What is left here is Compare's
+     "Common comparisons": a quiet label on a card whose heading is elsewhere,
+     which is what this class was always for. Do not reach for it inside the
+     explanation card again.
+
      12px is the floor of the type scale and /80 is the floor of the text
      opacity ladder, so a label that has to go quieter than an eyebrow cannot do
      it with size or tone. What it drops is the SHOUT: uppercase at 0.14em is
@@ -1374,7 +1427,7 @@
   /* Both of the eyebrow's relatives, for the same reason: a label printed at
      the foot of a page with its answer overleaf is the failure this rule
      exists for, and it does not care which of the three classes said it. */
-  .card-eyebrow,
+  .card-label,
   .sublabel {
     break-after: avoid;
     page-break-after: avoid;

@@ -267,7 +267,11 @@ test.describe('traffic-light status', () => {
 
       const line = await page.evaluate(() => {
         const svg = document.querySelector('.recharts-surface');
-        const curve = svg?.querySelector('.recharts-line-curve') as SVGPathElement | null;
+        // THE CORE LINE BY NAME — the glow is three wider strokes of the same
+        // path underneath it (see SPARK in tokens.ts), so a bare
+        // `.recharts-line-curve` measures the outermost casing's 21px and its
+        // glow gradient rather than the line's own 5px.
+        const curve = svg?.querySelector('.trend-line-core .recharts-line-curve') as SVGPathElement | null;
         const stroke = curve ? getComputedStyle(curve).stroke : '';
         const id = /url\(["']?#([^"')]+)/.exec(stroke)?.[1] ?? null;
         const gradient = id ? document.getElementById(id) : null;
@@ -316,6 +320,148 @@ test.describe('traffic-light status', () => {
           ALLOWED.has(rule.stroke),
           `${theme}: a boundary rule is painted ${rule.stroke}, which is a status colour`,
         ).toBe(false);
+      }
+
+      // ── 4. THE POINTS ARE LIT, UNIFORMLY, AT THIS THEME'S OWN STRENGTH ──
+      /**
+       * Every point is a SPARK — a white core inside a radial falloff,
+       * IDENTICAL AT EVERY STATUS, brightest on the most recent — and the line
+       * carries a casing of its own status light along its length. Four things
+       * about that fail SILENTLY, which is why they are measured rather than
+       * looked at:
+       *
+       *  · THE CUSTOM PROPERTY NOT RESOLVING. The strength arrives as
+       *    `fill-opacity: var(--chart-spark)`, and an opacity that fails to
+       *    resolve does not fall back to anything sensible — it computes to 1,
+       *    so a missing variable paints a SOLID disc of status colour behind
+       *    every point. That is the loud version; the quiet one is a variable
+       *    emitted in one theme and not the other, which is why this is read
+       *    off the document per theme rather than transcribed into this file.
+       *  · THE HALO VARYING BY STATUS. Every point is one white spark now: the
+       *    chevrons and the per-status fills came off this chart (Aug 2026) and
+       *    are not to come back. There is ONE gradient in the document and every
+       *    point references it — which is asserted below, because "we deleted
+       *    the five" is a claim about a moment and "there is one" is a claim
+       *    about the render.
+       *  · A HALO THAT DOES NOT REACH NOTHING. A ramp ending above zero ends at
+       *    an EDGE, which is the flat 13px disc this replaced — a dot inside a
+       *    ring rather than a point that is lit.
+       *  · THE CASING OVERTAKING THE LINE. It is drawn as wider strokes of the
+       *    same path, so "wider, and never as strong" is the whole of what makes
+       *    it a glow rather than a second line.
+       */
+      const spark = await page.evaluate(() => {
+        const svg = document.querySelector('.recharts-surface') as SVGSVGElement;
+        const root = getComputedStyle(document.documentElement);
+        const halos = [...svg.querySelectorAll('circle')].filter((c) =>
+          (c.getAttribute('fill') ?? '').startsWith('url(#spark-'),
+        );
+        const core = svg.querySelector('.trend-line-core .recharts-line-curve') as SVGPathElement | null;
+        return {
+          declared: {
+            latest: Number(root.getPropertyValue('--chart-spark')),
+            past: Number(root.getPropertyValue('--chart-spark-past')),
+            glow: Number(root.getPropertyValue('--chart-line-glow')),
+          },
+          // The applied strengths in document order — the last point is the
+          // most recent, and is the one that should be brightest.
+          applied: halos.map((c) => Number(getComputedStyle(c).fillOpacity)),
+          gradients: halos.map((c) => {
+            const id = /url\(["']?#([^"')]+)/.exec(c.getAttribute('fill') ?? '')?.[1] ?? '';
+            const stops = [...(document.getElementById(id)?.querySelectorAll('stop') ?? [])];
+            return {
+              id,
+              colours: [...new Set(stops.map((s) => getComputedStyle(s).stopColor))],
+              rim: stops.length ? Number(getComputedStyle(stops[stops.length - 1]).stopOpacity) : 1,
+            };
+          }),
+          coreWidth: core ? Number(getComputedStyle(core).strokeWidth.replace('px', '')) : 0,
+          casings: [...svg.querySelectorAll('.recharts-line-curve')]
+            .filter((p) => p !== core)
+            .map((p) => ({
+              width: Number(getComputedStyle(p).strokeWidth.replace('px', '')),
+              // The layer's own share; the theme's alpha is in the gradient it
+              // is painted with, and the two multiply.
+              share: Number(getComputedStyle(p).strokeOpacity),
+              stop: Number(
+                getComputedStyle(
+                  document
+                    .getElementById(/url\(["']?#([^"')]+)/.exec(getComputedStyle(p).stroke)?.[1] ?? '')
+                    ?.querySelector('stop') as Element,
+                ).stopOpacity,
+              ),
+            })),
+        };
+      });
+
+      expect(spark.applied.length, `${theme}: the chart draws ${spark.applied.length} lit points`).toBeGreaterThan(1);
+      // Emitted at all, and never 1 — see what a missing custom property paints.
+      for (const [name, value] of Object.entries(spark.declared)) {
+        expect(value, `${theme}: --chart-${name} did not resolve to a number`).toBeGreaterThan(0);
+        expect(value, `${theme}: --chart-${name} is ${value}, which is a fill rather than a glow`).toBeLessThan(1);
+      }
+      // THE MOST RECENT POINT SPARKS BRIGHTEST — it is the one the reader came
+      // for — and the rest are lit at one quieter strength. A difference in
+      // DEGREE, never in kind: on a chart whose marks differ in kind where the
+      // difference is clinical, a halo on one point of five would read as a
+      // fifth kind of mark.
+      const latest = spark.applied[spark.applied.length - 1];
+      expect(latest, `${theme}: the latest point is lit at ${latest}`).toBeCloseTo(spark.declared.latest, 3);
+      for (const past of spark.applied.slice(0, -1)) {
+        expect(past, `${theme}: an earlier point is lit at ${past}`).toBeCloseTo(spark.declared.past, 3);
+        expect(past, `${theme}: an earlier point out-sparks the latest one`).toBeLessThan(latest);
+      }
+      /**
+       * ── EVERY POINT IS THE SAME SPARK, AND NONE OF THEM IS A STATUS COLOUR
+       *
+       * Three claims, and the first is the one this change was about: there is
+       * exactly ONE spark gradient in the document and every point references
+       * it. Five gradients would mean the halo is indexed by status again,
+       * which is the same fact the line already carries at that exact x.
+       *
+       * The falloff is in the ALPHA, so one colour per gradient — two would be
+       * a hue changing across one point. And the ramp reaches nothing at its
+       * rim: a gradient ending above zero ends at an EDGE, which is a dot
+       * inside a ring rather than a point that is lit.
+       */
+      const ids = new Set(spark.gradients.map((g) => g.id));
+      expect(ids.size, `${theme}: the chart holds ${ids.size} spark gradients — every point is the same spark`).toBe(1);
+      for (const gradient of spark.gradients) {
+        expect(gradient.colours.length, `${theme}: ${gradient.id} carries ${gradient.colours.join(', ')}`).toBe(1);
+        expect(
+          ALLOWED.has(gradient.colours[0]),
+          `${theme}: a point sparks in ${gradient.colours[0]}, which is a status colour — the points are uniform`,
+        ).toBe(false);
+        expect(gradient.rim, `${theme}: a halo ends at ${gradient.rim} rather than at nothing`).toBe(0);
+      }
+      /**
+       * AND THE CHART DRAWS NO SHAPES. The level dot, the chevron and the
+       * doubled chevron are off this chart entirely; three kinds of mark on one
+       * line was noise saying what the line says in colour along its own length.
+       * A `<polygon>` inside the plot is the shape layer coming back — it is
+       * the element every one of those marks was made of.
+       */
+      const polygons = await page.evaluate(
+        () => document.querySelectorAll('.recharts-surface polygon').length,
+      );
+      expect(polygons, `${theme}: the plot draws ${polygons} polygons — the status shapes are back`).toBe(0);
+      // THE CASING IS WIDER THAN THE LINE AND NEVER AS STRONG, every layer.
+      expect(spark.casings.length, `${theme}: the line carries ${spark.casings.length} casing strokes`).toBe(3);
+      for (const casing of spark.casings) {
+        expect(
+          casing.width,
+          `${theme}: a casing is ${casing.width}px against the line's ${spark.coreWidth}`,
+        ).toBeGreaterThan(spark.coreWidth);
+        // What lands on the card is the layer's share TIMES the theme's alpha,
+        // and it is that product a reader sees.
+        expect(
+          casing.share * casing.stop,
+          `${theme}: a casing layer paints at ${(casing.share * casing.stop).toFixed(3)}`,
+        ).toBeLessThan(0.2);
+        expect(casing.stop, `${theme}: a casing's gradient did not take the theme's alpha`).toBeCloseTo(
+          spark.declared.glow,
+          3,
+        );
       }
 
       await ctx.close();

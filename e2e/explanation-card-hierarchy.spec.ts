@@ -2,13 +2,13 @@ import { test, expect, type APIRequestContext, type Browser } from '@playwright/
 
 /**
  * ===========================================================================
- *  THE EXPLANATION CARD'S FOUR LEVELS, MEASURED.
+ *  THE EXPLANATION CARD'S THREE LEVELS, MEASURED.
  * ===========================================================================
  *
- * "What this marker means" has been set FIVE times and come back wrong in a new
- * direction four of them. Every previous fix was made by eye, and every one of
- * them fixed the pair somebody happened to be looking at while inverting a
- * different pair:
+ * "What this marker means" has been set SIX times and come back wrong in a new
+ * direction five of them. Every fix before this file existed was made by eye,
+ * and every one of them fixed the pair somebody happened to be looking at while
+ * inverting a different pair:
  *
  *   1st  heading 12px = sub-labels 12px          four peers, nothing said which
  *                                                 one was the heading
@@ -17,30 +17,46 @@ import { test, expect, type APIRequestContext, type Browser } from '@playwright/
  *   4th  heading 28px, lead DOWN to 21px         …and put the label above the
  *                                                 sentence it labels
  *   5th  lead 28px, heading 16px, and this file  the definition is the content
+ *   6th  ONE LABEL CLASS FOR ALL FOUR LABELS     there was never a heading
+ *
+ * ── WHY THE SIXTH IS DIFFERENT IN KIND ────────────────────────────────────
+ *
+ * The first five were all the same move: adjust the size of the card's HEADING
+ * relative to something else in the card. Five different answers, because the
+ * question had no answer — a heading and three sub-labels of the same kind, in
+ * a card that small, is a contest nothing wins. There is no heading now. All
+ * FOUR labels — "What this marker means", "If it's high", "If it's low",
+ * "Lifestyle context" — are one class, one size, one weight, one case.
+ *
+ * And the ladder inverted with it. The labels are now the MOST prominent text
+ * in the card and the prose is subordinate to them, which is the opposite of
+ * what the fifth attempt built:
+ *
+ *   1. THE LABELS       16px, Plex 600, SENTENCE case — all four identical
+ *   2. THE DEFINITION   14px Fraunces, the only display face, smaller
+ *   3. THE ANSWERS      12px, the quietest and smallest text in the card
+ *
+ * UPPERCASE IS GONE, and that is the load-bearing change rather than the
+ * sizes. Uppercase at 0.14em reads as loud regardless of size, which is why
+ * five attempts to referee this by size alone all failed: 16px uppercase
+ * tracked has the presence of a 21px sentence-case line, so "make it smaller"
+ * bought a quieter number and the same volume.
  *
  * So this is not a screenshot review. It reads the COMPUTED font-size, weight,
- * letter-spacing and colour of all four levels off the rendered card, plus the
- * PAINTED gaps between them, and asserts the order rather than the values —
- * because the values will change again and the order must not.
- *
- * THE ORDER, top to bottom in prominence:
- *
- *   1. THE DEFINITION   the point of the card, the largest thing in it
- *   2. THE HEADING      clearly a label, clearly above the sub-labels
- *   3. THE SUB-LABELS   If it's high / If it's low / Lifestyle context
- *   4. THE ANSWERS      the copy under each sub-label
+ * letter-spacing, case and colour of all three levels off the rendered card,
+ * plus the PAINTED gaps between them, and asserts the ORDER rather than the
+ * values — because the values will change again and the order must not.
  *
  * ── WHY THE PAINTED GAP AND NOT THE MARGIN ────────────────────────────────
  *
- * The margins were 24px between blocks and 6px inside a pair, which reads as
- * 4:1 in the source. What a reader sees includes HALF-LEADING: an 18px answer
- * at line-height 1.65 carries ~5.9px of space above its own first line, and a
- * 12px label ~3px below its last. The real ratio was ~33:15, barely 2:1, which
- * is why three label/answer pairs read as six loose paragraphs. Measuring the
- * margin would have said the spacing was fine.
+ * The margins were once 24px between blocks and 6px inside a pair, which reads
+ * as 4:1 in the source. What a reader sees includes HALF-LEADING: a 12px answer
+ * at line-height 1.5 carries ~3px of space above its own first line, and a 16px
+ * label ~4.8px below its last. Measuring the margin would have said the spacing
+ * was fine when it rendered at barely 2:1.
  *
  * Both themes, because `text-espresso` is espresso in light and a warm cream in
- * dark — so "the sub-label is darker than its answer" is a claim about relative
+ * dark — so "the label out-reads its own answer" is a claim about relative
  * distance from the page, not about a hex value.
  *
  * Requires EXPOSE_DEV_OTP_CODE=true and the dev seed's demo account.
@@ -78,12 +94,12 @@ interface Level {
 }
 
 interface Card {
+  /** All four labels, in document order. The first is "What this marker means". */
+  labels: Level[];
   definition: Level;
-  heading: Level;
-  sublabels: Level[];
   answers: Level[];
-  /** Painted gap from the heading's last line to the definition's first. */
-  headingToDefinition: number;
+  /** Painted gap from the first label's last line to the definition's first. */
+  labelToDefinition: number;
   /** Painted gap inside a label/answer pair, half-leading counted. */
   withinPair: number;
   /** Painted gap from one pair's answer to the next pair's label. */
@@ -119,14 +135,20 @@ async function measure(browser: Browser, theme: 'light' | 'dark'): Promise<Card>
     await page.waitForTimeout(800);
 
     const card = await page.evaluate(() => {
-      const heading = document.querySelector('.card-eyebrow') as HTMLElement | null;
-      if (!heading) return null;
-      const column = heading.parentElement?.querySelector('.max-w-measure') as HTMLElement | null;
+      /**
+       * ONE CLASS FOR ALL FOUR LABELS, which is the whole point of the sixth
+       * setting — so the spec selects them with ONE selector. If a second label
+       * class ever comes back into this card, `labels` will be short and the
+       * "all four identical" assertion below cannot even be reached.
+       */
+      const column = document.querySelector('.card-vellum .max-w-measure') as HTMLElement | null;
       if (!column) return null;
-      const definition = column.firstElementChild as HTMLElement | null;
-      const subs = [...column.querySelectorAll('.sublabel')] as HTMLElement[];
-      if (!definition || subs.length < 2) return null;
-      const answers = subs.map((s) => s.nextElementSibling as HTMLElement);
+      const labels = [...column.querySelectorAll('.card-label')] as HTMLElement[];
+      // The definition is the element straight after the first label.
+      const definition = labels[0]?.nextElementSibling as HTMLElement | null;
+      if (!definition || labels.length < 3) return null;
+      // Every label after the first is a block label, and its answer follows it.
+      const answers = labels.slice(1).map((s) => s.nextElementSibling as HTMLElement);
       if (answers.some((a) => !a)) return null;
 
       /**
@@ -194,13 +216,12 @@ async function measure(browser: Browser, theme: 'light' | 'dark'): Promise<Card>
       };
 
       return {
+        labels: labels.map(read),
         definition: read(definition),
-        heading: read(heading),
-        sublabels: subs.map(read),
         answers: answers.map(read),
-        headingToDefinition: paintedGap(heading, definition),
-        withinPair: paintedGap(subs[0], answers[0]),
-        betweenBlocks: paintedGap(answers[0], subs[1]),
+        labelToDefinition: paintedGap(labels[0], definition),
+        withinPair: paintedGap(labels[1], answers[0]),
+        betweenBlocks: paintedGap(answers[0], labels[2]),
       };
     });
 
@@ -216,10 +237,10 @@ async function measure(browser: Browser, theme: 'light' | 'dark'): Promise<Card>
 }
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`the explanation card's four levels read in order in ${theme} mode`, async ({ browser }) => {
+  test(`the explanation card's three levels read in order in ${theme} mode`, async ({ browser }) => {
     test.setTimeout(180_000);
     const c = await measure(browser, theme);
-    const sub = c.sublabels[0];
+    const label = c.labels[0];
     const answer = c.answers[0];
 
     const line = (name: string, l: Level) =>
@@ -227,69 +248,84 @@ for (const theme of ['light', 'dark'] as const) {
       `${l.letterSpacing.padStart(8)}  ${l.textTransform.padEnd(9)} ${l.color}  ${l.fontFamily}`;
     // eslint-disable-next-line no-console
     console.log(
-      `\n  ${theme} — the four levels, computed:\n` +
-        [
-          line('1 definition', c.definition),
-          line('2 heading', c.heading),
-          line('3 sub-label', sub),
-          line('4 answer', answer),
-        ].join('\n') +
-        `\n    gaps: heading→definition ${c.headingToDefinition.toFixed(1)}px · ` +
+      `\n  ${theme} — the three levels, computed:\n` +
+        [line('1 label', label), line('2 definition', c.definition), line('3 answer', answer)].join('\n') +
+        `\n    ${c.labels.length} labels, all one class\n` +
+        `    gaps: label→definition ${c.labelToDefinition.toFixed(1)}px · ` +
         `within a pair ${c.withinPair.toFixed(1)}px · between blocks ${c.betweenBlocks.toFixed(1)}px\n`,
     );
 
-    // ── 1 BEATS 2. The definition is the content of the card. ───────────────
-    // This is the assertion the fourth attempt failed: it had the heading at
-    // 28px over a 21px definition.
+    // ── THE CARD HAS FOUR LABELS AND THEY ARE ONE CLASS. ───────────────────
+    // This is the assertion the whole sixth setting is about, and it is first
+    // because everything below it is meaningless if the card has grown a second
+    // label tier again.
+    expect(c.labels.length, 'the card should carry its labels in one class').toBeGreaterThanOrEqual(3);
+    for (const l of c.labels) {
+      expect(l.fontSize, `"${l.text}" is ${l.fontSize}px against "${label.text}" at ${label.fontSize}px`).toBe(
+        label.fontSize,
+      );
+      expect(l.fontWeight, `"${l.text}" is weight ${l.fontWeight} against ${label.fontWeight}`).toBe(label.fontWeight);
+      expect(l.color, `"${l.text}" is ${l.color} against ${label.color}`).toBe(label.color);
+      expect(l.textTransform).toBe(label.textTransform);
+      expect(l.letterSpacing).toBe(label.letterSpacing);
+    }
+    // And "What this marker means" is one of them rather than a heading above
+    // them — the specific failure the previous five settings kept re-creating.
+    expect(c.labels[0].text.toLowerCase()).toContain('what this marker means');
+
+    // ── NOT UPPERCASE. The load-bearing change. ────────────────────────────
+    // Uppercase at wide tracking reads as loud regardless of size, so a label
+    // set that way cannot be balanced against anything by size alone. Sentence
+    // case, and tracking well under the eyebrow's 0.14em (≈2.24px at 16px).
+    expect(label.textTransform, 'a label in this card is never uppercase').toBe('none');
+    expect(
+      parseFloat(label.letterSpacing),
+      `the label is tracked at ${label.letterSpacing}, which is eyebrow territory`,
+    ).toBeLessThan(1);
+
+    // ── 1 BEATS 2. The labels are the most prominent text in the card. ─────
+    expect(
+      label.fontSize,
+      `the label (${label.fontSize}px) is not larger than the definition (${c.definition.fontSize}px)`,
+    ).toBeGreaterThan(c.definition.fontSize);
+    // The definition is still the only display face, which is the second axis
+    // separating it from the label above and the answers below.
+    expect(c.definition.fontFamily).toMatch(/Fraunces/i);
+    expect(label.fontFamily).not.toMatch(/Fraunces/i);
+    expect(answer.fontFamily).not.toMatch(/Fraunces/i);
+
+    // ── 2 BEATS 3. The answers are the smallest text in the card. ──────────
     expect(
       c.definition.fontSize,
-      `the definition (${c.definition.fontSize}px) is not larger than the heading (${c.heading.fontSize}px)`,
-    ).toBeGreaterThan(c.heading.fontSize);
-    // And by a step somebody sees, not by two pixels.
-    expect(c.definition.fontSize / c.heading.fontSize).toBeGreaterThanOrEqual(1.25);
-    // The only display face in the card, which is the second axis carrying it.
-    expect(c.definition.fontFamily).toMatch(/Fraunces/i);
-    expect(c.heading.fontFamily).not.toMatch(/Fraunces/i);
+      `the definition (${c.definition.fontSize}px) is not larger than an answer (${answer.fontSize}px)`,
+    ).toBeGreaterThan(answer.fontSize);
 
-    // ── 2 BEATS 3. Clearly a label, clearly above the sub-labels. ───────────
-    // The three failures here were all "not enough of a step": 12 vs 12, then
-    // 14 vs 12. A third larger, plus the case and the tracking.
-    expect(c.heading.fontSize).toBeGreaterThan(sub.fontSize);
+    // ── AND THE LABEL OUT-READS ITS OWN ANSWER, on weight and on tone. ─────
+    // This is the pair that once ran BACKWARDS: 500 at /80 above 400 at /90, so
+    // the label was the fainter of the two. All three axes run the right way
+    // now — larger, heavier, and closer to full tone.
     expect(
-      c.heading.fontSize / sub.fontSize,
-      `heading ${c.heading.fontSize}px against sub-label ${sub.fontSize}px is inside the noise of two letter-cases`,
-    ).toBeGreaterThanOrEqual(1.25);
-    // It is the ONLY uppercase tracked line in the card. That is what makes it
-    // read as the heading rather than as a fourth peer.
-    expect(c.heading.textTransform).toBe('uppercase');
-    expect(sub.textTransform).toBe('none');
-    expect(parseFloat(c.heading.letterSpacing)).toBeGreaterThan(parseFloat(sub.letterSpacing) + 1);
-
-    // ── 3 BEATS 4. The label out-reads its own answer. ──────────────────────
-    // This is the pair that was running BACKWARDS: 500 at /80 above 400 at /90,
-    // so the label was the fainter of the two. Size cannot carry it — the
-    // answer is a paragraph and has to stay at the reading step — so weight and
-    // tone do, and both must run the right way.
-    expect(
-      sub.fontWeight,
-      `the sub-label (${sub.fontWeight}) is not heavier than its answer (${answer.fontWeight})`,
+      label.fontWeight,
+      `the label (${label.fontWeight}) is not heavier than its answer (${answer.fontWeight})`,
     ).toBeGreaterThan(answer.fontWeight);
-    expect(sub.fontWeight - answer.fontWeight, 'one weight step is not a visible difference').toBeGreaterThanOrEqual(
+    expect(label.fontWeight - answer.fontWeight, 'one weight step is not a visible difference').toBeGreaterThanOrEqual(
       200,
     );
     expect(
-      sub.inkDistance,
-      `the sub-label stands ${sub.inkDistance.toFixed(3)} off the page and its answer ${answer.inkDistance.toFixed(3)} — the label is the fainter`,
+      label.inkDistance,
+      `the label stands ${label.inkDistance.toFixed(3)} off the page and its answer ${answer.inkDistance.toFixed(3)} — the label is the fainter`,
     ).toBeGreaterThan(answer.inkDistance);
 
-    // …and the answers were NOT dimmed to achieve it. Body copy in a medical
-    // portal does not lose contrast to win a typographic argument: /90 is where
-    // it was, so the ratio holds at the same distance the whole product uses.
-    expect(answer.color.replace(/\s/g, '')).toMatch(/0\.9\)$/);
+    // The answers are quiet but never faint: /85 is on the opacity ladder and
+    // above its floor. Body copy in a medical portal does not go below it to
+    // win a typographic argument.
+    const answerAlpha = Number((answer.color.match(/[\d.]+/g) ?? [])[3] ?? 1);
+    expect(answerAlpha, `an answer is set at ${answer.color}, below the /80 floor of the opacity ladder`).toBeGreaterThanOrEqual(
+      0.8,
+    );
 
-    // ── THE SPACING. More between blocks than within them, and measured at the
-    //    painted gap rather than at the margin. 24/6 read as 4:1 in the source
-    //    and rendered at barely 2:1.
+    // ── THE SPACING. More between blocks than within them, measured at the
+    //    painted gap rather than at the margin.
     expect(c.withinPair).toBeGreaterThan(0);
     expect(
       c.betweenBlocks / c.withinPair,
@@ -297,19 +333,19 @@ for (const theme of ['light', 'dark'] as const) {
         `a label sits almost as far from its own answer as from the block above`,
     ).toBeGreaterThanOrEqual(3);
 
-    // The heading belongs to the definition, not to the first pair. A heading
-    // floating in as much air as a block boundary reads as a fourth block.
+    // The first label belongs to the definition, not to the first pair — the
+    // two are one unit, and it is spaced exactly as every other pair is.
     expect(
-      c.headingToDefinition,
-      'the heading is as far from its own definition as one block is from the next',
+      c.labelToDefinition,
+      'the first label is as far from its own definition as one block is from the next',
     ).toBeLessThan(c.betweenBlocks);
 
-    // ── AND ALL THREE SUB-LABELS ARE THE SAME. One class, not three call
-    //    sites drifting apart.
-    for (const s of c.sublabels) {
-      expect(s.fontSize).toBe(sub.fontSize);
-      expect(s.fontWeight).toBe(sub.fontWeight);
-      expect(s.color).toBe(sub.color);
+    // ── AND EVERY ANSWER IS THE SAME AS EVERY OTHER ANSWER. Nothing varies by
+    //    content length or by which fields a marker happens to have.
+    for (const a of c.answers) {
+      expect(a.fontSize).toBe(answer.fontSize);
+      expect(a.fontWeight).toBe(answer.fontWeight);
+      expect(a.color).toBe(answer.color);
     }
   });
 }

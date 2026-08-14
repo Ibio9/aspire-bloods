@@ -156,6 +156,72 @@ test.describe('print', () => {
           clip: { x: 0, y: 1017, width: 794, height: 1017 },
         });
 
+        /**
+         * AND THE CHART'S GLOW IS OFF, ON PAPER.
+         *
+         * The trend chart's points spark and its line carries a casing of light
+         * (see SPARK in tokens.ts), which is a screen effect: on a colour
+         * printer it is ink spent saying nothing and on a mono one it is a grey
+         * smudge round the one mark on the chart that has to stay sharp. The
+         * three strengths go to zero in `@media print` with the shadow alphas —
+         * and this is the half of that claim that cannot be made by reading the
+         * stylesheet, because the variable is emitted in one place and consumed
+         * in an SVG attribute in another.
+         *
+         * ⚠ AND THE CORE HAS TO FLIP WITH IT (Aug 2026). A point is a WHITE
+         * bead inside that halo now, and there is no shape layer left on this
+         * chart to fall back on — so with the halo at zero and the core still
+         * white, every point on a printed chart would be a white dot on white
+         * paper. `--c-chart-spark-core` is espresso under `@media print` for
+         * exactly that reason, and this is the only place that can be checked:
+         * the token is emitted in tailwind.config.ts and consumed as an SVG
+         * `fill` three files away.
+         */
+        if (name === 'marker') {
+          const glow = await page.evaluate(() => {
+            const root = getComputedStyle(document.documentElement);
+            const halo = [...document.querySelectorAll('circle')].find((c) =>
+              (c.getAttribute('fill') ?? '').startsWith('url(#spark-'),
+            );
+            // The bead: the circle that carries the core token as a literal
+            // fill, rather than a gradient reference.
+            const core = [...document.querySelectorAll('.recharts-surface circle')].find((c) => {
+              const fill = getComputedStyle(c).fill;
+              return fill !== 'none' && !fill.startsWith('url(') && Number(getComputedStyle(c).fillOpacity) > 0;
+            });
+            const channels = (css: string) => (css.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+            return {
+              declared: ['--chart-spark', '--chart-spark-past', '--chart-line-glow'].map((v) =>
+                Number(root.getPropertyValue(v)),
+              ),
+              // What the point actually paints its halo at, which is the number
+              // that reaches the paper.
+              applied: halo ? Number(getComputedStyle(halo).fillOpacity) : null,
+              coreFill: core ? getComputedStyle(core).fill : null,
+              /** Mean channel value, so "is it white" is one number. */
+              coreLevel: core
+                ? channels(getComputedStyle(core).fill).reduce((a, b) => a + b, 0) / 3
+                : null,
+              marks: document.querySelectorAll('.recharts-line-curve').length,
+            };
+          });
+          for (const value of glow.declared) {
+            expect(value, `${theme}: a chart glow strength survives into print at ${value}`).toBe(0);
+          }
+          expect(glow.applied, `${theme}: a point's halo prints at ${glow.applied}`).toBe(0);
+          // THE BEAD IS INK ON PAPER, NOT WHITE ON WHITE. Measured rather than
+          // named: anything above mid-grey on a white page is a point nobody
+          // can see, and with the halo at zero there is nothing else drawing it.
+          expect(glow.coreLevel, `${theme}: the printed chart has no point mark at all`).not.toBeNull();
+          expect(
+            glow.coreLevel!,
+            `${theme}: a point prints as ${glow.coreFill} — white on white paper`,
+          ).toBeLessThan(128);
+          // The line and its casings are still THERE — this turns the light off,
+          // it does not delete the chart.
+          expect(glow.marks, `${theme}: the printed chart has ${glow.marks} line paths`).toBeGreaterThan(0);
+        }
+
         const PAGE_CONTENT_HEIGHT = 1017;
         const breaks = await page.evaluate((pageHeight) => {
           const pageOf = (y: number) => Math.floor(y / pageHeight);

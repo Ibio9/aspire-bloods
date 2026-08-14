@@ -94,25 +94,41 @@ test('every admin route loads with a clean console', async ({ page }) => {
   const patients = (await (await page.request.get('/api/admin/patients')).json()) as { id: string }[];
   const reports = (await (await page.request.get('/api/reports')).json()) as { id: string }[];
 
+  /**
+   * ── FIVE SCREENS, AND SIX REDIRECTS (Aug 2026) ──────────────────────────
+   *
+   * Overview · Reports · Patients · Analytics · Settings, plus the two detail
+   * routes. The six closed paths are still walked here, because a redirect that
+   * throws is a 404 with extra steps and every one of them is in somebody's
+   * bookmarks.
+   */
   const routes: { name: string; path: string }[] = [
-    { name: 'Console', path: '/' },
-    { name: 'Reports & entry', path: '/admin' },
+    { name: 'Overview', path: '/' },
+    { name: 'Reports', path: '/admin' },
     { name: 'Reports filtered by status', path: '/admin?status=PARSED' },
     // HELD is a queue bucket rather than a status — PARSED covers both held and
     // read-but-not-released, so the two filters are separate URLs.
     { name: 'Reports filtered to the held queue', path: '/admin?queue=HELD' },
-    // The work queue: what is held and what is stuck. It names patients, so it
-    // is audited like the patient list — and with results releasing themselves
-    // it is the whole of what a clinician has to act on.
-    { name: 'Work queue', path: '/admin/queue' },
     { name: 'Patients', path: '/admin/patients' },
-    { name: 'Result linking', path: '/admin/linking' },
-    { name: 'Panels', path: '/admin/panels' },
-    { name: 'Marker library', path: '/admin/markers' },
-    { name: 'Audit log', path: '/admin/audit-log' },
-    { name: 'Ingestion log', path: '/admin/ingestion-log' },
-    // Kept as a redirect rather than removed — it is in browser histories.
+    { name: 'Analytics', path: '/admin/analytics' },
+    { name: 'Settings', path: '/admin/settings' },
+    // Every section, arrived at by its own hash — the form the six redirects
+    // below land in.
+    { name: 'Settings · packages', path: '/admin/settings#packages' },
+    { name: 'Settings · marker library', path: '/admin/settings#markers' },
+    { name: 'Settings · ingestion log', path: '/admin/settings#ingestion-log' },
+    { name: 'Settings · audit log', path: '/admin/settings#audit-log' },
+    { name: 'Settings · backup', path: '/admin/settings#backup' },
+    // The six closed routes. Kept as redirects rather than removed — they are
+    // in browser histories, in bookmarks and in at least one server-side error
+    // message.
+    { name: 'Legacy work queue', path: '/admin/queue' },
+    { name: 'Legacy result linking', path: '/admin/linking' },
+    { name: 'Legacy panels', path: '/admin/panels' },
     { name: 'Legacy content path', path: '/admin/content' },
+    { name: 'Legacy marker library', path: '/admin/markers' },
+    { name: 'Legacy audit log', path: '/admin/audit-log' },
+    { name: 'Legacy ingestion log', path: '/admin/ingestion-log' },
   ];
   if (patients[0]) routes.push({ name: 'Patient detail', path: `/admin/patients/${patients[0].id}` });
   if (reports[0]) routes.push({ name: 'Report detail', path: `/admin/reports/${reports[0].id}` });
@@ -127,41 +143,93 @@ test('every admin route loads with a clean console', async ({ page }) => {
   }
 });
 
-test('the old content path redirects rather than 404ing', async ({ page }) => {
-  await signInAsAdmin(page);
-  await page.goto('/admin/content');
-  await expect(page).toHaveURL(/\/admin\/panels$/);
-});
+/**
+ * ── THE SIX CLOSED ROUTES ALL REDIRECT, AND FOUR CARRY A HASH ─────────────
+ *
+ * Nine console screens became five (Aug 2026). None of the four that lost a
+ * route 404s: they are in bookmarks, in browser histories and — for the two
+ * logs — in a server-side error message. The four that landed in Settings carry
+ * a hash, because a redirect that drops somebody on a page of shut disclosures
+ * answers "where is the audit log" with "somewhere under one of these".
+ */
+const REDIRECTS: { from: string; to: RegExp; opens?: string }[] = [
+  { from: '/admin/queue', to: /\/$/ },
+  { from: '/admin/linking', to: /\/admin#unmatched$/ },
+  { from: '/admin/panels', to: /\/admin\/settings#packages$/, opens: 'Edit packages' },
+  { from: '/admin/content', to: /\/admin\/settings#packages$/, opens: 'Edit packages' },
+  { from: '/admin/markers', to: /\/admin\/settings#markers$/, opens: 'Marker library' },
+  { from: '/admin/ingestion-log', to: /\/admin\/settings#ingestion-log$/, opens: 'Ingestion log' },
+  { from: '/admin/audit-log', to: /\/admin\/settings#audit-log$/, opens: 'Audit log' },
+];
 
-test('the landing screen IS the work queue, and does not restate the sidebar', async ({ page }) => {
+for (const redirect of REDIRECTS) {
+  test(`${redirect.from} redirects rather than 404ing`, async ({ page }) => {
+    await signInAsAdmin(page);
+    await page.goto(redirect.from);
+    await expect(page).toHaveURL(redirect.to);
+    if (redirect.opens) {
+      // AND THE SECTION IS OPEN. This is the half a URL check cannot make: the
+      // hash has to actually expand its disclosure, or the redirect is a
+      // redirect to a closed door.
+      await expect(page.getByRole('button', { name: redirect.opens })).toHaveAttribute('aria-expanded', 'true');
+    }
+  });
+}
+
+test('the landing screen is Overview: what needs doing, then the headlines', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await signInAsAdmin(page);
   await page.goto('/');
   await settle(page);
 
   /**
-   * ── THE CONSOLE SCREEN WAS MERGED INTO THE WORK QUEUE (Aug 2026) ────────
+   * ── OVERVIEW REPLACED THE WORK QUEUE, WHICH REPLACED THE CONSOLE ────────
    *
-   * `/` used to render `AdminDashboard`, which answered "what is waiting for
-   * you" — the same question the work queue answers, better. Two screens, one
-   * question, and the one an admin landed on was the weaker of them.
+   * All three answered "what is waiting for you", and each was the previous one
+   * with the parts that were not that question taken off. Overview is the work
+   * queue minus the bucket summary, the turnaround band and the backup band,
+   * plus three analytics headlines.
    *
-   * So this asserts the merge rather than the old screen: the landing page is
-   * the queue, and it carries the bands the console did NOT have.
+   * TWO SECTIONS, IN ONE ORDER, AND NOTHING ELSE.
    */
-  await expect(page.getByRole('heading', { name: 'Work queue' })).toBeVisible();
-  // What the queue is for, said at the top in one line — every console screen
-  // does this now (see ConsolePage).
-  await expect(page.getByText(/Everything waiting on somebody, longest first/i)).toBeVisible();
-  // The three bands the merged-away console could not show.
-  await expect(page.getByText(/Off-platform backup/i)).toBeVisible();
-  await expect(page.getByText(/Where the open reports are/i)).toBeVisible();
-  await expect(page.getByText(/Arrival to release/i)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
+  await expect(page.getByText('What needs doing', { exact: true })).toBeVisible();
+  await expect(page.getByText(/^Analytics · last \d+ days$/)).toBeVisible();
+
+  // ── THE FOUR BANDS THAT CAME OFF ─────────────────────────────────────────
+  // Each moved somewhere it belongs rather than being deleted: the backup to
+  // Settings, the turnaround to Analytics, and the bucket summary nowhere,
+  // because it was a second arrangement of the list directly beneath it.
+  // Matched on the band HEADINGS the work queue printed, not on loose phrases:
+  // "median arrival to release" is one of the three headlines and is meant to
+  // be here, so `/Arrival to release/` would fail on the thing that replaced
+  // the band rather than on the band.
+  for (const gone of [
+    /^Off-platform backup$/,
+    /^Where the open reports are$/,
+    /^Arrival to release, last \d+ days$/,
+    /^The list( \(\d+\))?$/,
+  ]) {
+    await expect(page.getByText(gone), `${gone} is not on the landing screen any more`).toHaveCount(0);
+  }
+
+  /**
+   * ── AND THE PROSE IS GONE ────────────────────────────────────────────────
+   *
+   * The old screen carried a purpose line, a sentence about the figures being
+   * derived rather than tracked, a `why` paragraph under each of three
+   * exception cards and a note under the turnaround block — five explanations
+   * above a work list, read by a clinician every morning. The target is that no
+   * console screen carries more than ONE sentence of prose above the data, and
+   * this one carries none: the heading is the sentence.
+   */
+  const main = page.locator('main');
+  await expect(main.getByText(/nothing on this screen is tracked separately/i)).toHaveCount(0);
+  await expect(main.getByText(/Everything waiting on somebody, longest first/i)).toHaveCount(0);
 
   // And what it is not for. A grid of navigation cards duplicating the sidebar
   // is what the old console had, incompletely; nothing may bring it back.
-  const main = page.locator('main');
-  for (const label of ['Panels', 'Marker library', 'Audit log', 'Analytics']) {
+  for (const label of ['Reports', 'Patients', 'Settings']) {
     await expect(
       main.getByRole('link', { name: label, exact: true }),
       `"${label}" is a sidebar destination and must not be restated as a card in the page body`,
@@ -169,10 +237,52 @@ test('the landing screen IS the work queue, and does not restate the sidebar', a
   }
 });
 
-test('the old work-queue path redirects to the landing screen', async ({ page }) => {
-  // `/admin/queue` is in bookmarks and in the sidebar of every build so far.
+test('the sidebar is five items with no sublabels', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await signInAsAdmin(page);
-  await page.goto('/admin/queue');
-  await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByRole('heading', { name: 'Work queue' })).toBeVisible();
+  await page.goto('/');
+  await settle(page);
+
+  const nav = page.getByRole('navigation', { name: 'Clinician console navigation' });
+  /**
+   * FIVE, and the count is the assertion. Nine peers is an index rather than a
+   * navigation, and the two band headings that existed to say which three of
+   * the nine mattered went with them.
+   */
+  await expect(nav.getByRole('link')).toHaveCount(5);
+  for (const label of ['Overview', 'Reports', 'Patients', 'Analytics', 'Settings']) {
+    await expect(nav.getByRole('link', { name: label, exact: true })).toBeVisible();
+  }
+  // The two band headings are gone with the four entries they separated.
+  for (const heading of ['Every day', 'Records & setup']) {
+    await expect(nav.getByText(heading, { exact: true })).toHaveCount(0);
+  }
+  /**
+   * NO SUBLABELS. A label that needs one to be understood needs rewriting, and
+   * these carried `truncate` — so four of them were cut off mid-word, which is
+   * a line whose whole job is removing ambiguity, removed halfway through.
+   * Measured as "a nav link is one line of text", which is what that means.
+   */
+  const lineCounts = await nav.locator('a').evaluateAll((links) =>
+    links.map((a) => (a.textContent ?? '').trim().split('\n').filter(Boolean).length),
+  );
+  for (const [i, count] of lineCounts.entries()) {
+    expect(count, `nav link ${i} carries ${count} lines of text — a sublabel is back`).toBe(1);
+  }
+});
+
+test('Reports carries the unmatched results that used to be their own screen', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await signInAsAdmin(page);
+  await page.goto('/admin');
+  await settle(page);
+
+  // A separate page for one class of report meant two places to look for the
+  // same thing. The anchor is what the Overview's own row links to.
+  await expect(page.locator('#unmatched')).toHaveCount(1);
+  await expect(page.getByText('Results nobody could place')).toBeVisible();
+  // ONE page heading. The absorbed screen's own title and purpose line are
+  // suppressed by ConsoleSection — two page titles on one page is the thing
+  // this restructure exists to remove.
+  await expect(page.getByRole('heading', { name: 'Result linking' })).toHaveCount(0);
 });

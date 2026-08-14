@@ -1966,6 +1966,24 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
   // same card every wash is mixed from.
   out['--c-chart-surface'] = tintTowards;
   /**
+   * ── THE SPARK: A WHITE CORE, AND A HALO THAT IS NOT ALWAYS WHITE ─────────
+   *
+   * The core is pure white in BOTH themes and carries no status — see SPARK.
+   * Under `@media print` tailwind.config.ts overrides it to espresso, because
+   * the halo is zero there and a white dot on white paper is no dot at all.
+   *
+   * The halo is the half that has to differ, and it differs in KIND rather
+   * than in amount. In dark it is white: light added to a near-black card,
+   * which is what emission is. In light a white halo on a cream card measures
+   * 1.05:1 — it is not a dim bloom, it is nothing — so it is a warm DARK
+   * instead and the core reads as the brightest point inside a soft shadow.
+   * Espresso rather than black, for the same reason every shadow in this
+   * product is espresso-derived: a neutral grey smudge on cream is the one
+   * thing the palette has never allowed.
+   */
+  out['--c-chart-spark-core'] = '#ffffff';
+  out['--c-chart-spark-halo'] = dark ? '#ffffff' : brand.espresso;
+  /**
    * ── THE GROUND THE BAND LADDER IS SOLVED AGAINST (Aug 2026) ─────────────
    *
    * `PLOT_SURFACE` outlived the plot. It is no longer a panel anybody draws —
@@ -2509,8 +2527,16 @@ export const chart = {
    * status layer leaking into the furniture.
    */
   boundLabel: 'rgb(var(--c-chart-bound-label))',
-  /** The soft halo behind the most recent point — the one the reader came for. */
-  haloOpacity: 0.16,
+  /**
+   * `haloOpacity` IS GONE — see `SPARK` below (Aug 2026).
+   *
+   * It was one number, 0.16, painted as a flat 13px disc behind the most recent
+   * point. A disc of constant alpha has an EDGE, so what it drew was a dot
+   * inside a ring rather than a point that is lit: the halo ended somewhere,
+   * visibly, and where it ended was a second circle nobody had asked for. A
+   * falloff cannot be expressed as one alpha, and it is not a chart token any
+   * more because it is a ramp and a per-theme strength rather than a colour.
+   */
   /**
    * THE OPTIMAL BAND HAS NO TOKENS OF ITS OWN ANY MORE (Aug 2026), and their
    * absence is the point.
@@ -2533,6 +2559,251 @@ export const chart = {
   cursor: 'rgb(var(--c-chart-cursor))',
   /** Warm off-white (light) / raised warm near-black (dark) for chart card surfaces — never pure white, never grey. */
   surface: 'rgb(var(--c-chart-surface))',
+  /**
+   * The white bead at the middle of every point, and the falloff around it.
+   * See SPARK below: the core is white on screen in both themes and espresso
+   * in print; the halo is white in dark and a warm dark in light, because
+   * those are two different phenomena rendering one idea.
+   */
+  sparkCore: 'rgb(var(--c-chart-spark-core))',
+  sparkHalo: 'rgb(var(--c-chart-spark-halo))',
+} as const;
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  THE POINTS ARE LIT, AND SO IS THE LINE (Aug 2026).
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * A point on the trend chart is a SPARK: a tight WHITE core inside a wide, soft
+ * falloff, identical at every status, with the most recent one brightest and
+ * slightly larger. The line carries a faint casing of light along its length,
+ * in whatever status colour it is at that stretch.
+ *
+ * ── THE POINTS ARE UNIFORM AND THE LINE CARRIES THE STATUS ─────────────────
+ *
+ * Every point is the same mark. No shapes, no per-status colour, no variation
+ * of any kind except the most recent one being brighter and a little larger.
+ * The chevrons, triangles and doubled chevrons are OFF THE CHART and are not to
+ * be put back — three kinds of mark on one line is noise, and it was noise
+ * saying what the line already says in colour along its own length.
+ *
+ * THIS IS A NAMED EXCEPTION TO "NEVER COLOUR ALONE" AND IT IS THE ONLY ONE.
+ * The shape-and-label layer is mandatory everywhere else in the product —
+ * result cards, range bars, the counts strip, status words, the tooltip, the
+ * key — and nothing here weakens that. What makes the chart different is that
+ * it has a SECOND non-colour carrier the other surfaces do not: every point's
+ * POSITION against four labelled boundary rules, each printed with its own
+ * value on the axis. A reader who cannot separate the green stretch from the
+ * red one still sees which side of the reference bound each point falls on,
+ * which is a more precise answer than a chevron and one a greyscale page keeps
+ * in full. The status is also still named IN WORDS in the tooltip, on every
+ * point, and in the key.
+ *
+ * ── WHAT THIS IS NOT ───────────────────────────────────────────────────────
+ *
+ * It is not neon, and the difference is not a matter of degree. Neon is a
+ * saturated hue on black; this is an effect applied to colours that are already
+ * solved (`--c-hue-*-mark`, at LINE_FILL_TARGET off the card) and it may not
+ * change one of them. There is no second line, no echo, no mirrored curve and
+ * no grid. If a reader notices the glow AS an effect it is too strong — the
+ * whole of the intent is that the chart reads as considered rather than as
+ * decorated.
+ *
+ * ── WHY A GRADIENT AND NOT A BLUR ──────────────────────────────────────────
+ *
+ * `feGaussianBlur` is the obvious way to draw a glow and it is the wrong one
+ * here, for the reason already written down against the plot panel's inner
+ * shadow: a filter on an element inside a Recharts SVG is re-rasterised as the
+ * tooltip moves, and the tooltip moves continuously. A radial gradient is
+ * painted like any other fill and costs nothing per frame, and it gives an
+ * exact falloff rather than an approximated one. Two overlapping translucent
+ * strokes do the same job for the line: the outer one alone at `alpha`, both
+ * together at 1−(1−alpha)² nearer the core, which is a two-step ramp for the
+ * price of two paths.
+ *
+ * ── THE GEOMETRY IS SHARED, THE STRENGTH IS PER THEME ──────────────────────
+ *
+ * `radius`, `ramp` and `glyph` are one shape in both themes: a spark is the
+ * same object whichever room it is in. What differs is the halo's COLOUR and
+ * its strength, and it has to, because a white bloom is not available on a
+ * near-white card. This is two different physical phenomena rendering one idea:
+ *
+ *   DARK   a white core with a WHITE falloff — light added to a near-black
+ *          card, which reads as emission, which is what it is.
+ *   LIGHT  a white core with a WARM DARK falloff — the same core, sitting in a
+ *          soft shadow rather than a bloom. A white halo on a cream card is
+ *          nothing at all (1.05:1), so reusing dark's value there would delete
+ *          the point rather than dim it. What makes the core read is that it is
+ *          the BRIGHTEST thing inside a dark smudge, which is how a lit bead on
+ *          paper reads. Ink carries further per unit of alpha than light does,
+ *          hence roughly half the strength.
+ *
+ * ── AND IN PRINT THE CORE FLIPS TO INK ─────────────────────────────────────
+ *
+ * The halo goes to zero on paper with every other glow, which would leave a
+ * white dot on white paper: the points would simply vanish from a printed
+ * chart. `--c-chart-spark-core` is therefore espresso under `@media print`.
+ * A printed trend is dark points on white with no glow, which is what a chart
+ * in a document should be. `e2e/zz-print.spec.ts` reads both off a printed
+ * point rather than trusting the stylesheet.
+ *
+ * ── THE POINT'S LEGIBILITY IS THE CORE AGAINST THE CARD ────────────────────
+ *
+ * With no stroke and no status fill, a point reads by exactly one pair: the
+ * white core against the card. That is 1.05:1 in light on its own — which is
+ * why the halo is not decoration there but the thing that makes the mark
+ * exist — and 15:1 in dark. `tokenContrast.test.ts` holds the light case at
+ * the HALO's own separation from the card instead, since that is the pair
+ * doing the work, and holds the core above the halo in both themes so the
+ * bead is always the brightest part of its own spark.
+ *
+ * ── WHERE THE NUMBERS ARE CONSUMED ─────────────────────────────────────────
+ *
+ * The three strengths are emitted as `--chart-spark`, `--chart-spark-past` and
+ * `--chart-line-glow` by tailwind.config.ts, in both themes and at ZERO under
+ * `@media print` — the same treatment the shadow alphas get, and for the same
+ * reason: a glow costs ink to say nothing on paper. They are OPACITIES rather
+ * than colours, so a bare `var(--x)` is correct at the call site and the
+ * `rgb(var(--x))` rule (which exists because the colour properties hold bare
+ * channels) does not apply to them. The two COLOURS are ordinary colour tokens
+ * and do take `rgb(var(--x))`: `chart.sparkCore` and `chart.sparkHalo`.
+ */
+export const SPARK = {
+  /**
+   * ── EVERY POINT IS THE SAME WHITE SPARK (Aug 2026) ────────────────────────
+   *
+   * The chart used to draw a level dot, a chevron, or a DOUBLED chevron at each
+   * point, stroked in that point's own status colour — three marks of different
+   * kinds on one line. That is off the chart entirely and is not to be put
+   * back; see `SPARK_EXCEPTION` below for the reasoning and for where the shape
+   * layer is still mandatory, which is everywhere else in the product.
+   *
+   * A point is now a bright white CORE inside a wide soft falloff, identical at
+   * every status: same colour, same size, same treatment, whatever the value is
+   * doing. The one permitted variation is the most recent point, which is
+   * slightly larger and sparks brighter — it is the one the reader came for.
+   *
+   * WHITE, AND WHITE IN BOTH THEMES, because the point's job here is POSITION
+   * and nothing else. A point drawn in its own status colour on a line already
+   * carrying that colour is the same fact stated twice, and it costs the point
+   * its one distinction from the line running through it.
+   */
+  glyph: {
+    /** The white core's radius in px. Tight — the falloff is what carries the size. */
+    r: 3.2,
+    /** The most recent point. Slightly larger, and that is the only size variation. */
+    rLatest: 4.2,
+  },
+  /**
+   * How far the halo reaches, as a multiple of the CORE's own radius.
+   *
+   * 4.5, up from 3.3 — and the number went up because the core got much
+   * smaller. A halo 3.3× a 5px status glyph and a halo 4.5× a 3.2px core are
+   * about the same number of pixels across; what changed is the RATIO, which
+   * is the whole of what makes this read as light rather than as a dot. A wide
+   * falloff around a fat glyph is a disc with soft edges.
+   */
+  radius: 4.5,
+  /**
+   * The falloff: `[offset, share of the core alpha]`, offsets as fractions of
+   * the halo's radius.
+   *
+   * TIGHT CORE, WIDE TAIL, and the shape is the whole effect. The plateau ends
+   * at 0.22, which is exactly where the white core's own edge is (a core of
+   * radius r inside a halo of 4.5r), so the hottest part of the gradient is
+   * under the core and everything that leaks out around it is already on the
+   * falloff — which is what "lit from within" means geometrically. The alpha
+   * then loses half of itself in the next fifth of the radius and trails to
+   * nothing over the remaining half.
+   *
+   * An even ramp reads as a filled circle with soft edges, which is a disc, and
+   * a disc of constant alpha reads as a dot inside a ring. Both are the things
+   * this replaced.
+   *
+   * IT WAS STEEPER AND THAT MADE THE SPARK FAINTER THAN THE DISC IT REPLACED.
+   * At 0.42 and 0.14 the only part of the halo outside the glyph that carried
+   * any weight was a couple of pixels, so in light — where the effect is a
+   * shadow rather than an emission and is quiet to begin with — the most recent
+   * point read as LESS marked than it had with the old flat 0.16 disc, which is
+   * the one direction this change was not allowed to go. Measured off the
+   * rendered plot, not reasoned about: see screenshots/line.
+   */
+  ramp: [
+    [0, 1],
+    // 0.23 rather than 0.222: the plateau must reach the core's edge (1/4.5)
+    // and not stop a hair inside it, or the falloff starts under the bead and
+    // the brightest ring of the halo is a hairline around it. Pinned by
+    // tokenContrast.test.ts, which computes the edge from `radius` rather than
+    // trusting this number.
+    [0.23, 1],
+    [0.42, 0.5],
+    [0.68, 0.18],
+    [1, 0],
+  ],
+  /**
+   * The core alpha of the MOST RECENT point's halo — the one the reader came
+   * for.
+   *
+   * ── THE TWO NUMBERS ARE NOT COMPARABLE WITH EACH OTHER (Aug 2026) ────────
+   *
+   * They used to be, and there was a rule about it: dark's alpha was higher
+   * than light's because both halos were the same status colour and "ink
+   * carries further per unit of alpha than light does". That rule is retired
+   * with the colour it was about. The halos are now DIFFERENT COLOURS —
+   * white on a near-black card, espresso on a near-white one — so their alphas
+   * are two answers to two different questions and one being larger says
+   * nothing at all.
+   *
+   * What IS comparable is what they measure, and both were chosen at the
+   * measurement rather than by eye:
+   *
+   *     dark   0.22 → the halo stands 2.06:1 off the card, core 7.21:1 off it
+   *     light  0.34 → the halo stands 1.87:1 off the card, core 1.92:1 off it
+   *
+   * Near-equal presence in the two rooms, which is what "the same spark in both
+   * themes" has to mean when the two are made of different light. `SPARK` is
+   * pinned at both ends by tokenContrast.test.ts: the bead always out-reads its
+   * own halo, and the halo never reaches a card's worth of separation from the
+   * card — past that it stops being light around a mark and becomes a filled
+   * region on the plot, which is the one thing removing the bands was for.
+   *
+   * ⚠ WHITE AT 0.58 — dark's previous number, carried over unchanged when the
+   * halo went white — measured 5.99:1. That is not a glow, it is a lamp: a
+   * white disc most of a card's separation brighter than everything around it,
+   * on a chart whose whole intent is that the effect is not noticed as one.
+   */
+  core: { light: 0.34, dark: 0.22 },
+  /**
+   * Every earlier point, as a share of it. The history is context for the
+   * latest result in exactly the way the size difference already says; this
+   * says it a second time in light, which is the difference between "the last
+   * point is bigger" and "the last point is the one that is lit".
+   */
+  pastShare: 0.45,
+  /**
+   * ── THE LINE'S CASING: THREE LAYERS, NOT TWO ───────────────────────────
+   *
+   * Each layer is a stroke `extra` pixels wider than the line, painted with the
+   * line's own gradient at `alpha` × its own `share`, outermost first. The
+   * light around the line is therefore the colour the line is at that stretch,
+   * by construction rather than by two derivations agreeing.
+   *
+   * TWO LAYERS AT ONE ALPHA LEFT A VISIBLE EDGE, which is the failure a glow
+   * cannot have: an outermost stroke at a flat alpha ends AT ITS OWN WIDTH, so
+   * what the dark plot showed was not a line that glows but a second, wider,
+   * dimmer line with a hard boundary down each side. Three layers whose alphas
+   * step 0.4 / 0.7 / 1 give four composited levels between the card and the
+   * line (0.4a, then ~1.1a, then ~1.8a, then the line), and the outermost is
+   * faint enough that its edge is below the threshold of being an edge.
+   */
+  line: {
+    layers: [
+      { extra: 16, share: 0.4 },
+      { extra: 9, share: 0.7 },
+      { extra: 4, share: 1 },
+    ],
+    alpha: { light: 0.08, dark: 0.13 },
+  },
 } as const;
 
 // ---------------------------------------------------------------------------

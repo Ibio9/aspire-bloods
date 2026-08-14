@@ -23,6 +23,7 @@ import {
   formatReferenceBound,
   formatReferenceRange,
   formatDate,
+  SPARK,
   type MarkerStatus,
   type MarkerStatusInput,
   type OptimalRangeDTO,
@@ -61,6 +62,22 @@ import { statusColor, statusLabel } from '../../lib/markerCopy';
  *      significantly-out thresholds — with their values printed on the axis.
  *   3. THE POINTS, each a shape in its own status colour.
  *   4. THE AXIS, and the unit above it.
+ *
+ * ── AND SINCE Aug 2026 ALL OF IT IS LIT ────────────────────────────────────
+ *
+ * Every point is a SPARK — a tight core inside a wide radial falloff in its own
+ * status colour, brightest on the most recent — and the line carries a faint
+ * casing of the same light along its length. That is an effect applied to the
+ * colours already solved here and it changes none of them.
+ *
+ * IT DOES NOT REOPEN "NO FILLED REGIONS". That rule is about REGIONS OF THE
+ * PLOT — the status bands, the optimal narrowing, the inset panel — areas of
+ * colour that said where the reference range sits and out-read the reader's own
+ * result while doing it. A halo is part of the point mark, drawn at the mark and
+ * nowhere else, and one has been drawn here all along (it was a flat 13px disc,
+ * which is what made it read as a dot inside a ring rather than as light). See
+ * SPARK in tokens.ts for the falloff, the per-theme strength and why none of it
+ * goes near an SVG filter.
  *
  * ── WHY THIS IS BETTER AND NOT JUST QUIETER ────────────────────────────────
  *
@@ -223,20 +240,34 @@ function niceTicks(min: number, max: number, target = 4): number[] {
 }
 
 /**
- * Status as a shape, not a hue.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  THE SHAPE LAYER IS OFF THIS CHART, AND ONLY THIS CHART (Aug 2026).
+ * ═══════════════════════════════════════════════════════════════════════════
  *
- * Direction is legible at 10px and survives greyscale, a colour-blind reader
- * and a printed page — none of which a fill colour does. Severity is the
- * doubled mark, the same doubled-chevron idea the status badges use, so the
- * vocabulary is one vocabulary across the product.
+ * `STATUS_SHAPE` and `StatusMark` used to live here: a level dot for in range,
+ * a chevron for out, a DOUBLED chevron for significantly out, each stroked in
+ * its own status colour and filled with the card. Three kinds of mark on one
+ * line, and the line beneath them already carried the identical fact in colour
+ * along its own length. Both are gone and neither comes back — every point is
+ * now the same white spark (see `SparkPoint`).
+ *
+ * ── THIS IS A NAMED EXCEPTION TO "NEVER COLOUR ALONE", AND THE ONLY ONE ────
+ *
+ * The rule stands everywhere else and nothing here weakens it: result cards,
+ * range bars, the counts strip, the status words, the badges and the tooltip
+ * all still carry status as a shape and a word first. What makes this chart
+ * different is that it has a second non-colour carrier none of those surfaces
+ * has — a point's POSITION against four labelled boundary rules, each drawn
+ * across the plot and printed with its own value on the axis. A reader who
+ * cannot separate the green stretch of line from the red one still sees which
+ * side of the reference bound every point falls on, which is a more precise
+ * answer than a chevron and one that survives greyscale and a printed page in
+ * full. The status is still NAMED IN WORDS on every point in the tooltip, and
+ * in the key below the chart.
+ *
+ * See CLAUDE.md, "Traffic-light status", for the same note in the one place a
+ * future session will look before putting the shapes back.
  */
-const STATUS_SHAPE: Record<MarkerStatus, 'circle' | 'up' | 'down' | 'double-up' | 'double-down'> = {
-  IN_RANGE: 'circle',
-  HIGH: 'up',
-  LOW: 'down',
-  SIGNIFICANT_HIGH: 'double-up',
-  SIGNIFICANT_LOW: 'double-down',
-};
 
 /**
  * A point's own state's colour — the same green/gold/red family the band under
@@ -248,115 +279,165 @@ function markFill(status: MarkerStatus): string {
 }
 
 /**
- * A POINT IS A SHAPE STROKED IN ITS OWN STATUS COLOUR, FILLED WITH THE CARD.
+ * ONE RADIAL FALLOFF FOR THE WHOLE CHART, AND EVERY POINT SHARES IT.
  *
- * The fill is what makes the line pass visibly BEHIND the point rather than
- * stopping at it, so it has to be the colour the ground would be with nothing
- * drawn there — which, with the plot panel gone, is the card in each theme
- * (`chart.surface`). It was the light plot's own off-white, which on a dark
- * card would now paint a pale halo round every mark.
+ * It used to be one gradient PER STATUS, because the halo was that point's own
+ * status colour. Every point is the same white spark now, so there is one
+ * definition — and one is the honest number: five gradients saying the same
+ * thing was five chances for a point to spark in a colour the line was not.
  *
- * ── ONE COLOUR IN ALL THREE PLACES NOW (Aug 2026) ──────────────────────────
+ * A gradient in the default `objectBoundingBox` units is measured against the
+ * box of whatever it is painted on, so this one definition serves every point at
+ * whatever radius each is drawn at: the latest point's halo is the same shape as
+ * the rest, larger.
  *
- * The same glyph is drawn on the chart, in the tooltip and in the key, and it
- * used to need TWO colours: `--c-hue-*-mark` was solved against the BANDS and
- * measured 1.28:1 on a card, so the key's triangles were invisible and had to
- * borrow the status TEXT colour instead. With the bands gone that token is
- * solved against the card itself, which is the surface all three instances
- * stand on — so the `surface` parameter and the second lookup are both gone.
- *
- * `paintOrder: stroke` still applies and still for the reason below: a stroke
- * straddles its path, and on a 5px triangle that eats half the shape from the
- * inside.
+ * The STRENGTH is not in here. The stops carry the RAMP as a share of the core
+ * (SPARK.ramp) and the core alpha arrives per point as a fill-opacity, which
+ * multiplies — which is what lets one definition serve both the most recent
+ * point and the quieter ones behind it, and what puts the per-theme number in
+ * exactly one place.
  */
-function StatusMark({
-  cx,
-  cy,
-  status,
-  size = 1,
-  ring = 1,
-  hollow = false,
-}: {
-  cx: number;
-  cy: number;
-  status: MarkerStatusInput;
-  size?: number;
-  /** The VISIBLE width of the outline, in pixels — see paintOrder below. */
-  ring?: number;
-  /** The key and the tooltip, where the shape sits on a surface that already shows through it. */
-  hollow?: boolean;
-}) {
-  const known = asMarkerStatus(status);
-  // No status, no mark. Every shape here — level dot, triangle, doubled
-  // triangle — is a claim about where the value sits, and that is precisely
-  // what is unknown. Unreachable once the series is filtered below; stated so
-  // the lookup cannot be the thing that throws.
-  if (!known) return null;
-  const r = 5 * size;
-  const common = {
-    fill: hollow ? 'transparent' : chartTokens.surface,
-    stroke: markFill(known),
-    // Doubled, because `paint-order: stroke` draws the outline FIRST and then
-    // fills over its inner half — so half of the declared width is what shows.
-    strokeWidth: ring * 2,
-    strokeLinejoin: 'round' as const,
-    /**
-     * THE OUTLINE GOES OUTSIDE THE MARK, NOT THROUGH IT.
-     *
-     * An SVG stroke straddles its path, so a 1.5px stroke on a 5px triangle
-     * eats about half the triangle's own area from the inside — and that is not
-     * a theoretical amount. A circle survives it (its area grows with r²); a
-     * triangle at the same r has under half the area and does not.
-     */
-    paintOrder: 'stroke' as const,
-  };
-  const shape = STATUS_SHAPE[known];
-
-  if (shape === 'circle') return <circle cx={cx} cy={cy} r={r} {...common} />;
-
-  const up = shape === 'up' || shape === 'double-up';
-  const tri = (offset: number) =>
-    up
-      ? `${cx},${cy - r - offset} ${cx + r},${cy + r * 0.6 - offset} ${cx - r},${cy + r * 0.6 - offset}`
-      : `${cx},${cy + r + offset} ${cx + r},${cy - r * 0.6 + offset} ${cx - r},${cy - r * 0.6 + offset}`;
-
-  if (shape === 'up' || shape === 'down') return <polygon points={tri(0)} {...common} />;
-
-  // Significant: two stacked triangles, pointing the same way.
+function SparkGradient({ id }: { id: string }) {
   return (
-    <g>
-      <polygon points={tri(r * 0.75)} {...common} />
-      <polygon points={tri(-r * 0.55)} {...common} />
-    </g>
+    <radialGradient id={id}>
+      {SPARK.ramp.map(([offset, share]) => (
+        <stop key={offset} offset={offset} stopColor={chartTokens.sparkHalo} stopOpacity={share} />
+      ))}
+    </radialGradient>
   );
 }
 
 /**
- * THE MOST RECENT POINT IS THE ONE THE READER CAME FOR.
+ * A POINT IS A WHITE SPARK. EVERY POINT, AT EVERY STATUS.
  *
- * Every point on this chart used to be drawn at exactly the same size, which
- * makes the series read as a set of equally interesting facts. It isn't: the
- * history is context for the latest result, in the same way the bands are
- * context for the line. So the last point is larger and carries a soft halo of
- * its own colour, and the ones behind it are smaller and quieter.
+ * A tight white core inside a wide soft falloff — lit from within rather than
+ * filled and stroked, which is the difference between light and a dot with a
+ * ring round it. The core is `SPARK.glyph.r` and the halo reaches 4.5× that, so
+ * roughly a fifth of the spark's diameter is the bead and the rest is falloff.
  *
- * Nothing about the SHAPE layer changes with the size — a triangle at 0.82 is
- * the same triangle, and the tooltip and the key say the same words about it.
+ * NOTHING VARIES BY STATUS. Not the colour, not the size, not the treatment.
+ * The status is carried by the LINE, which changes colour along its own length
+ * and passes through this point, and by the point's position against the four
+ * labelled boundary rules. Drawing it a third time in the point's own fill was
+ * the same fact three times, and it cost the point the one thing it is uniquely
+ * placed to say, which is exactly where it is.
+ *
+ * ── THE ONE PERMITTED VARIATION ───────────────────────────────────────────
+ *
+ * The most recent point is slightly larger and sparks brighter. Every point on
+ * this chart was once drawn identically, which makes the series read as a set of
+ * equally interesting facts; it isn't, the history is context for the latest
+ * result. That is a difference in DEGREE — the same mark, more of it — where the
+ * old shape vocabulary was a difference in KIND.
+ *
+ * ── THE HALO IS BEHIND THE CORE AND SCALED TO IT ──────────────────────────
+ *
+ * So the ramp's plateau ends exactly where the core's edge is and everything
+ * that leaks out around it is already on the falloff. In dark that is white
+ * light on a near-black card; in light the halo is a warm dark and the same
+ * white core reads as the brightest thing inside a soft shadow. See SPARK.
  */
-function CustomDot(props: { cx?: number; cy?: number; payload?: PlottedPoint; latestT?: number }) {
-  const { cx, cy, payload, latestT } = props;
+function SparkPoint({ cx, cy, latest, gradientId }: { cx: number; cy: number; latest: boolean; gradientId?: string }) {
+  const r = latest ? SPARK.glyph.rLatest : SPARK.glyph.r;
+  return (
+    <>
+      {gradientId && (
+        <circle
+          cx={cx}
+          cy={cy}
+          r={r * SPARK.radius}
+          fill={`url(#${gradientId})`}
+          /**
+           * AN OPACITY, SO A BARE `var()` IS RIGHT HERE.
+           *
+           * The rule against bare `var(--x)` is about COLOUR: the colour
+           * properties hold bare channels, so a bare var() resolves to "205 218
+           * 193" and the browser drops the declaration. `--chart-spark` holds a
+           * NUMBER, which is exactly what fill-opacity takes, and it is a custom
+           * property rather than a literal so the strength follows the theme and
+           * goes to zero under `@media print` with the shadows. Set through
+           * `style` rather than the attribute because a presentation attribute
+           * cannot hold a var().
+           */
+          style={{ fillOpacity: latest ? 'var(--chart-spark)' : 'var(--chart-spark-past)' }}
+        />
+      )}
+      {/* The bead. White on screen in both themes; espresso in print, where the
+          halo is zero and a white dot on white paper is no dot at all. */}
+      <circle cx={cx} cy={cy} r={r} fill={chartTokens.sparkCore} />
+    </>
+  );
+}
+
+/**
+ * A STRETCH OF LINE IN ONE STATE'S COLOUR — the swatch in the key and in the
+ * tooltip.
+ *
+ * The line is the only thing on this chart that carries status now, so it is
+ * the only honest thing to put beside a status word. Drawn at the line's own
+ * weight and in the line's own colour for that state, so the swatch and the
+ * chart cannot disagree: both read `statusPaint(status).mark`.
+ */
+/**
+ * A SWATCH THAT CONTAINS A SPARK, WITH ITS OWN COPY OF THE FALLOFF.
+ *
+ * ⚠ THE KEY IS OUTSIDE THE CHART'S SVG, so it cannot reference the plot's
+ * gradient — an `url(#…)` pointing into another SVG resolves to nothing, and a
+ * radial gradient that fails to resolve paints the shape BLACK or not at all.
+ * What that looked like in light mode was a swatch nobody could see: a white
+ * bead, unhaloed, on a near-white card at 1.05:1. The chart itself was correct
+ * and the key entry describing it was blank.
+ *
+ * So each swatch carries its own `<defs>`. 20×20 rather than the 18×12 the line
+ * swatches use, because a spark is round and its halo reaches 4.5× the bead —
+ * the tail past 10px is under a tenth of the core's alpha and is clipped, which
+ * is the same thing the eye does with it on the plot.
+ */
+function SparkSwatch({ id, children }: { id: string; children: React.ReactNode }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" className="shrink-0">
+      <defs>
+        <SparkGradient id={id} />
+      </defs>
+      {children}
+    </svg>
+  );
+}
+
+function StatusLineSwatch({ status }: { status: MarkerStatusInput }) {
+  const known = asMarkerStatus(status);
+  if (!known) return null;
+  return (
+    <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true" className="shrink-0">
+      <line
+        x1="0"
+        y1="6"
+        x2="18"
+        y2="6"
+        stroke={markFill(known)}
+        strokeWidth={chartTokens.lineWidth}
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function CustomDot(props: {
+  cx?: number;
+  cy?: number;
+  payload?: PlottedPoint;
+  latestT?: number;
+  /** The chart's own spark gradient; absent means no glow, never a wrong-coloured one. */
+  sparkId?: string;
+}) {
+  const { cx, cy, payload, latestT, sparkId } = props;
   if (cx == null || cy == null || !payload) return null;
-  const known = asMarkerStatus(payload.status);
-  const latest = payload.t === latestT;
   return (
     <g>
-      {latest && known && (
-        <circle cx={cx} cy={cy} r={13} fill={markFill(known)} fillOpacity={chartTokens.haloOpacity} />
-      )}
       {/* Invisible circle widens the touch/click target well past the visible marker — the
           visible mark stays small and precise, the tappable area doesn't. */}
       <circle cx={cx} cy={cy} r={16} fill="transparent" />
-      <StatusMark cx={cx} cy={cy} status={payload.status} size={latest ? 1.2 : 0.9} ring={latest ? 2.4 : 1.8} />
+      <SparkPoint cx={cx} cy={cy} latest={payload.t === latestT} gradientId={sparkId} />
     </g>
   );
 }
@@ -417,7 +498,26 @@ function CustomDot(props: { cx?: number; cy?: number; payload?: PlottedPoint; la
  * A SINGLE-POINT series has nothing to interpolate; the gradient still resolves
  * (two identical stops) and no line is drawn anyway.
  */
-function StatusLineGradient({ id, points }: { id: string; points: PlottedPoint[] }) {
+function StatusLineGradient({
+  id,
+  points,
+  glow = false,
+}: {
+  id: string;
+  points: PlottedPoint[];
+  /**
+   * THE SAME GRADIENT AT THE CASING'S ALPHA.
+   *
+   * The line's glow is two wider strokes of the line's own path, so the light
+   * around it is the colour the line is at that stretch — by construction
+   * rather than by two derivations agreeing. Painting them with a SECOND
+   * gradient rather than putting an opacity on the stroke is what keeps the
+   * per-theme number in a custom property: `stroke-opacity` would have to come
+   * through Recharts' own props, and Recharts does not forward a style prop to
+   * the path it draws.
+   */
+  glow?: boolean;
+}) {
   const plot = usePlotArea();
   const xScale = useXAxisScale();
   if (!plot || !xScale) return null;
@@ -521,6 +621,11 @@ function StatusLineGradient({ id, points }: { id: string; points: PlottedPoint[]
   stops.sort((a, b) => a.x - b.x);
   if (stops.length === 0) return null;
 
+  // The casing's alpha, per theme and zero in print — see SPARK in tokens.ts.
+  // An opacity rather than a colour, so a bare var() is what it wants; through
+  // `style` because a presentation attribute cannot hold one.
+  const alpha = glow ? { style: { stopOpacity: 'var(--chart-line-glow)' } } : {};
+
   return (
     <linearGradient
       id={id}
@@ -533,15 +638,16 @@ function StatusLineGradient({ id, points }: { id: string; points: PlottedPoint[]
       {/* Before the first point and after the last the line does not exist, so
           the end stops simply hold the first and last colours — anything else
           would be inventing a colour for a stretch of plot with no line on it. */}
-      <stop offset={0} stopColor={stops[0].colour} />
+      <stop offset={0} stopColor={stops[0].colour} {...alpha} />
       {stops.map((s, i) => (
         <stop
           key={i}
           offset={Math.max(0, Math.min(1, (s.x - plot.x) / (plot.width || 1)))}
           stopColor={s.colour}
+          {...alpha}
         />
       ))}
-      <stop offset={1} stopColor={stops[stops.length - 1].colour} />
+      <stop offset={1} stopColor={stops[stops.length - 1].colour} {...alpha} />
     </linearGradient>
   );
 }
@@ -711,12 +817,18 @@ function ChartTooltip({
         {point.unit && <span className="ml-1 text-xs font-normal text-espresso/80">{point.unit}</span>}
       </p>
       {/* The status word takes its own state's colour. It is a label FOR that
-          colour rather than content sitting in it, and it still leads with the
-          mark's shape — so it reads identically with the colour removed. */}
+          colour rather than content sitting in it, and the WORD is what carries
+          the state — so it reads identically with the colour removed.
+
+          ── THE GLYPH BESIDE IT IS A STRETCH OF LINE NOW (Aug 2026) ─────────
+          It was the point's own shape: a chevron, or a doubled one. The chart
+          does not draw those any more, and a tooltip that shows a mark the
+          chart never made is a key to a different picture. What it shows
+          instead is what the chart DOES draw for this state — a length of line
+          in that state's colour — which is the same rule every swatch in the
+          key answers to. */}
       <p className="mt-2 flex items-center gap-1.5 font-medium" style={{ color: statusColor(point.status) }}>
-        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-          <StatusMark cx={6} cy={6} status={point.status} size={0.9} hollow />
-        </svg>
+        <StatusLineSwatch status={point.status} />
         {statusLabel(point.status)}
       </p>
       {/* THAT point's range, not the marker's current one — the whole reason a
@@ -768,21 +880,25 @@ export function TrendChart({
    * line in a squat plot area exaggerates every movement in it, which on a page
    * about someone's blood is the wrong kind of wrong.
    *
-   * ── 28rem, UP FROM 22 (Aug 2026) ─────────────────────────────────────────
+   * ── 24rem, DOWN FROM 28, AND THE CARD IS WIDER (Aug 2026) ────────────────
    *
-   * It ran to 30rem once and was cut to 22, because the chart card sets the
-   * height of its row and therefore of the card beside it, and 480px of plot
-   * pushed the pair past the fold on a 900px laptop. That budget has been given
-   * back by the LEFT card: the lab reference range line, the optimal line and
-   * the source label all came off it (items 10 and 16), which is about 66px,
-   * and the "Marker detail" standfirst came off the page header above.
+   * The complaint was the PROPORTIONS rather than the size: a plot 490px wide
+   * and 432px tall is very nearly square, and a trend read in a square is a
+   * trend read at 45°, where every movement looks like a cliff. It went 30rem →
+   * 22 → 28 by adding and removing height alone, which is the axis that was
+   * already wrong.
    *
-   * 28rem is what those removals buy, spent on the thing the page is for, and
-   * it is MEASURED rather than chosen: at 1440 × 900 the pair now ends at 812
-   * of 900 with the page header still above it (it was 821 at 22rem, because
-   * the LEFT card was what set the row height then and it has since lost three
-   * lines). 30rem ends at 876, which fits and leaves no room for a longer
-   * marker name, so this is one step back from the edge.
+   * Both dimensions move a little this time, in opposite directions. The card
+   * takes 62.5% of the row rather than 60% (5 of 8 columns rather than 3 of 5;
+   * see the grid on MarkerDetailPage) and the plot loses 64px of height. The
+   * inner plot goes from about 490 × 432 to 514 × 368 — from 1.13:1 to 1.40:1,
+   * which is a landscape chart rather than a squat one, on a change of 2.5% of
+   * width and 14% of height.
+   *
+   * IT ALSO GIVES BACK THE FOLD. At 1440 × 900 the pair is comfortably inside
+   * the window with the page header above it, and the LEFT card is now what
+   * sets the row height — which is the right way round, since that card's
+   * content is fixed and the plot's is elastic.
    *
    * `e2e/marker-pair-fit.spec.ts` measures the pair at 1440 x 900 in both
    * themes and fails if it stops fitting. That file is NEW, and it is new
@@ -799,6 +915,16 @@ export function TrendChart({
   const uid = useId().replace(/:/g, '');
   /** The line's own status gradient — same reason as `uid`: ids are document-global. */
   const lineGradientId = `status-line-${uid}`;
+  /**
+   * The same gradient at the casing's alpha, and the POINTS' radial falloffs.
+   *
+   * `status-glow-` rather than a second `status-line-`: e2e/chart-bands.spec.ts
+   * reads the line's stops off `linearGradient[id^="status-line-"]` and would
+   * otherwise measure whichever of the two it reached first.
+   */
+  const lineGlowId = `status-glow-${uid}`;
+  /** ONE falloff for the whole chart — every point is the same white spark. */
+  const sparkId = `spark-${uid}`;
 
   /**
    * Only points that were actually placed against a range are plotted.
@@ -1111,7 +1237,7 @@ export function TrendChart({
           at any width. */}
       <div
         className={`tabular w-full p-2 ${animate ? 'trend-mount ' : ''}${
-          height === 'tall' ? 'h-72 sm:h-[22rem] lg:h-[28rem]' : 'h-72 sm:h-80'
+          height === 'tall' ? 'h-72 sm:h-80 lg:h-[24rem]' : 'h-72 sm:h-80'
         }`}
         role="img"
         aria-label={
@@ -1129,9 +1255,12 @@ export function TrendChart({
                   status colour, at that point's x. Inside <defs> so it is a
                   definition rather than something drawn; it reads the plot area
                   and the x scale, which are only available inside the chart.
-                  It is the only gradient left on this chart: the band ramps
-                  went with the bands. */}
+                  The band ramps went with the bands; what is here besides is
+                  the same gradient at the casing's alpha and one radial falloff
+                  per status the points spark in. */}
               <StatusLineGradient id={lineGradientId} points={rows} />
+              <StatusLineGradient id={lineGlowId} points={rows} glow />
+              <SparkGradient id={sparkId} />
             </defs>
 
             <XAxis
@@ -1255,7 +1384,60 @@ export function TrendChart({
               // changed your reference range here".
               cursor={{ stroke: chartTokens.cursor, strokeWidth: 1, strokeOpacity: 0.55 }}
             />
+            {/* ── THE LINE'S CASING ───────────────────────────────────────
+                Three wider strokes of the same path under the line, painted
+                with the line's own gradient, each at its own share of the
+                casing alpha — outermost and faintest first, so they composite
+                into a falloff rather than ending at an edge (see SPARK.line).
+                They are BEFORE the line so they sit under it, and because they
+                take the line's own gradient the light is whatever colour the
+                line is at that stretch.
+
+                NOT a second line and never an echo: same path, same geometry,
+                same gradient, drawn only wider. Anything that reads as a second
+                trajectory would be a claim about a second series.
+
+                `dot={false} activeDot={false}` — a casing with its own marks
+                would be exactly that second series.
+
+                THE SHARE IS A `strokeOpacity` AND THE THEME IS IN THE GRADIENT,
+                and the two multiply. So the per-theme number stays in one
+                custom property (`--chart-line-glow`, zero in print) while the
+                shape of the falloff stays a plain list of numbers here, which
+                is the half that is the same in both themes. */}
+            {connected &&
+              SPARK.line.layers.map((layer) => (
+                <Line
+                  key={`glow-${layer.extra}`}
+                  type="linear"
+                  dataKey="value"
+                  stroke={`url(#${lineGlowId})`}
+                  strokeOpacity={layer.share}
+                  strokeWidth={chartTokens.lineWidth + layer.extra}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  dot={false}
+                  activeDot={false}
+                  legendType="none"
+                  // The tooltip reads one point; four series would put the same
+                  // row in the payload four times.
+                  tooltipType="none"
+                  isAnimationActive={animate}
+                  animationDuration={620}
+                  animationEasing="ease-out"
+                />
+              ))}
             <Line
+              /**
+               * THE CORE, NAMED — because it is no longer the only
+               * `.recharts-line-curve` in the document. e2e/chart-bands.spec.ts
+               * and e2e/status-colour.spec.ts both measure the line's weight and
+               * its gradient, and a `querySelector` for the bare class would
+               * have measured the outermost casing instead: 19px, painted with
+               * the glow gradient. A test that silently measures the wrong
+               * element is worse than one that fails.
+               */
+              className="trend-line-core"
               // STRAIGHT SEGMENTS, NEVER A CURVE. `monotone` draws a smooth
               // spline between the points, which is a claim about values
               // between two blood draws that nobody measured — on a series
@@ -1279,7 +1461,7 @@ export function TrendChart({
               strokeWidth={chartTokens.lineWidth}
               strokeLinecap="round"
               strokeLinejoin="round"
-              dot={<CustomDot latestT={tLast} />}
+              dot={<CustomDot latestT={tLast} sparkId={sparkId} />}
               activeDot={false}
               isAnimationActive={animate}
               animationDuration={620}
@@ -1362,6 +1544,11 @@ function ChartKey({
   /** At least one significantly-out threshold is inside the y domain and therefore drawn. */
   hasThresholds: boolean;
 }) {
+  // Ids are document-global, and this key's swatches carry their own gradient
+  // definitions — two charts on one page sharing one id would make the second
+  // key's sparks reference the first key's defs.
+  const swatchId = `key-${useId().replace(/:/g, '')}`;
+
   /**
    * TWO COLUMNS, ONE LIST.
    *
@@ -1375,14 +1562,44 @@ function ChartKey({
    * Nothing is dropped and nothing is abbreviated — an entry that is not worth
    * the room is an entry that should not have been drawn on the chart.
    */
+  /**
+   * ── THE SWATCHES ARE STRETCHES OF LINE, NOT SHAPES (Aug 2026) ────────────
+   *
+   * Each of these used to be the point's own glyph — a level dot, a chevron, a
+   * doubled chevron — at the size the chart drew it. The chart does not draw
+   * those any more (every point is the same white spark), so naming them here
+   * would be a key to a picture nobody is looking at. That is the one thing a
+   * key may never be.
+   *
+   * What each entry shows now is exactly what the chart DOES draw for that
+   * state: a length of the line, at the line's own weight, in that state's own
+   * colour. Still not a coloured rectangle — the rule was never "no colour in
+   * the key", it was "every swatch is the mark it stands for, at the size it is
+   * drawn", and a stretch of line is that mark.
+   */
   const marks = statuses.map((s) => (
     <li key={`mark-${s}`} className="flex items-center gap-2">
-      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" className="shrink-0">
-        <StatusMark cx={7} cy={7} status={s} size={0.85} ring={2} hollow />
-      </svg>
+      <StatusLineSwatch status={s} />
       <span className="min-w-0">{statusLabel(s)}</span>
     </li>
   ));
+
+  /**
+   * AND THE POINT ITSELF GETS ONE ENTRY, BECAUSE IT NOW MEANS ONE THING.
+   *
+   * With five glyphs there were five entries and the mark carried the state.
+   * With one uniform spark the mark carries "a result was taken here" and
+   * nothing else, which is worth exactly one line — and worth having, because a
+   * mark on a chart with no name in the key is a rebus however simple it is.
+   */
+  const pointEntry = (
+    <li key="point" className="flex items-center gap-2">
+      <SparkSwatch id={`${swatchId}-point`}>
+        <SparkPoint cx={10} cy={10} latest={false} gradientId={`${swatchId}-point`} />
+      </SparkSwatch>
+      <span className="min-w-0">One result, on the date it was taken</span>
+    </li>
+  );
 
   /**
    * NO BAND ENTRIES — and now there are no bands either (Aug 2026).
@@ -1452,6 +1669,7 @@ function ChartKey({
     <div className="mt-4 border-t border-taupe pt-3 text-xs text-espresso/80">
       <ul className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
         {marks}
+        {pointEntry}
         {regions}
       </ul>
       {/* Full width rather than in a column: it is a sentence, not a label, and
@@ -1459,11 +1677,18 @@ function ChartKey({
           saving the grid just made. */}
       {unjoined && (
         <p className="mt-2 flex items-start gap-2">
-          <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true" className="mt-0.5 shrink-0">
-            <circle cx="3" cy="6" r="2" fill={chartTokens.point} />
-            <circle cx="9" cy="6" r="2" fill={chartTokens.point} />
-            <circle cx="15" cy="6" r="2" fill={chartTokens.point} />
-          </svg>
+          {/* Three sparks with no line between them, which is the picture being
+              described. `chartTokens.point` was the bronze the line used to be;
+              the points are white beads now and the swatch has to be made of
+              what the chart draws — halo included, or it is invisible on a
+              light card. See SparkSwatch. */}
+          <span className="mt-0.5 shrink-0">
+            <SparkSwatch id={`${swatchId}-unjoined`}>
+              <SparkPoint cx={4} cy={10} latest={false} gradientId={`${swatchId}-unjoined`} />
+              <SparkPoint cx={10} cy={10} latest={false} gradientId={`${swatchId}-unjoined`} />
+              <SparkPoint cx={16} cy={10} latest={false} gradientId={`${swatchId}-unjoined`} />
+            </SparkSwatch>
+          </span>
           <span>Separate points, not joined: these came from sources that aren’t comparable for this marker</span>
         </p>
       )}

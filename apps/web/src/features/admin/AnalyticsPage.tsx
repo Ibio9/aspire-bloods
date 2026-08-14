@@ -10,6 +10,7 @@ import { useToast } from '../../components/ui/Toast';
 import { apiFetch } from '../../lib/api';
 import { downloadFromApi } from '../../lib/download';
 import { ConsolePage } from './ConsolePage';
+import { UNIT } from './workQueueData';
 
 /**
  * ===========================================================================
@@ -72,6 +73,7 @@ interface PracticeAnalytics {
   suppressBelow: number;
   panels: SuppressibleBreakdown;
   markersOutOfRange: SuppressibleBreakdown;
+  markersOutOfRangeByPanel: SuppressibleBreakdown;
   markerCoverage: { measuredMarkers: number; markersEverReported: number; markersNeverReported: number };
   weekly: PeriodPoint[];
   monthly: PeriodPoint[];
@@ -95,13 +97,19 @@ const WINDOWS = [
   { value: '1095', label: '3 years' },
 ] as const;
 
-/** Hours to one decimal, or days past two of them. Same ladder as the work queue. */
+/**
+ * Hours to one decimal, or days past two of them. Same ladder as the Overview.
+ *
+ * `UNIT` is the narrow no-break space between the figure and its unit — see
+ * workQueueData.ts for why every duration in the console goes through one of
+ * these two functions and why the character is written as an escape.
+ */
 function formatDuration(ms: number | null): string {
   if (ms == null) return '–';
   const hours = ms / 3_600_000;
-  if (hours < 1) return `${Math.round(ms / 60_000)} min`;
-  if (hours < 48) return `${hours.toFixed(1)} h`;
-  return `${Math.round(hours / 24)} d`;
+  if (hours < 1) return `${Math.round(ms / 60_000)}${UNIT}min`;
+  if (hours < 48) return `${hours.toFixed(1)}${UNIT}h`;
+  return `${Math.round(hours / 24)}${UNIT}d`;
 }
 
 /** A month or week label a person reads, from the ISO date the server bucketed on. */
@@ -113,27 +121,103 @@ function periodLabel(iso: string, grain: 'week' | 'month'): string {
 }
 
 /**
- * One figure and what it means. The sentence is not optional: a number with a
- * two-word label is a number a reader has to guess the definition of, and the
- * guess is what ends up in an email to an insurer.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  THE DEFINITIONS MOVED BEHIND ONE AFFORDANCE (Aug 2026).
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Every figure carried a sentence under it and every band carried a paragraph
+ * over it — eighteen figures and seven bands, so roughly 25 explanations on one
+ * screen, including three sentences on what a median is and four on how
+ * small-cell suppression works. The reasoning for them was good and is still
+ * good: "42" under "Reports" is a number nobody can check without knowing
+ * whether it counts released or received, over what window, voided included or
+ * not, and the guess is what ends up in an email to an insurer.
+ *
+ * WHAT WAS WRONG WAS THE PLACEMENT, NOT THE CONTENT. A definition is read once
+ * and then never again, and while it sits under its figure it is between the
+ * reader and every subsequent visit to the screen. So none of it is deleted —
+ * all of it is in `DEFINITIONS` below, behind one disclosure at the top of the
+ * page, which is closed on arrival and is where somebody goes when they need to
+ * check what a column means before quoting it.
+ *
+ * A figure is a number and a label now. Nothing else.
  */
-function Figure({ value, label, meaning }: { value: string; label: string; meaning: string }) {
+function Figure({ value, label }: { value: string; label: string }) {
   return (
     <Card className="flex h-full flex-col">
       <p className="numeric tabular text-2xl font-medium leading-none text-espresso">{value}</p>
-      <p className="mt-2 text-sm font-medium text-espresso">{label}</p>
-      <p className="mt-1.5 flex-1 text-xs leading-relaxed text-espresso/80">{meaning}</p>
+      <p className="mt-2 text-sm text-espresso/85">{label}</p>
     </Card>
   );
 }
 
-function Band({ title, note, children }: { title: string; note: string; children: React.ReactNode }) {
+function Band({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-14">
-      <p className="eyebrow mb-2">{title}</p>
-      <p className="mb-5 max-w-measure text-sm leading-relaxed text-espresso/85">{note}</p>
+      <p className="eyebrow mb-4">{title}</p>
       {children}
     </section>
+  );
+}
+
+/**
+ * WHAT EVERY FIGURE ON THIS SCREEN COUNTS, in the one place a reader goes
+ * looking for it. Kept verbatim from the sentences that used to sit under each
+ * figure — this is a relocation and not a rewrite, because every one of those
+ * definitions was correct and hard-won.
+ */
+const DEFINITIONS: { heading: string; lines: string[] }[] = [
+  {
+    heading: 'The window',
+    lines: [
+      'One control at the top, applied to everything below it, so any two figures on this screen are comparable with each other. Patients and catalogue coverage are the exceptions and say so: an account does not expire, and a marker reported once two years ago is still one the clinic can offer.',
+      'Voided reports are excluded from every count. A voided report is one the practice has withdrawn, and counting it would make the volume figure a record of what was attempted rather than of what was issued.',
+    ],
+  },
+  {
+    heading: 'Turnaround',
+    lines: [
+      'Measured from the result arriving to a clinician releasing it, on the reports actually released in the window. The median is the middle report rather than an average of the two middles, so every duration here is one a real report took.',
+    ],
+  },
+  {
+    heading: 'Out of range',
+    lines: [
+      'Above, below or significantly out — counted by result, not by patient and not by report. A result nobody compared against a range counts toward the total and toward neither side of it, which is the rule the patient-facing tallies follow.',
+      'Stated per thousand rather than as a percentage to one decimal: an integer is honest about the precision the sample supports.',
+    ],
+  },
+  {
+    heading: 'Withheld rows',
+    lines: [
+      'A row whose count falls under the threshold is withheld and SAID to be, with its observations still counted in the total. On a practice this size a count of one or two crossed with a marker points at an individual. A table that quietly drops its own tail reads as complete and is not.',
+    ],
+  },
+];
+
+function HowToRead({ suppressBelow }: { suppressBelow: number }) {
+  return (
+    <details className="group mt-8 max-w-measure">
+      <summary className="cursor-pointer list-none text-sm font-medium text-bronze-600 underline underline-offset-2">
+        How to read these figures
+      </summary>
+      <div className="mt-4 border-l-2 border-taupe pl-5">
+        {DEFINITIONS.map((d) => (
+          <div key={d.heading} className="mt-4 first:mt-0">
+            <p className="sublabel">{d.heading}</p>
+            {d.lines.map((line) => (
+              <p key={line} className="mt-1.5 text-sm leading-relaxed text-espresso/85">
+                {line}
+              </p>
+            ))}
+          </div>
+        ))}
+        <p className="mt-4 text-sm leading-relaxed text-espresso/85">
+          Rows under {suppressBelow} are the ones withheld. Nothing on this screen names a patient or carries a value,
+          and every view and every export is recorded in the audit log.
+        </p>
+      </div>
+    </details>
   );
 }
 
@@ -225,8 +309,8 @@ function VolumeTable({ points, grain }: { points: PeriodPoint[]; grain: 'week' |
 const FIGURES_PANEL = 'analytics-figures';
 const VOLUME_PANEL = 'analytics-volume';
 
-const PURPOSE =
-  'What the practice is ordering, how much is coming through, how long it takes and what comes back outside the range, counted over one window and exportable to a spreadsheet.';
+/** One short line. Every definition is behind "How to read these figures". */
+const PURPOSE = 'How the practice is doing, over one window, exportable to a spreadsheet.';
 
 export function AnalyticsPage() {
   const [days, setDays] = useState<string>('90');
@@ -304,79 +388,46 @@ export function AnalyticsPage() {
             {data.window.from} to {data.window.to}
           </p>
 
-          <Band
-            title="Patients"
-            note="Everyone with a patient account on this deployment. Not filtered by the period, because an account does not expire, so these three are the only figures on this screen that describe the whole practice rather than the window."
-          >
+          <HowToRead suppressBelow={data.suppressBelow} />
+
+          <Band title="Patients">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <Figure
-                value={String(data.patients.registered)}
-                label="Registered"
-                meaning="Every patient account, including those not yet verified and those deactivated."
-              />
-              <Figure
-                value={String(data.patients.active)}
-                label="Active"
-                meaning="Accounts that can sign in today. Excludes pending verification, deactivated and erased."
-              />
-              <Figure
-                value={String(data.patients.withReleasedReport)}
-                label="With a released report"
-                meaning="Patients who have at least one report a clinician has released. The rest have signed up or been sampled and are still waiting."
-              />
+              <Figure value={String(data.patients.registered)} label="Registered" />
+              <Figure value={String(data.patients.active)} label="Active" />
+              <Figure value={String(data.patients.withReleasedReport)} label="With a released report" />
             </div>
           </Band>
 
-          <Band
-            title={`Turnaround over ${windowLabel.toLowerCase()}`}
-            note="From the result arriving to a clinician releasing it. The median is the middle report of the window rather than an average, so every figure here is a duration a real report actually took. Voided reports are excluded."
-          >
+          <Band title={`Turnaround over ${windowLabel.toLowerCase()}`}>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <Figure
-                value={String(data.turnaround.released)}
-                label="Reports released"
-                meaning={`Released within the window. Received but not yet released is the work queue's job, not this one.`}
-              />
-              <Figure
-                value={formatDuration(data.turnaround.medianMs)}
-                label="Median"
-                meaning="Half of the reports released in this window took less than this."
-              />
-              <Figure
-                value={formatDuration(data.turnaround.worstMs)}
-                label="Worst"
-                meaning="The longest a single released report waited between arriving and reaching its patient."
-              />
+              <Figure value={String(data.turnaround.released)} label="Reports released" />
+              <Figure value={formatDuration(data.turnaround.medianMs)} label="Median" />
+              <Figure value={formatDuration(data.turnaround.worstMs)} label="Worst" />
             </div>
           </Band>
 
-          <Band
-            title={`Out of range over ${windowLabel.toLowerCase()}`}
-            note="Every measured result on a report released in this window. A result nobody compared against a range counts toward the total and toward neither side of it, which is the rule the patient-facing tallies follow."
-          >
+          <Band title={`Out of range over ${windowLabel.toLowerCase()}`}>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <Figure
-                value={data.outOfRange.results.toLocaleString('en-GB')}
-                label="Results released"
-                meaning="Individual marker results on reports released in this window."
-              />
-              <Figure
-                value={data.outOfRange.outOfRange.toLocaleString('en-GB')}
-                label="Outside the range"
-                meaning="Above, below or significantly out. Not a count of patients, and not a count of reports."
-              />
+              <Figure value={data.outOfRange.results.toLocaleString('en-GB')} label="Results released" />
+              <Figure value={data.outOfRange.outOfRange.toLocaleString('en-GB')} label="Outside the range" />
               <Figure
                 value={data.outOfRange.ratePerThousand === null ? '–' : String(data.outOfRange.ratePerThousand)}
                 label="Per 1,000 results"
-                meaning="Stated per thousand rather than as a percentage to one decimal: an integer is honest about the precision the sample supports."
               />
             </div>
           </Band>
 
-          <Band
-            title="Markers most often outside the range"
-            note={`Counted across every report released in this window, by result rather than by patient, so one patient with a raised ferritin on three reports is three. Rows under ${data.suppressBelow} are withheld.`}
-          >
+          <Band title="Packages ordered most">
+            <Breakdown
+              data={data.panels}
+              nounColumn="Package"
+              countColumn="Reports released"
+              suppressBelow={data.suppressBelow}
+              emptyMessage="No report was released in this window."
+            />
+          </Band>
+
+          <Band title="Markers most often outside the range">
             <Breakdown
               data={data.markersOutOfRange}
               nounColumn="Marker"
@@ -386,46 +437,32 @@ export function AnalyticsPage() {
             />
           </Band>
 
-          <Band
-            title="What was ordered"
-            note={`Reports released in this window, by the catalogue panel behind them. A report keyed in by hand or drawn ad hoc has no panel and is counted under its own name rather than dropped. Rows under ${data.suppressBelow} are withheld.`}
-          >
+          {/* AND THE SAME COUNT SPLIT BY PACKAGE (Aug 2026). "Ferritin is our
+              commonest out-of-range result" is interesting; "Ferritin is our
+              commonest out-of-range result on Signature" is something the owner
+              of the catalogue can act on, because a package is a thing they
+              choose the contents of. Suppression bites harder here by
+              construction — splitting a count across the packages it came from
+              makes every cell smaller — and the withheld rows are stated. */}
+          <Band title="Markers outside the range, by package">
             <Breakdown
-              data={data.panels}
-              nounColumn="Panel"
-              countColumn="Reports released"
+              data={data.markersOutOfRangeByPanel}
+              nounColumn="Package · marker"
+              countColumn="Out-of-range results"
               suppressBelow={data.suppressBelow}
-              emptyMessage="No report was released in this window."
+              emptyMessage="No result on a report released in this window sat outside its reference range."
             />
           </Band>
 
-          <Band
-            title="Catalogue coverage"
-            note="How much of the analyte catalogue the practice has ever actually reported on. Across all time rather than the window: a marker reported once two years ago is still a marker the clinic can offer."
-          >
+          <Band title="Catalogue coverage">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <Figure
-                value={String(data.markerCoverage.measuredMarkers)}
-                label="Measured markers"
-                meaning="Active analytes in the catalogue that produce a number against a reference range."
-              />
-              <Figure
-                value={String(data.markerCoverage.markersEverReported)}
-                label="Ever reported"
-                meaning="Appeared on at least one released report, at any time."
-              />
-              <Figure
-                value={String(data.markerCoverage.markersNeverReported)}
-                label="Never reported"
-                meaning="In the catalogue and never yet issued to a patient. Some are on panels the clinic does not sell."
-              />
+              <Figure value={String(data.markerCoverage.measuredMarkers)} label="Measured markers" />
+              <Figure value={String(data.markerCoverage.markersEverReported)} label="Ever reported" />
+              <Figure value={String(data.markerCoverage.markersNeverReported)} label="Never reported" />
             </div>
           </Band>
 
-          <Band
-            title="Volume over time"
-            note="Reports received against reports released. The two differ by whatever was in the queue at each end of the window, which is what makes the pair worth reading rather than either alone."
-          >
+          <Band title="Volume over time">
             <div className="mb-5">
               <Segmented
                 label="Group by"

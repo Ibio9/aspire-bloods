@@ -18,15 +18,15 @@ import { lazyPage, page } from '../../lib/lazyPage';
  */
 const AdminShell = lazyPage(() => import('../../components/nav/AdminShell'), 'AdminShell');
 /**
- * THE WORK QUEUE IS THE LANDING SCREEN (Aug 2026).
+ * OVERVIEW IS THE LANDING SCREEN (Aug 2026).
  *
- * It was `AdminDashboard`, a screen whose whole job was to say what was
- * waiting — which is what the work queue says, with the exception counts, the
- * turnaround figures and the backup state above it and the reports sorted by
- * how long each has waited. Two screens answering one question, and the one an
- * admin landed on was the weaker of the two. See NAV_GROUPS in AdminShell.
+ * It was `AdminDashboard`, then the work queue, and it is now Overview — which
+ * is the work queue with four bands taken off it and the three analytics
+ * headlines put on. The through-line across all three is the same: the screen a
+ * clinician lands on answers "what am I doing first", and nothing else was
+ * earning its place above that answer. See NAV_ITEMS in AdminShell.
  */
-const WorkQueuePage = lazyPage(() => import('../admin/WorkQueuePage'), 'WorkQueuePage');
+const ConsoleOverviewPage = lazyPage(() => import('../admin/ConsoleOverviewPage'), 'ConsoleOverviewPage');
 const PatientOverview = lazyPage(() => import('../patient/PatientOverview'), 'PatientOverview');
 
 export function HomeRouter() {
@@ -34,7 +34,7 @@ export function HomeRouter() {
   if (user?.role === 'ADMIN' || user?.role === 'CLINICIAN') {
     return page(
       <AdminShell>
-        <WorkQueuePage />
+        <ConsoleOverviewPage />
       </AdminShell>,
     );
   }

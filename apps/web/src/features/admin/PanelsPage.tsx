@@ -12,9 +12,14 @@ import { apiFetch, ApiError } from '../../lib/api';
 import { RandoxMappingSection } from './RandoxMappingSection';
 import { ConsolePage } from './ConsolePage';
 
-/** One line, at the top, saying what a clinician comes here to do. */
-const PANELS_PURPOSE =
-  'The test levels the clinic sells and which analytes are in each, and at the foot of the page which of Randox’s panels each one orders as. A report needs no panel: one without is titled by its marker count and date.';
+/**
+ * ONE SHORT LINE (Aug 2026). It was three clauses — what the packages are,
+ * where the Randox mapping is, and what happens to a report with no package —
+ * of which only the first says what somebody comes here to do. The other two
+ * answer questions asked while already on the screen, and the screen answers
+ * them.
+ */
+const PANELS_PURPOSE = 'What the clinic sells, and which analytes are in each package.';
 
 /**
  * Panel configuration, and only panel configuration.

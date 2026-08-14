@@ -5,6 +5,8 @@ import plugin from 'tailwindcss/plugin';
 // transpile it on its own and this config no longer depends on
 // packages/shared/dist existing.
 import {
+  brand,
+  hexToRgbChannels,
   typeScale,
   typographyCssVars,
   themeCssVars,
@@ -14,6 +16,7 @@ import {
   PANEL_WASH_ALPHA,
   GLASS,
   PANEL_SHEEN,
+  SPARK,
   type TypeStep,
 } from '../../packages/shared/src/tokens';
 
@@ -383,7 +386,7 @@ export default {
         // Short, eased, purposeful (brief §3.8) — motion-safe: variants at
         // every call site respect prefers-reduced-motion automatically.
         fadeIn: 'fadeIn 200ms ease-out',
-        riseIn: 'riseIn 250ms ease-out',
+        riseIn: 'riseIn 250ms ease-out',
       },
     },
   },
@@ -423,6 +426,14 @@ export default {
           '--panel-sheen-top': String(PANEL_SHEEN.edge.top.light),
           '--panel-sheen-right': String(PANEL_SHEEN.edge.right.light),
           '--panel-grain': String(PANEL_SHEEN.grain.light),
+          // How brightly a trend point sparks and how much light the line
+          // carries. Per theme because the same alpha is EMISSION on a
+          // near-black card and a coloured SHADOW on a near-white one — see
+          // SPARK in tokens.ts. These are opacities, not colours: a bare var()
+          // is what the call site wants.
+          '--chart-spark': String(SPARK.core.light),
+          '--chart-spark-past': String(SPARK.core.light * SPARK.pastShare),
+          '--chart-line-glow': String(SPARK.line.alpha.light),
           'color-scheme': 'light',
         },
         '.dark': {
@@ -437,6 +448,9 @@ export default {
           '--panel-sheen-top': String(PANEL_SHEEN.edge.top.dark),
           '--panel-sheen-right': String(PANEL_SHEEN.edge.right.dark),
           '--panel-grain': String(PANEL_SHEEN.grain.dark),
+          '--chart-spark': String(SPARK.core.dark),
+          '--chart-spark-past': String(SPARK.core.dark * SPARK.pastShare),
+          '--chart-line-glow': String(SPARK.line.alpha.dark),
           'color-scheme': 'dark',
         },
         /**
@@ -473,6 +487,21 @@ export default {
             '--panel-sheen-top': '0',
             '--panel-sheen-right': '0',
             '--panel-grain': '0',
+            // A glow costs ink to say nothing on paper, and a halo printed on a
+            // mono laser is a grey smudge round the one mark on the chart that
+            // has to stay sharp.
+            //
+            // ⚠ AND THE CORE HAS TO FLIP WITH IT. With the halo at zero a white
+            // core is a white dot on white paper — the points would vanish from
+            // a printed chart altogether, which is the one thing this must not
+            // do. Espresso here; the line keeps its own status colours, which
+            // the light token set above already supplies. So a printed trend is
+            // dark points on a white ground with no glow anywhere, which is what
+            // a chart in a document should be.
+            '--c-chart-spark-core': hexToRgbChannels(brand.espresso),
+            '--chart-spark': '0',
+            '--chart-spark-past': '0',
+            '--chart-line-glow': '0',
             'color-scheme': 'light',
           },
         },

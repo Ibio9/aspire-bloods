@@ -120,9 +120,9 @@ test.describe(RUN ? 'this round’s shots' : 'this round’s shots (skipped — 
           // eslint-disable-next-line no-console
           console.log(`\n=== EXPLANATION CARD LABELS · ${theme.toUpperCase()} ===`);
           // eslint-disable-next-line no-console
-          console.log('heading  .card-eyebrow', JSON.stringify(await read('.card-eyebrow')));
-          // eslint-disable-next-line no-console
-          console.log('label    .sublabel    ', JSON.stringify(await read('.sublabel')));
+          // ONE CLASS FOR ALL FOUR LABELS since Aug 2026 — `.card-eyebrow` is
+          // gone and `.sublabel` is Compare's alone. See MarkerExplanation.tsx.
+          console.log('labels   .card-label  ', JSON.stringify(await read('.card-label')));
           // eslint-disable-next-line no-console
           console.log('section  .eyebrow     ', JSON.stringify(await read('.eyebrow')));
 
