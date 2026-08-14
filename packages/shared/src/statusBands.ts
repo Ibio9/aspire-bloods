@@ -86,11 +86,63 @@ export function formatReferenceBound(value: number): string {
 }
 
 /**
+ * ---------------------------------------------------------------------------
+ * A RANGE WITH NO TOP, AND THE NUMBER THAT HAS BEEN STANDING IN FOR ONE.
+ * ---------------------------------------------------------------------------
+ *
+ * Four markers in the catalogue have no clinical upper bound: eGFR, HDL, the
+ * Omega-3 Index and progesterone. "Higher is not a problem" has never had a
+ * representation in this schema — a reference range is two numbers and both are
+ * required — so the seed writes **999** and has done from the start.
+ *
+ * IT WORKS FOR THE THING IT WAS FOR AND IS WRONG EVERYWHERE ELSE. An eGFR of
+ * 130 computes IN_RANGE, which is the correct answer and is the reason nobody
+ * has looked at it: the failure everybody expects here — a good kidney result
+ * rendered as "above range" in gold — does not happen. What happens instead was
+ * measured (Aug 2026):
+ *
+ *   · A PATIENT IS SHOWN "60–999 mL/min/1.73m²" as their reference range, which
+ *     is not a range anybody chose and not one any laboratory issued.
+ *   · THE RANGE BAR IS DRAWN ON A SCALE OF 0 TO ABOUT 2000, because the scale
+ *     is built to contain the reference range. A perfectly healthy eGFR of 97
+ *     lands at 5% of the bar, at the very bottom of a green band — which reads
+ *     as "only just inside my range" and is the exact failure rangeBarScale was
+ *     built to end, surviving in the one case nobody had put through it.
+ *   · THE SEVERITY THRESHOLD IS DERIVED FROM THE WIDTH, so it comes out at
+ *     1408, and an eGFR of 4 — dialysis territory — computes LOW rather than
+ *     SIGNIFICANT_LOW, indistinguishable from an eGFR of 59.
+ *
+ * SO IT IS DECLARED RATHER THAN SPELLED OUT IN FOUR SEED ROWS. The constant is
+ * shared by the writer and the readers, which is what makes recognising it a
+ * lookup rather than a guess about a magic number. It does NOT make the model
+ * able to express "higher is better" — nothing here does — and the third
+ * finding above is NOT fixed by this and is on the list for a clinician, because
+ * choosing where "significantly low" starts for eGFR is a clinical judgement and
+ * not a rounding decision.
+ *
+ * A LABORATORY RANGE IS NEVER AFFECTED. Randox send real intervals; nothing they
+ * report is 60–999. This is a property of our own catalogue fallbacks.
+ */
+export const OPEN_UPPER_BOUND = 999;
+
+/** Whether an upper bound is the "no clinical ceiling" placeholder. */
+export function isOpenUpperBound(high: number | null | undefined): boolean {
+  return high === OPEN_UPPER_BOUND;
+}
+
+/**
  * A range, set the way every reference range in the product and the PDF is set:
  * an en dash between the bounds, the unit after, and no space around the dash.
+ *
+ * An open-topped range is set in WORDS instead — "60 or above" — because the
+ * alternative is printing 999 at a patient, and there is no en dash form of
+ * "there is no upper limit". Every reference range that reaches a screen or a
+ * PDF comes through here, so this is the whole of the fix for that.
  */
 export function formatReferenceRange(low: number, high: number, unit?: string | null): string {
-  const range = `${formatReferenceBound(low)}–${formatReferenceBound(high)}`;
+  const range = isOpenUpperBound(high)
+    ? `${formatReferenceBound(low)} or above`
+    : `${formatReferenceBound(low)}–${formatReferenceBound(high)}`;
   return unit ? `${range} ${unit}` : range;
 }
 
@@ -369,49 +421,40 @@ export function bandGradientStops(status: MarkerStatusInput): [string, string] {
  * never the bands by getting duller.
  */
 export const BAND_CONTRAST: Record<MarkerStatus, number> = {
-  IN_RANGE: 1.24,
-  LOW: 1.38,
-  HIGH: 1.38,
-  SIGNIFICANT_LOW: 1.54,
-  SIGNIFICANT_HIGH: 1.54,
+  IN_RANGE: 1.5,
+  LOW: 1.85,
+  HIGH: 1.85,
+  SIGNIFICANT_LOW: 2.25,
+  SIGNIFICANT_HIGH: 2.25,
 };
 
 /**
- * WHAT EACH BAND IS ACTUALLY SOLVED TO, PER THEME — and since Aug 2026 it is
- * the rung above, in both themes, with no exceptions.
+ * WHAT EACH BAND IS ACTUALLY SOLVED TO — AND IT IS NO LONGER PER THEME.
  *
- * `BAND_CONTRAST` is the ladder the design asks for and `BAND_RUNG` is where
- * the fills land. There used to be exactly one difference between them:
- * **dark's out-of-range band**, at 4.45 instead of 1.88. It was raised because
- * against a near-black plot the ordinary rung fixes a yellow's luminance so low
- * that it comes out #604a0b, a dark ochre — and that band was the only thing
- * telling a patient in dark mode that a result was outside their range, so it
- * had to read as yellow whatever it cost.
+ * `BAND_CONTRAST` is the ladder the design asks for and this is where the fills
+ * land. It existed to hold ONE exception: dark's out-of-range band, raised to
+ * 4.45 instead of 1.88, because against a near-black plot the ordinary rung
+ * fixes a yellow's luminance so low that it comes out #604b0b — a dark ochre —
+ * and that band was the only thing telling a patient in dark mode that a result
+ * was outside their range.
  *
- * IT IS NOT THE ONLY THING ANY MORE. The trend line carries the status along
- * its own length now, in a gold solved to clear every band it crosses, so
- * "outside the range" is said by the line in the right colour and the band
- * underneath is free to be the quietest thing that still shows where the region
- * is. The exception is gone, both themes are on one ladder, and three
- * consequences the exception forced go with it:
+ * BOTH REASONS FOR IT ARE GONE. The trend line took over carrying the status
+ * (so the band stopped being the only thing saying it), and then the PLOT
+ * ITSELF WENT LIGHT IN BOTH THEMES (Aug 2026), so there is no near-black ground
+ * left to solve against and no second theme to differ from. A yellow on a pale
+ * ground is a yellow.
  *
- *  · The escalation is carried by CONTRAST in both themes again. It had to
- *    switch to chroma in dark, because a band at 4.45 is louder than the red
- *    band above it and the ladder ran backwards.
- *  · The dark gold MARK no longer has to step toward the ground instead of the
- *    text — see MARK_SHIFT_DARK, where `toward: 'ground'` now has no users.
- *  · The comparison chart's line is a bronze again rather than a near-white,
- *    because it no longer has to clear a 4.74:1 band — see LINE_LIFT.
- *
- * IN RANGE IS STILL THE QUIETEST BAND IN BOTH THEMES, which is the rung that
- * was always load-bearing: it covers most of a plot, and it is the one the
- * "bands are context, the line is content" rule is really about.
+ * IT IS KEPT, FLAT, AND EQUAL TO `BAND_CONTRAST`. The name survives because the
+ * DISTINCTION can recur — "what the design asks for" and "what the gamut allows
+ * at this lightness" are different questions, and the day they diverge again
+ * this is where the divergence is written down rather than silently applied to
+ * one of the two.
  */
-export const BAND_RUNG: Record<'light' | 'dark', Record<'green' | 'yellow' | 'red', number>> = {
-  light: { green: BAND_CONTRAST.IN_RANGE, yellow: BAND_CONTRAST.HIGH, red: BAND_CONTRAST.SIGNIFICANT_HIGH },
-  dark: { green: BAND_CONTRAST.IN_RANGE, yellow: BAND_CONTRAST.HIGH, red: BAND_CONTRAST.SIGNIFICANT_HIGH },
+export const BAND_RUNG: Record<'green' | 'yellow' | 'red', number> = {
+  green: BAND_CONTRAST.IN_RANGE,
+  yellow: BAND_CONTRAST.HIGH,
+  red: BAND_CONTRAST.SIGNIFICANT_HIGH,
 };
-
 /**
  * THE RUNG AT EACH OF THE TWO BOUNDARIES — the midpoint of the two bands it
  * joins, DERIVED rather than written down.

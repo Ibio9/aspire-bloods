@@ -316,31 +316,47 @@ export class LiveClinicBookingClient implements ClinicBookingClient {
   }
 
   /**
-   * NOT AN ENDPOINT ANYONE HAS DOCUMENTED.
+   * IT EXISTS. IT HAS NO REQUEST SHAPE. THOSE ARE DIFFERENT PROBLEMS, AND THIS
+   * NOTE HAD THEM CONFUSED (corrected Aug 2026).
    *
-   * This called `RandoxBookings/RescheduleAppointment`, described here as
-   * documented. It is not in the Postman collection — the only
-   * machine-readable list of this API's endpoints Randox have sent — and it is
-   * not in the flow diagram, the auth document or either PDF. The path came
-   * from somebody's recollection, and a path called on a recollection is a
-   * feature that passes every test and 404s in production.
+   * `RescheduleAppointment` used to be described here as fictional — "the path
+   * came from somebody's recollection". That was wrong, and the correction
+   * matters more than the conclusion, which does not change. It is on page 3 of
+   * specs/20241028-Corporate-Customer-API-Flow.pdf, dated 1-Nov-24, listed
+   * under "Clinic Booking · Primary endpoints are:":
    *
-   * NOT SILENTLY REIMPLEMENTED AS CANCEL-THEN-REBOOK either, tempting as that
-   * is with all three calls documented: a second CreateRandoxBooking against
-   * one GPExternalNumber may well be accepted, and two live appointments for
-   * one order is a worse failure than no reschedule at all. Cancel and book
-   * again is the right sequence and it is the CALLER's to run, with the
-   * patient watching, in that order — hold the new slot first, so a failure
-   * leaves the original appointment standing.
+   *   "RescheduleAppointment — there is a window of opportunity for the clinic
+   *    booking record to be rescheduled to a different clinic location, date
+   *    and time."
    *
-   * On the list for Randox: is there a reschedule endpoint?
+   * The checks behind the earlier reading were all sound — it is genuinely
+   * absent from the Postman collection, from the API-overview flow diagram and
+   * from both auth documents — and the inference from them was not. A TESTING
+   * collection does not claim to list every endpoint. See
+   * NAMED_BUT_UNSPECIFIED_ENDPOINTS in ../endpoints.ts for the third state this
+   * needed and did not have.
+   *
+   * WHY IT STILL THROWS. No document anywhere gives its path, its verb or one
+   * field of its body, and the lesson this whole client was rebuilt around is
+   * that a guessed REQUEST is refused whole — every one of the five bodies that
+   * were guessed before the collection arrived was wrong. An endpoint we cannot
+   * spell is exactly as uncallable as one that does not exist.
+   *
+   * So moving an appointment stays COMPOSED from hold → create → cancel (see
+   * bookingService.rescheduleBooking), which is built only from documented
+   * bodies and is safe whether or not Randox accept a second booking against
+   * one GPExternalNumber.
+   *
+   * On the list for Randox, narrowed: what body does RescheduleAppointment
+   * take?
    */
   async rescheduleAppointment(): Promise<never> {
     throw new RandoxUnsupportedOperationError(
       'RescheduleAppointment',
-      'The Clinic Booking API documents no reschedule endpoint — it is absent from the Postman collection, the flow ' +
-        'diagram and both auth documents. Cancel the appointment and book the new slot instead, holding the new slot ' +
-        'first so a failure leaves the existing appointment in place.',
+      'Randox document a RescheduleAppointment endpoint (Corporate Customer API Flow, 1-Nov-24, page 3) but have ' +
+        'published no path, verb or request body for it, so it cannot be called without guessing — and a guessed ' +
+        'request is refused whole. The appointment is being moved by holding the new slot, booking it, and only then ' +
+        'cancelling the old one, which uses documented calls throughout.',
     );
   }
 }

@@ -32,14 +32,19 @@ function leftsIn(html: string): number[] {
 }
 
 /**
- * The two reference-bound hairlines on the track. They are the only elements
- * carrying that exact class, and they sit at pct(low) and pct(high) — so the
- * in-range region is the span between them.
+ * The two reference-bound hairlines on the track. They sit at pct(low) and
+ * pct(high), so the in-range region is the span between them.
+ *
+ * MATCHED ON THE MARKUP, NOT ON A TAILWIND COLOUR CLASS. This used to name
+ * `bg-espresso/60` — so when the track went light in BOTH themes (see
+ * PLOT_SURFACE in tokens.ts) and the ticks had to move off `espresso`, which
+ * resolves to a near-white cream in dark and is invisible on a pale green
+ * segment, this matched nothing and reported "0 bounds" rather than "the tick
+ * changed colour". A geometric test should not be pinned to a colour it is not
+ * about.
  */
 function referenceBoundMarks(html: string): number[] {
-  return [...html.matchAll(/class="absolute inset-y-0 w-px bg-espresso\/60"\s+style="left:\s*([-\d.]+)%/g)].map((m) =>
-    Number(m[1]),
-  );
+  return [...html.matchAll(/class="absolute inset-y-0 w-px"[^>]*?left:\s*([-\d.]+)%/g)].map((m) => Number(m[1]));
 }
 
 /**

@@ -1,0 +1,15 @@
+-- The results-ready moment is gone (Aug 2026), and so is the column that made
+-- it fire once per report.
+--
+-- THE ADDING MIGRATION (20260812194755_results_ready_seen) IS LEFT WHERE IT IS.
+-- It is history, on the same principle as the `supersedes` arrays in seed.ts:
+-- Prisma records every applied migration by name, and deleting a directory that
+-- a deployed database has already recorded turns `migrate deploy` into a drift
+-- error on the next release. The column is removed by removing it, forward.
+--
+-- The data is a set of "when was this patient first shown that this report was
+-- ready" timestamps. Nothing reads them, nothing else is derived from them, and
+-- they are not part of the clinical record — the report's own releasedAt is what
+-- says when it became available. Dropped rather than kept against a screen that
+-- is not coming back.
+ALTER TABLE "Report" DROP COLUMN "resultsReadySeenAt";

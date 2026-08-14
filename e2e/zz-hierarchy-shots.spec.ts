@@ -1,8 +1,6 @@
-import { readFileSync } from 'node:fs';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { test, expect, type APIRequestContext, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { test, expect, type APIRequestContext, type Browser, type Page } from '@playwright/test';
 
 /**
  * THE SHOTS FOR THIS ROUND, plus the two things that have to be MEASURED rather
@@ -24,9 +22,6 @@ import { test, expect, type APIRequestContext, type Browser, type BrowserContext
 
 const RUN = process.env.E2E_SCREENSHOTS === '1';
 const OUT = path.resolve('screenshots');
-const SAMPLE = fileURLToPath(
-  new URL('../apps/server/src/modules/randox/specs/HSC5-Randox-Basic-Screen-Example-Report.pdf', import.meta.url),
-);
 
 const DEMO_EMAIL = process.env.SEED_DEMO_EMAIL ?? 'demo.showcase@aspireshield.dev';
 const DEMO_PASSWORD = process.env.SEED_DEMO_PASSWORD ?? 'DemoShowcase123!';
@@ -46,11 +41,6 @@ async function signIn(request: APIRequestContext, email: string, password: strin
     data: { challengeId: body.challengeId, code: body.devOtpCode, trustDevice: false },
   });
   expect(otp.ok(), `${email} could not complete 2FA`).toBeTruthy();
-}
-
-async function csrfFor(request: APIRequestContext): Promise<string> {
-  const cookie = (await request.storageState()).cookies.find((c) => c.name === 'csrf_token');
-  return cookie?.value ?? '';
 }
 
 async function themedContext(browser: Browser, theme: Theme, size: Width = WIDTHS[0]) {
@@ -206,95 +196,7 @@ test.describe(RUN ? 'this round’s shots' : 'this round’s shots (skipped — 
     }
   });
 
-  test('the results-ready moment, an empty state, and the second surface register', async ({ browser }) => {
-    // ITS OWN PATIENT PER THEME. The moment is spent the first time it is seen,
-    // by design, so one account cannot be photographed twice.
-    for (const theme of ['light', 'dark'] as Theme[]) {
-      const adminCtx = await browser.newContext();
-      const admin = adminCtx.request;
-      await signIn(admin, 'admin@aspireshield.dev', process.env.SEED_ADMIN_PASSWORD ?? 'DevAdminPass123!');
-      const csrf = await csrfFor(admin);
-      const email = `e2e-shot-${theme}-${Date.now()}@example.com`;
-      const password = 'ResultsReady123!';
-      const invite = await (
-        await admin.post('/api/auth/invite', { data: { email }, headers: { 'X-CSRF-Token': csrf } })
-      ).json();
-      await admin.post('/api/auth/activate', {
-        data: {
-          inviteToken: new URL(invite.devActivationUrl).searchParams.get('token'),
-          password,
-          profile: {
-            firstName: 'Remi',
-            lastName: 'Okonjo',
-            sex: 'FEMALE',
-            dob: '1988-04-12',
-            contactNumber: '+44 7000 111222',
-          },
-          consents: { dataProcessing: true, resultsStorage: true, commsEmail: false, commsSms: false },
-        },
-      });
-      const sources = await (await admin.get('/api/panels/sources')).json();
-      const source = sources.find((s: { key: string }) => s.key === 'randox_portal') ?? sources[0];
-      const created = await (
-        await admin.post('/api/reports', {
-          multipart: {
-            patientId: invite.userId,
-            sourceId: source.id,
-            sampleDate: '2026-03-01',
-            file: { name: 'hsc5-sample.pdf', mimeType: 'application/pdf', buffer: readFileSync(SAMPLE) },
-          },
-          headers: { 'X-CSRF-Token': csrf },
-        })
-      ).json();
-      await admin.post(`/api/reports/${created.id}/publish`, {
-        data: {
-          sampleDate: '2026-03-01T00:00:00.000Z',
-          confirm: true,
-          results: created.parse.rows
-            .filter((r: { matchedMarkerId?: string; referenceLow?: number; referenceHigh?: number }) =>
-              r.matchedMarkerId != null && r.referenceLow != null && r.referenceHigh != null)
-            .map(
-              (r: {
-                matchedMarkerId: string;
-                value?: number;
-                resultText?: string;
-                unit: string;
-                referenceLow: number;
-                referenceHigh: number;
-              }) => ({
-                markerId: r.matchedMarkerId,
-                value: r.value ?? r.resultText,
-                unit: r.unit,
-                referenceLow: r.referenceLow,
-                referenceHigh: r.referenceHigh,
-              }),
-            ),
-        },
-        headers: { 'X-CSRF-Token': csrf },
-      });
-      await adminCtx.close();
-
-      for (const size of WIDTHS) {
-        const ctx: BrowserContext = await themedContext(browser, theme, size);
-        await signIn(ctx.request, email, password);
-        const page = await ctx.newPage();
-        await page.goto('/');
-        // A first sign-in meets the introduction first. `waitFor` and not
-        // `isVisible({ timeout })` — isVisible takes no timeout, answers
-        // immediately, and on a cold page answers "no" before the app has
-        // mounted, which walks straight past the button and sits on /welcome.
-        const skip = page.getByRole('button', { name: /^Skip this$/ });
-        await skip.waitFor({ state: 'visible', timeout: 30_000 }).catch(() => undefined);
-        if (await skip.isVisible()) await skip.click();
-        await page.waitForURL(/\/results-ready$/, { timeout: 30_000 });
-        // Mid-breath rather than at a turning point, so the drift is visible in
-        // a still.
-        await page.waitForTimeout(2600);
-        await shoot(page, `results-ready-${theme}${size.key}`);
-        await ctx.close();
-      }
-    }
-
+  test('an empty state, and the second surface register', async ({ browser }) => {
     // An EMPTY STATE with the arch behind it, and the second surface register.
     for (const theme of ['light', 'dark'] as Theme[]) {
       for (const size of WIDTHS) {

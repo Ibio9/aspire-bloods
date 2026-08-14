@@ -33,6 +33,11 @@ import {
   findCatalogueRange,
   updateCatalogueRange,
 } from '../src/lib/catalogueRanges.js';
+// The "no clinical ceiling" placeholder, shared with the readers rather than
+// written out as 999 in four rows. See the long note on it in statusBands.ts:
+// what it is standing in for is a schema that cannot express a one-sided range,
+// and the four markers below are the ones that need one.
+import { OPEN_UPPER_BOUND } from '@aspire-bloods/shared';
 
 interface MarkerSeed {
   key: string;
@@ -77,7 +82,7 @@ const markers: MarkerSeed[] = [
 
   // --- Kidney function ---
   { key: 'creatinine', name: 'Creatinine', unit: 'µmol/L', low: 60, high: 110, whatItIs: 'A waste product filtered out by your kidneys, used to estimate kidney function.', highMeans: 'Can reflect reduced kidney function or high muscle mass.', lifestyleContext: 'Staying well hydrated supports accurate results.' },
-  { key: 'egfr', name: 'eGFR (Estimated Glomerular Filtration Rate)', unit: 'mL/min/1.73m²', low: 60, high: 999, whatItIs: 'An estimate of how well your kidneys are filtering waste from your blood.', lowMeans: 'Lower values can indicate reduced kidney function.', lifestyleContext: 'Blood pressure control and hydration support kidney health.' },
+  { key: 'egfr', name: 'eGFR (Estimated Glomerular Filtration Rate)', unit: 'mL/min/1.73m²', low: 60, high: OPEN_UPPER_BOUND, whatItIs: 'An estimate of how well your kidneys are filtering waste from your blood.', lowMeans: 'Lower values can indicate reduced kidney function.', lifestyleContext: 'Blood pressure control and hydration support kidney health.' },
   { key: 'urea', name: 'Urea', unit: 'mmol/L', low: 2.5, high: 7.8, whatItIs: 'A waste product from protein breakdown, cleared by the kidneys.', highMeans: 'Can reflect reduced kidney function or dehydration.', lifestyleContext: 'Interpreted alongside creatinine and eGFR.' },
   { key: 'sodium', name: 'Sodium', unit: 'mmol/L', low: 133, high: 146, whatItIs: 'An electrolyte that helps regulate fluid balance and nerve function.', highMeans: 'Can reflect dehydration.', lowMeans: 'Can reflect fluid overload or certain medications.', lifestyleContext: 'Usually reflects hydration status at the time of testing.' },
   { key: 'potassium', name: 'Potassium', unit: 'mmol/L', low: 3.5, high: 5.3, whatItIs: 'An electrolyte essential for nerve and muscle function, including the heart.', highMeans: 'Can reflect kidney function or certain medications.', lowMeans: 'Can occur with certain medications or gastrointestinal losses.', lifestyleContext: 'Significant abnormalities here warrant prompt clinical attention.' },
@@ -86,7 +91,7 @@ const markers: MarkerSeed[] = [
 
   // --- Lipids ---
   { key: 'total-cholesterol', name: 'Total Cholesterol', unit: 'mmol/L', low: 0, high: 5.0, whatItIs: 'The combined measure of all cholesterol carried in your blood.', highMeans: 'Higher levels are linked to increased cardiovascular risk over time.', lifestyleContext: 'Diet, exercise, and not smoking all support cholesterol levels in the usual range.' },
-  { key: 'hdl', name: 'HDL Cholesterol', unit: 'mmol/L', low: 1.55, high: 999, whatItIs: 'Often called “good” cholesterol. It helps remove excess cholesterol from your bloodstream.', lowMeans: 'Lower levels are linked to increased cardiovascular risk.', lifestyleContext: 'Regular exercise is one of the most effective ways to raise HDL.' },
+  { key: 'hdl', name: 'HDL Cholesterol', unit: 'mmol/L', low: 1.55, high: OPEN_UPPER_BOUND, whatItIs: 'Often called “good” cholesterol. It helps remove excess cholesterol from your bloodstream.', lowMeans: 'Lower levels are linked to increased cardiovascular risk.', lifestyleContext: 'Regular exercise is one of the most effective ways to raise HDL.' },
   { key: 'ldl', name: 'LDL Cholesterol', unit: 'mmol/L', low: 0, high: 3.0, whatItIs: 'Often called “bad” cholesterol. It can build up in artery walls over time.', highMeans: 'Higher levels are linked to increased cardiovascular risk.', lifestyleContext: 'Diet lower in saturated fat and regular activity both help.' },
   { key: 'triglycerides', name: 'Triglycerides', unit: 'mmol/L', low: 0, high: 2.3, whatItIs: 'A type of fat in your blood, largely influenced by diet.', highMeans: 'Can reflect diet, alcohol intake, or metabolic factors.', lifestyleContext: 'Reducing refined sugar and alcohol intake often has a quick effect.' },
   { key: 'chol-hdl-ratio', name: 'Total Cholesterol / HDL Ratio', unit: 'ratio', low: 0, high: 5.0, whatItIs: 'A calculated ratio that helps put your total cholesterol into context.', highMeans: 'A higher ratio is linked to increased cardiovascular risk.', lifestyleContext: 'Improves with the same lifestyle changes that improve cholesterol overall.' },
@@ -95,7 +100,7 @@ const markers: MarkerSeed[] = [
   // either under Aspire's current agreement. See EXCLUDED_MARKER_KEYS below,
   // which also detaches/deactivates them if they exist from an older seed.
   { key: 'lp-pla2', name: 'Lp-PLA2', unit: 'ng/mL', low: 0, high: 200, whatItIs: 'An enzyme linked to inflammation within blood vessel walls.', highMeans: 'Associated with increased cardiovascular risk, independent of cholesterol levels.', lifestyleContext: 'Diet, exercise and not smoking all support lower levels.' },
-  { key: 'omega-3-index', name: 'Omega-3 Index', unit: '%', low: 8, high: 999, whatItIs: 'The proportion of omega-3 fatty acids in your red blood cell membranes.', lowMeans: 'Lower levels are linked to increased cardiovascular risk.', lifestyleContext: 'Oily fish, or omega-3 supplementation, raises this over 2–3 months.' },
+  { key: 'omega-3-index', name: 'Omega-3 Index', unit: '%', low: 8, high: OPEN_UPPER_BOUND, whatItIs: 'The proportion of omega-3 fatty acids in your red blood cell membranes.', lowMeans: 'Lower levels are linked to increased cardiovascular risk.', lifestyleContext: 'Oily fish, or omega-3 supplementation, raises this over 2–3 months.' },
 
   // --- Glycaemic ---
   { key: 'glucose', name: 'Fasting Glucose', unit: 'mmol/L', low: 3.9, high: 5.5, whatItIs: 'The amount of sugar circulating in your blood after fasting.', highMeans: 'Can indicate insulin resistance or a risk of developing diabetes.', lifestyleContext: 'Reducing refined carbohydrates and regular activity both help regulate blood sugar.' },
@@ -137,7 +142,7 @@ const markers: MarkerSeed[] = [
   { key: 'amh', name: 'AMH (Anti-Müllerian Hormone)', unit: 'pmol/L', low: 7.0, high: 35.0, sex: 'FEMALE', whatItIs: 'A hormone that reflects your remaining ovarian egg reserve.', lowMeans: 'Suggests a lower ovarian reserve. This is context for fertility planning, not a diagnosis.', highMeans: 'Can be associated with conditions such as PCOS.', lifestyleContext: 'AMH declines naturally with age; a single result is best discussed in context.' },
   { key: 'fsh', name: 'FSH (Follicle Stimulating Hormone)', unit: 'IU/L', low: 1.5, high: 12.4, whatItIs: 'A hormone that regulates the menstrual cycle and sperm production.', highMeans: 'Can relate to reduced ovarian reserve or menopause.', lifestyleContext: 'Timing in the menstrual cycle significantly affects this result.' },
   { key: 'lh', name: 'LH (Luteinising Hormone)', unit: 'IU/L', low: 1.7, high: 8.6, whatItIs: 'A hormone that triggers ovulation and supports testosterone production.', lifestyleContext: 'Timing in the menstrual cycle significantly affects this result.' },
-  { key: 'progesterone', name: 'Progesterone', unit: 'nmol/L', low: 0, high: 999, sex: 'FEMALE', whatItIs: 'A hormone essential for the menstrual cycle and early pregnancy.', lifestyleContext: 'Timing in the menstrual cycle significantly affects this result, which is usually tested in the mid-luteal phase.' },
+  { key: 'progesterone', name: 'Progesterone', unit: 'nmol/L', low: 0, high: OPEN_UPPER_BOUND, sex: 'FEMALE', whatItIs: 'A hormone essential for the menstrual cycle and early pregnancy.', lifestyleContext: 'Timing in the menstrual cycle significantly affects this result, which is usually tested in the mid-luteal phase.' },
   { key: 'prolactin', name: 'Prolactin', unit: 'mIU/L', low: 102, high: 496, whatItIs: 'A hormone best known for its role in milk production, also relevant to menstrual and reproductive health.', highMeans: 'Can affect menstrual cycles and fertility.', lifestyleContext: 'Can rise with stress or shortly after a meal, so it is worth repeating under calm, fasted conditions if raised.' },
   { key: 'shbg', name: 'SHBG (Sex Hormone Binding Globulin)', unit: 'nmol/L', low: 10, high: 57, whatItIs: 'A protein that binds sex hormones like testosterone and oestrogen, affecting how much is freely available.', lifestyleContext: 'Interpreted alongside total and free testosterone.' },
   { key: 'dhea-s', name: 'DHEA-S', unit: 'µmol/L', low: 2.2, high: 15.2, whatItIs: 'A hormone produced by the adrenal glands, a precursor to testosterone and oestrogen.', highMeans: 'Can relate to adrenal conditions.', lowMeans: 'Can relate to reduced adrenal reserve or normal ageing.', lifestyleContext: 'Naturally declines with age.' },

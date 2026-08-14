@@ -4,7 +4,7 @@ import {
   formatOptimalRange,
   formatReferenceBound,
   formatReferenceRange,
-  hueTint,
+  chart as chartTokens,
   OPTIMAL_FILL,
   severityThresholdFor,
   statusBands,
@@ -208,24 +208,33 @@ export function RangeBar({ value, low, high, status, severityThreshold = null, o
             <div
               key={`optimal-edge-${i}`}
               className="absolute inset-y-0 w-px"
-              style={{ left: `${left}%`, backgroundColor: hueTint.green.edge, opacity: 0.6 }}
+              style={{ left: `${left}%`, backgroundColor: chartTokens.referenceEdge, opacity: chartTokens.referenceEdgeOpacity }}
             />
           ))}
           {/* The two boundaries the whole bar turns on, marked. Without these
               the only thing saying where the reference range ends is the colour
               change, which is exactly what must never be true here. */}
           {[bandLeft, bandRight].map((left, i) => (
-            <div key={i} className="absolute inset-y-0 w-px bg-espresso/60" style={{ left: `${left}%` }} />
+            <div
+              key={i}
+              className="absolute inset-y-0 w-px"
+              // NOT `bg-espresso`. The track is made of the band fills, which are
+              // light in BOTH themes since the plot went light — and `espresso`
+              // resolves to a near-white cream in dark, which on a pale green
+              // segment is a tick nobody can see. Same static ink the chart's
+              // own boundary hairline takes.
+              style={{ left: `${left}%`, backgroundColor: chartTokens.referenceEdge, opacity: 0.75 }}
+            />
           ))}
         </div>
-        {/* The result itself. NOT in its own state's colour any more: the mark
-            sits on a track made of that colour, so a green dot on the green
-            segment and a pale gold one on the gold segment were marks drawn in
-            the shade they were standing on. It is the rangemark token instead —
-            white on dark, espresso on light, always inside the opposite ring —
-            and its job is position. Status is still carried four times over by
-            the segment it lands on, the chevron, the word and the card's wash.
-            See tokens.ts for the measured contrast behind the theme split. */}
+        {/* The result itself. NOT in its own state's colour: the mark sits on a
+            track made of that colour, so a green dot on the green segment and a
+            pale gold one on the gold segment were marks drawn in the shade they
+            were standing on. It is the rangemark token, whose job is POSITION.
+            ONE COLOUR IN BOTH THEMES since the track went light in both —
+            espresso, 4.02–6.05:1 on the five fills the bar paints, inside a ring
+            of the plot's own tone. Status is still carried four times over by the
+            segment it lands on, the chevron, the word and the card's wash. */}
         <div
           className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-rangemark-ring bg-rangemark shadow motion-safe:transition-[left] motion-safe:duration-500 motion-safe:ease-out"
           style={{ left: `${displayLeft}%` }}
@@ -509,7 +518,12 @@ export function MiniRangeBar({
             saying where the range ends is the colour change, which is exactly
             what must never be true here — at this size most of all. */}
         {[bandLeft, bandRight].map((left, i) => (
-          <div key={i} className="absolute inset-y-0 w-px bg-espresso/60" style={{ left: `${left}%` }} />
+          <div
+            key={i}
+            className="absolute inset-y-0 w-px"
+            // Static ink, not `espresso` — see the full bar's ticks above.
+            style={{ left: `${left}%`, backgroundColor: chartTokens.referenceEdge, opacity: 0.75 }}
+          />
         ))}
       </div>
       {/* THE ENDS OF THE SCALE THAT WAS ACTUALLY DRAWN. Two figures, one line,

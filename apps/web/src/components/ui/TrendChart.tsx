@@ -35,6 +35,10 @@ import {
 import { formatAxisDate } from '../../lib/patientPortal';
 import { useReducedMotion } from '../../lib/useReducedMotion';
 import { statusColor, statusLabel } from '../../lib/markerCopy';
+// The plot is light in BOTH themes; only its FRAME differs, because in dark it
+// is separating a light panel from a near-black card and in light it is not.
+// See PlotPanel.
+import { useTheme } from '../../lib/ThemeContext';
 
 /**
  * One marker over time.
@@ -469,23 +473,60 @@ function LatestValueLabel({ cx, cy, text }: { cx: number; cy: number; text: stri
  * full-width panel drawn as one would register as an extra period spanning the
  * whole plot and every assertion about stepping would be measuring a frame.
  */
-function PlotPanel() {
+function PlotPanel({ dark }: { dark: boolean }) {
   const plot = usePlotArea();
   if (!plot) return null;
+  /**
+   * ── AN INSET PANEL, NOT A HOLE PUNCHED IN THE PAGE (Aug 2026) ────────────
+   *
+   * The plot is a warm off-white in BOTH themes now (see PLOT_SURFACE), which
+   * on a near-black card is the one thing this must not read as: a bright
+   * rectangle floating on black. Three things stop it and only the first was
+   * already here.
+   *
+   *  1. THE FRAME, at full weight in dark and half in light. In light it is
+   *     separating two similar tones and a hairline is enough; in dark it is
+   *     the boundary between a light panel and a dark card, and a half-alpha
+   *     line there is a suggestion of an edge rather than one.
+   *  2. AN INNER SHADOW along the top and left inside edges — the same warm
+   *     shadow tone the rest of the product uses, drawn INSIDE the panel. It is
+   *     what says the panel sits INTO the card. A drop shadow would say the
+   *     opposite, and was tried.
+   *  3. The card's own padding, which holds the panel clear of the card's
+   *     border so the two edges never coincide. That is in the caller.
+   *
+   * The inner shadow is two 6px gradients rather than a filter: a filter on a
+   * `<rect>` inside a Recharts SVG is re-rasterised on every tooltip move, and
+   * this panel is behind everything the reader interacts with.
+   */
+  const inset = 6;
   return (
-    <rect
-      x={plot.x}
-      y={plot.y}
-      width={plot.width}
-      height={plot.height}
-      fill={chartTokens.plotSurface}
-      stroke={chartTokens.plotFrame}
-      strokeOpacity={chartTokens.plotFrameOpacity}
-      strokeWidth={1}
-      // No shadow and no inner border: one hairline, drawn once.
-      shapeRendering="crispEdges"
-      aria-hidden="true"
-    />
+    <g aria-hidden="true">
+      <defs>
+        <linearGradient id="plot-inset-top" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={chartTokens.plotInset} stopOpacity={chartTokens.plotInsetOpacity} />
+          <stop offset="100%" stopColor={chartTokens.plotInset} stopOpacity={0} />
+        </linearGradient>
+        <linearGradient id="plot-inset-left" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor={chartTokens.plotInset} stopOpacity={chartTokens.plotInsetOpacity} />
+          <stop offset="100%" stopColor={chartTokens.plotInset} stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <rect x={plot.x} y={plot.y} width={plot.width} height={plot.height} fill={chartTokens.plotSurface} shapeRendering="crispEdges" />
+      <rect x={plot.x} y={plot.y} width={plot.width} height={Math.min(inset, plot.height)} fill="url(#plot-inset-top)" />
+      <rect x={plot.x} y={plot.y} width={Math.min(inset, plot.width)} height={plot.height} fill="url(#plot-inset-left)" />
+      <rect
+        x={plot.x}
+        y={plot.y}
+        width={plot.width}
+        height={plot.height}
+        fill="none"
+        stroke={chartTokens.plotFrame}
+        strokeOpacity={dark ? chartTokens.plotFrameOpacityDark : chartTokens.plotFrameOpacity}
+        strokeWidth={1}
+        shapeRendering="crispEdges"
+      />
+    </g>
   );
 }
 
@@ -909,6 +950,10 @@ export function TrendChart({
   height?: 'default' | 'tall';
 }) {
   const reducedMotion = useReducedMotion();
+  // The ONE thing on this chart that still differs between the two themes. The
+  // plot, the bands, the line, the marks, the hairlines and every label on the
+  // plot are identical in both — see PLOT_SURFACE in tokens.ts.
+  const dark = useTheme().resolved === 'dark';
   // Pattern ids are document-global; two marker charts on one page sharing an
   // id would make the second one's band reference the first one's pattern.
   const uid = useId().replace(/:/g, '');
@@ -1432,7 +1477,7 @@ export function TrendChart({
 
             {/* THE PLOT ITSELF, before anything is drawn in it: an inset panel
                 with one hairline frame. Not a ReferenceArea — see PlotPanel. */}
-            <PlotPanel />
+            <PlotPanel dark={dark} />
 
             {/* The five status bands, behind everything else. A single point
                 still gets a full-width band: its one segment runs from the

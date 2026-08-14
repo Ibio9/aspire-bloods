@@ -279,6 +279,15 @@ both significants share one.
    same derivation (`bandRampStops`), so the two speak one visual language; the
    whole track is ONE CSS gradient rather than five abutting segments, which is
    what stops two neighbours disagreeing by a rounding at the seam.
+   **DRAWN ON THE LIGHT PLOT, LIKE THE CHART (Aug 2026).** The track is
+   `PLOT_SURFACE` in both themes and the five fills are the chart's own, so a
+   bar and the chart above it on the same card are the same five colours by
+   construction rather than by two records agreeing. The MARK is espresso in
+   both themes now — it used to invert, white on dark and espresso on light,
+   because the track's ground did — and the two reference-bound ticks moved off
+   `bg-espresso/60` onto the chart's static hairline, because `espresso`
+   resolves to a near-white cream in dark and would be invisible on a pale green
+   segment.
    **AND THE SAME FIVE COLOURS, SINCE THE BANDS WENT OPAQUE (Aug 2026).**
    `bandRampStops` used to take a ROLE — `plot` for the chart, whose bands were
    composited at an alpha, `track` for a bar, whose segments were painted. Two
@@ -326,8 +335,23 @@ both significants share one.
    end: identical text drops the end (0 and 0), **different text keeps the end
    and drops the bound's number**, since a range of 1–1,000,000 on a scale from
    0 would otherwise leave "1" standing at the far left of a bar starting at 0.
-   **THERE ARE FOUR REASONS NOT TO DRAW, AND ONE SENTENCE EACH** — no reference
-   range, a range with no width, no numeric value, and too far out to show both.
+   **THERE ARE FIVE REASONS NOT TO DRAW, AND ONE SENTENCE EACH** — no reference
+   range, a range with no width, no numeric value, too far out to show both, and
+   **an open-topped range (Aug 2026)**. The fifth is the one the others were
+   written for and missed: four markers have no clinical upper bound — eGFR,
+   HDL, the Omega-3 Index, progesterone — and the catalogue writes
+   `OPEN_UPPER_BOUND` (999) for the ceiling, because a reference range in this
+   schema is two numbers. Rule 2 then does what it says: a 60–999 range produces
+   a scale of roughly 0 to 2000, and **a perfectly healthy eGFR of 97 landed at
+   5% of the bar**, hard against the left-hand end of a green band. A patient
+   reads that as "only just inside my range". It is an excellent result. That is
+   the same correct-picture-false-axis failure as the three above, surviving in
+   the one input nobody had put through it, because 999 is an ordinary number to
+   arithmetic. Nothing is drawn now. Drawing an OPEN-ENDED bar instead — a green
+   region running from the lower bound off the right-hand end, no upper hairline
+   and no upper label — is the right rendering, is a design change across two
+   components rather than a scale correction, and is on the list for Richard
+   (docs/audits/randox-band-mapping.md).
    They shared one sentence about being far outside the range, which was true of
    one of them; `RANGE_BAR_UNAVAILABLE` in rangeScale.ts holds the copy, so a
    new reason without its words is a type error. `rangeBarScale` takes nullable
@@ -344,431 +368,151 @@ both significants share one.
    status names. Seeded and deterministic: a property test that cannot reproduce
    its own failure is a rumour. `RangeBar.test.tsx` pins the card bar at the
    reported numbers through `react-dom/server` (no jsdom, no testing-library).
-   **The MARK on it is NOT a status colour (Aug 2026).** It
-   is the `rangemark` token: pure white in dark, espresso in light, always
-   inside a ring of the opposite tone. A mark drawn in its own state's colour is
-   a mark drawn in the shade of the segment it is standing on — a green dot on
-   the green band, pale gold on the gold one — and the mark's job is POSITION.
-   The fill inverts between themes because it was measured: white against the
-   four track colours was 4.69–5.71:1 in dark and 1.73–2.72:1 in light, and the
-   pale green in-range track 2.11:1, which is a white dot that vanishes. It is
-   re-measured against the band fills the bar paints now (Aug 2026) —
-   4.25–6.52:1 in light, 6.88–10.58:1 in dark — and `tokenContrast.test.ts`
-   holds it at AA-large on every segment it can stand on, the optimal narrowing
-   included. Status is still carried four times over by the segment, the
-   chevron, the word and the card's own wash. Applies to both bars — the card-sized pointer
-   is an SVG triangle rather than a CSS border trick precisely so it can take
-   the same ring.
-3. Trend charts — the reference range as a soft green band, gold immediately
-   above and below, red beyond the significantly-out thresholds, with the two
-   hinges at the boundaries between them. Same ramp as the range bar.
-   **THE OPTIMAL RANGE IS A NARROWING OF IN-RANGE AND IS DRAWN AS ONE (Aug
-   2026).** It was a hatched bronze band with a dashed edge and its own key
-   entry, over a green reference band — two overlapping green things in two
-   textures, reading as two systems making competing claims about one result.
-   It is one region now, on the bar and on the chart alike: the same green
-   taken a rung deeper (`OPTIMAL_FILL`, an opaque token since Aug 2026 — it was
-   `OPTIMAL_DEEPEN`, 0.09 of alpha on the chart, against a different green at
-   0.24 on the bar, which is two alphas of two colours for one idea) over the
-   INTERSECTION with the reference range, bounded by the same neutral hairline
-   every other boundary uses. Drawn as the intersection deliberately — a published band whose
-   ceiling sits above the lab's has no narrowing to draw past that point, and
-   green painted over the gold segment is the two-systems problem in a worse
-   form. `chart.optimalBand` / `optimalBandOpacity` / `optimalEdge` are GONE.
-   It is named ONCE, inline, where the value already says "outside optimal":
-   the chart tooltip and the line above the chart. **No key entry, no hatch,
-   no second texture.** Bands sit behind the data at low weight. Points take their own
-   state's colour. Band boundaries come from THAT result's reference range and
-   THAT marker's severity threshold (sent as `severityThreshold` on the DTO,
-   see `statusBands()` in packages/shared) — never a fixed scale.
-   **BANDS ARE DRAWN PER PERIOD, NOT PER POINT, AND NEVER AS A SLIVER (Aug
-   2026).** Consecutive results sharing a reference range are ONE period and get
-   ONE band set, so a series on one range spans the whole plot. Where the range
-   genuinely changes, the step goes MIDWAY between the two samples it happened
-   between — we know it changed between those draws and not when, and the
-   midpoint is also what guarantees every period is at least half a sampling gap
-   wide. Drawing a band from each point to the next put the LAST result's range
-   in the padding gutter: measured at 24px against a 510px plot on a marker
-   whose range changed on the most recent result. A change of range is also
-   SAID — a dashed rule at the step, an entry in the key, and a sentence naming
-   both ranges and their dates, because a silent change of reference range
-   between two results is exactly what misleads someone reading their own trend.
-   The key is a two-column grid, not two rows of wrapping flex items.
-   **WHETHER THE RANGE CHANGED IS ONE QUESTION WITH ONE ANSWER (Aug 2026).**
-   `sameReferenceRange` (statusBands.ts) decides it, and it is NOT a float
-   compare, because the bounds reaching a chart have been through a unit
-   conversion: a fasting glucose reported as 3.9–5.5 mmol/L and then as
-   70–99 mg/dL is one interval written twice, and 99/18.0182 =
-   5.494444506110488 is not float-equal to 5.5. So the chart stepped, drew the
-   dashed rule, named the change in the key, printed both ranges on the axis,
-   and stated in a sentence that the laboratory had changed a range it had
-   never touched — with 5.494444506110488 set as an inline axis label.
-   Identity is decided at the precision a range is READ at
-   (`roundReferenceBound`: 3 decimals under 0.2, then 2, then 1, then whole
-   numbers — per BOUND, so TSH's 0.27 floor keeps its precision beside a 4.2
-   ceiling), and the same rounding is what gets printed. **A step therefore
-   exists exactly when the two printed ranges differ**, which is what stops the
-   drawn step and the written sentence ever disagreeing;
-   `referenceRangeIdentity.test.ts` pins the biconditional. The BAND GEOMETRY
-   still uses the exact numbers the server sent — a period takes its first
-   row's — so no band edge moves to suit a rounding. **No reference range is
-   ever interpolated raw into copy**: `formatReferenceRange` is the only way one
-   reaches a screen, in the chart's tooltip, sentence and axis labels and in
-   the two "Lab reference range" lines on MarkerDetailPage and
-   MarkerResultCard.
-   **THE STEP LOOKS THE SAME EVERY TIME IT HAPPENS.** One dashed vertical
-   hairline, the full plot height, at the midpoint — `chart.stepDashArray` /
-   `stepWidth` / `stepOpacity`, tokens rather than literals because the pattern
-   was written out twice (the rule on the plot and the swatch in the key) and
-   two copies of one appearance is one edit away from drifting. Every band in a
-   period is drawn to ONE x extent held on the period, so "all the bands step
-   together" is structural rather than four expressions agreeing; the boundary
-   hairlines run only across their own period and meet the step. Every period's
-   bounds are labelled at the right-hand end of its OWN extent, not just the
-   last period's — a reader could previously see that the range had stepped and
-   not read what it stepped from. `e2e/chart-bands.spec.ts` measures all of it:
-   two overlapping boxes and a 1px band edge out of place are facts you
-   measure, not things anybody notices in a screenshot.
-   **THE DEMO SEED CONTAINS NO STEP AT ALL — ONE REFERENCE RANGE PER MARKER,
-   FOR THE WHOLE OF A PATIENT'S HISTORY (changed Aug 2026).** It was an
-   allow-list (`DECLARED_RANGE_CHANGES`) with `fasting-insulin` on it, catching
-   `vitamin-d` and `ferritin`, which had drifted because three rows of a
-   hand-written table happened to differ and both computed to the SAME status
-   against either range. An allow-list is a check on a thing that can still
-   happen. **`resolveBand` in demoSeedData.ts answers ONCE PER MARKER** —
-   NARRATIVE_RANGE, then the catalogue, then a synthetic band — and every report
-   reads that same object, so there is no second source for a band and
-   `findRangeChanges` on a built demo is empty by construction.
-   `buildDemoReports` throws on ANY change and there is no list to add a marker
-   to. fasting-insulin's story is unchanged: the functional band (2–10) is
-   simply the band on all three draws, and 24.6 against it is still
-   significantly high.
-   **THE STEP MACHINERY STAYS AND IS TESTED FROM EXPLICIT FIXTURES.** Randox
-   will move a range for real eventually. `referenceRangePeriods` /
-   `periodStepBoundaries` (packages/shared/src/statusBands.ts) are the one
-   derivation the chart's bands, step rules, per-period bound labels and
-   range-change sentence all read, pinned by
-   `apps/server/tests/referenceRangePeriods.test.ts`; and
-   `e2e/chart-bands.spec.ts` BUILDS its stepped series — two reports, one
-   marker, 30–400 then 20–200 — rather than hunting the demo for one. A test
-   that depends on the demo happening to contain a step goes quiet the moment
-   the demo stops.
-   **THE BANDS ARE CONTEXT AND THE LINE IS CONTENT.** They were four opaque
-   saturated slabs edge to edge with a near-solid rule over every boundary,
-   which is a fill tool rather than a chart: at equal weight and full strength
-   five regions of colour ARE the picture and the reader's own result is a
-   detail on top of them. What that ordering means is unchanged and is the
-   thing to keep: the reader meets the line first and the bands second.
+   **The MARK on it is NOT a status colour (Aug 2026).** It is the `rangemark`
+   token, and its job is POSITION. A mark drawn in its own state's colour is a
+   mark drawn in the shade of the segment it is standing on — a green dot on the
+   green band, pale gold on the gold one. It used to INVERT between themes
+   (white in dark, espresso in light) because the track's ground did; with the
+   track light in both themes it is **espresso in both**, measured at 4.02–6.05:1
+   on the five fills the bar paints, inside a ring of the plot's own tone.
+   Status is still carried four times over by the segment, the chevron, the word
+   and the card's own wash. Applies to both bars — the card-sized pointer is an
+   SVG triangle rather than a CSS border trick precisely so it can take the same
+   ring. `tokenContrast.test.ts` holds it at AA-large on every segment it can
+   stand on, the optimal narrowing included.
+3. **Trend charts — AND THE PLOT AREA IS LIGHT IN BOTH THEMES (Aug 2026).**
 
-   **AND THE LINE CARRIES THE STATUS ALONG ITS OWN LENGTH NOW (Aug 2026).**
-   Each point is drawn in its own state's colour and the stroke is ONE gradient
-   in user space with a stop at each point's x — so between two draws the colour
-   blends rather than steps, which is the only claim the chart is entitled to
-   make: nobody measured the moment the crossing happened. A stop also lands
-   wherever the segment CROSSES a boundary, in that boundary's own hinge colour
-   (olive at a reference bound, orange at a threshold), so a line from in-range
-   to significantly-high travels green → gold → red in the order the value
-   actually travels. Without those the sRGB interpolation from green to red
-   passes through a muddy olive-brown belonging to no state at all.
-   **THE ORDER OF PROMINENCE IS LINE, THEN THE BOUNDARY HAIRLINES, THEN THE
-   BANDS**, and all three moved to make it true. The line went to 4px; the
-   hairline's relative weight nearly quadrupled (2.15:1 on a band standing
-   4.74:1 off the plot, → 2.47:1 on one standing 1.47:1); and the bands dropped
-   to `BAND_CONTRAST` 1.24 / 1.38 / 1.54, from 1.5 / 1.88 / 2.3.
-   **THE MEASUREMENT THAT FORCED IT.** In dark the loudest band stood **4.74:1**
-   off the plot while the line cleared it at 3.05 — the context louder than the
-   content, in the theme most people read in. Line-over-band against
-   loudest-band-off-plot went 1.58× → 2.13× in light and **0.64× → 1.83×** in
-   dark.
-   **AND THE FAULT WAS CHROMA AS MUCH AS CONTRAST.** Solved on the rung alone
-   the bands came out pale but vivid, carrying 0.123 of OKLab chroma against the
-   green LINE's 0.096 — the ordering inverted in the one dimension nothing was
-   measuring. A band takes `BAND_CHROMA_SHARE` (0.6) of `bandChromaCeiling` and
-   the line takes ALL of it, so the line is 1.67× the band's colourfulness by
-   construction. Both dimensions are asserted.
-   **Hairlines** — boundaries are 1px at low opacity, and the reference bounds
-   are LABELLED INLINE on the axis. **Axes** — round tick values only (the
-   y-axis read 0, 8, 16, 24, 31.9, and 31.9 is not a number anybody chose), four
-   of them, no gridlines and no box.
-   **AND A BAND IS OPAQUE (Aug 2026). THERE IS NO ALPHA IN ONE ANYWHERE.**
-   Not on the rect, not in a gradient stop, not on the optimal narrowing over
-   it: nothing behind a band shows through it. This replaced a band COMPOSITED
-   at `BAND_WEIGHT` over the plot, and it is worth knowing why that could never
-   be tuned into working. **The chroma of a composited band is very nearly
-   `weight × chroma(hue)`**, so a band drawn at 15% of a colour carries at most
-   15% of a colour whatever colour it is given — which is what "washed out" was,
-   and why the git history holds three separate re-solves of the hue all hitting
-   the same ceiling. The ceiling was the alpha. `bandEdgeFade` went with it for
-   a second reason: a band that fades at its own edges has no edge, on a plot
-   whose entire subject is a boundary.
-   **THE LADDER DID NOT GO AWAY — IT MOVED INTO THE COLOUR.** In range lightest,
-   out-of-range more, significantly out most, exactly as before, now stated as
-   `BAND_CONTRAST` (statusBands.ts): the contrast each rung's fill is solved to
-   stand off the surface it is drawn on — **1.5 / 1.88 / 2.3**, with the two
-   hinges at the derived midpoints. `--c-hue-*-fill` is the painted colour and
-   `BAND_FILL` (tokens.ts) is the solve. Only the HUE ANGLE is the brand hue's
-   own; the lightness and the saturation are both solved.
-   **THE CHROMA CAP IS PER HUE, AND IT IS DERIVED FROM THE PALETTE (Aug 2026).**
-   It was ONE saturation cap, `BAND_FILL_SAT_CAP = 0.6`, applied to all three —
-   green kept its own 41% and gold and red were both pulled to 60% — and the
-   complaint that killed it was that red read as red while green read as olive
-   and gold as brown. **A single cap cannot work**, because HSL saturation is a
-   RATIO and the ladder deliberately puts the three hues at very different
-   lightnesses. Measured in OKLab chroma at the old numbers: light 0.0915 /
-   0.1242 / 0.1037, dark 0.0696 / 0.0727 / 0.1412 — one cap flattering gold in
-   light and red in dark and starving green in both.
-   Each hue now gets as much chroma as it can carry at its own rung's lightness,
-   bounded by **`bandChromaCeiling`: the colourfulness of the BRAND HUE it
-   derives from**. A green band as chromatic as `statusHue.green` cannot be out
-   of the palette, because that IS the palette's green. Per hue by construction,
-   and not a number anybody typed in. After: light 0.1234 / 0.1407 / 0.1341
-   (within 14% of each other), dark 0.0985 / 0.0812 / 0.1593. Every band gained
-   — green +35%/+42%, gold +13%/+11%, red +29%/+13%.
-   **THE MEASURE IS OKLab CHROMA, NEVER HSL SATURATION AND NEVER THE RGB SPAN.**
-   Saturation is a ratio and calls a pale pink and a fire-engine red the same
-   figure. The RGB span is the FLOOR tokenContrast.test.ts holds and is right for
-   a floor; solved for an equal RGB span the three came out `#98db65`, `#cfb158`,
-   `#eb8677` — a highlighter green beside a dull gold — because a green at 63%
-   lightness holds an enormous span while looking ordinary and a red does not.
-   **DARK'S OUT-OF-RANGE BAND WAS OFF THE LADDER, AND IS BACK ON IT (Aug
-   2026).** Worth keeping because the reason it left can recur. It was #604b0b —
-   a dark ochre reading as brown — because the rung against a near-black plot
-   fixes its luminance low, and **a yellow at a low luminance is a brown in any
-   colour space**; yellow has the least room of the three, unable to reach its
-   own palette chroma below okL 0.69 where green manages it from 0.44. So the
-   rung moved to 4.45 (#ad8100) and `BAND_RUNG` was born to hold the exception.
-   **WHAT RETIRED IT was the line taking over the status.** That band was the
-   only thing saying "outside your range" in dark, so it had to be gold whatever
-   it cost. It is not any more — the LINE says it, in a gold solved to clear
-   every band — so the band went back to being the quietest thing that still
-   shows where the region is. `BAND_RUNG` now equals `BAND_CONTRAST` in both
-   themes; the two names are kept apart only because the divergence can recur.
-   **THREE THINGS THE EXCEPTION HAD FORCED WENT WITH IT.** The escalation is
-   carried by CONTRAST in both themes again (it had to switch to chroma in dark,
-   because a band at 4.45 sits above the red band and ran the ladder backwards).
-   The dark gold mark no longer steps toward the GROUND instead of the text —
-   `MARK_SHIFT_DARK` and its direction-per-hue are deleted. And the comparison
-   chart's line is a bronze again rather than a near-white: it had been driven to
-   0.936 lightness (#ffeade, OKLab chroma 0.029) to clear a 4.74:1 band, and the
-   note here recorded that as unavoidable, which it was AT THOSE BANDS. It is
-   #916248 / #b28064 now, chroma 0.072 / 0.074.
-   **AND THE LINE COLOURS ARE SOLVED, NOT MIXED (Aug 2026).** `MARK_SHIFT` mixed
-   each hue TOWARD the theme's text tone, which darkens and desaturates at once —
-   so every step taken to clear a band was paid for in the colour that was the
-   whole point, and light's green and gold came out #567639 and #836a26, two
-   dark khakis ΔE 0.070 apart. On a 4px line that is one colour. `MARK_FILL` is
-   solved exactly as `BAND_FILL` is: hue angle untouched, lightness solved to
-   clear 3:1 on EVERY band, saturation to the chroma ceiling. Light's
-   green|gold separation went 0.070 → 0.145. Solved with the saturation free
-   instead, dark came out #74ff00 and #ffff00 — the highlighter green the
-   ceiling exists to prevent.
-   **THE MEASURE IS THE GEOMETRIC MEAN OF TWO SURFACES.** One fill is drawn on
-   the chart's plot panel and on the card a range bar sits on, and those two are
-   not the same distance apart in the two themes. Solving against the card alone
-   left the CHART's bands 33% apart between light and dark; against the plot
-   alone, the BAR's 30% apart. The geometric mean splits it: both instruments
-   land within 16%, inside the 20% tolerance tokenContrast.test.ts has always
-   held bands to.
-   Orange survives only in the significantly-out bands: below-range is a fifth
-   visible at a typical axis scale, so ramping it out to orange painted the
-   transition-into-significant immediately below the reference bound.
-   **THE GRADIENT IS AT THE BOUNDARY, NOT ACROSS THE BAND (Aug 2026).** It has
-   now been flat slabs, then a ramp running the whole width of each band, and
-   both were wrong in the same place. A hard edge at the reference bound says
-   the bound is a cliff — a value one unit inside a range and one unit outside
-   it are not clinically different — and a ramp across a whole band says the
-   opposite falsehood, that the middle of "above range" is a transition. So
-   each of the four boundaries is drawn as a blend CENTRED ON ITSELF, at a
-   fixed share of the DRAWN EXTENT (`TRANSITION_SHARE`, **40%**, ±20% either
-   side) rather than of the range — so the blend is the same handful of pixels
-   on a 3.9–5.1 marker and a 30–400 one. Flat green across the range, blend at
-   the bound, flat gold, blend at the threshold, flat red. The bound sits at the
-   MIDPOINT of its blend, so a result exactly on the limit is drawn exactly
-   half in each colour, and the boundary hairline runs through the middle of
-   the gradient rather than along its edge.
-   **40% IS ONE STEP BACK FROM WHERE THE FLAT CORES GO (Aug 2026).** It was
-   11%, which on a 200px plot is 22px — a small blur at a seam between two
-   blocks rather than a transition, and the blend is meant to be the dominant
-   impression because what it says is the whole reason it exists. Swept at 11 /
-   20 / 28 / 34 / 40 / 46 / 52%, rendered through `bandRampStops` itself on four
-   real geometries and looked at: the cores start going at 46%, where the
-   in-range band on a narrow marker becomes a continuous ramp with nothing left
-   in the middle of it. At 40% the tightest of the four keeps a green core 26%
-   of its own band.
-   **EACH BOUNDARY GETS ITS OWN HALF-WIDTH AND IT IS THE SAME ON BOTH SIDES.**
-   The clamp used to be per BAND — each band's flat core inset from its own two
-   ends and pinned at its own midpoint — which never let two blends cross but
-   did let one go LOPSIDED: a bound with a wide band below and a narrow one
-   above got the full half-width downward and a clipped one upward, so it sat
-   off-centre in its own transition and the hairline no longer ran through the
-   middle. Invisible at 11%, unmissable at 40%. Each boundary now takes the
-   smallest of the nominal half-width and half the gap to the boundary either
-   side of it, which is both halves of the requirement at once: half a gap each
-   means two neighbours can MEET and can never overlap, and one figure on both
-   sides keeps the bound in the middle. `markerCopy.test.ts` pins the symmetry,
-   the non-crossing and the surviving core over six geometries including two
-   degenerate ones. `bandRampStops` (statusBands.ts) is
-   the ONE derivation, shared by the chart and by both range bars — the bar and
-   the chart speak one visual language, and the mini bar's old "flat segments,
-   a ramp at this size is a smear" objection went with the ramp it was about.
-   **THERE ARE TWO HINGES NOW, AND NEITHER IS EVER A STATE.** Orange was on its
-   own for as long as the ramp ran across a band. A blend centred on a
-   reference bound needs a midpoint colour in exactly the way the threshold
-   already had one, so `statusHue.olive` is the fifth hue: the exact RGB
-   midpoint of green and yellow, written out, because "half of each" is the
-   whole claim the gradient makes. OLIVE at a reference bound, ORANGE at a
-   severity threshold.
-   **AND A HINGE IS A MIDPOINT WHERE IT IS DRAWN, NOT A HUE THAT IS SOLVED
-   (Aug 2026).** Only the three STATES get a solved `BAND_FILL` lightness; olive
-   is the exact RGB midpoint of the green fill and the gold one, orange of the
-   gold and the red. Solving a hinge on its own broke the very thing it is for:
-   `statusHue.olive` is 57% saturated against green's 41%, so an
-   independently-solved olive came out MORE chromatic than either neighbour and
-   drew a bright chartreuse stripe down the middle of the blend. A hinge cannot
-   also be held to a rung — an RGB midpoint is not a contrast midpoint, because
-   WCAG luminance is not linear in RGB — so what is asserted of it is that it IS
-   the channel-wise midpoint and that it lands between its neighbours.
-   **THE LADDER IS CONTINUOUS ACROSS A BOUNDARY.** Both adjacent bands name the
-   same stop, at the same value, in the same colour, so the fill is continuous
-   across a boundary drawn as two separate shapes. `markerCopy.test.ts` pins the
-   hand-over; `status-colour.spec.ts` reads the painted stops off the plot and
-   checks that every one of them is opaque, that each is one of the five fill
-   tokens, and that both sides carry each hinge.
-   **THE GRADIENT IS PLACED BY VALUE, NOT BY THE RECT.** A band can reach past
-   the domain and the outer two are open-ended, so the rect is clamped — and a
-   gradient laid out across the clamped rect finishes its ramp early, putting
-   orange somewhere in the middle of the above-range region rather than at the
-   threshold where orange means something. Every stop is placed by its value
-   and converted onto the rect's own extent, which is why there is ONE GRADIENT
-   PER DRAWN BAND rather than one per status. **And only the NEAREST stop
-   outside the rect survives on each side**: where two clamp to the same edge
-   the one that paints it is whichever the sort left last, which on an HDL with
-   a 1–999 range put the orange from a threshold at 3495 across the top of a
-   plot ending at 1250. Keeping the nearest gives the colour that is true at
-   the edge. The range bar clamps the same way for the same reason.
-   **"READS AS GREEN" IS ABOUT CHROMA** — distance from the neutral axis — not
-   about HSL saturation, which is a ratio and reports a pale pink and a
-   saturated red as the same figure. That is why every earlier attempt to fix
-   the muted bands by re-picking a hue failed, and why the fix in the end was
-   removing the alpha rather than choosing a better colour. Measured chroma of
-   the painted fill against the composited band it replaced: light green
-   0.114 → 0.243, gold 0.200 → 0.525, red 0.400 → 0.373 (lower, and a deeper
-   opaque salmon rather than a milky one); dark green 0.125 → 0.157, gold
-   0.224 → 0.275, red 0.337 → 0.467.
-   **THE POINT MARK IS SOLVED SEPARATELY, AND THAT IS THE POINT.** "A mark
-   clears 3:1 on its own band" used to be a constraint inside the band solve,
-   which meant the BAND was being desaturated to suit the mark: dark red's
-   ceiling under it was a 36%-saturation band, i.e. the maroon this has been
-   through twice. The mark moves and the band does not. **IT IS `MARK_FILL` NOW
-   AND IT CLEARS EVERY BAND, NOT ITS OWN (Aug 2026)** — the trend line is drawn
-   in these colours and a gold segment crosses the green band on its way up, so
-   all five have to clear all five plus the optimal narrowing. Green is still
-   checked against the narrowing for its own reason: an in-range point can land
-   inside it. `MARK_SHIFT` / `MARK_SHIFT_DARK` and their direction-per-hue are
-   gone; the cost they recorded is gone with them, and the gold mark that was
-   #6b592c is #8b6800.
-   Status is carried by the mark's SHAPE and by the word in the tooltip and the
-   key; a mark that has vanished into its band loses the shape layer, which is
-   the thing that carries it.
-   **BAND_CONTRAST, BAND_CHROMA_SHARE, BAND_FILL, MARK_FILL, LINE_LIFT AND THE
-   HAIRLINE'S OPACITY ARE ONE DECISION — change any rung and all of it is solved
-   again.** The Aug 2026 pass is the worked example: lowering the ladder for the
-   status-carrying line moved the band fills, the line colours, the comparison
-   chart's bronze, the hairline opacity (0.62 → 0.55, which is a SMALLER number
-   for MORE relative prominence) and retired `BAND_RUNG`'s one exception.
-   **"IF BRIGHTER BANDS BURY THE LINE, BRIGHTEN THE LINE" — AND IN Aug 2026 THE
-   BANDS WERE DULLED INSTEAD, DELIBERATELY.** The rule was right about the
-   ORDERING and wrong about the lever, and it is worth knowing which is which.
-   The ordering — line is content, bands are context — is a fact about the chart
-   and is unchanged. "Never dull the bands" was a heuristic that held only while
-   the bands carried the traffic light: dulling them then would have thrown away
-   the thing that said what a result was. With the LINE carrying the status
-   there is nothing left in a band to protect, and the heuristic had been
-   followed to the point where dark's loudest band stood 4.74:1 off the plot
-   against a line clearing it at 3.05 — the ordering it exists to defend,
-   inverted. Both levers are legitimate; which one to pull depends on what the
-   band is still doing. `chart.lineWidth` is 4 and `chart.line` steps away from
-   the surface in each theme.
-   **`chart.line` IS THE COMPARISON CHART'S LINE ONLY.** The single-marker trend
-   chart draws its own line in the status hues (see above) and does not use it.
-   On the comparison chart two or three markers share one normalised axis, so
-   the line says "which marker" and must NOT borrow a status hue — there it
-   would be a verdict on the wrong one. **It is SOLVED now rather than a step on the bronze scale (Aug
-   2026).** It was `bronze-700` light / `bronze-500` dark, which cleared the
-   composited bands and does not clear the opaque ones — 2.87:1 and 2.42:1 on
-   the significantly-out red, i.e. under AA-large. The scale's dark end is mixed
-   toward espresso, so `bronze-900` clears the band at a chroma of 0.090, a warm
-   grey where bronze is the one colour on the plot meaning "your series". So
-   `LINE_LIFT` solves the lightness at bronze's OWN saturation and nothing
-   higher — the bronze hue sits at 19°, between the status red at 8° and the
-   status orange at 30°, so a saturated bronze line would read as a status
-   colour crossing the plot. **RE-SOLVED AGAINST THE QUIET BANDS (Aug 2026)**:
-   clearing the old dark band at AA-large had driven it to 0.936 lightness —
-   #ffeade, chroma 0.029, a white line with a rumour of warmth — and the note
-   here recorded that as unavoidable, which it was at those bands. It is
-   #916248 / #b28064 now, chroma 0.072 / 0.074, at 3.03:1 and 3.01:1. Dark is
-   the one worth noticing: a bronze line again rather than a white one.
-   The boundary hairline went the same way — `taupe-900` in light, where at
-   `taupe-600` it measured **1.11:1** against the significantly-out band, a line
-   nobody can see drawn across the region where seeing it matters most.
-   `tokenContrast.test.ts` holds the line above every band it crosses (including
-   the optimal narrowing), the hairline visible on all of them and below the
-   line, the range-bar mark at AA-large on every segment it can stand on, EVERY
-   status colour above EVERY band (not just its own — the status line crosses
-   bands it does not belong to), each band at its allotted share of the palette
-   chroma, and each band strictly less chromatic than the line drawn over it.
-   **"Every band's chroma above 0.15" is retired**: it was an absolute floor
-   taken from what a superseded saturation cap produced, and a quiet band sits
-   at a lightness where less chroma physically exists — held to it, the only way
-   to pass would be to make the bands loud again.
-   **A TICK IS DROPPED WHERE IT WOULD PRINT ON A REFERENCE BOUND**, because the
-   bound is the number that means something. `TICK_BOUND_GAP` is 8% of the
-   domain — 16px on the shortest plot this chart is drawn at — and it is a
-   share of the DOMAIN standing in for a distance on screen, which is why 2%
-   let a tick at 400 land on a bound at 375. Dropping one reruns the ladder at
-   a finer step rather than falling back to the unfiltered set, which is what
-   used to put the collision straight back.
-   **THE PLOT IS AN INSET PANEL.** One hairline frame, no shadow, no inner
-   border, a surface fractionally away from the card. "No box" was right while
-   the bands were slabs tiling the area edge to edge; with flat low-weight bands
-   there is real ground showing, and ground needs an edge. It is NOT a
-   `ReferenceArea` — that class is what `e2e/chart-bands.spec.ts` measures band
-   periods through, and a full-width panel drawn as one would register as an
-   extra period.
-   **THE LINE IS STRAIGHT AND HAS NO AREA UNDER IT.** `type="linear"`, never
-   `monotone`: a spline between two blood draws three months apart invents a
-   shape for the whole quarter that nobody measured.
-   **THE MOST RECENT POINT PRINTS ITS OWN NUMBER (Aug 2026).** Every mark on
-   this chart was anonymous: reading what one WAS meant hovering, which is a
-   gesture that does not exist on a phone and is not one anybody thinks to try
-   on a page they came to read. The latest result is the one the reader came
-   for — it is already drawn larger and haloed for that reason — so it says its
-   value beside itself. **ONE point, not all of them**: a number beside every
-   mark is a table drawn on top of a chart, it fights the line and it collides
-   with itself on a tight series. The history stays a shape; the latest result
-   is a figure. **The NUMBER only, no unit** — the unit is stated once above the
-   axis already. **No box behind it**: a stroke in the plot's own ground under
-   `paint-order: stroke`, which is a halo the shape of the letters rather than a
-   second small rectangle on a plot that already has a frame and five regions.
-   **A POINT IS AN OUTLINE ON THE PLOT'S GROUND**, filled with the plot surface
-   and stroked in its status colour — so the line visibly passes behind it and
-   the interior is a hole in the band rather than more saturated colour. The
-   most recent one is a step larger with a soft halo.
-   **THE REFERENCE BOUNDS ARE PRINTED ON THE LEFT AXIS**, level with their own
-   hairline, in the mono face, with a short lead rule and in the text colour
-   against the muted ticks — a tick value is where the scale happens to be
-   marked and a reference bound is a clinical threshold, and the difference is
-   carried by weight and a mark, never by a hue. Only the CURRENT period's
-   bounds go on the axis, because the axis has one left gutter; earlier periods
-   keep their labels at the right-hand end of their own extent.
-   **THE KEY HAS NO BAND ENTRIES.** This narrows the older rule below and does
-   not break it: the bands are still never carried by colour alone, but what
-   names them is now the FIGURES on the axis rather than a coloured swatch
-   beside a sentence — which is a better answer to "where does my range start"
-   and one a greyscale reader gets in full. The key keeps the point states, in
-   words and in the marks the chart actually draws, plus the optimal band and
-   the step rule. **Never a coloured rectangle.**
-   The unit is printed ONCE above the axis rather than on every tick.
+   **THE GROUND MOVED, WHICH IS WHY THE COLOURS FINALLY WORK.** The band
+   colours had been re-solved four times and every solve hit the same wall from
+   a different side. The wall is one sentence: **a dark ladder fixes each
+   band’s luminance low, and a yellow at a low luminance is a brown in any
+   colour space.** It is not a matter of picking a better gold. Dark’s
+   out-of-range band came out #604b0b; it was lifted right off the ladder to
+   #ad8100 to rescue it; that exception then inverted the ladder (yellow louder
+   than red), forced the point mark to step toward the ground instead of the
+   text, and drove the comparison line to #ffebdf — a white line with a rumour
+   of warmth. Every one of those was a consequence of the plot being
+   near-black.
+
+   So the plot — the chart’s own panel, and the track a range bar is drawn on —
+   is a warm off-white, **the same one in both themes** (`PLOT_SURFACE`,
+   `mix(cream, white, 0.35)` = #edeae2). **The card and the page stay dark in
+   dark mode; only the plot is light.** The value is unchanged from light
+   mode’s old plot, deliberately: this change is "dark mode’s plot becomes
+   light mode’s plot" and nothing else.
+
+   **WHAT IT BOUGHT, MEASURED.**
+
+       band chroma   light 0.073 0.084 0.091 → 0.106 0.119 0.135  (+45/+42/+48%)
+                     dark  0.072 0.070 0.094 → the same three     (+47/+70/+43%)
+       the ordering  line off plot ÷ loudest band off plot
+                     light 2.13× · dark 1.83×  →  3.22× in both
+
+   The ordering number is the one that matters — the line is the content and
+   the bands are the context — and that lead has never been this wide. It is
+   bought by the line being able to go DARK: 7.2:1 off the plot, where the old
+   lifted line managed 3.05 against a band standing 4.74.
+
+   **FOUR RECORDS COLLAPSED TO ONE EACH.** `BAND_FILL`, `MARK_FILL`,
+   `LINE_LIFT` and the boundary hairline were per-theme, and they were
+   per-theme because the surface was. One ground, one answer. `BAND_RUNG` is
+   flat and equal to `BAND_CONTRAST`; the geometric mean of the card and the
+   plot that `BAND_FILL` used to be solved against is gone with the second
+   surface it was averaging. `tokenContrast.test.ts` now asserts the two themes
+   are **byte-identical** on every chart token rather than within 20% of each
+   other — a much stronger claim, and one that catches a theme-derived value
+   creeping back immediately.
+
+   **THE LADDER WENT BACK UP.** `BAND_CONTRAST` is **1.5 / 1.85 / 2.25** (from
+   1.24 / 1.38 / 1.54), with the two hinges at the derived midpoints, and
+   `BAND_CHROMA_SHARE` is **0.85** (from 0.6). The five fills are:
+
+       green #a5cd85  olive #b8bc69  gold #cbab4c  orange #db955e  red #ea7f6f
+
+   **THE LINE IS DARKER, NOT BRIGHTER**, and that is the whole difference a
+   light ground makes. Every previous solve had to LIFT the line off a
+   near-black plot, which runs into a ceiling — past a certain lightness there
+   is no chroma left and the line becomes white. Downward there is no such
+   wall. `MARK_FILL` is solved for the smallest lightness clearing **3.2:1 on
+   every band** including the optimal narrowing, at each hue’s full palette
+   chroma: **#265600 / #604800 / #941a08**, 7.2:1 off the plot.
+
+   **AND THE CHROMA ORDERING NOW HAS ONE NAMED EXCEPTION, WHICH IS A GAMUT
+   FACT AND NOT A FUDGE.** "The band is less colourful than the line drawn over
+   it" holds for green and red and CANNOT hold for gold: a line has to be dark
+   to clear a pale band, and a dark yellow is a brown — the identical fact
+   recorded twice above for the old near-black plot, arriving from the other
+   side. The gold line reaches 0.0851 of chroma against a gold band’s 0.1194,
+   and closing that gap needs the band’s share down to ~0.46 of its ceiling,
+   which would make the bands LESS colourful than they were on the dark plot.
+   So the PRIMARY carrier is asserted for all five — every line hue stands **at
+   least 3× as far off the plot as its own band** — and the chroma check is
+   exempted for gold, olive and orange, by name, in the test.
+
+   **EVERYTHING DRAWN ON THE PLOT IS STATIC.** The axis ticks, the reference-
+   bound labels, the unit, the number beside the most recent point, the
+   boundary hairline, the point ring and the range-bar mark. This is the block
+   where forgetting would show: `--c-espresso` resolves to a near-white cream
+   in dark, and a cream tick on a #edeae2 plot measures 1.09:1.
+   `chart.plotInk` (espresso, 9.04:1) and `chart.plotInkMuted` (#6d6861,
+   4.59:1) are the two.
+
+   **IT IS AN INSET PANEL, NOT A HOLE PUNCHED IN THE PAGE.** A bright rectangle
+   on a near-black card is exactly what this must not be, and three things stop
+   it: the frame at **full weight in dark and half in light** (in light it
+   separates two similar tones; in dark it is the boundary between a light
+   panel and a dark card, and a half-alpha line there is a suggestion of an
+   edge rather than one); a soft **inner shadow** along the top and left inside
+   edges, drawn INSIDE the panel because a drop shadow lifts a panel toward the
+   reader and this one sits into the card; and the card’s own padding holding
+   it clear of the card’s border. The inner shadow is two 6px gradients rather
+   than a filter — a filter on a rect inside a Recharts SVG is re-rasterised on
+   every tooltip move.
+
+   **THE BOUNDARY HAIRLINE IS SOLVED AT ITS DRAWN OPACITY**, not as a bare
+   token: it is composited at `referenceEdgeOpacity` over the band, and the
+   only number that means anything is what that composite measures against the
+   band underneath. #63543e gives 1.70–2.04:1 across all five fills and the
+   optimal narrowing.
+
+   **THE RANGE BARS GET THE SAME TREATMENT**, which is the point of doing it at
+   the token layer: both instruments paint `--c-hue-*-fill` on `PLOT_SURFACE`,
+   so a bar and the chart above it are the same five colours. The bar’s mark is
+   **espresso in both themes** now (4.02–6.05:1 on the five fills) rather than
+   inverting white/espresso, and its two reference-bound ticks moved off
+   `bg-espresso/60` onto the chart’s own hairline for the same reason the axis
+   text did. `RangeBar.test.tsx` matches those ticks on the MARKUP rather than
+   on a Tailwind colour class, because pinning a geometric test to a colour it
+   is not about turns a colour change into "0 bounds found".
+
+   **WHAT DID NOT CHANGE, and none of it should:** the boundary gradients are
+   still centred on their bounds at `TRANSITION_SHARE` 40% of the drawn extent,
+   with the hairline through the middle; the line still carries status along
+   its own length as one user-space gradient with a stop at each point and at
+   each boundary crossing; bands are still opaque with no alpha anywhere; still
+   drawn PER PERIOD with a step midway between the two samples a range changed
+   between; the optimal range is still a narrowing of in-range drawn as one
+   region; the key still has no band entries and never a coloured rectangle;
+   the line is still `type="linear"` with no area under it; the most recent
+   point still prints its own number; a tick is still dropped where it would
+   print on a reference bound; and every state is still named in words in the
+   key and the tooltip. `bandRampStops` is still the one derivation shared by
+   the chart and both bars.
+
+   **`chart.line` IS THE COMPARISON CHART’S LINE ONLY** — two or three markers
+   on one normalised axis, where the line says "which marker" and must not
+   borrow a status hue. Re-solved on the light plot to **#694835**, a proper
+   bronze at 3.01:1 worst on a band and 6.77:1 off the plot, at bronze’s own
+   saturation and nothing higher (the bronze hue sits at 19°, between the
+   status red at 8° and the status orange at 30°, so a saturated bronze line
+   would read as a status colour crossing the plot).
+
+   **BAND_CONTRAST, BAND_CHROMA_SHARE, BAND_FILL, MARK_FILL, LINE_LIFT, THE
+   HAIRLINE AND PLOT_SURFACE ARE ONE DECISION.** Change any of them and all of
+   it is solved again. The Aug 2026 pass is the worked example: moving the
+   ground re-solved every one of the others, retired three per-theme records
+   and closed one documented exception while opening a different one.
+
 4. Sparklines, the counts strip, the per-category summary bars.
 5. Tooltips and legends — the status word carries the colour.
 
@@ -1031,13 +775,62 @@ IDENTITY: Randox print the urinalysis pads bare ("Glucose", "Protein",
 "Bilirubin"), which are the same strings as three serum markers and are not the
 same tests.
 
-**THE MAP IS UNVERIFIED, AND THAT IS NOW ON A SCREEN (Aug 2026).** 186 clinical
-markers resolve from their own catalogue names, 0 have been confirmed against a
-real Randox payload, and **86 answer to exactly one spelling** — so one
-difference in how Randox print any of those loses a result. That is
-self-consistency, not confirmation. Inventing plausible Randox spellings to
-close it is still refused and is not to be revisited: the exception queue
-catches an ABSENT mapping and nothing catches a wrong one.
+**THE HSC5 REPORT IS READABLE AFTER ALL, AND IT CONFIRMS 34 SPELLINGS (Aug
+2026).** This file and analyteMap.ts both said the sample report "uses subset
+fonts with a custom encoding and its analyte column cannot be extracted
+mechanically". That was a misdiagnosis, and the cost was real: the one document
+in the tree carrying Randox's own names for 34 analytes was being treated as
+unreadable.
+
+**What was actually happening:** every font in that PDF is `/Encoding
+/Identity-H` — TWO-BYTE CIDs. Read one byte at a time the text comes out as a
+substitution cipher offset by the subset's first glyph ("Haemoglobin" reads as
+"+DePoJloELn"), which looks exactly like a custom encoding nobody can undo.
+Decoded two bytes at a time through the font's own ToUnicode CMap it is ordinary
+text. The one remaining trap is that the document carries several subsets whose
+CMaps cover different code ranges, so picking the wrong one per font resolves
+some glyphs and not others — which makes the failure look partial rather than
+total.
+
+`HSC5_ANALYTE_STRINGS` holds all 34, in the report's own order, with the page
+each is printed on. It is a CHECK LIST and not a second override table: nothing
+resolves through it, `analyteMappingCoverage()` counts how many the map answers
+to, and `analyteObservations.test.ts` fails if one stops resolving — so a
+catalogue rename that breaks a Randox spelling is caught by a test rather than
+by a held report.
+
+**TWO OF THE 34 DID NOT RESOLVE**, and both would have gone to the exception
+queue on the first real delivery:
+
+- `Red Blood Cell Mean Cell Volume (MCV)` — we hold "Red Blood Cell Mean
+  Volume (MCV)". One word, "Cell", and it is the difference between a match and
+  a held report.
+- `Estimated Glomerular Filtration Rate (eGFR)` — we hold "eGFR" with
+  "Estimated Glomerular Filtration Rate" as an alias. Randox print the full name
+  AND the abbreviation together, which is neither.
+
+Both are now sourced overrides. **Every entry in `ANALYTE_OVERRIDES_SOURCED`
+carries its provenance** — `RANDOX_REPORT` (read off a document Randox
+produced) or `CATALOGUE_NOTE` (our own record of a correction we made, which is
+evidence about US and weaker) — because a mapping files a measurement against an
+analyte on somebody's record and "who says so" should travel with it. There is
+no third kind and there is not going to be one called GUESS.
+
+**THERE ARE NOW TWO CONFIRMED FIGURES AND THEY ARE NEVER ADDED TOGETHER.**
+`confirmedAgainstSourcedDocument` is 34 of 34 and may grow.
+`confirmedAgainstRealPayload` **stays hardcoded at zero** and must never become
+computed. A rendered PDF proves how Randox NAME a test; it does not prove which
+JSON field on GetOrderResultDetail carries that name or how it is spelled there,
+and that field is what the ingestion path actually reads. (An override keyed on
+the printed string is safe either way, because `resolveAnalyte` tries the
+override table against `analyte` AND `displayName`.)
+
+**THE REST OF THE MAP IS STILL UNVERIFIED, AND THAT IS STILL ON A SCREEN.** 186
+clinical markers resolve from their own catalogue names and **86 answer to
+exactly one spelling** — so one difference in how Randox print any of those
+loses a result. That is self-consistency, not confirmation. Inventing plausible
+Randox spellings to close it is still refused and is not to be revisited: the
+exception queue catches an ABSENT mapping and nothing catches a wrong one.
 
 What changed is that the uncertainty is visible rather than buried:
 
@@ -1097,6 +890,46 @@ example uses. Dates are the .NET round-trip form
 (`2024-08-01T08:45:10.0000000+00:00`): `toUtcIso` handles it, but
 `z.string().datetime()` REJECTS it (zod wants a literal `Z`), so a Randox
 timestamp is validated by `randoxDateTime` from `clients/parse.ts`.
+
+**THE CLINIC ID IS FETCHED, NOT CONFIGURED (Aug 2026).** Three endpoints
+require it — GetOrderStatus, GetOrderResultReports and GetOrderResultDetail —
+and the API-overview flow diagram says the same four words for each: "Clinic Id
+must be your current Clinic Id (/Clinic/GetMyClinicDetails)". All three send it
+and always have; what changed is where the number comes from. It was
+`RANDOX_CLINIC_ID`, and the diagram is the argument against that:
+GetMyClinicDetails is not a hint about where a human might look the value up, it
+is the authority for what the value IS on the credentials this deployment holds.
+A typed-in id is a second source for a fact with one source, and a wrong clinic
+id on GetOrderResultDetail is a request for somebody else's order.
+
+So the boot sync records it, and it survives a restart because it is read back
+out of the catalogue (`loadDiscoveredClinicId`) — the sync is SKIPPED inside its
+TTL, which makes "learned only on sync" lose it on most restarts. The clinic
+entry is flagged `isClinic` in its stored payload so it can be told from its own
+test locations, which share the kind and the shape; absent that flag nothing is
+inferred and the id stays unknown, because "there is one row so it must be the
+clinic" is true of a single-site clinic and silently wrong of every other.
+`RANDOX_CLINIC_ID` survives as an OVERRIDE for a support session and is no
+longer in the boot guard's required list — refusing to start over a value the
+only entitled party is about to state is the wrong failure. What guards the real
+one is `assertReferenceDataUsable()`, on the order path, where an unknown clinic
+id refuses an ORDER rather than the portal.
+
+**`RANDOX_TEST_CLINIC_LOCATION_ID` STAYS A SETTING**, and the asymmetry is the
+point: GetMyClinicDetails answers "which clinic are you" with one value and
+"which of your sites should this be drawn at" with a LIST. A list is a question.
+
+**STATUS 5 HAS TWO CAUSES AND THEY ARE NOT THE SAME EVENT (Aug 2026).** Randox
+document both: we cancelled it, or — "In the event that all results have been
+voided then the status will automatically move to status 5 (cancelled)" (flow
+document, page 3). The second is a DELIVERY: the laboratory ran the samples,
+could not report any of them, and every void code saying why is sitting on
+GetOrderResultDetail. It used to be handled as "cancelled, stop polling", which
+threw all of that away — the order ended as a bare CANCELLED row with no
+exclusions recorded and nothing anywhere saying a test had been run.
+`order.cancelledAt` separates them, because our own cancel path is the only
+thing that writes it; an unexplained status 5 is ingested ONCE so the void codes
+are on the record, best-effort, and only then closed off.
 
 **REFERENCE DATA IS SYNCED, NEVER HARDCODED.** All eight GETs are pulled on boot
 (`syncReferenceDataOnBoot`, after `listen` and never fatal — the whole portal
@@ -1188,6 +1021,19 @@ rendering BESIDE the instant (`slot.local`) so a consumer cannot accidentally
 localise into the READER's zone — right only by accident, and wrong for anyone
 booking from abroad.
 
+**THE 30-MINUTE HOLD IS ENFORCED HERE, BEFORE RANDOX ARE ASKED (Aug 2026).**
+"Slots will be held for a 30 minute period" is the flow document's own sentence
+(page 3). Until now the only thing that noticed a lapsed hold was Randox
+refusing the create, and the catch turned that into the right message — correct
+as a BACKSTOP and wrong as the only check, for two reasons. It sends a full
+patient record (name, date of birth, address, contact number) to a third party
+on a request we already know cannot succeed; and a create is deliberately not
+retryable, so "we knew it had expired and asked anyway" is the one way this path
+can produce an appointment nobody intended. `confirmBooking` refuses on
+`holdExpiresAt` and marks the row EXPIRED in the same breath. The catch stays:
+a slot can be taken by somebody else well inside the thirty minutes, and only
+Randox know that.
+
 **CANCEL TAKES A RANDOX INTEGER, WHICH HAD TO BE CAPTURED AND WASN'T.**
 `CancelRandoxBooking` takes one field, `RandoxBookingOrderId`, and not the
 string reference this code was inventing and not `GPExternalNumber` — a cancel
@@ -1199,13 +1045,40 @@ a distinct column, the same rule as the three order identifiers. Everything the
 create needs is written at the HOLD, because the create is a separate request
 and possibly after a reload.
 
-**THERE IS NO RESCHEDULE ENDPOINT.** `RandoxBookings/RescheduleAppointment` was
-called here and described as documented; it is in neither collection, the flow
-diagram nor either auth document — it came from somebody's recollection, which
-is how an integration acquires a feature that passes every test and 404s in
-production. The client and the mock both throw
-`RandoxUnsupportedOperationError` (501). Moving an appointment is COMPOSED from
-three documented calls and **the order is the whole design**: hold the new slot,
+**THERE IS A RESCHEDULE ENDPOINT AND WE CANNOT CALL IT — THE PREVIOUS NOTE HERE
+WAS WRONG (corrected Aug 2026).** This said `RescheduleAppointment` came from
+somebody's recollection and did not exist. It is on **page 3 of
+specs/20241028-Corporate-Customer-API-Flow.pdf, "Last Updated: 1-Nov-24"**,
+listed under "Clinic Booking · Primary endpoints are:" — "there is a window of
+opportunity for the clinic booking record to be rescheduled to a different
+clinic location, date and time."
+
+Every CHECK behind the earlier reading was correct: it genuinely is absent from
+both Postman collections, from the API-overview flow diagram and from both auth
+documents. The INFERENCE was not — a TESTING collection does not claim to list
+every endpoint, and absence from one is not evidence of absence from the API.
+Worth knowing how it stayed wrong: **that PDF's text is not mechanically
+greppable**. Its fonts carry no usable ToUnicode, so a search over the
+decompressed streams returns nothing for a string that is plainly on the page.
+
+**SO THERE ARE THREE STATES, NOT TWO**, and `NAMED_BUT_UNSPECIFIED_ENDPOINTS`
+in endpoints.ts is where the middle one lives: SPECIFIED (path, verb and body),
+NAMED ONLY (named in a Randox document, no request shape anywhere), FICTIONAL
+(nobody has written it down). Collapsing the middle into either neighbour has
+now caused a mistake in each direction. `GetOrderStatusDetails` — home-dispatch
+tracking and kit URNs, page 2 of the same document, absent from the OpenAPI
+file's seventeen — is the other NAMED ONLY entry.
+
+**NOTHING ABOUT THE CODE CHANGES, AND THE REASON IS BETTER.** No document gives
+the reschedule's path, verb or one field of its body, and a guessed REQUEST on
+this API is refused whole — which is the lesson this entire client was rebuilt
+around. An endpoint we cannot spell is exactly as uncallable as one that does
+not exist. So the client and the mock still throw
+`RandoxUnsupportedOperationError` (501), and moving an appointment is still
+COMPOSED from three documented calls — but the justification is now "there is no
+way to spell a call to it" rather than "there is no such endpoint", and the ASK
+for Randox narrows from "does this exist?" to "what body does it take?".
+**The order is the whole design**: hold the new slot,
 book the new slot, then cancel the old one. Cancelling first is simpler and
 loses somebody's appointment when step 2 fails. Whether Randox accept a second
 booking against one `GPExternalNumber` is unknown and this ordering is safe
@@ -1237,6 +1110,115 @@ right advice), and a cancel. A create is never retried, for the same reason
 upper bound is applied to the RESULT, on our side; adding a request field the
 API has never been shown to accept would be silently ignored and would return
 months of slots.
+
+**AND THE DATES IT RETURNS ARE NOT NECESSARILY CONSECUTIVE**, which the flow
+document states in as many words (page 2): "The number of days presented is
+controlled by Randox. This is usually 7 days of available appointment slots for
+primary clinics and a longer period for pop-up style locations. The objective is
+to present 7 dates of available appointments, which depending on availability,
+**may not be consecutive dates**." Anything that renders availability as a
+calendar week has to survive gaps.
+
+# The sandbox pass — one command, and it has NOT been run (Aug 2026)
+
+`npm run sandbox:pass --workspace=apps/server` walks the whole documented flow
+against the `stes-` sandbox and writes every response body **verbatim** into
+`modules/randox/specs/sandbox-responses/`, one file per call, each carrying the
+request that produced it, the HTTP status, the parsed body and the RAW response
+text — because "this is what our helpers made of it" is not a record of what
+Randox sent. Then `ANSWERS.md`, which answers the seven open questions from the
+capture and writes `UNANSWERED` in as many words where the run did not settle
+one. **A blank is a result and is written as one.**
+
+**THE DIRECTORY IS EMPTY AND THAT IS THE STATE OF THE WORK.** The pass needs
+four things this repository does not have and cannot have: the two subscription
+keys (each from its own developer portal) and the ROPC username/password. Every
+other setting — both base URLs, both client ids, both scopes, the token
+endpoint — is already defaulted in `config/env.ts` and is correct.
+
+**NOTHING IS WRITTEN THERE IN ADVANCE.** The Clinic Booking collection carries
+no response examples at all, so these files will be the ONLY record of those
+shapes that exists. A plausible-looking fixture placed there would be
+indistinguishable from a real capture the moment anybody read it, and the whole
+value of the directory is that it is evidence. Same rule the analyte map runs
+on: an absent mapping is caught, a wrong one is not.
+
+The script refuses to run without both credentials, against any host that is not
+`stes-`, or under `NODE_ENV=production`. Its patient is invented and obviously
+invented; nothing in it reads the database; request headers are never captured,
+so neither credential can end up in a file. It uses **LocationId 30** ("Clinic
+Location Crumlin"), which Randox confirm has availability — every example in the
+collection uses 15, which may have an empty diary, and an empty diary and a
+broken integration look identical from the outside.
+
+**THREE OF THE SEVEN ALREADY HAVE A DOCUMENTED ANSWER**, which is not the same
+as an observed one and does not remove them from the list: the hold is 30
+minutes, AvailabilityDetails returns "usually 7" dates that "may not be
+consecutive", and the eight reference endpoints are declared GET.
+
+# The HSC5 report's band labels against our five states (Aug 2026)
+
+`docs/audits/randox-band-mapping.md`. Every band label Randox print on the one
+example report we hold, mapped onto `SIGNIFICANT_LOW / LOW / IN_RANGE / HIGH /
+SIGNIFICANT_HIGH`, with every case that is not mechanical **flagged and left
+unresolved**.
+
+**THE HEADLINE: 13 LABELS ACROSS 5 DIFFERENT SCHEMES, AND ONLY 4 OF THE LABELS
+ARE POSITIONAL.** Low / Optimal / High / Normal describe where a number sits.
+The other nine carry a judgement (Desirable, Satisfactory), a severity
+(Moderately raised), a risk tier (Low / Average / High Risk) or a **diagnosis**
+(Pre-diabetic, Stage 3 CKD, Stage 4&5 CKD). 19 of the 34 analytes map safely; 15
+do not, and none of those 15 is resolved here. Naming a CKD stage or calling
+somebody pre-diabetic is not this product's to do — see the non-diagnostic rule
+above — and deciding that "Moderately raised" IS our HIGH would be inventing a
+clinical judgement and calling it a rename. Randox's own escalation for ALT is
+5× the upper bound; our default multiplier puts it at 1.5× the range width.
+
+**AND "OPTIMAL" IS OVERLOADED.** Randox use it for the reference interval; we
+use it for a narrowing INSIDE one, from published guidance. If a Randox band
+label ever reaches a screen unmapped, two different things will be called
+optimal on one page.
+
+## What eGFR and HDL actually do — measured, and the feared failure is not the one
+
+Both are stored 60–999 and 1.55–999, where 999 is the seed's way of writing "no
+clinical ceiling". Measured through `computeMarkerStatus`:
+
+    egfr 130 → IN_RANGE   97 → IN_RANGE   59 → LOW   45 → LOW   4 → LOW
+    hdl  3.2 → IN_RANGE  2.0 → IN_RANGE  1.14 → LOW  0.6 → LOW  0.3 → LOW
+
+**A high eGFR is NOT rendered as "above range" in gold**, and neither is a high
+HDL. Nothing about good kidney function or good cholesterol is being flagged at
+a patient. That was worth checking and it is worth writing down.
+
+**Three other things did happen. Two are fixed.**
+
+1. The reference range **printed as "60–999 mL/min/1.73m²"** — on the marker
+   page, the result card, the chart tooltip, its axis and both PDFs. FIXED:
+   `formatReferenceRange` sets an open-topped range in words ("60 or above"),
+   and every reference range that reaches a screen or a PDF goes through that
+   one function, so the fix is complete by construction.
+2. The **range bar was drawn on a scale of roughly 0 to 2000** and put a healthy
+   eGFR of 97 at 5% of it. FIXED by refusing to draw — see the range bar section
+   above.
+3. ⚠ The **severity threshold is derived from the sentinel width**, so it comes
+   out at 1408 and an eGFR of **4** computes `LOW`, indistinguishable from 59.
+   **NOT FIXED, deliberately.** The mechanism exists (`severityAbsoluteDelta`,
+   an explicit per-marker number that bypasses the multiplier); what does not
+   exist is anybody entitled to choose the number. **For Richard.**
+
+**`OPEN_UPPER_BOUND` (999) IS DECLARED IN statusBands.ts** and shared by the
+writer and the readers, which makes recognising it a lookup rather than a guess
+about a magic number. It does **not** make the model able to express "higher is
+better" — nothing in it can; there is no polarity on `Marker`, on
+`ReferenceRange` or on `ResultReferenceRange`. What it cannot express is a
+ONE-SIDED range, which is the more accurate description and the smaller thing to
+add: a nullable `referenceHigh` would remove the sentinel, the printed 999, the
+false bar scale and the nonsense threshold in one move, and make the four
+affected markers findable by query rather than by knowing to grep for 999. It
+needs a migration and a pass over every `deriveStatus` caller, which is why it
+is written down rather than done. A laboratory range is never affected — Randox
+send real intervals.
 
 # The web bundle is route-split, and the boundaries are load-bearing (Aug 2026)
 
@@ -1670,86 +1652,39 @@ than a rung on it. No new hue — light is cream toward white, dark is the night
 base toward the same warm mid-brown the surface scale already lifts with.
 Applied by `.card-vellum`, which changes the background and nothing else.
 
-# The results-ready moment (Aug 2026)
+# The results-ready moment is GONE (Aug 2026)
 
-A patient signs in, a released report they have never opened is waiting, and
-before the Overview they get one full-screen screen: their name, "your results
-are ready", and a button. It is the only moment in the product allowed to be
-about a feeling rather than a number, and **the whole of its value is that it
-happens once**.
+There was a full-screen screen between a sign-in and the Overview: an arch, the
+patient's name, "your results are ready", and a button, shown once per released
+report. **It is removed — the route, the component, the blurred backdrop, the
+`Report.resultsReadySeenAt` column, the `resultsReadyPending` field on
+`/auth/me`, the `StillContext` that froze the backdrop, the spec and the
+screenshot walk.** Do not rebuild it.
 
-**`Report.resultsReadySeenAt` — per REPORT, on the report.** Not the session,
-not localStorage, not "have they signed in before". The failure this exists
-against is a moment that fires on EVERY sign-in, which is a splash screen, and
-the cause of that failure is always the same shape: **a condition keyed on
-something that resets**. A session resets on every sign-in; localStorage resets
-on their phone, in a private window and after any cookie clear-out; a column on
-the report resets never. `/auth/me` carries `resultsReadyPending` as a boolean
-(same reasoning as `walkthroughSeen`: the only question is "send them there or
-not", and shipping the report id invites something to render it), and HomeRouter
-decides — introduction FIRST, then the moment, because announcing an answer to
-somebody who has not been shown the question is the wrong order.
+**Why, in one sentence:** a patient who signs in because they were told their
+results are ready does not need to be told again on the way to them. The
+announcement was correct; the placement was the product standing between
+somebody and the thing they came for.
 
-**Both exits spend it**, and so does opening the report by any other route: a
-patient who followed an emailed link has seen that their results are ready.
-It is a route OUTSIDE the patient shell — no sidebar, no breadcrumbs, no
-footer — and it stands aside for the Overview when nothing is waiting, because
-a moment about a report that is not there is worse than no moment.
-`e2e/results-ready.spec.ts` builds its own patient and report rather than
-borrowing the demo: "has this person seen this report" is one-way by design, so
-a spec on the demo account would pass once per re-seed and assert nothing after.
+**What survives, and it is the part worth keeping.** The mechanism was right
+about one thing and it is written down here because the next once-only screen
+will need it: a "show this once" flag must be keyed on something that does not
+reset. That screen was keyed per REPORT, on the report — not on the session
+(which resets every sign-in, making it a splash screen) and not on localStorage
+(which resets on their phone, in a private window and after any cookie
+clear-out). The first-sign-in walkthrough still works exactly that way, on
+`User.walkthroughSeenAt`.
 
-**IT STANDS ON THE READER'S OWN OVERVIEW, BLURRED, AND ON THE FLOOR OF THE
-WINDOW (Aug 2026).** Two changes, one composition: a doorway with the thing it
-opens into visibly on the other side of it.
+**The adding migration is still in the tree.** `20260812194755_results_ready_seen`
+stays and `20260814090000_remove_results_ready_seen` drops the column forward.
+Prisma records applied migrations by name, so deleting a directory a deployed
+database has already recorded turns the next `migrate deploy` into a drift
+error — the same principle as the `supersedes` arrays in seed.ts.
 
-- **The ground is the real `PatientOverview`**, live, with this patient's own
-  results in it — not a screenshot and not card-shaped rectangles — laid out in
-  the patient shell's own geometry so the masses land where their results
-  actually land. Blurred at `MOMENT_BACKDROP.blur` (24px), then veiled with the
-  page colour and the shadow tone. **The blur is bounded from both sides and
-  was measured by looking**: at 16px the greeting is a legible word shape, at
-  32px the ground stops reading as results and becomes a texture. The veil is a
-  contrast BUDGET — two alphas multiply, so 33% of the Overview's own
-  separation survives in light and 24% in dark, and the arch out-reads
-  everything behind it by about three to one. `tokenContrast.test.ts` holds the
-  multiplier, that ratio, and every word on the arch at AA, since the arch is
-  glass and its text is now set over this ground rather than over a surface.
-- **`MomentBackdrop` is PORTALLED onto `<body>` at `z-index: -2`**, which is
-  the only place a layer can sit UNDER the corner glow at -1. Rendered in
-  place it would be trapped in `PageTransition`'s temporary stacking context
-  and blink the glow out on arrival. `aria-hidden` + `pointer-events: none` +
-  **`inert`** — the third is the one the other two miss, and thirty-odd
-  invisible links in the tab order is what it prevents.
-- **NOTHING IN IT ANIMATES.** `StillContext` (components/motion/still.ts) plus
-  the `.moment-backdrop` rules: no `stagger-in`, no `Reveal`, no counting
-  numbers. A blurred layer is re-rasterised in full whenever anything inside it
-  changes, and the Overview's own entrance is ~1s of change landing exactly as
-  the moment arrives. **Measured: a flat 60fps on a GPU-backed browser, frame
-  for frame identical to the moment with no background at all.** The 9fps in
-  headless Chromium is SwiftShader and the same artefact already recorded on
-  GLASS; layer promotion was tried four ways and changed nothing there, and the
-  only thing asking for a frame on this screen is the 12px breathing dot.
-- **The arch reaches the bottom edge of the window** — crown in view, sides
-  running off the bottom, `border-b-0`, no gap. A doorway you can see the
-  bottom of is a window; one hanging in mid-air is a shape. Everything that was
-  below it moved inside it ("Not just now" under the button) and the wordmark
-  is gone from this screen rather than squeezed in beside an eyebrow that
-  already says Aspire Clinic.
-- **`padding-top: 50%` puts the content on the spring line**, because the crown
-  is exactly half the width tall — and a percentage padding resolves against
-  the CONTAINING BLOCK'S width, not the element's own, which is why the width
-  cap lives on a wrapper one level up. Got wrong once: with the cap on the arch
-  itself, 50% was half of 1392px and the button sat 700px below the floor.
-- **The crown is hit-tested, never read off `getComputedStyle`**, which returns
-  the specified 9999px whatever was drawn. A crown flattens into two
-  quarter-rounds with a straight top between them once the box is under half as
-  tall as it is wide, so `e2e/results-ready.spec.ts` probes the shape at 900,
-  800, 700 and on a phone.
-
-**WelcomePage navigates to "/" and not "/overview"**, so HomeRouter re-decides.
-Going straight to the Overview jumped over that decision and skipped the moment
-on the one sign-in it is most obviously for.
+**`/results-ready` is NOT redirected**, unlike `/book` and `/appointments`. It
+was only ever reached by an internal redirect and was never linked to or
+emailed, so there are no bookmarks to honour and a redirect would be scaffolding
+standing in for a screen nobody has a route to.
 
 # Motion, texture and the arch (Aug 2026)
 
@@ -1777,32 +1712,16 @@ vignette is a photographic effect applied to a document. Light mode gets none �
 there is no source to be far from, and darkening the edges of a cream page is
 just a smaller page.
 
-**THE ARCH'S EDGE DISSOLVES ON THE MOMENT (Aug 2026).** It was a hairline and a
-hard alpha step — 58% of the glass tone on one side of a pixel and nothing on
-the other, over a near-black ground — which reads as a shape pasted onto the
-page rather than one standing in it, worst along the crown where the cut runs
-across the darkest part of the background. **THE SURFACE IS ITS OWN ELEMENT**
-(`.moment-arch-surface`, an empty absolutely-positioned sibling of the content)
-because a mask applies to a whole subtree and masking the arch would fade the
-heading with it. Two gradients, intersected: down the page from nothing at the
-apex to solid by 42%, and a 26px feather at each side. Both are ENTIRELY OUTSIDE
-the content — the content box starts at the spring line at 50% and the text sits
-behind 32px of padding — so "the words keep their contrast" is arithmetic rather
-than judgement. The border fades with it; a hairline that survived the mask
-would be the hard cut drawn in one more place, and there is no shadow for the
-same reason. **Do not put `isolation`, `opacity` or a `filter` on any ancestor
-of it**: any of the three becomes the backdrop root and the glass has nothing
-left to sample but itself.
-
 **THE ARCH.** A rectangle with one semicircular end, standing upright. A
-doorway. It appears in **exactly three places**: the results-ready moment (full
-size and standing on the floor of the window — the only time it is large, see
-that section for the geometry), empty states (a single faint hairline behind
-the message, `.arch-outline`), and the section rail's nodes (already built, laid
-on its side, unchanged and not this class). It does NOT appear on the Overview,
-on Results, on a report, on a marker page, in the sidebar, or anywhere else
-carrying real data — **nothing with content in it gets a shape behind it**. A
-patient should meet it three or four times ever. `border-radius` rather than a
+doorway. It appears in **exactly two places**: empty states (a single faint
+hairline behind the message, `.arch-outline`) and the section rail's nodes
+(already built, laid on its side, unchanged and not this class). It used to be
+three — the results-ready moment drew it full size, standing on the floor of the
+window, and that was the only place it was ever large. That screen is gone
+(Aug 2026) and **nothing else may claim the large one**. It does NOT appear on
+the Overview, on Results, on a report, on a marker page, in the sidebar, or
+anywhere else carrying real data — **nothing with content in it gets a shape
+behind it**. A patient should meet it two or three times ever. `border-radius` rather than a
 clip-path or an SVG, so the shape is correct at every size without a viewBox to
 keep in step — but the element must be TALLER than half its own width or the
 browser caps the radii and a doorway becomes a rounded box. The first empty

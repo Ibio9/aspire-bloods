@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { OPEN_UPPER_BOUND } from '@aspire-bloods/shared';
 import { MIN_REFERENCE_FRACTION, rangeBarScale } from './rangeScale';
 
 /**
@@ -119,5 +120,39 @@ describe('rangeBarScale', () => {
     expect(Number.isFinite(s.min)).toBe(true);
     expect(Number.isFinite(s.max)).toBe(true);
     expect(s.max).toBeGreaterThan(s.min);
+  });
+  /**
+   * ── THE OPEN-TOPPED MARKERS, WHICH WERE DRAWN AND SHOULD NOT HAVE BEEN ────
+   *
+   * eGFR, HDL, the Omega-3 Index and progesterone have no clinical upper bound,
+   * and the catalogue writes OPEN_UPPER_BOUND for the ceiling because a
+   * reference range here is two numbers. Rule 2 then builds a scale containing
+   * 60–999 and puts a healthy eGFR of 97 at 5% of it — a correct picture with a
+   * false axis, which is the failure this module exists to end.
+   *
+   * The value is asserted at the numbers that were measured, so a future change
+   * that "improves" the scale back into drawing one fails here rather than on a
+   * patient's screen.
+   */
+  it('refuses an open-topped reference range rather than scaling to the placeholder', () => {
+    const s = rangeBarScale({ low: 60, high: OPEN_UPPER_BOUND, value: 97 });
+    expect(s.outOfScale).toBe(true);
+    expect(s.undrawable).toBe('reference-range-open-ended');
+    // And it is still safe to do arithmetic with, like every other refusal.
+    expect(Number.isFinite(s.min)).toBe(true);
+    expect(s.max).toBeGreaterThan(s.min);
+  });
+
+  it('refuses it for the same reason whatever the value is', () => {
+    for (const value of [0.3, 1.14, 3.2, Number.NaN]) {
+      expect(rangeBarScale({ low: 1.55, high: OPEN_UPPER_BOUND, value }).undrawable).toBe('reference-range-open-ended');
+    }
+  });
+
+  it('leaves an ordinary range that happens to be wide alone', () => {
+    // The refusal is keyed on the declared placeholder, not on "the range is
+    // big" — a real 1–1,000,000 interval is still drawn.
+    const s = rangeBarScale({ low: 1, high: 1_000_000, value: 500 });
+    expect(s.undrawable).toBe(null);
   });
 });

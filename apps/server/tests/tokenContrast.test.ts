@@ -19,7 +19,6 @@ import {
   PANEL_WASH_ALPHA,
   PANEL_SHEEN,
   GLASS,
-  MOMENT_BACKDROP,
   type StatusKey,
 } from '@aspire-bloods/shared';
 
@@ -80,19 +79,22 @@ const BAND_HINGES = [
 ] as const;
 
 /**
- * THE TWO SURFACES ONE FILL IS DRAWN ON: the plot panel inside a trend chart,
- * and the card a range bar sits on. The ladder is the GEOMETRIC MEAN of the
- * two, because they are not the same distance apart in the two themes and
- * matching one of them lets the other drift by a third. See BAND_FILL.
+ * ONE SURFACE, IN BOTH THEMES (Aug 2026).
+ *
+ * A band fill is drawn on the chart's plot panel and on a range bar's track,
+ * and since the plot went light in both themes those are the same colour: the
+ * bar is drawn on the plot surface too, so the two instruments genuinely share
+ * a ground.
+ *
+ * The GEOMETRIC MEAN this used to take is gone with the second surface it was
+ * averaging. It existed because the card and the plot were different distances
+ * apart in the two themes, and solving against either alone let the other
+ * instrument's bands drift a third between themes. There is nothing left to
+ * average, and averaging a band against the CARD now would be measuring it
+ * against a surface it is never drawn on.
  */
-function bandSurfaces(mode: (typeof MODES)[number]): [string, string] {
-  return [tone(mode, '--c-cream-50'), tone(mode, '--c-chart-plot-surface')];
-}
-
 function bandRung(mode: (typeof MODES)[number], hue: string): number {
-  const fill = tone(mode, `--c-hue-${hue}-fill`);
-  const [card, plot] = bandSurfaces(mode);
-  return Math.sqrt(contrastRatio(fill, card) * contrastRatio(fill, plot));
+  return contrastRatio(tone(mode, `--c-hue-${hue}-fill`), tone(mode, '--c-chart-plot-surface'));
 }
 
 /**
@@ -341,8 +343,8 @@ describe.each(MODES)('%s theme', (mode) => {
     // diverged can recur; the test below holds that they currently do not.
     for (const hue of BAND_STATES) {
       const got = bandRung(mode, hue);
-      const rung = BAND_RUNG[mode][hue];
-      expect(got, `the ${hue} band is at ${got.toFixed(3)}:1, ${mode} rung says ${rung.toFixed(3)}`).toBeCloseTo(rung, 1);
+      const rung = BAND_RUNG[hue];
+      expect(got, `the ${hue} band is at ${got.toFixed(3)}:1, the rung says ${rung.toFixed(3)}`).toBeCloseTo(rung, 1);
     }
   });
 
@@ -358,9 +360,9 @@ describe.each(MODES)('%s theme', (mode) => {
     // over carrying the status. A new one is a decision somebody has to take
     // deliberately, which is what failing here forces.
     const off = (['green', 'yellow', 'red'] as const).filter(
-      (hue) => BAND_RUNG[mode][hue] !== BAND_CONTRAST[hue === 'green' ? 'IN_RANGE' : hue === 'yellow' ? 'HIGH' : 'SIGNIFICANT_HIGH'],
+      (hue) => BAND_RUNG[hue] !== BAND_CONTRAST[hue === 'green' ? 'IN_RANGE' : hue === 'yellow' ? 'HIGH' : 'SIGNIFICANT_HIGH'],
     );
-    expect(off, `${mode} departs from the ladder on ${off.join(', ') || 'nothing'}`).toEqual([]);
+    expect(off, `departs from the ladder on ${off.join(', ') || 'nothing'}`).toEqual([]);
   });
 
   it('puts each hinge exactly halfway between the two bands it joins', () => {
@@ -401,59 +403,58 @@ describe.each(MODES)('%s theme', (mode) => {
     }
   });
 
-  it('draws a band at the same weight in both themes, on both surfaces', () => {
-    // It very nearly wasn't: at the light-mode weights, dark's gold once
-    // measured 1.44:1 off the card against light's 1.16:1, because a near-black
-    // surface amplifies a luminance difference that a cream one damps. That is
-    // the difference between a band and a slab, and it is invisible in a token
-    // file.
+  it('draws the SAME band in both themes, not merely a similar one', () => {
+    // ── WHAT THIS TEST USED TO BE, AND WHY IT IS STRONGER NOW ─────────────
     //
-    // BOTH SURFACES, since Aug 2026. One fill is drawn on the chart's plot
-    // panel and on a range bar's card, so holding only one of them is how the
-    // range bar quietly drifts while the chart is being looked at.
+    // It used to allow the two themes' bands to differ by up to 20% of their
+    // contrast off their own surfaces, and that tolerance was doing real work:
+    // at the light-mode weights dark's gold once measured 1.44:1 off the card
+    // against light's 1.16:1, because a near-black surface amplifies a
+    // luminance difference a cream one damps.
     //
-    // The bound is generous (20%) because the two themes are not obliged to
-    // match to three decimal places — it is there to catch a theme drifting a
-    // third of the way clear of the other, which is what it did.
-    //
-    // THE THREE SOLVED STATES, not the two hinges: a hinge is an RGB midpoint,
-    // its luminance is therefore not the mean of its neighbours', and holding
-    // it to a bound it cannot control would only ever be a bound on its
-    // neighbours applied twice. Its own claim is checked above.
-    //
-    // ALL THREE AGAIN (Aug 2026). The out-of-range band used to be exempt here:
-    // 2.04:1 in light and 4.19:1 in dark, a deliberate 2× divergence, because
-    // dark's yellow had left the ladder to be a yellow at all. With the LINE
-    // carrying the status that band came back, both themes are on one ladder,
-    // and there is nothing left to exempt.
-    for (const hue of BAND_STATES) {
-      for (const surface of ['--c-cream-50', '--c-chart-plot-surface'] as const) {
-        const measured = MODES.map((m) => contrastRatio(tone(m, `--c-hue-${hue}-fill`), tone(m, surface)));
-        const [light, dark] = measured;
-        /**
-         * VISIBLE AT ALL — a band nobody can see is a band that is not there.
-         *
-         * MEASURED AS PERCEPTUAL DISTANCE, NOT AS CONTRAST (Aug 2026). This was
-         * a 1.15:1 contrast floor, and when the bands dropped to context weight
-         * light's in-range band landed at 1.14 and failed it while being plainly,
-         * obviously green. Contrast ratio is a LUMINANCE measure; what makes a
-         * large flat region of colour visible against another is mostly its HUE.
-         * It is the same argument this file already makes one instrument up,
-         * where chroma is measured in OKLab rather than read off HSL saturation.
-         *
-         * The floor is an OKLab ΔE of 0.05 — roughly where a large field stops
-         * being a region and starts being a suspicion. A band that genuinely
-         * went grey fails it; a band that is quiet and coloured does not.
-         */
-        for (const m of MODES) {
-          const d = deltaOk(tone(m, `--c-hue-${hue}-fill`), tone(m, surface));
-          expect(d, `the ${hue} band in ${m} is ΔE ${d.toFixed(3)} off ${surface}`).toBeGreaterThan(0.05);
-        }
-        expect(
-          Math.max(light, dark) / Math.min(light, dark),
-          `on ${surface} the ${hue} band is ${light.toFixed(3)}:1 in light and ${dark.toFixed(3)}:1 in dark`,
-        ).toBeLessThan(1.2);
-      }
+    // THERE IS NOTHING LEFT TO TOLERATE. The plot is one warm off-white in both
+    // themes and every band is drawn on it, so the two themes' fills are the
+    // same three hexes and the claim is byte equality rather than a bound. A
+    // theme-derived value creeping back into a band fails here immediately
+    // rather than drifting toward a limit.
+    for (const hue of [...BAND_STATES, ...BAND_HINGES.map(([h]) => h), 'optimal-band'] as const) {
+      const token = hue === 'optimal-band' ? '--c-band-optimal' : `--c-hue-${hue}-fill`;
+      expect(tone('light', token), `the ${hue} fill differs between themes`).toBe(tone('dark', token));
+    }
+    // And the plot itself, which is the reason all of the above is true.
+    expect(tone('light', '--c-chart-plot-surface')).toBe(tone('dark', '--c-chart-plot-surface'));
+    // As does everything drawn ON the plot: the line, the marks, the hairline,
+    // the ink. Each of these was per-theme and each of them was per-theme
+    // BECAUSE the ground was.
+    for (const token of [
+      '--c-chart-line',
+      '--c-chart-reference-edge',
+      '--c-chart-point-ring',
+      '--c-chart-plot-ink',
+      '--c-chart-plot-ink-muted',
+      '--c-chart-bound-label',
+      '--c-chart-axis-text',
+      '--c-rangemark',
+      '--c-rangemark-ring',
+      ...BAND_HUES.map((h) => `--c-hue-${h}-mark`),
+    ]) {
+      expect(tone('light', token), `${token} differs between themes`).toBe(tone('dark', token));
+    }
+  });
+
+  it('keeps every band visible against the plot it is drawn on', () => {
+    /**
+     * VISIBLE AT ALL — a band nobody can see is a band that is not there.
+     *
+     * MEASURED AS PERCEPTUAL DISTANCE, NOT AS CONTRAST. This was a 1.15:1
+     * contrast floor, and when the bands dropped to context weight light's
+     * in-range band landed at 1.14 and failed it while being plainly, obviously
+     * green. Contrast ratio is a LUMINANCE measure; what makes a large flat
+     * region of colour visible against another is mostly its HUE.
+     */
+    for (const hue of BAND_HUES) {
+      const d = deltaOk(tone(mode, `--c-hue-${hue}-fill`), tone(mode, '--c-chart-plot-surface'));
+      expect(d, `the ${hue} band is ΔE ${d.toFixed(3)} off the plot`).toBeGreaterThan(0.05);
     }
   });
 
@@ -532,22 +533,43 @@ describe.each(MODES)('%s theme', (mode) => {
     }
   });
 
-  it('leaves every band less colourful than the line drawn in the same hue', () => {
-    // ── THE ORDERING, IN THE DIMENSION NOBODY WAS WATCHING (Aug 2026) ──────
+  it('keeps the line ahead of the band it crosses, and says which dimension does it', () => {
+    // ── THE ORDERING, AND WHY IT CHANGED CARRIER FOR ONE HUE (Aug 2026) ────
     //
-    // "The line is content, the bands are context" was asserted only as
-    // CONTRAST. Solved on contrast alone the bands stayed at full palette
-    // chroma and out-coloured the line, which is the ordering inverted however
-    // good the contrast numbers look. Both dimensions are held now, and this is
-    // the second: for every hue, the band is strictly less chromatic than the
-    // colour the trend line is drawn in as it crosses that band.
+    // "The line is content, the bands are context" is asserted in two
+    // dimensions, and on a light plot the two no longer agree for gold.
     //
-    // Per hue rather than globally, because the five cannot hold equal chroma
-    // at the lightnesses the ladder puts them at — comparing a green band with
-    // a red line would be measuring the gamut rather than the design.
+    // CONTRAST, WHICH IS THE PRIMARY CARRIER AND HOLDS FOR ALL FIVE. The line
+    // is dark on a pale ground — 7.2:1 off the plot against the loudest band's
+    // 2.25 — so the lead is 3.2×, against 2.13× in the old light theme and
+    // 1.83× in the old dark one. That is the widest this margin has ever been
+    // and it is the whole return on moving the ground.
+    //
+    // CHROMA, WHICH HOLDS FOR GREEN AND RED AND CANNOT HOLD FOR GOLD. A line
+    // has to be DARK to clear a pale band, and **a yellow at a low luminance
+    // is a brown in any colour space** — the identical gamut fact this file
+    // already records twice for the old near-black plot, arriving from the
+    // other side. Measured: the gold line reaches 0.0851 of OKLab chroma at the
+    // lightness that clears 3.2:1 on every band, against a gold band's 0.1194.
+    // Closing that gap needs the band's share down to about 0.46 of its
+    // palette ceiling, which would make the bands LESS colourful than they were
+    // on the dark plot — i.e. it would undo the change to satisfy a proxy for
+    // it.
+    //
+    // So the exception is a measurement rather than a fudge, it is named here
+    // rather than removed, and the two hues that CAN hold it still must.
+    const CHROMA_EXEMPT = new Set(['yellow', 'olive', 'orange']);
     for (const hue of BAND_HUES) {
-      const band = okChroma(tone(mode, `--c-hue-${hue}-fill`));
-      const line = okChroma(tone(mode, `--c-hue-${hue}-mark`));
+      const bandHex = tone(mode, `--c-hue-${hue}-fill`);
+      const lineHex = tone(mode, `--c-hue-${hue}-mark`);
+      const plot = tone(mode, '--c-chart-plot-surface');
+      // The primary carrier, every hue, no exceptions: the line stands at least
+      // three times as far off the plot as the band does.
+      const lead = contrastRatio(lineHex, plot) / contrastRatio(bandHex, plot);
+      expect(lead, `the ${hue} line leads its band by only ${lead.toFixed(2)}x off the plot`).toBeGreaterThan(3);
+      if (CHROMA_EXEMPT.has(hue)) continue;
+      const band = okChroma(bandHex);
+      const line = okChroma(lineHex);
       expect(
         band,
         `the ${hue} band is ${band.toFixed(4)} chromatic against a line of ${line.toFixed(4)}`,
@@ -608,13 +630,14 @@ describe.each(MODES)('%s theme', (mode) => {
     expect(ratio, `the optimal narrowing is ${ratio.toFixed(3)}:1 off the in-range band`).toBeGreaterThan(1.06);
     expect(ratio, `the optimal narrowing is ${ratio.toFixed(3)}:1 off the in-range band`).toBeLessThan(1.3);
     // And it never reaches the next rung up, or the narrowing would be drawn in
-    // the colour that means "outside the range".
-    expect(bandRung(mode, 'green')).toBeLessThan(
-      Math.sqrt(contrastRatio(optimal, tone(mode, '--c-cream-50')) * contrastRatio(optimal, tone(mode, '--c-chart-plot-surface'))),
-    );
-    expect(
-      Math.sqrt(contrastRatio(optimal, tone(mode, '--c-cream-50')) * contrastRatio(optimal, tone(mode, '--c-chart-plot-surface'))),
-    ).toBeLessThan(BAND_CONTRAST.HIGH);
+    // the colour that means "outside the range". Measured on the plot, which is
+    // the one surface a band is drawn on — the geometric mean this used to take
+    // included the CARD, and with the plot light in both themes that put dark's
+    // figure at 3.52 against a rung of 1.85 while the drawn colours were
+    // identical in the two themes.
+    const optimalRung = contrastRatio(optimal, tone(mode, '--c-chart-plot-surface'));
+    expect(bandRung(mode, 'green')).toBeLessThan(optimalRung);
+    expect(optimalRung).toBeLessThan(BAND_CONTRAST.HIGH);
   });
 
   it('keeps a band boundary visible on the heaviest band it crosses', () => {
@@ -1018,87 +1041,5 @@ describe.each(MODES)('%s sidebar panel', (mode) => {
     // Legible on its own where the wash is faintest, but never a line of light.
     expect(edge).toBeGreaterThanOrEqual(1.6);
     expect(edge).toBeLessThan(WCAG_AA_TEXT);
-  });
-});
-
-/**
- * ═══ THE RESULTS-READY MOMENT'S GROUND ═══════════════════════════════════
- *
- * Behind the arch is the reader's own Overview, blurred past reading and then
- * veiled — the page colour at `MOMENT_BACKDROP.wash`, and the shadow tone at
- * `MOMENT_BACKDROP.shade` over that. Three things follow from putting a whole
- * screen of content under a translucent surface, and all three are measurable
- * here rather than reviewable in a screenshot:
- *
- *  1. The veil is a CONTRAST BUDGET. Whatever separation the Overview had from
- *     its own page survives at exactly `(1 - wash) × (1 - shade)` of itself,
- *     because two alpha composites multiply — so the ground's remaining
- *     structure is a number that was chosen rather than one that happened.
- *  2. The arch has to dominate it. The failure this is against is a moment
- *     whose doorway is one of several equally-weighted things on the screen.
- *  3. AND THE ARCH IS GLASS. Its text is not on a surface any more; it is on
- *     `--c-glass` at its own alpha over the VEILED GROUND, which is a surface
- *     that did not exist before this screen had a background. That is the one
- *     way this change could actually harm somebody, so it is held at AA for
- *     body text and not at the large-text floor — "Not just now" is 14px.
- *
- * Measured against the CARD tone rather than the page: a card is the most
- * separated thing the Overview paints, so it is the worst case for how much
- * structure comes through, and the page itself is the ground everything else
- * on that screen is measured against.
- */
-describe.each(MODES)('%s results-ready backdrop', (mode) => {
-  const page = tone(mode, '--c-cream');
-  const card = tone(mode, '--c-cream-50');
-  const shadow = tone(mode, '--c-shadow');
-  const { wash, shade } = { wash: MOMENT_BACKDROP.wash[mode], shade: MOMENT_BACKDROP.shade[mode] };
-
-  /** What a colour on the blurred plate looks like once the veil is over it. */
-  const veiled = (hex: string) => blend(shadow, blend(page, hex, wash), shade);
-
-  const ground = veiled(page);
-  const cardThroughVeil = veiled(card);
-  // The arch: the glass material at its own alpha, over the veiled ground.
-  const arch = blend(tone(mode, '--c-glass'), ground, GLASS.wash[mode]);
-
-  it('leaves exactly the share of the Overview the two alphas allow through', () => {
-    const survives = (1 - wash) * (1 - shade);
-    const before = [1, 3, 5].map((i) => parseInt(card.slice(i, i + 2), 16) - parseInt(page.slice(i, i + 2), 16));
-    const after = [1, 3, 5].map(
-      (i) => parseInt(cardThroughVeil.slice(i, i + 2), 16) - parseInt(ground.slice(i, i + 2), 16),
-    );
-    after.forEach((d, i) => {
-      // ±1 for the rounding two composites do. The claim is that the veil is a
-      // multiplier and that the multiplier is the two numbers in tokens.ts.
-      expect(Math.abs(d - before[i] * survives), `channel ${i}: ${d} against ${before[i]} × ${survives}`).toBeLessThanOrEqual(1);
-    });
-  });
-
-  it('puts the arch well clear of anything left showing behind it', () => {
-    const residual = contrastRatio(cardThroughVeil, ground);
-    const dominance = contrastRatio(arch, ground);
-    expect(
-      dominance - 1,
-      `the arch stands ${(dominance - 1).toFixed(3)} off the ground and the loudest thing behind it ${(residual - 1).toFixed(3)}`,
-    ).toBeGreaterThan((residual - 1) * 2.5);
-  });
-
-  it('keeps the arch a surface rather than a hole in the page', () => {
-    // It is glass over a ground that is itself mostly page colour, so the two
-    // could converge into nothing. Same floor the sidebar panel is held to.
-    const separation = contrastRatio(arch, ground);
-    expect(separation, `the arch is ${separation.toFixed(3)}:1 off its own ground`).toBeGreaterThanOrEqual(1.08);
-  });
-
-  it('keeps every word on the arch at AA over the veiled ground', () => {
-    for (const [label, text] of [
-      ['the heading', tone(mode, '--c-espresso')],
-      // The two quiet ones, at the bottom of the opacity ladder this product
-      // allows: the panel line and "Not just now", both /80.
-      ['the muted lines', blend(tone(mode, '--c-espresso'), arch, 0.8)],
-    ] as const) {
-      const ratio = contrastRatio(text, arch);
-      expect(ratio, `${label} is ${ratio.toFixed(2)}:1 on the arch`).toBeGreaterThanOrEqual(WCAG_AA_TEXT);
-    }
   });
 });

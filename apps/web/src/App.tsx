@@ -61,7 +61,6 @@ const DocumentsPage = lazyPage(() => import('./features/patient/DocumentsPage'),
 const MarkerDetailPage = lazyPage(() => import('./features/patient/MarkerDetailPage'), 'MarkerDetailPage');
 const AccountPage = lazyPage(() => import('./features/patient/AccountPage'), 'AccountPage');
 const WelcomePage = lazyPage(() => import('./features/patient/WelcomePage'), 'WelcomePage');
-const ResultsReadyPage = lazyPage(() => import('./features/patient/ResultsReadyPage'), 'ResultsReadyPage');
 
 /**
  * BOOKING IS DECLARED INSIDE THE FLAG, NOT BESIDE IT.
@@ -141,23 +140,13 @@ export default function App() {
                 }
               />
 
-              {/* THE RESULTS-READY MOMENT — outside the patient shell, and that
-                  is the point rather than an oversight. It is a full-screen
-                  moment: no sidebar, no breadcrumbs, no footer. A moment framed
-                  by the navigation it precedes is a page, and this is the one
-                  screen in the product that is allowed to be neither.
-
-                  Guarded like any other patient route. It is reachable by URL,
-                  and it stands aside for the Overview when nothing is waiting —
-                  see the component. */}
-              <Route
-                path="/results-ready"
-                element={
-                  <RoleProtectedRoute roles={[...PATIENT_DATA_ROLES]}>
-                    {page(<PageTransition><ResultsReadyPage /></PageTransition>)}
-                  </RoleProtectedRoute>
-                }
-              />
+              {/* /results-ready is GONE (Aug 2026) and is deliberately not
+                  redirected. It was a full-screen moment between a patient and
+                  the results they had signed in to read, it was only ever
+                  reached by an internal redirect, and it was never linked to or
+                  emailed — so unlike /book and /appointments there are no
+                  bookmarks of it to honour, and a redirect would be scaffolding
+                  standing in for a screen nobody has a route to. */}
 
               {/* Patient shell — its own persistent sidebar, warmer and less dense than the
                   admin one. Widened to PATIENT_DATA_ROLES so an admin-who-is-also-a-patient

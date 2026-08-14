@@ -250,6 +250,43 @@ export async function confirmBooking(
     );
   }
 
+  /**
+   * ── AN EXPIRED HOLD IS REFUSED HERE, BEFORE RANDOX ARE ASKED (Aug 2026) ──
+   *
+   * The hold lasts 30 minutes (`HOLD_DURATION_MS` in ClinicBookingClient, and
+   * whatever expiry Randox return in preference to it). Until now the only
+   * thing that noticed a lapsed hold was Randox refusing the create, and the
+   * catch below turned that into the right message — which is correct as a
+   * BACKSTOP and wrong as the only check, for two reasons:
+   *
+   *  · It sends a full patient record — name, date of birth, address, contact
+   *    number — to a third party on a request we already know cannot succeed.
+   *  · It is a create, and a create is deliberately not retryable (see
+   *    createRandoxBooking). If Randox's own view of the hold has drifted from
+   *    ours by a few seconds, "we knew it had expired and asked anyway" is the
+   *    one way this path can produce an appointment nobody intended.
+   *
+   * The row is marked EXPIRED in the same breath, so a HELD row can never sit
+   * there looking live after its own deadline has passed. The `catch` stays: a
+   * slot can be taken by somebody else well inside the thirty minutes, and only
+   * Randox know that.
+   */
+  if (appointment.holdExpiresAt !== null && appointment.holdExpiresAt.getTime() <= Date.now()) {
+    await prisma.randoxAppointment.update({ where: { id: appointment.id }, data: { status: 'EXPIRED' } });
+    await recordAuditLog({
+      actorUserId,
+      action: 'RANDOX_BOOKING_HOLD_EXPIRED',
+      targetType: 'RandoxAppointment',
+      targetId: appointment.id,
+      metadata: { orderNumber, holdExpiresAt: appointment.holdExpiresAt.toISOString(), detectedBy: 'local-deadline' },
+    });
+    return {
+      ok: false,
+      windowExpired: true,
+      message: 'That slot is no longer being held for you. Please choose another time.',
+    };
+  }
+
   const patient = await buildBookingPatient(order.patientId, orderNumber);
 
   try {
@@ -368,12 +405,19 @@ export async function cancelBooking(orderNumber: string, actorUserId: string | n
 }
 
 /**
- * MOVING AN APPOINTMENT, WITHOUT A RESCHEDULE ENDPOINT.
+ * MOVING AN APPOINTMENT, WITHOUT A CALLABLE RESCHEDULE ENDPOINT.
  *
- * There isn't one. `RandoxBookings/RescheduleAppointment` was called here on
- * the strength of somebody's recollection; it is in neither Postman
- * collection, the flow diagram, nor either auth document. So this is composed
- * from three calls that ARE documented, and the ORDER OF THEM IS THE WHOLE
+ * THERE IS ONE AND WE CANNOT CALL IT (corrected Aug 2026). This note used to
+ * say `RandoxBookings/RescheduleAppointment` did not exist. It does: page 3 of
+ * specs/20241028-Corporate-Customer-API-Flow.pdf, dated 1-Nov-24, lists it as a
+ * primary Clinic Booking endpoint. What no document gives is its path, its verb
+ * or a single field of its body — and a guessed request body on this API is
+ * refused whole, which is the lesson the rest of this client was rebuilt
+ * around.
+ *
+ * So the composition below is unchanged, and its justification is now the
+ * narrower and better one: not "there is no such endpoint" but "there is no way
+ * to spell a call to it". The ORDER OF THE THREE CALLS IS STILL THE WHOLE
  * DESIGN:
  *
  *   1. hold the new slot   — if it has gone, nothing has happened yet and the
@@ -530,7 +574,7 @@ export async function rescheduleBooking(
       to: booking.startUtc,
       previousBookingReference: previous.bookingReference,
       previousCancelled,
-      note: 'Composed from HoldAvailabilityBooking + CreateRandoxBooking + CancelRandoxBooking: the Clinic Booking API documents no reschedule endpoint.',
+      note: 'Composed from HoldAvailabilityBooking + CreateRandoxBooking + CancelRandoxBooking. Randox document a RescheduleAppointment endpoint but have published no request shape for it.',
     },
   });
 

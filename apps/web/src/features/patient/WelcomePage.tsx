@@ -230,14 +230,11 @@ export function WelcomePage() {
       // to their results; the worst case is that they see this once more.
     } finally {
       setFinishing(false);
-      // "/" AND NOT "/overview", since Aug 2026. HomeRouter is what decides
-      // where a patient lands, and there is now more than one thing it can
-      // decide: a first sign-in with a newly released report gets the
-      // introduction and THEN the results-ready moment. Navigating straight to
-      // the Overview from here jumped over that decision, so the moment was
-      // skipped on the one sign-in it is most obviously for and turned up on
-      // the next one instead. `refresh()` above has already made
-      // `walkthroughSeen` true, so this cannot bounce back here.
+      // "/" AND NOT "/overview". HomeRouter is what decides where a patient
+      // lands; navigating straight to the Overview from here jumps over that
+      // decision, which is how a later branch added to HomeRouter ends up
+      // silently skipped on the one sign-in it exists for. `refresh()` above
+      // has already made `walkthroughSeen` true, so this cannot bounce back.
       navigate('/', { replace: true });
     }
   }

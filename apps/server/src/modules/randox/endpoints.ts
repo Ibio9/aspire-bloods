@@ -154,6 +154,71 @@ export function bookingEndpoint(name: ClinicBookingEndpointName): { path: string
 
 /**
  * ---------------------------------------------------------------------------
+ * ENDPOINTS RANDOX DOCUMENT IN PROSE AND IN NO MACHINE-READABLE FORM.
+ * ---------------------------------------------------------------------------
+ *
+ * A THIRD STATE, and it needs its own name because collapsing it into either
+ * neighbour has now caused a mistake in each direction.
+ *
+ *   SPECIFIED    a path, a verb and a body — the two tables above.
+ *   NAMED ONLY   named in a Randox document, with no request shape anywhere.
+ *   FICTIONAL    nobody has written it down. Never call one.
+ *
+ * `RescheduleAppointment` was moved from NAMED ONLY to FICTIONAL and that was
+ * WRONG. It is on page 3 of specs/20241028-Corporate-Customer-API-Flow.pdf
+ * ("Last Updated: 1-Nov-24"), under "Clinic Booking · Primary endpoints are:",
+ * in as many words:
+ *
+ *   "RescheduleAppointment — there is a window of opportunity for the clinic
+ *    booking record to be rescheduled to a different clinic location, date and
+ *    time."
+ *
+ * The earlier reading checked the Postman collection, the OpenAPI file and both
+ * auth documents, found nothing, and concluded the path had come from somebody's
+ * recollection. Every one of those checks was correct and the conclusion was
+ * not: the collection is a TESTING collection and does not claim to be
+ * exhaustive, and absence from it is not evidence of absence from the API. The
+ * text of that PDF is not mechanically greppable — its fonts carry no usable
+ * ToUnicode, so a search over the decompressed streams returns nothing for a
+ * string that is plainly on the page — which is how a document in this very
+ * directory got read as silent.
+ *
+ * WHAT IS STILL TRUE, AND IS WHY THE COMPOSED PATH STAYS: there is no request
+ * shape for it anywhere. A named endpoint with unknown fields is exactly as
+ * uncallable as a fictional one, for the reason the whole Clinic Booking client
+ * is built around — a misspelled request is refused whole. So
+ * `rescheduleBooking` remains composed from hold → create → cancel, which is
+ * built entirely from documented bodies and is safe under either answer, and
+ * the ASK for Randox changes from "does this exist?" to "what body does it
+ * take?".
+ *
+ * `GetOrderStatusDetails` is the other one, on page 2 of the same document: the
+ * home-dispatch tracking and kit URNs, usable once an order reaches status 2.
+ * It is absent from the OpenAPI file's seventeen. Nothing in this product calls
+ * it — home dispatch is not a route we offer — and it is recorded here so that
+ * "it is not in the spec" is never again read as "it does not exist".
+ */
+export const NAMED_BUT_UNSPECIFIED_ENDPOINTS = [
+  {
+    api: 'Clinic Booking' as const,
+    name: 'RescheduleAppointment',
+    source: 'specs/20241028-Corporate-Customer-API-Flow.pdf, page 3 (Last Updated 1-Nov-24)',
+    quote:
+      'RescheduleAppointment — there is a window of opportunity for the clinic booking record to be rescheduled to a different clinic location, date and time.',
+    missing: 'No path, verb or request body in any document or collection.',
+  },
+  {
+    api: 'Nexus' as const,
+    name: 'GetOrderStatusDetails',
+    source: 'specs/20241028-Corporate-Customer-API-Flow.pdf, page 2 (Last Updated 1-Nov-24)',
+    quote:
+      'GetOrderStatusDetails — once the Nexus status moves to status 2 then this end point can be used to get the dispatch tracking information in addition to the kit URNs (unique reference numbers) for each dispatched kit.',
+    missing: 'Absent from nexus-openapi3.json. Home dispatch only; nothing here orders by that route.',
+  },
+] as const;
+
+/**
+ * ---------------------------------------------------------------------------
  * AUTHENTICATION: BOTH CREDENTIALS, ON EVERY REQUEST. SETTLED (Aug 2026).
  * ---------------------------------------------------------------------------
  *

@@ -297,6 +297,16 @@ export interface MappingConfidence {
    * which is nothing, and it must not drift.
    */
   confirmedByCodeAlone: number;
+  /**
+   * From a Randox-authored DOCUMENT: how many of the 34 analyte strings printed
+   * on the HSC5 Basic Screen report the map answers to.
+   *
+   * Beside `confirmedByRealPayload` and never added to it. A report proves the
+   * NAME; a payload proves the FIELD and its spelling. `unresolved` is a defect
+   * list rather than a shortfall — anything in it is a spelling Randox
+   * demonstrably use that our catalogue has stopped answering to.
+   */
+  confirmedByDocument: { total: number; resolvable: number; unresolved: string[] };
   /** From evidence: distinct markers a real payload has resolved to. */
   confirmedByRealPayload: number;
   /** Distinct analyte strings seen, and how they went. */
@@ -335,6 +345,7 @@ export async function mappingConfidence(): Promise<MappingConfidence> {
     resolvesFromOwnName: coverage.resolvesFromOwnName,
     singleSpellingOnly: coverage.singleSpellingOnly,
     confirmedByCodeAlone: coverage.confirmedAgainstRealPayload,
+    confirmedByDocument: coverage.confirmedAgainstSourcedDocument,
     confirmedByRealPayload: distinctMarkers.length,
     stringsSeen: resolved + unmapped,
     stringsResolved: resolved,

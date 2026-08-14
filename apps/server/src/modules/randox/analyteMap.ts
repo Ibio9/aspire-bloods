@@ -105,24 +105,79 @@ export function normaliseAnalyte(value: string): string {
 }
 
 /**
+ * ---------------------------------------------------------------------------
+ * WHERE AN OVERRIDE CAME FROM. Every entry carries one.
+ * ---------------------------------------------------------------------------
+ *
+ * A mapping is a clinical decision — it files a measurement against an analyte
+ * on somebody's record — so "who says so" travels with it rather than living in
+ * a comment above the block. `kind` is the part that matters and it is the
+ * distinction this file has always turned on:
+ *
+ *   RANDOX_REPORT   read off a document Randox produced. Evidence.
+ *   CATALOGUE_NOTE  our own catalogue records that we corrected Randox's
+ *                   spelling here, so this is that correction put back. Evidence
+ *                   about US, which is weaker, and is why these were the only
+ *                   entries for as long as there was nothing else.
+ *
+ * There is no third kind and there is not going to be one called GUESS.
+ */
+export type AnalyteSourceKind = 'RANDOX_REPORT' | 'CATALOGUE_NOTE';
+
+export interface AnalyteSource {
+  kind: AnalyteSourceKind;
+  /** The document, as it is named in specs/. */
+  document: string;
+  /** The page it is printed on, where the source is paginated. */
+  page?: number;
+}
+
+export interface AnalyteOverrideEntry {
+  markerKey: string;
+  source: AnalyteSource;
+}
+
+const HSC5 = 'HSC5-Randox-Basic-Screen-Example-Report.pdf';
+const CATALOGUE = 'packages/shared/markerCatalogue.ts — "Randox’s spelling slips are corrected here"';
+
+/**
  * EXPLICIT OVERRIDES: where Randox's string is not one our catalogue holds.
  *
- * Every entry needs a source. These are the spelling divergences the
- * catalogue's own provenance note records (packages/shared/markerCatalogue.ts,
- * "Randox's spelling slips are corrected here"): Randox print the left-hand
- * string, we hold the corrected name, and without these lines the corrected
- * name is exactly why the match fails.
+ * ── THE PDF IS READABLE AFTER ALL (Aug 2026) ──────────────────────────────
  *
- * THIS LIST IS SHORT ON PURPOSE AND IS NOT PADDED. The sample report PDF in
- * specs/ uses subset fonts with a custom encoding and its analyte column
- * cannot be extracted mechanically, so no entry here is derived from it —
- * inventing plausible Randox spellings and calling them sourced would be worse
- * than an empty list, because the exception queue catches an absent mapping
- * and nothing catches a wrong one. Every real analyte string Randox send that
- * is missing from here will arrive in the queue with its exact spelling on it,
- * which is the right way to fill this in.
+ * This note used to say the sample report "uses subset fonts with a custom
+ * encoding and its analyte column cannot be extracted mechanically", and that
+ * every entry here therefore had to come from our own catalogue's notes. The
+ * first half was a misdiagnosis and the second half was a real cost: the one
+ * document in the tree carrying Randox's own spellings for 34 analytes was
+ * being treated as unreadable.
+ *
+ * What was actually happening: every font in that PDF is `/Encoding
+ * /Identity-H`, which means TWO-BYTE CIDs. Read one byte at a time the text
+ * comes out as a substitution cipher offset by the subset's first glyph —
+ * "Haemoglobin" reads as "+DePoJloELn" — which looks exactly like a custom
+ * encoding nobody can undo. Decoded two bytes at a time through the font's own
+ * ToUnicode CMap it is ordinary text. The ONE trap left is that the document
+ * carries several subsets whose CMaps cover different code ranges; picking the
+ * wrong one per font resolves some glyphs and not others, which is what makes
+ * the failure look partial rather than total.
+ *
+ * WHAT DID NOT CHANGE. Nothing here is a plausible-looking Randox spelling,
+ * then or now. Inventing one would still be worse than an empty list, because
+ * the exception queue catches an ABSENT mapping and nothing catches a wrong
+ * one. Every entry below is a string somebody can go and look at, in a file in
+ * this repository, on a numbered page.
+ *
+ * AND THE REPORT IS EVIDENCE ABOUT THE REPORT. It is a rendered PDF, not a
+ * GetOrderResultDetail payload, so what it proves is how Randox NAME these
+ * tests — not which JSON field carries that name. That distinction is why
+ * `confirmedAgainstRealPayload` below stays at zero and a separate figure
+ * counts these. It is also why an override keyed on the printed string is safe
+ * either way: `resolveAnalyte` tries the override table against `analyte` AND
+ * `displayName`, so it hits whichever of the two the string turns out to be.
  */
-export const ANALYTE_OVERRIDES: Record<string, string> = {
+export const ANALYTE_OVERRIDES_SOURCED: Record<string, AnalyteOverrideEntry> = {
+  // ── From the catalogue's own record of corrections we made ───────────────
   // Randox's spelling → our marker key. Each of these is the catalogue's own
   // name with the documented substitution put BACK, which is what Randox
   // actually print. Keys verified against resolveCatalogueMarkers().
@@ -130,16 +185,116 @@ export const ANALYTE_OVERRIDES: Record<string, string> = {
   // "Bayleaf" is deliberately absent: it normalises to the same string as
   // "Bay Leaf", so pass 2 already resolves it and an override would be a line
   // of noise implying a problem that does not exist.
-  'Pepsingogen 1': 'pepsinogen-1',
-  'Pepsingogen 2': 'pepsinogen-2',
-  'Cancer Atigen 125 (CA 125)': 'ca-125',
-  'Glutamine Dehydrogenase (GLDH)': 'gldh',
-  'Neutrophil Gelatinase Associatd Lipocalin (NGAL)': 'ngal',
-  'Muscle Recover': 'muscle-recovery',
-  'Patridge (IgG)': 'partridge-igg',
-  'Melon (Galla/Honeydew) (IgG)': 'melon-galia-honeydew-igg',
-  'Archael Composition': 'archaeal-composition',
+  'Pepsingogen 1': { markerKey: 'pepsinogen-1', source: { kind: 'CATALOGUE_NOTE', document: CATALOGUE } },
+  'Pepsingogen 2': { markerKey: 'pepsinogen-2', source: { kind: 'CATALOGUE_NOTE', document: CATALOGUE } },
+  'Cancer Atigen 125 (CA 125)': { markerKey: 'ca-125', source: { kind: 'CATALOGUE_NOTE', document: CATALOGUE } },
+  'Glutamine Dehydrogenase (GLDH)': { markerKey: 'gldh', source: { kind: 'CATALOGUE_NOTE', document: CATALOGUE } },
+  'Neutrophil Gelatinase Associatd Lipocalin (NGAL)': { markerKey: 'ngal', source: { kind: 'CATALOGUE_NOTE', document: CATALOGUE } },
+  'Muscle Recover': { markerKey: 'muscle-recovery', source: { kind: 'CATALOGUE_NOTE', document: CATALOGUE } },
+  'Patridge (IgG)': { markerKey: 'partridge-igg', source: { kind: 'CATALOGUE_NOTE', document: CATALOGUE } },
+  'Melon (Galla/Honeydew) (IgG)': { markerKey: 'melon-galia-honeydew-igg', source: { kind: 'CATALOGUE_NOTE', document: CATALOGUE } },
+  'Archael Composition': { markerKey: 'archaeal-composition', source: { kind: 'CATALOGUE_NOTE', document: CATALOGUE } },
+
+  // ── From the HSC5 report, "Results for your Doctor", pages 14–15 ─────────
+  //
+  // ONLY THE TWO THAT DO NOT ALREADY RESOLVE. The other 32 strings on that
+  // table match the catalogue through the ordinary exact or normalised pass,
+  // and an override for each of them would be 32 lines that change nothing and
+  // then have to be maintained. They are recorded in HSC5_ANALYTE_STRINGS
+  // below, which is where the coverage figure and the audit read them from —
+  // a mapping that already works is a fact worth pinning and not a line worth
+  // adding here.
+  //
+  // Both of these would have gone to the exception queue on the first real
+  // delivery, which is exactly what this exercise was for.
+
+  // We hold "Red Blood Cell Mean Volume (MCV)". Randox print "Mean CELL
+  // Volume" — one word, and it is the difference between a match and a held
+  // report. Our aliases carry "MCV", "Mean Cell Volume" and "Red Blood Cell
+  // Mean Volume"; none of them is this string.
+  'Red Blood Cell Mean Cell Volume (MCV)': { markerKey: 'mcv', source: { kind: 'RANDOX_REPORT', document: HSC5, page: 14 } },
+
+  // We hold "eGFR", with "Estimated Glomerular Filtration Rate" as an alias.
+  // Randox print the full name AND the abbreviation together, which is neither.
+  'Estimated Glomerular Filtration Rate (eGFR)': { markerKey: 'egfr', source: { kind: 'RANDOX_REPORT', document: HSC5, page: 15 } },
 };
+
+/**
+ * The flat form the resolver reads. Derived, so an entry cannot exist without a
+ * source — the only way into this map is through the one above.
+ */
+export const ANALYTE_OVERRIDES: Record<string, string> = Object.fromEntries(
+  Object.entries(ANALYTE_OVERRIDES_SOURCED).map(([spelling, entry]) => [spelling, entry.markerKey]),
+);
+
+/**
+ * ---------------------------------------------------------------------------
+ * EVERY ANALYTE STRING RANDOX PRINT ON THE HSC5 BASIC SCREEN REPORT.
+ * ---------------------------------------------------------------------------
+ *
+ * Transcribed from the "Results for your Doctor" table — pages 14 and 15 of
+ * specs/HSC5-Randox-Basic-Screen-Example-Report.pdf — which is the one place in
+ * this repository where Randox name a set of analytes in their own words. 34
+ * strings, in the report's own order, with the page each is printed on.
+ *
+ * Two of them wrap across two lines in that table and are recorded here
+ * REASSEMBLED, which is the only judgement in the list and is checkable: the
+ * per-panel pages set the same names on one line each ("Red Blood Cell Mean
+ * Cell Volume (MCV)" on page 7, "Total Cholesterol / HDL Cholesterol Ratio" on
+ * page 6), and they agree.
+ *
+ * WHAT THIS IS FOR, AND IT IS NOT A SECOND OVERRIDE TABLE. Nothing resolves
+ * through it. It is the CHECK LIST: `analyteMappingCoverage()` counts how many
+ * of these the map answers to and `analyteObservations.test.ts` fails if one
+ * stops resolving, so a catalogue rename that breaks a Randox spelling is
+ * caught by a test rather than by a held report. Where one of them does not
+ * resolve, the fix is a line in ANALYTE_OVERRIDES_SOURCED above — which is how
+ * both of the entries there got written.
+ */
+export interface Hsc5AnalyteString {
+  /** Exactly as printed. */
+  analyte: string;
+  page: 14 | 15;
+  /** The panel heading it is printed under, as Randox group it. */
+  group: string;
+}
+
+export const HSC5_ANALYTE_STRINGS: readonly Hsc5AnalyteString[] = [
+  { analyte: 'Haemoglobin', page: 14, group: 'Full Blood Count' },
+  { analyte: 'Haematocrit', page: 14, group: 'Full Blood Count' },
+  { analyte: 'Mean Cell Haemoglobin (MCH)', page: 14, group: 'Full Blood Count' },
+  { analyte: 'Mean Cell Haemoglobin Concentration (MCHC)', page: 14, group: 'Full Blood Count' },
+  { analyte: 'Red Blood Cell Mean Cell Volume (MCV)', page: 14, group: 'Full Blood Count' },
+  { analyte: 'Red Blood Cell Count', page: 14, group: 'Full Blood Count' },
+  { analyte: 'Basophil Count', page: 14, group: 'Full Blood Count' },
+  { analyte: 'Eosinophil Count', page: 14, group: 'Full Blood Count' },
+  { analyte: 'Lymphocyte Count', page: 14, group: 'Full Blood Count' },
+  { analyte: 'Monocyte Count', page: 14, group: 'Full Blood Count' },
+  { analyte: 'Neutrophil Count', page: 14, group: 'Full Blood Count' },
+  { analyte: 'White Blood Cell Count', page: 14, group: 'Full Blood Count' },
+  { analyte: 'Platelet Count', page: 14, group: 'Full Blood Count' },
+  { analyte: 'Total Cholesterol', page: 14, group: 'Heart Health' },
+  { analyte: 'LDL Cholesterol', page: 14, group: 'Heart Health' },
+  { analyte: 'HDL Cholesterol', page: 14, group: 'Heart Health' },
+  { analyte: 'Total Cholesterol / HDL Cholesterol Ratio', page: 14, group: 'Heart Health' },
+  { analyte: 'Triglycerides', page: 14, group: 'Heart Health' },
+  { analyte: 'High Sensitivity C-Reactive Protein (hsCRP)', page: 14, group: 'Heart Health' },
+  { analyte: 'Glucose', page: 14, group: 'Diabetes Health' },
+  { analyte: 'Creatinine', page: 15, group: 'Kidney Health' },
+  { analyte: 'Estimated Glomerular Filtration Rate (eGFR)', page: 15, group: 'Kidney Health' },
+  { analyte: 'Chloride', page: 15, group: 'Kidney Health' },
+  { analyte: 'Phosphate', page: 15, group: 'Kidney Health' },
+  { analyte: 'Potassium', page: 15, group: 'Kidney Health' },
+  { analyte: 'Sodium', page: 15, group: 'Kidney Health' },
+  { analyte: 'Urea', page: 15, group: 'Kidney Health' },
+  { analyte: 'Alanine Aminotransferase (ALT)', page: 15, group: 'Liver Health' },
+  { analyte: 'Alkaline Phosphatase (ALP)', page: 15, group: 'Liver Health' },
+  { analyte: 'Aspartate Aminotransferase (AST)', page: 15, group: 'Liver Health' },
+  { analyte: 'Gamma-Glutamyltransferase (GGT)', page: 15, group: 'Liver Health' },
+  { analyte: 'Total Bilirubin', page: 15, group: 'Liver Health' },
+  { analyte: 'Albumin', page: 15, group: 'Liver Health' },
+  { analyte: 'CRP', page: 15, group: 'Other' },
+] as const;
 
 /**
  * The urinalysis analytes, which Randox print bare and our catalogue holds
@@ -378,6 +533,22 @@ export function analyteMappingCoverage(): {
    * payload. Zero, and it stays zero until one arrives.
    */
   confirmedAgainstRealPayload: number;
+  /**
+   * Markers whose mapping is confirmed against a RANDOX-AUTHORED DOCUMENT —
+   * today, the 34 analyte strings printed on the HSC5 Basic Screen example
+   * report.
+   *
+   * A SECOND FIGURE RATHER THAN A BIGGER FIRST ONE, and the distinction is the
+   * point. A rendered PDF proves how Randox NAME a test. A payload proves which
+   * JSON field carries that name and how it is spelled there. The second is
+   * what the ingestion path actually reads, so merging the two would let a
+   * screen say "34 confirmed" about a question nothing has answered.
+   *
+   * `resolvable` is the number of those 34 the map answers to today — it should
+   * be all of them, and `unresolved` names any that are not, which is a live
+   * defect rather than a statistic.
+   */
+  confirmedAgainstSourcedDocument: { total: number; resolvable: number; unresolved: string[] };
   ambiguous: { key: string; name: string; candidates: string[] }[];
   unmapped: { key: string; name: string }[];
 } {
@@ -446,6 +617,21 @@ export function analyteMappingCoverage(): {
     // reported side by side rather than merged. This one answers "what does
     // the code claim on its own evidence", and that answer is nothing.
     confirmedAgainstRealPayload: 0,
+    // Counted, not asserted: each of the 34 printed strings is put back through
+    // the resolver. A catalogue rename that breaks one shows up here as a name
+    // in `unresolved` rather than as a held report six weeks later.
+    confirmedAgainstSourcedDocument: (() => {
+      const unresolved: string[] = [];
+      for (const { analyte } of HSC5_ANALYTE_STRINGS) {
+        const r = resolveAnalyte({ analyte });
+        if (r.status !== 'MAPPED') unresolved.push(analyte);
+      }
+      return {
+        total: HSC5_ANALYTE_STRINGS.length,
+        resolvable: HSC5_ANALYTE_STRINGS.length - unresolved.length,
+        unresolved,
+      };
+    })(),
     ambiguous,
     unmapped,
   };

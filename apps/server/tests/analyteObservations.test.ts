@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { bareSensitivityName, resolveCatalogueMarkers } from '@aspire-bloods/shared';
 import {
+  ANALYTE_OVERRIDES_SOURCED,
+  HSC5_ANALYTE_STRINGS,
   analyteIdentity,
   analyteMappingCoverage,
   resolveAnalyte,
@@ -26,6 +28,56 @@ describe('analyteMappingCoverage', () => {
 
   it('keeps the confirmed-against-a-real-payload figure at zero', () => {
     expect(coverage.confirmedAgainstRealPayload).toBe(0);
+  });
+
+  /**
+   * THE OTHER CONFIRMED FIGURE, AND IT IS ALLOWED TO BE NON-ZERO.
+   *
+   * The 34 analyte strings on the HSC5 report are Randox naming their own tests
+   * in a document in this repository. Every one of them must resolve, and
+   * "resolvable" is not a target to be approached — a string on that list that
+   * the map does not answer to is a spelling Randox demonstrably use that would
+   * hold a report on the first delivery. Two of them did not, before Aug 2026.
+   *
+   * It is asserted SEPARATELY from the payload figure above and never summed
+   * with it: a report proves the NAME, a payload proves the FIELD.
+   */
+  it('resolves every analyte string the HSC5 report prints', () => {
+    const doc = coverage.confirmedAgainstSourcedDocument;
+    expect(doc.total).toBe(HSC5_ANALYTE_STRINGS.length);
+    expect(doc.total).toBe(34);
+    expect(doc.unresolved).toEqual([]);
+    expect(doc.resolvable).toBe(34);
+  });
+
+  /**
+   * The two the report caught, pinned by name and by the marker they reach.
+   *
+   * These are the entire return on reading that PDF, so they are asserted
+   * rather than left to the aggregate: an alias added to the catalogue that
+   * happened to cover them would keep the count at 34 while quietly making the
+   * sourced override dead, and an override deleted as redundant would put both
+   * back in the exception queue.
+   */
+  it('maps the two spellings our catalogue was missing', () => {
+    for (const [analyte, key] of [
+      ['Red Blood Cell Mean Cell Volume (MCV)', 'mcv'],
+      ['Estimated Glomerular Filtration Rate (eGFR)', 'egfr'],
+    ] as const) {
+      const resolution = resolveAnalyte({ analyte });
+      expect(resolution.status, analyte).toBe('MAPPED');
+      if (resolution.status === 'MAPPED') expect(resolution.markerKey).toBe(key);
+      const source = ANALYTE_OVERRIDES_SOURCED[analyte];
+      expect(source?.source.kind, analyte).toBe('RANDOX_REPORT');
+      expect(source?.source.page, analyte).toBeGreaterThan(0);
+    }
+  });
+
+  it('gives every override a source, because a mapping is a clinical decision', () => {
+    for (const [spelling, entry] of Object.entries(ANALYTE_OVERRIDES_SOURCED)) {
+      expect(entry.source.document, spelling).toBeTruthy();
+      expect(['RANDOX_REPORT', 'CATALOGUE_NOTE'], spelling).toContain(entry.source.kind);
+    }
   });
 
   it('counts QUALITATIVE markers, which still arrive in a payload', () => {

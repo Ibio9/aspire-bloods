@@ -47,9 +47,10 @@ export function EmptyState({ title, description, action }: EmptyStateProps) {
       {/* STANDING ON THE CARD'S FLOOR, not floating inside it. `inset-y-8`
           held it 32px clear of the bottom, so its (now removed) bottom rule
           crossed the message and its two sides stopped in mid-air. `bottom-0`
-          runs them off the edge of the card, which is the same composition the
-          full-size arch uses on the results-ready moment at a hundredth of the
-          weight.
+          runs them off the edge of the card. It is the only place the arch is
+          drawn as a surface now — the full-size one on the results-ready moment
+          went with that screen (Aug 2026) — and it is drawn at a hundredth of
+          its weight.
 
           It is still comfortably taller than half its own width — 192px of
           height against 256px of width in the shortest card this renders in —

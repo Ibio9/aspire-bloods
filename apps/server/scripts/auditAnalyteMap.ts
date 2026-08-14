@@ -93,11 +93,34 @@ async function main() {
   p(`| Carry at least one alternative spelling | **${coverage.withAlternativeSpelling}** |`);
   p(`| Answer to exactly ONE spelling | **${coverage.singleSpellingOnly.length}** |`);
   p(`| Reached through an explicit, sourced override of a Randox spelling | **${coverage.overrides}** |`);
-  p(`| Confirmed against a real Randox payload, by the code alone | **${coverage.confirmedAgainstRealPayload}** |`);
-  p(`| Confirmed against a real Randox payload, from deliveries | **${confirmedMarkerKeys.size}** |`);
+  p(
+    `| Confirmed against a Randox-authored DOCUMENT (HSC5 report, pages 14–15) | **${coverage.confirmedAgainstSourcedDocument.resolvable} of ${coverage.confirmedAgainstSourcedDocument.total}** |`,
+  );
+  p(`| Confirmed against a real Randox PAYLOAD, by the code alone | **${coverage.confirmedAgainstRealPayload}** |`);
+  p(`| Confirmed against a real Randox PAYLOAD, from deliveries | **${confirmedMarkerKeys.size}** |`);
+  p();
+  if (coverage.confirmedAgainstSourcedDocument.unresolved.length > 0) {
+    p(
+      `**${coverage.confirmedAgainstSourcedDocument.unresolved.length} string(s) printed on the HSC5 report no longer resolve**, which is a defect rather than a statistic — a catalogue rename has broken a spelling Randox actually use: ` +
+        coverage.confirmedAgainstSourcedDocument.unresolved.map((s) => `\`${s}\``).join(', ') +
+        '. Add each to `ANALYTE_OVERRIDES_SOURCED` citing the report and its page.',
+    );
+    p();
+  }
+  p(
+    '**The last three rows are the point of this report, and they are three rows rather than one on purpose.**',
+  );
   p();
   p(
-    '**The last two rows are the point of this report.** The first of them is hardcoded to zero in `analyteMappingCoverage()` and stays hardcoded: it answers "what does the code claim on its own evidence", and the honest answer is nothing, because nothing in the map was derived from a Randox payload. It must never become a computed number, because every computation available to it would be counting assumptions.',
+    'The DOCUMENT row moved off zero in Aug 2026, when the analyte column of the HSC5 Basic Screen example report turned out to be mechanically extractable after all (its fonts are Identity-H, i.e. two-byte CIDs; read one byte at a time the text comes out as a substitution cipher, which is what made it look like an unrecoverable custom encoding). Those 34 strings are Randox naming their own tests, in a file in this repository, on a numbered page. Two of them did not resolve — `Red Blood Cell Mean Cell Volume (MCV)` and `Estimated Glomerular Filtration Rate (eGFR)` — and both would have gone to the exception queue on the first real delivery.',
+  );
+  p();
+  p(
+    'It is NOT the same claim as the payload rows, and merging them would be the padding this file exists to refuse. A rendered PDF proves how Randox NAME a test. It does not prove which JSON field on `GetOrderResultDetail` carries that name, or how it is spelled there — and that field is what the ingestion path actually reads.',
+  );
+  p();
+  p(
+    'The first PAYLOAD row is hardcoded to zero in `analyteMappingCoverage()` and stays hardcoded: it answers "what does the code claim on its own evidence about a payload", and the honest answer is nothing. It must never become a computed number, because every computation available to it would be counting assumptions.',
   );
   p();
   p(

@@ -421,9 +421,11 @@
   }
 
   /* ── CONTENT ARRIVES IN SEQUENCE, ONCE (Aug 2026) ──────────────────────
-     Nothing in this product used to arrive. Things simply appeared, which is
-     why the one screen that does move — the results-ready moment — would
-     otherwise read as the only animated thing in an otherwise static product.
+     Nothing in this product used to arrive. Things simply appeared, so the
+     handful of places that do move — the route crossfade, the trend chart's
+     own mount — read as the only animated things in an otherwise static
+     product, which is what makes each of them look like a fault rather than a
+     manner.
 
      A container class rather than a component, and that is the mechanism
      rather than a preference. A CSS animation on a mounted node runs when the
@@ -930,11 +932,15 @@
      (laid on its side there, so the curve points into the page), which is what
      makes the rest of it read as consistent rather than decorative.
 
-     IT APPEARS IN EXACTLY THREE PLACES AND NOWHERE ELSE:
-       1. The results-ready moment — full size, as the frame the name and the
-          button sit inside. The ONLY time it appears large.
-       2. Empty states — a single faint arch behind the message.
-       3. The rail nodes — already built, unchanged, and not this class.
+     IT APPEARS IN EXACTLY TWO PLACES AND NOWHERE ELSE:
+       1. Empty states — a single faint arch behind the message.
+       2. The rail nodes — already built, unchanged, and not this class.
+
+     IT USED TO BE THREE. The results-ready moment was the one place it was
+     drawn large — a full-height doorway standing on the floor of the window —
+     and that screen is gone (Aug 2026): it stood between a patient and the
+     results they had signed in to read. The shape survives at the two sizes
+     that were never about a moment, and nothing else may claim the large one.
 
      IT DOES NOT APPEAR on the Overview, on Results, on a report, on a marker
      page, in the sidebar, or anywhere else carrying real data. Nothing with
@@ -957,236 +963,10 @@
      rounded-topped BOX, and in an empty state — where it is inset from the
      card's floor — the bottom rule ran horizontally straight through the
      message it stands behind. A doorway has no bottom: the two sides run down
-     and off, which is exactly what the full-size arch on the results-ready
-     moment does (`border-b-0`, see the note further down). One shape, drawn
-     the same way at both sizes. */
+     and off the edge of whatever they stand on. */
   .arch-outline {
     @apply arch border border-b-0 border-taupe;
     opacity: 0.5;
-  }
-
-  /* ═══ THE RESULTS-READY MOMENT ═══════════════════════════════════════════
-     (see features/patient/ResultsReadyPage.tsx and MomentBackdrop.tsx)
-
-     Two things, and they are one composition: a doorway standing on the floor
-     of the window, and the reader's own Overview out of focus behind it.
-
-     ── THE ARCH REACHES THE BOTTOM OF THE VIEWPORT ─────────────────────────
-
-     It used to float in the middle of the page with air underneath it, which
-     made it a large rounded CARD rather than a doorway — a doorway with a
-     bottom edge is a window, and one hanging in space is a shape. It is
-     anchored to the floor now: the crown in view, the two sides running down
-     and off the bottom of the window, no bottom border and no gap.
-
-     `min-height` and never `height`. The arch has to be able to grow past its
-     nominal size when a long name, a large system font or a 560px window
-     leaves the content taller than the doorway — with a fixed height that
-     content is simply painted outside the shape, and the button somebody has
-     to press is the last thing in it.
-
-     THE CAP IS WHY THERE IS A MIN() AT ALL. Left at `100dvh - gap` a 1400px
-     window draws a 448×1360 shaft, which is a corridor rather than a door and
-     puts the content halfway down a screen of empty surface. 46rem is a little
-     under two viewport-heights' worth of the shortest laptop, and above that
-     the gap at the top simply grows.
-
-     ── THE CROWN IS A SEMICIRCLE AT EVERY SIZE, AND THAT IS MEASURABLE ─────
-
-     `.arch` asks for a 9999px radius on the two top corners and the browser
-     reduces it by ONE scale factor across the whole box: f = min(W/(r+r),
-     H/(r+0)), so the drawn radius is min(W/2, H). Both radii are reduced by
-     the same f, so the corner stays CIRCULAR whatever happens — what fails at
-     a short height is not an ellipse, it is the two quarter-rounds separating
-     and a FLAT TOP appearing between them, which is what a squashed arch
-     actually looks like. It cannot happen here: the drawn radius is W/2 for
-     any box at least half as tall as it is wide, and the shortest arch this
-     rule can produce (a 320px phone in landscape) is 480px tall against a
-     136px half-width. `e2e/results-ready.spec.ts` measures the radius against
-     the width at 900, 800, 700 and on a phone rather than trusting the
-     arithmetic.
-
-     ── AND THE CONTENT SITS BELOW THE SPRING LINE ─────────────────────────
-
-     `padding-top: 50%`, which is the one number on this whole element that is
-     not a guess: the crown is exactly half the width tall, so half the width
-     of padding puts the content box exactly on the spring line at every size,
-     with no breakpoints and nothing to keep in step.
-
-     THE CAVEAT IS THE ONE EVERY PERCENTAGE PADDING CARRIES, and it was got
-     wrong once here already: a percentage padding — vertical ones included —
-     resolves against the CONTAINING BLOCK'S width, never against the element's
-     own. With the width cap on this element the containing block was the
-     page's `main`, so 50% came out as half of 1392px and the button sat 700px
-     below the floor of the window. The cap therefore lives on a wrapper one
-     level up (see ResultsReadyPage.tsx) and this element is `width: 100%` of
-     it, which makes the two numbers the same one.
-
-     `justify-content: center` then centres the content in the straight shaft —
-     the visible room inside the doorway — rather than in the whole box, which
-     at short heights would push a heading up into the curve and set it on a
-     line the shape is narrowing across. */
-  .moment-arch {
-    min-height: min(100vh - 2.5rem, 46rem);
-    min-height: min(100dvh - 2.5rem, 46rem);
-    padding-top: 50%;
-    padding-bottom: 3rem;
-  }
-
-  /* ── THE ARCH'S EDGE DISSOLVES RATHER THAN ENDING ON A LINE (Aug 2026) ───
-     The doorway used to be a hairline border and a hard alpha step: 58% of the
-     glass tone on one side of a pixel and nothing on the other, over a
-     near-black ground. That reads as a shape pasted onto the page rather than
-     one standing in it, and it is worst along the crown, where the cut runs
-     across the darkest part of the background with nothing else near it.
-
-     THE SURFACE IS ITS OWN ELEMENT, and that is what makes this possible at
-     all. A mask applies to an element's whole subtree, so masking the arch
-     would fade the heading and the button with it. The surface is an empty
-     absolutely-positioned sibling of the content instead — same box, same
-     radius, no children — so the fade can be as strong as it likes without
-     touching a word of what is inside it.
-
-     TWO GRADIENTS, INTERSECTED. Down the page, from nothing at the apex to
-     solid by 42% — which is the whole of the falloff and is ENTIRELY INSIDE THE
-     CROWN, because the content box starts at the spring line at 50% (see
-     `padding-top` above). Across, a 26px feather at each side against the 32px
-     of padding the text already sits behind. Neither reaches the content, and
-     that is arithmetic rather than judgement.
-
-     `backdrop-filter` still works on it because nothing here creates a stacking
-     context above it: an ancestor with `isolation`, `opacity` or a `filter`
-     would become the backdrop root and the glass would have nothing left to
-     sample but itself. The one thing not to do to this element is isolate it.
-
-     The border goes with the fade — a hairline that survived the mask would be
-     the hard cut, drawn in one more place. And no shadow: a drop shadow around
-     a shape whose edge is dissolving is an edge asserted twice, and the outer
-     one is the crisp one. */
-  .moment-arch-surface {
-    position: absolute;
-    inset: 0;
-    border: 1px solid rgb(var(--c-taupe) / 0.7);
-    border-bottom: 0;
-    background-color: rgb(var(--c-glass) / var(--glass-wash));
-    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-    -webkit-mask-image:
-      linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.25) 14%, rgba(0, 0, 0, 0.72) 28%, #000 42%),
-      linear-gradient(to right, transparent 0, #000 26px, #000 calc(100% - 26px), transparent 100%);
-    mask-image:
-      linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.25) 14%, rgba(0, 0, 0, 0.72) 28%, #000 42%),
-      linear-gradient(to right, transparent 0, #000 26px, #000 calc(100% - 26px), transparent 100%);
-    -webkit-mask-composite: source-in;
-    mask-composite: intersect;
-  }
-
-  /* A browser with no mask support gets the shape it had before rather than a
-     slab: the fade is the improvement, the hairline was never wrong. */
-  @supports not ((mask-composite: intersect) or (-webkit-mask-composite: source-in)) {
-    .moment-arch-surface {
-      -webkit-mask-image: none;
-      mask-image: none;
-    }
-  }
-
-  /* ── THE GROUND: THE OVERVIEW, BLURRED ──────────────────────────────────
-     `z-index: -2` so it sits UNDER the corner glow at -1 — see the note in
-     MomentBackdrop.tsx, which is also why it is portalled onto <body> rather
-     than rendered where it is used. */
-  .moment-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: -2;
-    overflow: hidden;
-    pointer-events: none;
-  }
-
-  /* The blur, and the page colour under it. Both belong on this one element:
-     a filter samples past its own edges, so without a real colour behind it
-     the field fades out in a band the width of the blur all the way round the
-     window. `overflow: hidden` keeps the filter's region at the size of the
-     viewport rather than the size of the Overview, which is several thousand
-     pixels tall and would otherwise be rasterised in full to show one screen
-     of it. */
-  .moment-backdrop__plate {
-    position: absolute;
-    inset: 0;
-    overflow: hidden;
-    background-color: rgb(var(--c-cream));
-    filter: blur(var(--moment-blur));
-  }
-
-  /* The patient shell's own arrangement — a column of room for the sidebar,
-     then the content — so the shapes land where this reader's results land. */
-  .moment-backdrop__shell {
-    display: flex;
-    min-height: 100%;
-  }
-
-  .moment-backdrop__veil {
-    position: absolute;
-    inset: 0;
-    background-image:
-      linear-gradient(rgb(var(--c-shadow) / var(--moment-shade)), rgb(var(--c-shadow) / var(--moment-shade))),
-      linear-gradient(rgb(var(--c-cream) / var(--moment-wash)), rgb(var(--c-cream) / var(--moment-wash)));
-  }
-
-  /* NOTHING IN HERE MOVES, EVER. A blurred layer is re-rasterised in full
-     every time anything inside it changes, and the Overview's own arrival is
-     about a second of continuous change landing at exactly the moment the
-     reader is looking at the arch. `!important` because these are the same
-     declarations the components set on themselves and this has to win from a
-     class on an ancestor; the two JavaScript-driven ones (Reveal's observer,
-     AnimatedNumber's frame loop) cannot be reached from CSS at all and are
-     handled by the still context — see components/motion/still.ts.
-
-     `.reveal` and `.stagger-in > *` are pinned at their FINISHED state and not
-     merely un-animated: both start at `opacity: 0`, so turning the animation
-     off without saying where it ended leaves a blank layer. That is the exact
-     failure the print stylesheet had, recorded twice already in this file. */
-  .moment-backdrop *,
-  .moment-backdrop *::before,
-  .moment-backdrop *::after {
-    animation: none !important;
-    transition: none !important;
-  }
-
-  .moment-backdrop .reveal,
-  .moment-backdrop .stagger-in > * {
-    opacity: 1 !important;
-    transform: none !important;
-  }
-
-  /* The one exception to the rule above, and it is the layer arriving rather
-     than anything inside it: the ground fades up once, after a delay long
-     enough for the Overview's own fetch to have landed. Declared after the
-     blanket rule and with its own `!important` to beat it.
-
-     Nothing under `prefers-reduced-motion`, where the ground is simply there —
-     which is the same thing this screen has always done for the drift on the
-     dot. */
-  @media (prefers-reduced-motion: no-preference) {
-    .moment-backdrop .moment-backdrop__page {
-      animation: moment-ground-in 900ms ease-out 320ms both !important;
-    }
-  }
-
-  @keyframes moment-ground-in {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-
-  /* Nobody prints this screen, and a 24px Gaussian of somebody's results is
-     not a thing to send to a printer if they try. */
-  @media print {
-    .moment-backdrop {
-      display: none !important;
-    }
   }
 
   /* A TEXTUAL result — "Not detected", "Sinus rhythm" — in the same slot.

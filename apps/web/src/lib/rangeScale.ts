@@ -1,4 +1,4 @@
-import { severityThresholdFor } from '@aspire-bloods/shared';
+import { isOpenUpperBound, severityThresholdFor } from '@aspire-bloods/shared';
 
 /**
  * =============================================================================
@@ -92,7 +92,8 @@ export type RangeBarUndrawable =
   | 'no-reference-range'
   | 'range-has-no-width'
   | 'value-not-numeric'
-  | 'reference-range-too-small';
+  | 'reference-range-too-small'
+  | 'reference-range-open-ended';
 
 /**
  * What is said INSTEAD of drawing, per reason.
@@ -119,6 +120,34 @@ export const RANGE_BAR_UNAVAILABLE: Record<RangeBarUndrawable, { long: string; s
   'reference-range-too-small': {
     long: 'This result is too far outside the reference range to draw on a scale that shows both.',
     short: 'Too far outside the range to draw to scale',
+  },
+  /**
+   * ── A RANGE WITH NO TOP CANNOT BE DRAWN AS A BAR, AND WAS BEING (Aug 2026) ──
+   *
+   * Four markers have no clinical upper bound — eGFR, HDL, the Omega-3 Index,
+   * progesterone — and the catalogue writes `OPEN_UPPER_BOUND` (999) for the
+   * ceiling because a reference range in this schema is two numbers.
+   *
+   * Rule 2 above then does exactly what it says: the scale is built to contain
+   * the reference range, so a 60–999 range produces a scale of roughly 0 to
+   * 2000. MEASURED, on a perfectly healthy eGFR of 97: the mark lands at 5% of
+   * the bar, hard against the left-hand end of a green band running to 999. A
+   * patient reads that as "only just inside my range". It is an excellent
+   * result.
+   *
+   * That is the same failure this whole module was written to end — a correct
+   * picture with a false axis — surviving in the one input nobody had put
+   * through it, because 999 is a perfectly ordinary number to the arithmetic.
+   *
+   * NOTHING IS DRAWN, which is rule 4, and the sentence says the true thing
+   * instead. NOT "fixed" by drawing an open-ended bar from the lower bound
+   * rightwards: that is the right rendering and it is a design change — a band
+   * with no right-hand edge, no upper hairline and no upper label, across two
+   * components — rather than a scale correction, and it is on the list.
+   */
+  'reference-range-open-ended': {
+    long: 'This marker has no upper limit — any result at or above the lower bound is within range — so there is no scale with two ends to draw it on.',
+    short: 'No upper limit to draw a scale against',
   },
 };
 
@@ -267,6 +296,11 @@ export function rangeBarScale({ low, high, value, severityThreshold = null }: Ra
   // before it reaches a bar. Refused here too rather than divided by, because
   // the caller has to say which of the two things happened.
   if (!(highN > lowN)) return undrawable('range-has-no-width');
+  // An open-topped range, which the catalogue writes as OPEN_UPPER_BOUND. Its
+  // own reason and its own sentence — see RANGE_BAR_UNAVAILABLE, which has the
+  // measurement. Checked BEFORE the value, so an open-topped marker gives the
+  // same answer whether or not the result parsed.
+  if (isOpenUpperBound(highN)) return undrawable('reference-range-open-ended');
   if (valueN === null) return undrawable('value-not-numeric');
 
   const width = highN - lowN;

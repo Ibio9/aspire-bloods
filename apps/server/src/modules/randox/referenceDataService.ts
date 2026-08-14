@@ -3,7 +3,22 @@ import { prisma } from '../../db/client.js';
 import { env } from '../../config/env.js';
 import { recordAuditLog } from '../../lib/auditLog.js';
 import { nexusLabClient } from './clients/index.js';
-import { isRandoxEnabled } from './config.js';
+import { isRandoxEnabled, randoxClinicId, randoxClinicIdSource, setDiscoveredClinicId } from './config.js';
+
+/**
+ * A Randox id as the integer the clinic-id fields want.
+ *
+ * Every scalar this API produces is treated as a string and coerced at the
+ * boundary (see the note in endpoints.ts) — GetMyClinicDetails returns `id` as
+ * a string in some examples and a number in others, and `Number('146')` and
+ * `Number(146)` are the same 146. Anything that is not a whole number is
+ * refused rather than rounded: a clinic id is an identity, not a measurement.
+ */
+function asClinicIdNumber(value: string | number | null | undefined): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) ? parsed : null;
+}
 
 /**
  * Randox's own reference data, fetched and cached rather than hardcoded.
@@ -138,10 +153,23 @@ export async function refreshReferenceData(actorUserId: string | null): Promise<
   );
   await run('GetMyClinicDetails', async () => {
     const clinic = await client.getMyClinicDetails();
-    // The clinic itself and each of its test locations are both orderable
-    // targets — TestClinicLocationId can be either, depending on how many
-    // sites the clinic has.
-    const locations = [clinic, ...clinic.clinicTestLocations].map((l) => ({
+    /**
+     * THIS IS WHERE THE CLINIC ID COMES FROM. The flow diagram says so three
+     * times over — once for each of GetOrderStatus, GetOrderResultReports and
+     * GetOrderResultDetail — in the same sentence each time: "Clinic Id must be
+     * your current Clinic Id (/Clinic/GetMyClinicDetails)".
+     *
+     * Recorded in memory for this process AND flagged in the stored payload, so
+     * a restart that skips the sync (it is skipped inside the TTL) can read it
+     * back. `isClinic` is what tells the clinic apart from its own test
+     * locations, which are the same shape and sit in the same kind — without it
+     * a reload would have to pick one, and picking is guessing.
+     */
+    setDiscoveredClinicId(asClinicIdNumber(clinic.id));
+    const locations = [
+      { ...clinic, isClinic: true },
+      ...clinic.clinicTestLocations.map((l) => ({ ...l, isClinic: false })),
+    ].map((l) => ({
       randoxId: l.id,
       name: l.name,
       code: l.code,
@@ -221,6 +249,18 @@ export async function assertReferenceDataUsable(): Promise<void> {
     const count = await prisma.randoxCatalogueEntry.count({ where: { kind, isCurrent: true } });
     if (count === 0) empty.push(`  - ${endpoint} returned nothing (${kind}). ${why}.`);
   }
+  // The clinic id itself, and not merely "the endpoint returned rows". This is
+  // where the check for it lives now that it is fetched rather than configured
+  // (see randoxClinicId): a CLINIC_LOCATION row whose payload never said which
+  // of them was the clinic leaves three endpoints unable to name a clinic, and
+  // the symptom of that is a 4xx per order rather than anything at boot.
+  if (randoxClinicId() === null) {
+    empty.push(
+      '  - GetMyClinicDetails did not yield a clinic id. GetOrderStatus, GetOrderResultReports and ' +
+        'GetOrderResultDetail each require one ("Clinic Id must be your current Clinic Id"). ' +
+        'Set RANDOX_CLINIC_ID to override while it is investigated.',
+    );
+  }
   if (empty.length > 0) {
     throw new Error(
       `Randox reference data is unusable: ${empty.length} lookup(s) the order path depends on are empty.\n` +
@@ -248,8 +288,15 @@ export async function assertReferenceDataUsable(): Promise<void> {
 export async function syncReferenceDataOnBoot(): Promise<void> {
   if (!isRandoxEnabled()) return;
   try {
+    // BEFORE the TTL check, always. The clinic id lives in this process's
+    // memory, so a restart that skips the sync would otherwise come up not
+    // knowing it — which is exactly the case the TTL makes common rather than
+    // rare, since most restarts are inside it.
+    await loadDiscoveredClinicId();
     if (!(await isReferenceDataStale())) {
-      console.log('[randox] reference data is inside its TTL; skipping the boot sync.');
+      console.log(
+        `[randox] reference data is inside its TTL; skipping the boot sync. Clinic id ${randoxClinicId() ?? 'unknown'} (${randoxClinicIdSource()}).`,
+      );
       return;
     }
     const summaries = await refreshReferenceData(null);
@@ -265,6 +312,28 @@ export async function syncReferenceDataOnBoot(): Promise<void> {
         'ids an order carries come from these endpoints. Retry from the admin console (Randox → refresh reference data).',
     );
   }
+}
+
+/**
+ * Read the clinic id back out of the catalogue, for a process that has not
+ * synced this boot.
+ *
+ * The `isClinic` flag on the payload is what separates the clinic from its own
+ * test locations, which share the kind and the shape. Absent — an entry written
+ * before that flag existed — nothing is inferred and the id stays unknown:
+ * "there is one row so it must be the clinic" is true of a single-site clinic
+ * and silently wrong of every other, and a wrong clinic id on
+ * GetOrderResultDetail is a request for somebody else's order.
+ */
+export async function loadDiscoveredClinicId(): Promise<number | null> {
+  const rows = await prisma.randoxCatalogueEntry.findMany({ where: { kind: 'CLINIC_LOCATION', isCurrent: true } });
+  const clinic = rows.find((r) => {
+    const payload = r.payload as { isClinic?: unknown } | null;
+    return payload !== null && typeof payload === 'object' && payload.isClinic === true;
+  });
+  const id = clinic ? asClinicIdNumber(clinic.randoxId) : null;
+  setDiscoveredClinicId(id);
+  return id;
 }
 
 /** True when the cache has never been populated or has gone stale. */

@@ -154,16 +154,72 @@ export async function onOrderStatusChanged(inputOrderNumber: string): Promise<Or
     };
   }
 
-  // Status 5. Either we cancelled it, or every result was voided. Stop
-  // polling either way — nothing further will arrive.
+  /**
+   * ── STATUS 5, AND THE TWO WAYS AN ORDER GETS THERE ────────────────────────
+   *
+   * Randox document both, in one sentence each (Corporate Customer API Flow,
+   * 1-Nov-24):
+   *
+   *   · WE CANCELLED IT — "there is a window of opportunity … for the test
+   *     order to be cancelled. The original test order will be retained within
+   *     the portal but moved to a cancelled status."
+   *   · EVERY RESULT WAS VOIDED — "In the event that all results have been
+   *     voided then the status will automatically move to status 5
+   *     (cancelled)." (page 3, immediately after the note that results can
+   *     carry void and caveat codes.)
+   *
+   * They arrive as the same number and they are not the same event. The second
+   * one is a DELIVERY: the laboratory ran the samples, could not report any of
+   * them, and every void code saying why is sitting on GetOrderResultDetail. It
+   * used to be handled as "cancelled, stop polling", which threw all of that
+   * away — a patient's order ended as a bare CANCELLED row with no exclusions
+   * recorded, no ingestion log entry, and nothing anywhere saying a test had
+   * been run at all. A clinician looking for why would have found nothing to
+   * look at.
+   *
+   * `order.cancelledAt` is what separates them, because it is written by our
+   * own cancel path and by nothing else. An unexplained status 5 is ingested
+   * ONCE so the void codes are on the record, and only then closed off; an
+   * unrecognised void code still holds the report (UNRECOGNISED_CODE, see
+   * cleanParse.ts), which is the right outcome for a result nobody has been
+   * able to explain.
+   *
+   * The ingest is best-effort. A status 5 stops polling either way — nothing
+   * further will arrive — so a failure here must not leave the order in the
+   * rotation forever, and it is recorded rather than thrown.
+   */
   if (statusName === 'CANCELLED') {
+    const cancelledByUs = order.cancelledAt !== null;
+    let ingestMessage: string | null = null;
+    if (!cancelledByUs) {
+      try {
+        const voided = await ingestOrderResults(orderRefOf({ ...order, orderNumber }));
+        ingestMessage = voided.message;
+      } catch (e) {
+        ingestMessage = `The void codes could not be read: ${e instanceof Error ? e.message : 'unknown error'}`;
+        await prisma.ingestionLogEntry.create({
+          data: {
+            sourceKey: 'randox_api',
+            externalId: orderNumber,
+            outcome: 'FAILED',
+            message:
+              `Order ${orderNumber} moved to status 5 without being cancelled here, which Randox document as every ` +
+              `result having been voided — but the result detail could not be read, so no void codes were recorded. ${ingestMessage}`,
+          },
+        });
+      }
+    }
+
     await prisma.randoxOrder.update({
       where: { id: order.id },
       data: {
         status: 'CANCELLED',
         rawStatusCode: status.statusId,
         cancelledAt: order.cancelledAt ?? now,
-        cancelReason: order.cancelReason ?? (status.statusDescription ?? 'Cancelled by the laboratory.'),
+        cancelReason:
+          order.cancelReason ??
+          status.statusDescription ??
+          (cancelledByUs ? 'Cancelled.' : 'Every result on this order was voided by the laboratory.'),
         lastPolledAt: now,
         pollAttempts: { increment: 1 },
         consecutiveFailures: 0,
@@ -171,7 +227,14 @@ export async function onOrderStatusChanged(inputOrderNumber: string): Promise<Or
         nextPollAt: null,
       },
     });
-    return { orderNumber, statusCode: status.statusId, ingested: false, message: 'Order cancelled. Polling stopped.' };
+    return {
+      orderNumber,
+      statusCode: status.statusId,
+      ingested: false,
+      message: cancelledByUs
+        ? 'Order cancelled. Polling stopped.'
+        : `Every result was voided by the laboratory. Polling stopped. ${ingestMessage ?? ''}`.trim(),
+    };
   }
 
   if (statusName !== 'COMPLETE') {

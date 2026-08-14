@@ -239,15 +239,54 @@ export function isCollectionMethodEnabled(method: string): method is CollectionM
 }
 
 /**
- * Our clinic id, as the integer Randox use on the wire
- * (GetMyClinicDetails returns `id: 146`). Returns null when unset, so
- * callers refuse rather than sending 0 — clinic 0 is not our clinic.
+ * ---------------------------------------------------------------------------
+ * THE CLINIC ID IS FETCHED, NOT CONFIGURED (Aug 2026).
+ * ---------------------------------------------------------------------------
+ *
+ * Three endpoints require it — GetOrderStatus, GetOrderResultReports and
+ * GetOrderResultDetail — and every one of them is documented the same way, in
+ * the same four words: "Clinic Id must be your current Clinic Id
+ * (/Clinic/GetMyClinicDetails)". The API Overview flow diagram says it three
+ * times, once per endpoint.
+ *
+ * It was an environment variable, and the diagram is the argument against that.
+ * `/Clinic/GetMyClinicDetails` is not a hint about where a human might look the
+ * number up; it is the authority for what the number IS, on the credentials
+ * this deployment is actually holding. A typed-in id is a second source for a
+ * fact with one source, and the two can disagree in a way nothing detects: a
+ * wrong clinic id on GetOrderResultDetail is a request for somebody else's
+ * order, and the failure is a 4xx at best and a silence at worst.
+ *
+ * So it is LEARNED — the reference-data sync records it, and it survives a
+ * restart because it is read back out of the catalogue rather than held only in
+ * memory (the boot sync is skipped inside its TTL, so a process that learned
+ * nothing this boot must still know it). `RANDOX_CLINIC_ID` survives as an
+ * OVERRIDE and nothing else: it exists so a support session can pin the value
+ * without a redeploy, and it is not part of the ordinary configuration.
+ *
+ * Returns null when neither is known, so callers refuse rather than sending 0 —
+ * clinic 0 is not our clinic.
  */
+let discoveredClinicId: number | null = null;
+
+/** Recorded from GetMyClinicDetails (live) or read back from the catalogue (restart). */
+export function setDiscoveredClinicId(id: number | null): void {
+  discoveredClinicId = Number.isInteger(id) ? id : null;
+}
+
 export function randoxClinicId(): number | null {
   const raw = env.RANDOX_CLINIC_ID.trim();
-  if (raw === '') return null;
-  const parsed = Number(raw);
-  return Number.isInteger(parsed) ? parsed : null;
+  if (raw !== '') {
+    const parsed = Number(raw);
+    if (Number.isInteger(parsed)) return parsed;
+  }
+  return discoveredClinicId;
+}
+
+/** Which of the two answered, for the admin summary and for boot logging. */
+export function randoxClinicIdSource(): 'override' | 'GetMyClinicDetails' | 'unknown' {
+  if (env.RANDOX_CLINIC_ID.trim() !== '' && Number.isInteger(Number(env.RANDOX_CLINIC_ID.trim()))) return 'override';
+  return discoveredClinicId === null ? 'unknown' : 'GetMyClinicDetails';
 }
 
 /**
@@ -255,6 +294,13 @@ export function randoxClinicId(): number | null {
  * the same value as the clinic id; a clinic with several has a distinct id
  * per test location (see GetMyClinicDetails clinicTestLocations), so it is
  * separately configurable and falls back to the clinic id.
+ *
+ * THIS ONE STAYS A SETTING, and the asymmetry with the clinic id above is the
+ * point: GetMyClinicDetails answers "which clinic are you" with exactly one
+ * value, and answers "which of your sites should this order be drawn at" with a
+ * LIST. A list is a question, not an answer, and choosing from it is a decision
+ * about this deployment. Left unset it takes the clinic id, which is correct
+ * for a single-site clinic and is the only case where the list has one entry.
  */
 export function randoxTestClinicLocationId(): number | null {
   const raw = env.RANDOX_TEST_CLINIC_LOCATION_ID.trim();
@@ -351,8 +397,15 @@ export function assertRandoxConfigured(): void {
   const nexus = nexusConnection();
   const booking = bookingConnection();
 
+  // RANDOX_CLINIC_ID IS NOT IN THIS LIST ANY MORE (Aug 2026). It is fetched
+  // from GET /Clinic/GetMyClinicDetails on the boot sync and read back out of
+  // the catalogue on a restart — see randoxClinicId(). Requiring it here would
+  // have made a deployment refuse to start over a value it is about to be told,
+  // by the only party entitled to state it. What guards the real failure — the
+  // sync never having succeeded, so nothing knows the id — is
+  // assertReferenceDataUsable(), on the order path, where an unknown clinic id
+  // is a refusal to place an order rather than a refusal to run the portal.
   const required: RequiredVar[] = [
-    { name: 'RANDOX_CLINIC_ID', value: env.RANDOX_CLINIC_ID, why: 'CancelOrder and both result endpoints take clinicId; it comes from GET /Clinic/GetMyClinicDetails' },
     { name: 'RANDOX_DEFAULT_TEST_REASON_ID', value: env.RANDOX_DEFAULT_TEST_REASON_ID, why: 'CreatePendingOrder requires a non-empty TestReasons array; ids come from GET /TestReason/GetTestingReasons' },
     { name: 'RANDOX_DEFAULT_CANCELLATION_REASON_ID', value: env.RANDOX_DEFAULT_CANCELLATION_REASON_ID, why: 'CancelOrder takes a CancellationReasonId, not free text; ids come from GET /CancellationReason/GetCancellationReasons' },
     { name: 'RANDOX_NEXUS_BASE_URL', value: nexus.baseUrl, why: 'Nexus Lab API root' },
@@ -431,6 +484,7 @@ export function randoxConfigSummary() {
     enabled: isRandoxEnabled(),
     transport: randoxTransport(),
     clinicId: randoxClinicId(),
+    clinicIdSource: randoxClinicIdSource(),
     testClinicLocationId: randoxTestClinicLocationId(),
     clinicIdConfigured: randoxClinicId() !== null,
     testReasonConfigured: defaultTestReason() !== null,

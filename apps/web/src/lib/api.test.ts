@@ -140,7 +140,7 @@ describe('apiFetch and the access token', () => {
       return seen.length === 1 ? unauthorised() : okJson({ ok: true });
     });
 
-    await apiFetch('/patient/results-ready/seen', { method: 'POST' });
+    await apiFetch('/patient/walkthrough-seen', { method: 'POST' });
     expect(seen).toEqual(['first', 'second']);
   });
 });

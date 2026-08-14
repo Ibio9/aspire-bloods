@@ -175,7 +175,7 @@ function okChroma(hex: string): number {
  * contrast test can assert the share was actually taken rather than trusting a
  * comment.
  */
-export const BAND_CHROMA_SHARE = 0.6;
+export const BAND_CHROMA_SHARE = 0.85;
 
 export function bandChromaCeiling(hue: 'green' | 'yellow' | 'red'): number {
   return okChroma(statusHue[hue]);
@@ -527,17 +527,20 @@ const TINT_MIX = {
  * the out-of-range band was lifted off the ladder to 4.45; that band is back on
  * the ladder and no direction-per-hue is needed by anything.
  */
-const MARK_FILL: Record<'light' | 'dark', Record<'green' | 'yellow' | 'red', BandFill>> = {
-  light: {
-    green: { saturation: 0.85, lightness: 0.202 }, // #2e5f08, okC 0.1239
-    yellow: { saturation: 0.995, lightness: 0.274 }, // #8b6800, okC 0.1104
-    red: { saturation: 0.635, lightness: 0.426 }, // #b23a28, okC 0.1590
-  },
-  dark: {
-    green: { saturation: 0.37, lightness: 0.442 }, // #6d9a47, okC 0.1237
-    yellow: { saturation: 0.8, lightness: 0.434 }, // #c79a16, okC 0.1404
-    red: { saturation: 0.99, lightness: 0.706 }, // #fe7f6a, okC 0.1590
-  },
+const MARK_FILL: Record<'green' | 'yellow' | 'red', BandFill> = {
+  // ONE RECORD, for the same reason BAND_FILL is: the line is drawn on the one
+  // light plot in both themes, so it is the same three colours in both.
+  //
+  // DARKER, NOT BRIGHTER — that is the whole difference a light ground makes.
+  // Every previous solve had to LIFT the line off a near-black plot, which runs
+  // it into a ceiling: past a certain lightness there is no chroma left and the
+  // line turns into a white one (#ffebdf is in this file's history). Downward
+  // there is no such wall. Solved for the smallest lightness clearing 3.2:1 on
+  // every band including the optimal narrowing, at the hue's full palette
+  // chroma ceiling.
+  green: { saturation: 0.99, lightness: 0.17 }, // #265600, 3.22:1 worst on a band, 7.24:1 off the plot, okC 0.1202
+  yellow: { saturation: 0.99, lightness: 0.1895 }, // #604800, 3.20:1 / 7.21:1, okC 0.0851
+  red: { saturation: 0.895, lightness: 0.307 }, // #941a08, 3.22:1 / 7.25:1, okC 0.1592
 };
 
 
@@ -761,33 +764,22 @@ interface BandFill {
  * tokenContrast.test.ts holds each fill at its allotted share and holds every
  * band strictly less chromatic than the line of the same hue.
  */
-const BAND_FILL: Record<'light' | 'dark', Record<'green' | 'yellow' | 'red' | 'optimal', BandFill>> = {
-  // The hue angle is the brand hue's own and is never touched. Both other
-  // coordinates are solved: the lightness by the ladder, the saturation by the
-  // palette's own ceiling on that hue. See the note above for the measurement.
-  light: {
-    green: { saturation: 0.495, lightness: 0.8025 }, // #cae6b4, okC 0.0733
-    yellow: { saturation: 0.63, lightness: 0.737 }, // #e6d192, okC 0.0838
-    red: { saturation: 0.995, lightness: 0.8285 }, // #ffb3a8, okC 0.0910
-    // The optimal narrowing: the same green, one small step deeper. 1.11:1 off
-    // the in-range band — a visible shading-in, and nothing like the step a
-    // boundary makes.
-    optimal: { saturation: 0.41, lightness: 0.763 }, // #c0dbaa
-  },
-  dark: {
-    green: { saturation: 0.63, lightness: 0.1335 }, // #1f370d, okC 0.0723
-    // ── AND THE OUT-OF-RANGE BAND IS BACK ON THE LADDER ──────────────────
-    // It was `{ 1, 0.34 }` — #ad8100 — lifted right off the ladder to okL
-    // 0.629 because at its own rung a dark yellow is a brown, and the band
-    // was the only thing saying "out of range" in dark. It is not any more:
-    // the LINE says it, in a gold solved to clear every band. So the band can
-    // be what it should have been all along — the quietest thing that still
-    // shows where the region is — and `BAND_RUNG`, which existed to hold this
-    // one exception, is equal to `BAND_CONTRAST` again in both themes.
-    yellow: { saturation: 0.995, lightness: 0.141 }, // #483600, okC 0.0700
-    red: { saturation: 0.515, lightness: 0.283 }, // #6d2d23, okC 0.0940
-    optimal: { saturation: 0.52, lightness: 0.161 }, // #263e14
-  },
+const BAND_FILL: Record<'green' | 'yellow' | 'red' | 'optimal', BandFill> = {
+  // ONE RECORD, NOT TWO. The plot is the same warm off-white in both themes
+  // (PLOT_SURFACE), and both instruments — the chart and the range bars — draw
+  // their bands on it, so there is one ground and therefore one answer. The
+  // "geometric mean of the card and the plot" that used to be needed here is
+  // gone with the second surface it was averaging over.
+  //
+  // The hue angle is the brand hue's own and is never touched. The lightness is
+  // solved to the rung (BAND_CONTRAST) against PLOT_SURFACE; the saturation to
+  // BAND_CHROMA_SHARE of the palette's own ceiling for that hue.
+  green: { saturation: 0.415, lightness: 0.663 }, // #a5cd85, 1.50:1, okC 0.1058
+  yellow: { saturation: 0.55, lightness: 0.548 }, // #cbab4c, 1.84:1, okC 0.1194
+  red: { saturation: 0.75, lightness: 0.678 }, // #ea7f6f, 2.25:1, okC 0.1348
+  // The optimal narrowing: the same green, one small step deeper. 1.15:1 off
+  // the in-range band — a visible shading-in, nothing like a boundary.
+  optimal: { saturation: 0.355, lightness: 0.616 }, // #99c07a, 1.72:1
 };
 
 /**
@@ -943,10 +935,7 @@ interface LineLift {
  * enough to the status orange at 30° to read as one crossing the plot. The
  * lightness does the work; the hue stays where the palette put it.
  */
-const LINE_LIFT: Record<'light' | 'dark', LineLift> = {
-  light: { lightness: 0.425, saturation: 'own' }, // #916248
-  dark: { lightness: 0.545, saturation: 'own' }, // #b28064
-};
+const LINE_LIFT: LineLift = { lightness: 0.31, saturation: 'own' }; // #694835, 3.01:1 worst on a band, 6.77:1 off the plot
 
 // ---------------------------------------------------------------------------
 // Dark mode.
@@ -1085,6 +1074,78 @@ function darkStatusHex(hue: StatusHue): string {
 }
 
 /** Every colour token, per theme, as a flat map of CSS custom property → hex. */
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  THE PLOT IS LIGHT IN BOTH THEMES (Aug 2026).
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * The card and the page stay dark in dark mode. Only the plot — the chart's
+ * own panel, and the track a range bar is drawn on — is a warm off-white,
+ * always, and it is the SAME off-white in both themes.
+ *
+ * ── WHY THE GROUND MOVED INSTEAD OF THE COLOURS ────────────────────────────
+ *
+ * The band colours have been re-solved four times in this file's history and
+ * every solve hit the same wall from a different side. The wall is one
+ * sentence: **a dark ladder fixes each band's luminance low, and a yellow at a
+ * low luminance is a brown in any colour space.** It is not a matter of picking
+ * a better gold. The measurements are all still above — dark's out-of-range
+ * band came out #604b0b, was lifted right off the ladder to #ad8100 to rescue
+ * it, and that exception then inverted the ladder (yellow louder than red),
+ * forced the point mark to step toward the ground instead of the text, and
+ * drove the comparison line to #ffebdf, a white line with a rumour of warmth.
+ * Every one of those was a consequence of the plot being near-black.
+ *
+ * So the ground changed. On a pale ground a band is DARKER than what it sits
+ * on, which puts all three hues in the part of the gamut where they hold their
+ * colour, and it puts the LINE in the part where it holds both colour and
+ * contrast — dark rather than bright, with no ceiling above it.
+ *
+ * ── WHAT IT BOUGHT, MEASURED ───────────────────────────────────────────────
+ *
+ *   band chroma   light 0.073 0.084 0.091 → 0.106 0.119 0.135   (+45/+42/+48%)
+ *                 dark  0.072 0.070 0.094 → the same three      (+47/+70/+43%)
+ *   the ordering  line off plot ÷ loudest band off plot
+ *                 light 2.13× · dark 1.83×  →  3.22× in both
+ *
+ * The ordering number is the one that matters: the line is the content and the
+ * bands are the context, and that lead has never been this wide. It is bought
+ * by the line being able to go dark — 7.2:1 off the plot, where the old lifted
+ * line managed 3.05 against a band standing 4.74.
+ *
+ * ── AND FOUR RECORDS COLLAPSED TO ONE EACH ─────────────────────────────────
+ *
+ * BAND_FILL, MARK_FILL, LINE_LIFT and the boundary hairline were all
+ * per-theme, and they were per-theme because the surface was. One ground, one
+ * answer. The "geometric mean of the card and the plot" that BAND_FILL used to
+ * be solved against is gone with it: both instruments draw on this.
+ *
+ * ── IT IS NOT A HOLE IN THE PAGE ───────────────────────────────────────────
+ *
+ * A bright rectangle on a near-black card is exactly what this must not be,
+ * and three things stop it — see `chart.plotFrame`, `chart.plotInset` and the
+ * `.chart-plot` rules in globals.css: a warm hairline frame, a soft inner
+ * shadow along the top and left inside edges, and the card's own padding
+ * holding it off the card's border. An inset panel, not a cut-out.
+ *
+ * THE VALUE ITSELF IS UNCHANGED FROM LIGHT MODE'S OLD PLOT, deliberately: the
+ * light theme's chart ground does not move at all, so this change is "dark
+ * mode's plot becomes light mode's plot" and nothing else.
+ */
+const PLOT_SURFACE = mix(brand.cream, brand.white, 0.35); // #edeae2
+
+/**
+ * INK ON THE PLOT, and it is STATIC like `night` and `oncolor` are.
+ *
+ * The plot is light in both themes, so everything drawn on it in text —
+ * the axis ticks, the reference-bound labels, the unit, the number beside the
+ * most recent point — is dark in both themes. Reaching for `--c-espresso`
+ * here would be the bug: espresso resolves to a near-white cream in dark, and
+ * a cream tick label on a #edeae2 plot measures 1.09:1.
+ */
+const PLOT_INK = brand.espresso; // 9.04:1 on the plot
+const PLOT_INK_MUTED = mix(brand.espresso, PLOT_SURFACE, 0.25); // #6d6861, 4.59:1 — AA for a tick label
+
 function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
   const dark = mode === 'dark';
   const s = dark ? darkScales : scales;
@@ -1294,7 +1355,7 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * boundary blend makes, made where the blend is actually drawn.
    */
   const bandFill = (hue: 'green' | 'yellow' | 'red' | 'optimal'): string => {
-    const { saturation, lightness } = BAND_FILL[mode][hue];
+    const { saturation, lightness } = BAND_FILL[hue];
     return reLightness(hue === 'optimal' ? statusHue.green : statusHue[hue], lightness, saturation);
   };
   const FILL: Record<StatusHue, string> = {
@@ -1311,9 +1372,14 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * exact RGB midpoints of their neighbours, because a hinge is where the line
    * crosses a boundary and has to be half of each.
    */
+  // `statusHue` and NOT `themedHue`. The dark lift exists to keep a hue visible
+  // against a near-black surface; the line is drawn on PLOT_SURFACE in both
+  // themes, so lifting it in dark would be solving for a ground that is not
+  // there and would put the two themes' trend lines at different colours on
+  // identical plots.
   const markFill = (hue: 'green' | 'yellow' | 'red'): string => {
-    const { saturation, lightness } = MARK_FILL[mode][hue];
-    return reLightness(themedHue(hue), lightness, saturation);
+    const { saturation, lightness } = MARK_FILL[hue];
+    return reLightness(statusHue[hue], lightness, saturation);
   };
   const MARK: Record<StatusHue, string> = {
     green: markFill('green'),
@@ -1394,8 +1460,8 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
   // bronze line would read as a status colour crossing the plot.
   out['--c-chart-line'] = reLightness(
     brand.bronze,
-    LINE_LIFT[mode].lightness,
-    LINE_LIFT[mode].saturation === 'own' ? ownSaturation(brand.bronze) : LINE_LIFT[mode].saturation,
+    LINE_LIFT.lightness,
+    LINE_LIFT.saturation === 'own' ? ownSaturation(brand.bronze) : LINE_LIFT.saturation,
   );
   out['--c-chart-point'] = out['--c-chart-line'];
   /**
@@ -1410,7 +1476,10 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * the sort of small that reads as a rendering artefact rather than as a
    * choice.
    */
-  out['--c-chart-point-ring'] = s.cream[50];
+  // The ring that makes the line appear to pass BEHIND a point rather than to
+  // stop at it. It only works if the ring is the colour the plot would be with
+  // nothing drawn there — which is now one colour in both themes.
+  out['--c-chart-point-ring'] = PLOT_SURFACE;
   /**
    * The hairline that bounds a band — AND IT WENT DARKER IN LIGHT (Aug 2026).
    *
@@ -1433,9 +1502,21 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
   // 0.775 is the value that keeps the drawn hairline inside 1.6-3.5:1 on every
   // band; there is no such value once the yellow band goes past okL 0.63, which
   // is what fixes the yellow where it is. See BAND_FILL.
-  out['--c-chart-reference-edge'] = dark
-    ? reLightness(brand.taupe, 0.774, ownSaturation(brand.taupe))
-    : scales.taupe[900];
+  // ONE NEUTRAL, ONE THEME'S WORTH OF SOLVE. It is drawn on the bands and the
+  // bands are the same in both themes now, so there is nothing left for a
+  // per-theme value to answer.
+  //
+  // SOLVED AT ITS DRAWN OPACITY, not as a bare token — the hairline is
+  // composited at `chart.referenceEdgeOpacity` over the band, and the only
+  // number that means anything is what that composite measures against the band
+  // underneath it. At this value the DRAWN line runs 1.70–2.04:1 across all
+  // five fills and the optimal narrowing, which is inside the 1.6–3.5 window
+  // this has always been held to: visible on every band, and never the loudest
+  // thing on the plot.
+  //
+  // Deliberately not espresso, which starts to compete with the trend line — a
+  // boundary is furniture and the reader's own result is not.
+  out['--c-chart-reference-edge'] = reLightness(brand.taupe, 0.317, ownSaturation(brand.taupe)); // #63543e
   /**
    * THE OPTIMAL NARROWING, AS AN OPAQUE FILL of its own (Aug 2026).
    *
@@ -1452,10 +1533,14 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * `chart` below.
    */
   out['--c-band-optimal'] = bandFill('optimal');
-  out['--c-chart-axis-line'] = dark ? darkScales.taupe[600] : brand.taupe;
-  out['--c-chart-axis-text'] = dark ? darkScales.espresso[400] : scales.espresso[400];
-  out['--c-chart-gridline'] = dark ? darkScales.taupe[300] : scales.taupe[200];
-  out['--c-chart-cursor'] = dark ? darkScales.taupe[700] : scales.taupe[600];
+  // EVERYTHING THAT IS DRAWN ON THE PLOT IS NOW STATIC, and this is the block
+  // where forgetting that would show. A tick label is text on a #edeae2 panel
+  // in both themes; taking it from the theme's own scales put a near-white
+  // cream on it in dark, at 1.09:1.
+  out['--c-chart-axis-line'] = mix(brand.taupe, brand.espresso, 0.15);
+  out['--c-chart-axis-text'] = PLOT_INK_MUTED;
+  out['--c-chart-gridline'] = mix(PLOT_SURFACE, brand.taupe, 0.5);
+  out['--c-chart-cursor'] = mix(brand.taupe, brand.espresso, 0.35);
   out['--c-chart-surface'] = dark ? darkScales.cream[50] : mix(brand.white, brand.cream, 0.35);
   /**
    * The plot area, one step away from the card it sits on — DOWN in light and
@@ -1467,14 +1552,44 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * black, which is a real step of about 1.10:1 rather than the 1.02:1 that
    * mixing toward black produces.
    */
-  out['--c-chart-plot-surface'] = dark ? mix(darkPage, darkScales.cream[50], 0.55) : mix(brand.cream, brand.white, 0.35);
-  /** The plot's own hairline frame. The same neutral as every other boundary in the chart. */
-  out['--c-chart-plot-frame'] = dark ? darkScales.taupe[600] : scales.taupe[400];
+  out['--c-chart-plot-surface'] = PLOT_SURFACE;
+  /**
+   * The plot's own frame, and in dark it is doing a different job.
+   *
+   * In LIGHT the plot is a step down from the card and the frame is what gives
+   * that step an edge — `taupe-400`, unchanged.
+   *
+   * In DARK the plot is a light panel on a near-black card, so the frame is no
+   * longer separating two similar tones; it is stopping a bright rectangle from
+   * reading as a hole cut in the page. It takes a WARM MID-BROWN — the taupe
+   * scale's own 500 in light terms — which sits between the plot and the card
+   * and belongs to both. A frame lighter than the plot would outline it like a
+   * sticker; a frame as dark as the card would be the cut-out drawn in one more
+   * place.
+   */
+  out['--c-chart-plot-frame'] = dark ? scales.taupe[600] : scales.taupe[400];
+  /**
+   * The soft inner shadow along the plot's top and left inside edges — the
+   * third of the three things that make it read as an INSET PANEL rather than
+   * as a bright rectangle floating on black (the others are the frame above and
+   * the card's own padding holding it clear of the card's border).
+   *
+   * Warm, from the shadow tone the rest of the product uses, and applied inside
+   * the plot rather than under it: a drop shadow would lift the panel toward
+   * the reader, which is the opposite of what an inset is.
+   */
+  out['--c-chart-plot-inset'] = mix(PLOT_SURFACE, brand.espresso, 0.28);
+  /** Text drawn ON the plot. Static — see PLOT_INK. */
+  out['--c-chart-plot-ink'] = PLOT_INK;
+  out['--c-chart-plot-ink-muted'] = PLOT_INK_MUTED;
   /**
    * A reference bound on the axis. Full text weight against the muted ticks —
    * see chart.boundLabel for why the difference is weight rather than hue.
    */
-  out['--c-chart-bound-label'] = dark ? darkScales.espresso[700] : scales.espresso[700];
+  // A reference bound on the axis: full ink against the muted ticks, so the
+  // difference between "where the scale happens to be marked" and "a clinical
+  // threshold" is carried by weight rather than by a hue.
+  out['--c-chart-bound-label'] = PLOT_INK;
 
   /**
    * THE RESULT MARK ON A RANGE BAR — the dot on the full bar and the pointer on
@@ -1500,8 +1615,13 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * gold track reads as a slightly dirty version of the track. This is the one
    * pure white in the product and it is a 14px dot.
    */
-  out['--c-rangemark'] = dark ? '#ffffff' : brand.espresso;
-  out['--c-rangemark-ring'] = dark ? mix(brand.espresso, '#000000', 0.72) : brand.white;
+  // ONE COLOUR IN BOTH THEMES, since the bar is drawn on PLOT_SURFACE in both.
+  // It used to invert — white in dark, espresso in light — because the track's
+  // ground did. Measured on the five band fills the bar actually paints:
+  // espresso is 4.02–6.05:1, white is 1.80–2.71:1. There is nothing left for a
+  // white dot to be the right answer to.
+  out['--c-rangemark'] = brand.espresso;
+  out['--c-rangemark-ring'] = PLOT_SURFACE;
 
   // Shadow colour, derived from espresso in BOTH themes — nothing in this
   // system is ever a neutral grey, shadows least of all.
@@ -1635,104 +1755,6 @@ export const GLASS = {
   wash: { light: 0.62, dark: 0.58 },
   blur: '10px',
   saturate: '1.08',
-} as const;
-
-/**
- * ── THE RESULTS-READY MOMENT'S BACKGROUND: THE OVERVIEW, OUT OF FOCUS ──────
- *
- * The moment used to stand on the plain page. It stands on the patient's OWN
- * Overview now — the real screen, live, rendered behind the arch and blurred
- * past reading — so the doorway has the thing it is a doorway INTO on the
- * other side of it. See `.moment-backdrop` in globals.css for how it is built
- * and MomentBackdrop.tsx for why it is inert.
- *
- * THREE NUMBERS, AND THE FIRST ONE WAS MEASURED BY LOOKING AT IT.
- *
- * `blur` is a standard deviation, not a radius — CSS `blur(<length>)` takes σ
- * directly — and it is bounded from BOTH sides, which is why it is a number
- * rather than "as much as possible". Rendered at 1440×900 against the demo
- * Overview and read off the screenshots:
- *
- *     σ = 16px   the greeting is a legible word shape, card text runs read as
- *                lines of text. Too little: this is what "no marker names"
- *                rules out.
- *     σ = 24px   nothing resolves anywhere, and the page is still visibly a
- *                page — a header block, a row of cards, a column of them.
- *     σ = 32px   an atmospheric wash. Nothing is legible and nothing is
- *                anything: the ground stops reading as the reader's results
- *                and becomes a texture, which is the whole point thrown away.
- *
- * The floor has an arithmetic form as well, and the two agree. A glyph is
- * resolvable while σ is under about its CAP HEIGHT (~0.7 of the font size);
- * past that each stroke is spread over more than the letter is tall and the
- * word closes up. The largest thing on the Overview carrying a value is the
- * at-a-glance figure at 28px, cap height ~20px, so 24 clears the largest of
- * them by a fifth and everything else — the 21px values, the 18px marker
- * names, the 16px body — by a great deal more. `e2e/results-ready.spec.ts`
- * measures the font sizes actually present and holds σ above their cap
- * height, so a future type-scale change that put a 40px value on this screen
- * would fail rather than quietly become readable.
- *
- * Do not tune it downward to "let a bit through": the whole of what may come
- * through is that these are the reader's results.
- *
- * `wash` is the PAGE COLOUR over the blur, which is why it darkens in dark and
- * lightens in light without a second rule — it is the same operation in both,
- * "back toward the ground", and the ground is near-black on one side and cream
- * on the other. `shade` is the shadow tone on top of it, and it is what makes
- * the composition work in LIGHT: cream over cream mutes the Overview but does
- * not push it behind the arch, and the arch is a pale glass surface that needs
- * a darker ground to stand on. In dark the wash is already doing that and the
- * shade is a smaller correction.
- *
- * TOGETHER THEY ARE A CONTRAST BUDGET, and it multiplies rather than adds:
- * what survives the veil is `(1 - wash) × (1 - shade)` of whatever separation
- * the Overview had — 33% in light, 24% in dark. Measured, in the terms that
- * matter, which is the loudest thing the Overview paints against the arch that
- * has to out-read it:
- *
- *     light   a card stands 1.298:1 off its page → 1.106:1 through the veil,
- *             against the arch's 1.302:1 off the same ground — 2.8×
- *     dark    1.279:1 → 1.041:1, against the arch's 1.139:1 — 3.4×
- *
- * So the arch out-reads everything behind it by roughly three to one, by
- * construction rather than by eye. `tokenContrast.test.ts` holds the
- * multiplier, that ratio, and — the one that could actually harm a reader —
- * every word on the arch at AA, since the arch is GLASS and its text is now
- * set over this ground rather than over a surface.
- *
- * ── AND IT COSTS NOTHING TO DRAW, ON A BROWSER WITH A GPU ─────────────────
- *
- * Measured at 1440×900 on the settled moment, three seconds of frame
- * intervals (`e2e/results-ready.spec.ts`):
- *
- *                                    headless (SwiftShader)    headed (GPU)
- *     as shipped                       9 fps · median 117ms    60 fps · 16.7ms
- *     no backdrop at all              40 fps · median  33ms    60 fps · 16.7ms
- *     backdrop on, breathing dot off  42 fps · median  17ms    60 fps · 16.6ms
- *
- * ON A REAL GPU THE BLUR IS FREE — the moment with a whole blurred Overview
- * behind it is frame-for-frame the moment without one, and the worst frame in
- * three seconds is 20ms. The software-raster column is the same artefact
- * recorded on GLASS above and it says the same thing twice: the ONE animation
- * on this screen is the 12px breathing dot, and with it stopped even
- * SwiftShader holds 42 fps with the blur on. What software rasterisation
- * cannot do is re-blur a full viewport within a frame while something else
- * asks for one. Layer promotion does not rescue it (`will-change: transform`,
- * `translateZ(0)`, `contain: strict` and promoting the dot were each measured
- * and each changed nothing), and it does not need rescuing: nothing else on
- * the screen moves, so what a reader without hardware acceleration loses is a
- * slightly uneven drift on one dot.
- *
- * The layer being STATIC is what makes that true and is not a happy accident —
- * see `StillContext` (components/motion/still.ts) and the `.moment-backdrop` rules in globals.css. A blurred
- * layer is re-rasterised in full whenever anything inside it changes, and the
- * Overview's own entrance is about a second of continuous change.
- */
-export const MOMENT_BACKDROP = {
-  blur: '24px',
-  wash: { light: 0.62, dark: 0.72 },
-  shade: { light: 0.14, dark: 0.16 },
 } as const;
 
 /**
@@ -2068,9 +2090,40 @@ export const chart = {
    *
    * No shadow and no inner border — one hairline, drawn once.
    */
+  /**
+   * THE PLOT IS LIGHT IN BOTH THEMES (Aug 2026) — see PLOT_SURFACE. What
+   * follows are the three things that stop it reading as a hole punched in a
+   * dark card, and they are all here rather than in the component so that "it
+   * is an inset panel" is one decision.
+   */
   plotSurface: 'rgb(var(--c-chart-plot-surface))',
   plotFrame: 'rgb(var(--c-chart-plot-frame))',
+  /**
+   * FULL WEIGHT IN DARK, HALF IN LIGHT, and the asymmetry is the job the frame
+   * is doing. In light the plot is a step DOWN from the card and the frame only
+   * has to give that step an edge. In dark it is a light panel on a near-black
+   * card, and a half-strength hairline there is a bright rectangle with a faint
+   * suggestion of a border — which is the cut-out look, not an edge.
+   */
   plotFrameOpacity: 0.5,
+  plotFrameOpacityDark: 1,
+  /**
+   * The inner shadow along the plot's top and left inside edges. An INSET
+   * shadow rather than a drop shadow: a drop shadow lifts a panel toward the
+   * reader and this one is meant to sit into the card. 6px, soft, at a low
+   * alpha — enough that the top edge is not a mathematical line, and not enough
+   * to darken the band that starts there.
+   */
+  plotInset: 'rgb(var(--c-chart-plot-inset))',
+  plotInsetOpacity: 0.5,
+  /**
+   * Text drawn ON the plot, in both themes. STATIC — the plot is light in dark
+   * mode, so anything taken from the theme's own text scale is a near-white on
+   * a near-white. `plotInk` is the full weight (a reference bound, the printed
+   * value beside the latest point) and `plotInkMuted` is the tick ladder.
+   */
+  plotInk: 'rgb(var(--c-chart-plot-ink))',
+  plotInkMuted: 'rgb(var(--c-chart-plot-ink-muted))',
   /**
    * A reference bound printed on the left axis, distinct from a tick value.
    *

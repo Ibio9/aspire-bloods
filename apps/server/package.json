@@ -20,7 +20,8 @@
     "audit:age-ranges": "tsx scripts/auditAgeRanges.ts",
     "audit:analytes": "tsx scripts/auditAnalyteMap.ts",
     "prisma:seed:demo": "tsx prisma/seedDemo.ts",
-    "prisma:seed:demo:purge": "tsx prisma/seedDemo.ts --purge"
+    "prisma:seed:demo:purge": "tsx prisma/seedDemo.ts --purge",
+    "sandbox:pass": "tsx scripts/sandboxPass.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
