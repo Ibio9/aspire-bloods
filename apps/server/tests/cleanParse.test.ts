@@ -1,13 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { assessParseCleanliness, holdFieldsFor, type ParseCleanlinessInput } from '../src/lib/cleanParse.js';
+import {
+  assessParseCleanliness,
+  holdFieldsFor,
+  HOLD_CONDITIONS,
+  type HoldCondition,
+  type ParseCleanlinessInput,
+} from '../src/lib/cleanParse.js';
 
 /**
  * THIS DEFINITION IS LOAD-BEARING, WHICH IS WHY IT HAS ITS OWN TEST FILE.
  *
- * With the admin verification stage removed, a clean parse goes straight to
- * awaiting clinician review — so anything `assessParseCleanliness` calls clean
- * reaches a clinician who has no way to know something is missing from it. The
- * previous pipeline had a person between those two facts. This function is what
+ * There is no human gate at all now (Aug 2026), so anything
+ * `assessParseCleanliness` calls clean goes STRAIGHT ONTO A PATIENT'S SCREEN,
+ * and anything it holds is the only thing that stops it. The pipeline used to
+ * have two people between those two facts, then one. This function is what
  * replaced them.
  *
  * So what is asserted here is not "the function works": it is that each of the
@@ -201,5 +207,53 @@ describe('the fields a hold writes', () => {
 
   it('clears the reasons when a parse comes back clean', () => {
     expect(holdFieldsFor(assessParseCleanliness(NOTHING_WRONG), at).holdReasons).toEqual([]);
+  });
+});
+
+/**
+ * THE LIST IS CLOSED, AND CLOSED IS SOMETHING YOU CAN COUNT.
+ *
+ * With automatic release, "how many things can stop a report reaching a patient,
+ * and what are they" is a question asked of the code rather than of a comment.
+ * The two assertions below are both needed: the length pins the count, and the
+ * round-trip through `HoldCondition` means a sixth member added to the type
+ * without being named in the array does not compile.
+ */
+describe('the closed list of hold conditions', () => {
+  it('has exactly five members, in the documented order', () => {
+    expect(HOLD_CONDITIONS).toEqual([
+      'UNMAPPED_ANALYTE',
+      'UNFILED_ROW',
+      'UNRECOGNISED_CODE',
+      'LAB_DISAGREEMENT',
+      'PARTIAL_DELIVERY',
+    ]);
+  });
+
+  it('is the same set the type admits', () => {
+    const everyCondition: Record<HoldCondition, true> = {
+      UNMAPPED_ANALYTE: true,
+      UNFILED_ROW: true,
+      UNRECOGNISED_CODE: true,
+      LAB_DISAGREEMENT: true,
+      PARTIAL_DELIVERY: true,
+    };
+    expect(Object.keys(everyCondition).sort()).toEqual([...HOLD_CONDITIONS].sort());
+  });
+
+  it('can be fired all at once, and every one of them holds', () => {
+    // The belt-and-braces case: five conditions, five sentences, and clean is
+    // false. A condition that fired but produced no sentence would be a hold
+    // with nothing on screen saying what it was.
+    const assessment = assessParseCleanliness({
+      unmappedAnalytes: ['Zorbulin'],
+      unfiledRows: [{ markerName: 'Ferritin', reason: 'no usable range' }],
+      unrecognisedCodes: ['XX9'],
+      labDisagreementCount: 1,
+      isPartial: true,
+    });
+    expect(assessment.clean).toBe(false);
+    expect(assessment.conditions).toEqual([...HOLD_CONDITIONS]);
+    expect(assessment.holdReasons).toHaveLength(HOLD_CONDITIONS.length);
   });
 });

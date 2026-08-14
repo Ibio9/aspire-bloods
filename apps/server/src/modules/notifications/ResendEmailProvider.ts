@@ -24,6 +24,7 @@ export class ResendEmailProvider implements EmailProvider {
       subject: message.subject,
       html: message.html,
       text: message.text,
+      ...(message.headers ? { headers: message.headers } : {}),
     });
     if (error) {
       throw new Error(`Resend email send failed: ${error.message}`);

@@ -25,6 +25,7 @@ import {
 import { Button } from '../../components/ui/Button';
 import { AreaGroupHeading, CountsStrip } from './ResultsSummary';
 import { MARKER_GRID_CLASS, MarkerResultCard } from './MarkerResultCard';
+import { matchesRangeFilter, rangeFilterWantsRanged } from './reportSections';
 import type { ResultsArrangement, ResultsFilters, ViewReportsCategories } from './resultsView';
 
 /**
@@ -242,7 +243,14 @@ export function MarkerListView({
       (m) =>
         matchesStatusFilter(m.status, statusFilter) &&
         matchesMarkerQuery(m, query) &&
-        (categoryFilter === 'ALL' || (m.categoryKeys ?? []).includes(categoryFilter)),
+        // Three vocabularies in one string, and each is asked its own
+        // question: a range filter cuts across the health areas rather than
+        // naming one, so it is an AND rather than a branch of the same choice.
+        // See reportSections.ts.
+        matchesRangeFilter(m, categoryFilter) &&
+        (categoryFilter === 'ALL' ||
+          rangeFilterWantsRanged(categoryFilter) !== null ||
+          (m.categoryKeys ?? []).includes(categoryFilter)),
     );
     return [...filtered].sort(compare);
   }, [measured, query, statusFilter, categoryFilter, compare]);

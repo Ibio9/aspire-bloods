@@ -133,7 +133,6 @@ interface TrendPoint {
    * applied to the range width — see severityThresholdFor.
    */
   severityThreshold?: number;
-  sourceLabel?: string;
   converted?: boolean;
   originalValue?: number;
   originalUnit?: string;

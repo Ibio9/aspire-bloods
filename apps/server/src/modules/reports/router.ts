@@ -20,7 +20,6 @@ import {
   listReportsForAdmin,
 } from './service.js';
 import { createManualEntryReport } from './manualEntryService.js';
-import { checkAndEscalate } from '../escalation/service.js';
 import { prisma } from '../../db/client.js';
 import { generateFileToken } from '../../lib/signedUrl.js';
 import { recordAuditLog } from '../../lib/auditLog.js';
@@ -219,10 +218,10 @@ reportsRouter.post(
   }),
 );
 
-// This practice's admins are its clinicians — ADMIN can do the full
-// review+release itself, with no separate clinician sign-off required.
-// CLINICIAN stays too, unchanged, for a genuine second-reviewer workflow
-// if this practice ever has one.
+// Review is no longer a gate — a clean report has released itself long before
+// anybody reaches this route. What it is for is a HELD report: approving means
+// "I have read the reasons and it goes out anyway", and it releases. Rejecting
+// sends it back for correction. ADMIN and CLINICIAN both, unchanged.
 reportsRouter.post(
   '/:id/review',
   roleGuard('ADMIN', 'CLINICIAN'),
@@ -248,44 +247,32 @@ reportsRouter.post(
 );
 
 /**
- * Release has already committed by the time this runs — a notification-side
- * failure (email/SMS provider down) must not surface as a release failure to
- * the admin, who would otherwise retry a release that already succeeded and
- * get a confusing 409. Escalation itself is still exactly-once: releaseReport()
- * can only ever succeed once per report (see its status guard), so each call
- * site here runs at most once per report.
+ * ESCALATION IS NO LONGER THIS FILE'S BUSINESS (Aug 2026).
  *
- * Shared by the two routes that can release: the explicit release step, and
- * one-step publish. Both must escalate identically — a report published in one
- * click and the same report released in three has the same clinical urgency.
+ * It used to run here, after a successful release, from the two routes that
+ * could release. Both facts changed at once: the ordinary release is now
+ * automatic and never passes through a route at all, and escalation has to fire
+ * BEFORE the report becomes visible rather than after — with no clinician gate,
+ * the patient and the clinic learn at the same moment.
+ *
+ * So it lives inside `releaseReport`, which is the one place every release goes
+ * through, and a route that forgets to call it is no longer a thing that can
+ * exist. The old reasoning that a notification failure must not surface as a
+ * release failure is unchanged and is honoured there.
  */
-async function escalateAfterRelease(reportId: string, actorUserId: string, ip: string | null) {
-  try {
-    await checkAndEscalate(reportId);
-  } catch (escalationError) {
-    console.error('[escalation] failed after successful release', {
-      reportId,
-      error: escalationError instanceof Error ? escalationError.message : escalationError,
-    });
-    await recordAuditLog({
-      actorUserId,
-      action: 'ESCALATION_FAILED',
-      targetType: 'Report',
-      targetId: reportId,
-      ipAddress: ip,
-      metadata: { error: escalationError instanceof Error ? escalationError.message : String(escalationError) },
-    });
-  }
-}
+const releaseBodySchema = z.object({ acknowledgeHolds: z.boolean().optional() });
 
 reportsRouter.post(
   '/:id/release',
   roleGuard('ADMIN', 'CLINICIAN'),
   verifyCsrf,
   asyncHandler(async (req, res) => {
+    const parsed = releaseBodySchema.safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
     try {
-      const report = await releaseReport(req.params.id, req.user!.id, req.ip ?? null);
-      await escalateAfterRelease(report.id, req.user!.id, req.ip ?? null);
+      await releaseReport(req.params.id, req.user!.id, req.ip ?? null, {
+        acknowledgeHolds: parsed.data.acknowledgeHolds ?? false,
+      });
       res.json({ ok: true });
     } catch (e) {
       if (!handleReportError(e, res)) throw e;
@@ -294,13 +281,13 @@ reportsRouter.post(
 );
 
 /**
- * Verify, review and release in one request.
+ * Save this form's results and release, in one request. The manual-entry path.
  *
- * ADMIN only, and deliberately not looser than the three steps it replaces:
+ * ADMIN only, and deliberately not looser than the two steps it replaces:
  * verify is already ADMIN-only, so an admin is the only role that could have
  * driven this sequence by hand anyway. The service walks each transition
  * through its own guard, so this route weakens nothing — it just stops the
- * admin making three round trips to say one thing.
+ * admin making two round trips to say one thing.
  */
 reportsRouter.post(
   '/:id/publish',
@@ -312,7 +299,6 @@ reportsRouter.post(
 
     try {
       const report = await publishReport(req.params.id, parsed.data, req.user!.id, req.ip ?? null);
-      await escalateAfterRelease(report.id, req.user!.id, req.ip ?? null);
       res.json({ ok: true, status: report.status });
     } catch (e) {
       if (!handleReportError(e, res)) throw e;

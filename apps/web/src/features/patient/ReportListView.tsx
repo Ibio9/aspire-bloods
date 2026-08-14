@@ -20,7 +20,6 @@ interface ReportSummary {
   markerCount?: number;
   inRangeCount?: number;
   attentionCount?: number;
-  sourceLabel?: string;
 }
 
 /**

@@ -22,7 +22,12 @@ import { ReportDetailView } from './ReportDetailView';
 import { AllMarkersSummary, MarkerListView } from './MarkerListView';
 import type { MarkerRow } from '../../lib/patientPortal';
 import { CompareView } from './CompareView';
-import { RESULT_TYPE_FILTERS, reportSectionCount, resultTypeFilter } from './reportSections';
+import {
+  RESULT_TYPE_FILTERS,
+  rangeFilterWantsRanged,
+  reportSectionCount,
+  resultTypeFilter,
+} from './reportSections';
 import { useReportDetail } from './useReportDetail';
 
 /**
@@ -223,6 +228,9 @@ export function ResultsPage() {
     if (
       filters.categoryFilter === 'ALL' ||
       resultTypeFilter(filters.categoryFilter) !== null ||
+      // A range filter is not a health area either, so it must not be turned
+      // into a phantom "Selected area, not in this view" option below.
+      rangeFilterWantsRanged(filters.categoryFilter) !== null ||
       activeCategories.some((c) => c.key === filters.categoryFilter)
     ) {
       return activeCategories;

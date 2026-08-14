@@ -19,7 +19,14 @@ import {
 import { AreaGroupHeading } from './ResultsSummary';
 import { MARKER_GRID_CLASS, MarkerResultCard } from './MarkerResultCard';
 import { CompositionSection, GeneticSection, QualitativeSection, SensitivitySection } from './NonMeasuredSections';
-import { REPORT_SECTION_IDS, resultTypeFilter, sectionMatchesType } from './reportSections';
+import {
+  REPORT_SECTION_IDS,
+  matchesRangeFilter,
+  rangeFilterWantsRanged,
+  resultTypeFilter,
+  sectionMatchesType,
+  unrangedSectionShown,
+} from './reportSections';
 import type { ResultsArrangement, ResultsFilters } from './resultsView';
 import type { MarkerCard, ReportDetailData } from './useReportDetail';
 
@@ -94,8 +101,10 @@ export function ReportDetailView({
       (m) =>
         matchesStatusFilter(m.status, statusFilter) &&
         matchesMarkerQuery(m, query) &&
+        matchesRangeFilter(m, categoryFilter) &&
         (categoryFilter === 'ALL' ||
           resultTypeFilter(categoryFilter) !== null ||
+          rangeFilterWantsRanged(categoryFilter) !== null ||
           (m.categoryKeys ?? []).includes(categoryFilter)),
     );
     return [...filtered].sort(compare);
@@ -301,7 +310,9 @@ export function ReportDetailView({
       <PersonalMeasurementsSection
         measurements={report.personalMeasurements ?? []}
         note={report.personalMeasurementsNote ?? null}
-        shown={sectionMatchesType('MEASURED', categoryFilter)}
+        // Every one of these has no reference range, so the range filter
+        // decides the whole section rather than narrowing inside it.
+        shown={sectionMatchesType('MEASURED', categoryFilter) && unrangedSectionShown(categoryFilter)}
       />
       <GeneticSection
         markers={byType.genetic}

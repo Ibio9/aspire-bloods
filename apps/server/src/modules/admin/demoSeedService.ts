@@ -23,10 +23,10 @@
  *
  *  Reports are NOT written at RELEASED any more. Each one is created at
  *  PARSED (exactly where manual entry starts, since there is no document)
- *  and then driven through verifyReport → reviewReport → releaseReport — the
- *  same functions, transition table and audit trail every real report goes
- *  through. Only the timestamps are then set back to the narrative dates,
- *  because an 18-month history seeded today is otherwise dated today.
+ *  and then driven through verifyReport → releaseReport — the same functions,
+ *  transition table and audit trail every real report goes through. Only the
+ *  timestamps are then set back to the narrative dates, because an 18-month
+ *  history seeded today is otherwise dated today.
  *
  *  Idempotency is create-new-first, delete-old-after: if a run dies partway
  *  the patient keeps the previous reports instead of being left with none,
@@ -69,7 +69,7 @@ import { maskEmail } from '@aspire-bloods/shared';
 import { prisma } from '../../db/client.js';
 import { encryptField, generateToken } from '../../lib/crypto.js';
 import { hashPassword } from '../../lib/password.js';
-import { verifyReport, reviewReport, releaseReport } from '../reports/service.js';
+import { verifyReport, releaseReport } from '../reports/service.js';
 import { buildDemoReports } from './demoSeedData.js';
 import { assertIsDemoAccount, assertOnlyDemoReports } from './demoSeedGuards.js';
 
@@ -533,13 +533,12 @@ export async function runDemoSeed(opts: { trigger: DemoSeedTrigger; allowProduct
       const day = 1000 * 60 * 60 * 24;
       const receivedDate = new Date(sampleDate.getTime() + day);
       const verifiedAt = new Date(sampleDate.getTime() + day);
-      const reviewedAt = new Date(sampleDate.getTime() + day * 2);
       const releasedAt = new Date(sampleDate.getTime() + day * 2 + 1000 * 60 * 45);
 
       // Through the real pipeline, not around it. The report starts at
       // PARSED — where manual entry starts, since there is no document — and
-      // is then verified, reviewed and released by the same functions every
-      // real report passes through, transition table, audit trail and all.
+      // is then verified and released by the same functions every real report
+      // passes through, transition table, audit trail and all.
       const report = await prisma.report.create({
         data: {
           patientId: patient.id,
@@ -565,13 +564,18 @@ export async function runDemoSeed(opts: { trigger: DemoSeedTrigger; allowProduct
       });
 
       await verifyReport(report.id, { sampleDate: sampleDate.toISOString(), results: rows }, admin.id, null);
-      await reviewReport(report.id, true, undefined, clinician.id, null);
-      await releaseReport(report.id, admin.id, null);
+      // `escalate: false` is the ONE place in the product that passes it, and
+      // this is why: escalation now runs INSIDE releaseReport, so without it a
+      // demo reseed would send a live email to ESCALATION_EMAIL for every
+      // fabricated out-of-range result below. The EscalationEvent is written
+      // here instead, with channelsNotified [] saying truthfully that nothing
+      // was sent. The reviewReport call that used to sit between these two is
+      // gone with the gate — a clean report releases, and there is no
+      // intermediate state to walk it through.
+      await releaseReport(report.id, admin.id, null, { escalate: false });
 
       // Mirrors escalation/service.ts checkAndEscalate(), minus the actual
-      // email/SMS — releaseReport was called directly rather than through
-      // the route that notifies, so nothing was really sent, and
-      // channelsNotified says so rather than claiming an email went out.
+      // email/SMS.
       const flagged = await prisma.reportResult.findMany({
         where: { reportId: report.id, status: { in: [...OUT_OF_RANGE_STATUSES] } },
         select: { markerId: true, status: true },
@@ -599,7 +603,10 @@ export async function runDemoSeed(opts: { trigger: DemoSeedTrigger; allowProduct
       // itself was reached through the real transitions above.
       await prisma.report.update({
         where: { id: report.id },
-        data: { verifiedAt, reviewedAt, releasedAt, createdAt: releasedAt, receivedDate },
+        // NO reviewedAt. Nothing reviewed these — the pipeline has no review
+        // step to walk them through any more — and a timestamp against a
+        // decision nobody made is the same lie as a name against one.
+        data: { verifiedAt, releasedAt, createdAt: releasedAt, receivedDate },
       });
       await prisma.reportResult.updateMany({ where: { reportId: report.id }, data: { createdAt: verifiedAt } });
 

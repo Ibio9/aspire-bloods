@@ -98,12 +98,12 @@ test('every admin route loads with a clean console', async ({ page }) => {
     { name: 'Console', path: '/' },
     { name: 'Reports & entry', path: '/admin' },
     { name: 'Reports filtered by status', path: '/admin?status=PARSED' },
-    // HELD is a queue bucket rather than a status — PARSED covers both awaiting
-    // review and held, so the two filters are separate URLs.
+    // HELD is a queue bucket rather than a status — PARSED covers both held and
+    // read-but-not-released, so the two filters are separate URLs.
     { name: 'Reports filtered to the held queue', path: '/admin?queue=HELD' },
-    // The work queue: what is waiting for a clinician and what is stuck. It
-    // names patients, so it is audited like the patient list — and it is the
-    // screen the console is for now that there is one gate.
+    // The work queue: what is held and what is stuck. It names patients, so it
+    // is audited like the patient list — and with results releasing themselves
+    // it is the whole of what a clinician has to act on.
     { name: 'Work queue', path: '/admin/queue' },
     { name: 'Patients', path: '/admin/patients' },
     { name: 'Result linking', path: '/admin/linking' },

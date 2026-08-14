@@ -3,11 +3,30 @@ import PDFDocument from 'pdfkit';
 import { pressThroughWalkthrough } from './walkthrough';
 
 /**
- * The single most safety-critical behaviour in this app (brief §5):
- * nothing is patient-visible until a report reaches RELEASED. This test
- * drives a report through the full state machine and asserts the patient
- * cannot see it — via the UI or the API directly — at every step before
- * release, then confirms it appears the moment it's released.
+ * The single most safety-critical behaviour in this app (brief §5): nothing is
+ * patient-visible until a report reaches RELEASED. This test drives a report
+ * through the full state machine and asserts the patient cannot see it — via
+ * the UI or the API directly — at every step before release, then confirms it
+ * appears the moment it is released.
+ *
+ * ── THAT CLAIM SURVIVES AUTOMATIC RELEASE. THE ROUTE TO IT CHANGED (Aug 2026)
+ *
+ * There is no clinician gate any more. What this file proves is therefore no
+ * longer "a clinician had to say so" — it is the property that outlived the
+ * gate and is the one the brief actually asks for: RELEASED is the only status
+ * a patient can see, and a report that has not reached it is invisible through
+ * every door.
+ *
+ * The report here is a PDF UPLOAD, which is exactly the case automatic release
+ * does not touch: parsing a PDF produces a preview, not results, so the report
+ * sits at PARSED with nothing written until a person keys it in. That is why
+ * this file still has a human in it, and why it is still the right place to
+ * check that the patient sees nothing while they wait.
+ *
+ * `automatic-release.spec.ts` is not a separate file: the machine path is
+ * covered over the real service functions in apps/server/tests/
+ * automaticRelease.test.ts, where the ORDER of escalation and the status write
+ * can be measured, which is not observable from outside the process.
  */
 
 async function buildTestPdf(): Promise<Buffer> {
@@ -169,22 +188,24 @@ test('nothing patient-visible until a report is RELEASED', async ({ page, browse
   const patientReportCheck = await patientCtx.request.get(`/api/patient/reports/${report.id}`);
   expect(patientReportCheck.status()).toBe(404);
 
-  // --- Clinician reviews and releases ---
+  // --- A clinician releases it ---
+  //
+  // ONE CALL, NOT TWO. `review` used to be the gate and `release` the step
+  // after it; there is no gate now, so a keyed-in report is released directly.
+  // Review still EXISTS and is still exercised — by the held-report path in
+  // apps/server/tests/automaticRelease.test.ts — but it is no longer something
+  // a clean report has to pass through, and asking for it here would be this
+  // file asserting a stage the pipeline does not have.
   const clinicianCtx = await browser.newContext();
   const clinicianRequest = clinicianCtx.request;
   await loginAndVerify(clinicianRequest, 'clinician@aspireshield.dev', 'DevClinicianPass123!');
   const clinicianCsrf = await csrfFor(clinicianRequest);
 
-  const review = await clinicianRequest.post(`/api/reports/${report.id}/review`, {
-    data: { approve: true },
-    headers: { 'X-CSRF-Token': clinicianCsrf },
-  });
-  expect(review.ok()).toBeTruthy();
-
   const release = await clinicianRequest.post(`/api/reports/${report.id}/release`, {
+    data: {},
     headers: { 'X-CSRF-Token': clinicianCsrf },
   });
-  expect(release.ok()).toBeTruthy();
+  expect(release.ok(), await release.text()).toBeTruthy();
 
   // --- Patient now sees it, both via API and the UI ---
   const patientReportAfterRelease = await patientCtx.request.get(`/api/patient/reports/${report.id}`);

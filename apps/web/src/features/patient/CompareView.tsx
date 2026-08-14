@@ -13,6 +13,7 @@ import { staggerDelay } from '../../components/motion/stagger';
 import { apiFetch } from '../../lib/api';
 import { matchesMarkerQuery, matchesStatusFilter, statusColor, statusFilterCounts, statusLabel, type StatusFilter } from '../../lib/markerCopy';
 import { type MarkerRow, type TrendSeries } from '../../lib/patientPortal';
+import { matchesRangeFilter, rangeFilterWantsRanged } from './reportSections';
 import type { ResultsFilters, ViewReportsCategories } from './resultsView';
 
 /**
@@ -198,7 +199,10 @@ export function CompareView({
         (m) =>
           matchesMarkerQuery(m, query) &&
           matchesStatusFilter(m.status, statusFilter) &&
-          (categoryFilter === 'ALL' || (m.categoryKeys ?? []).includes(categoryFilter)),
+          matchesRangeFilter(m, categoryFilter) &&
+          (categoryFilter === 'ALL' ||
+            rangeFilterWantsRanged(categoryFilter) !== null ||
+            (m.categoryKeys ?? []).includes(categoryFilter)),
       ),
     [plottable, query, statusFilter, categoryFilter],
   );

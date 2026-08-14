@@ -4,24 +4,38 @@ import { createFakePrisma, seedCatalogue, seedPatient, type FakePrisma } from '.
 /**
  * ---------------------------------------------------------------------------
  * The whole thing, once, against the mock: order → poll → results → a report
- * sitting ready for a clinician.
+ * the patient can read.
  * ---------------------------------------------------------------------------
  *
- * Every other test in this suite takes one seam apart. This one runs the
- * chain the clinic actually depends on and asserts the two properties that
- * matter at the end of it:
+ * Every other test in this suite takes one seam apart. This one runs the chain
+ * the clinic actually depends on and asserts the two properties that matter at
+ * the end of it:
  *
  *   1. Nobody typed anything. No admin action occurs anywhere between
- *      CreatePendingOrder and a report waiting to be released.
- *   2. It stopped exactly where it should. PARSED, not RELEASED —
- *      and the state machine physically prevents the difference, rather than
- *      the absence of a button in the UI doing it.
+ *      CreatePendingOrder and the patient being able to see their results —
+ *      which since Aug 2026 is the whole chain rather than most of it.
+ *   2. It went all the way. RELEASED, with every audit entry written by SYSTEM.
+ *      What stops a bad delivery is not a stage in the pipeline any more, it is
+ *      the hold refusing the release, which is asserted at the end.
  */
 
 const db: FakePrisma = createFakePrisma();
 vi.mock('../src/db/client.js', () => ({ prisma: db }));
 vi.mock('../src/modules/storage/LocalDiskStorageAdapter.js', () => ({
   storageAdapter: { save: async () => ({ storageKey: 'k', sizeBytes: 1 }) },
+}));
+// Escalation now runs inside releaseReport, and it reads the report through a
+// nested `include` the fake does not implement. Mocked out here because this
+// file's subject is the ORDER lifecycle; what escalation sends, and the fact
+// that it is sent before the status write, is automaticRelease.test.ts.
+vi.mock('../src/modules/escalation/service.js', () => ({
+  checkAndEscalate: vi.fn(async () => ({
+    escalated: false,
+    severity: null,
+    flaggedCount: 0,
+    significantCount: 0,
+    channels: [],
+  })),
 }));
 
 // The whole flow on the mock transport, which is what "ready for a key" means
@@ -47,7 +61,7 @@ vi.mock('../src/modules/randox/config.js', async (importOriginal) => {
 
 const { placeOrder } = await import('../src/modules/randox/orderService.js');
 const { onOrderStatusChanged } = await import('../src/modules/randox/pollingJob.js');
-const { canPerform } = await import('../src/lib/reportTransitions.js');
+const { canPerform, releaseBlockedByHolds } = await import('../src/lib/reportTransitions.js');
 
 beforeEach(() => {
   for (const key of Object.keys(db) as (keyof FakePrisma)[]) {
@@ -59,11 +73,11 @@ beforeEach(() => {
   db.panel.rows.push({ id: 'panel-core', key: 'core-screen', name: 'Core Screen', isActive: true });
 });
 
-describe('order to a report ready for release, with nobody typing anything', () => {
+describe('order to a released report, with nobody typing anything', () => {
   // "stops at admin-verified" until Aug 2026 — a test named after the stage
   // that was deleted when the second gate went. What the chain actually does is
   // stop at PARSED with no holds, which is "waiting for a clinician".
-  it('runs the whole chain and stops waiting for a clinician', async () => {
+  it('runs the whole chain and puts a clean delivery in front of the patient', async () => {
     seedPatient(db, {
       id: 'p1',
       firstName: 'Aisha',
@@ -112,22 +126,28 @@ describe('order to a report ready for release, with nobody typing anything', () 
     expect(report.patientId).toBe('p1');
     expect(db.reportResult.rows.length).toBeGreaterThan(0);
 
-    // 4. Where it stopped — and that no human touched it to get there. PARSED
-    // with nothing held is "awaiting clinician review"; the clean/held
-    // distinction is holdReasons rather than a status of its own now that the
-    // admin verification stage is gone.
-    expect(report.status).toBe('PARSED');
+    // 4. WHERE IT ENDED, AND THAT NO HUMAN TOUCHED IT TO GET THERE (changed
+    // Aug 2026). It used to stop at PARSED and wait for a clinician. A clean
+    // delivery now releases itself, so the end of this walk is the patient
+    // being able to see it — with every audit entry along the way written by
+    // SYSTEM, because nobody was involved at any point.
+    expect(report.status).toBe('RELEASED');
+    expect(report.releasedAt ?? null, 'a clean delivery reaches the patient').not.toBeNull();
     expect(report.holdReasons ?? [], 'a clean delivery holds nothing').toEqual([]);
     expect(report.verifiedById ?? null, 'no staff member verified this; the audit log is the record').toBeNull();
-    expect(report.releasedAt ?? null).toBeNull();
+    expect(report.reviewedById ?? null, 'and nobody reviewed it either').toBeNull();
     expect(db.auditLogEntry.rows.every((e) => e.actorUserId === null)).toBe(true);
+    expect(
+      db.auditLogEntry.rows.some((e) => e.action === 'REPORT_RELEASED'),
+      'the release is on the record even though nobody performed it',
+    ).toBe(true);
 
-    // 5. The gate, and there is exactly one. A report cannot be released from
-    // here — the only route to RELEASED is through CLINICIAN_REVIEWED, and the
-    // only route into that is a clinician reviewing it from PARSED.
-    expect(canPerform('release', 'PARSED')).toBe(false);
-    expect(canPerform('review', 'PARSED')).toBe(true);
-    expect(canPerform('release', 'CLINICIAN_REVIEWED')).toBe(true);
+    // 5. THE ONE CHECKPOINT LEFT. There is no gate, and what replaced it is a
+    // refusal: release is permitted from PARSED (which is what makes automatic
+    // release possible at all) and is refused outright while anything is held.
+    expect(canPerform('release', 'PARSED')).toBe(true);
+    expect(canPerform('release', 'UPLOADED'), 'nothing unread can reach a patient').toBe(false);
+    expect(releaseBlockedByHolds({ holdReasons: ['anything at all'] }, false)).toBe(true);
 
     // 6. Polling stops. A completed order is not asked about again.
     expect(db.randoxOrder.rows[0].nextPollAt).toBeNull();

@@ -13,7 +13,7 @@ import {
   type ResultSort,
   type StatusFilter,
 } from '../../lib/markerCopy';
-import { RESULT_TYPE_FILTERS } from './reportSections';
+import { RANGE_FILTERS, RESULT_TYPE_FILTERS } from './reportSections';
 import {
   RESULTS_VIEWS,
   filtersApplied,
@@ -311,9 +311,11 @@ export function ResultsControlBar({
   // inside a report and carried out of it is exactly the case where a chip has
   // to keep naming itself: switching view must never silently drop a filter,
   // and a chip reading "Selected category" is a filter nobody can identify.
-  const categoryLabel = [...RESULT_TYPE_FILTERS.map((t) => ({ key: t.value, name: t.label })), ...categories].find(
-    (c) => c.key === filters.categoryFilter,
-  )?.name;
+  const categoryLabel = [
+    ...RESULT_TYPE_FILTERS.map((t) => ({ key: t.value, name: t.label })),
+    ...RANGE_FILTERS.map((r) => ({ key: r.value, name: r.label })),
+    ...categories,
+  ].find((c) => c.key === filters.categoryFilter)?.name;
   // What is narrowing the page from behind the fold — the search box is in the
   // row above and says so for itself.
   const narrowing = (filters.statusFilter === 'ALL' ? 0 : 1) + (filters.categoryFilter === 'ALL' ? 0 : 1);
@@ -472,11 +474,38 @@ export function ResultsControlBar({
           a form panel in the first place. */}
       {open && (
         <div id={FOLD_ID} ref={foldRef} className="mt-6 motion-safe:animate-fadeIn">
-          {/* Four pickers, sized to sit on ONE line inside the narrowest
-              content column that shows them all — 1280 with the sidebar out,
-              which is 880px less a scrollbar. */}
-          <div className="flex flex-wrap items-end gap-x-4 gap-y-4">
-            <div className="w-full sm:w-48">
+          {/* ── ONE ROW AT DESKTOP WIDTHS, AND TWO-AND-TWO BELOW (Aug 2026) ──
+              It was four fixed widths in a `flex-wrap` row: 192 + 224 + 160 +
+              208 plus three 16px gaps is 832px, against a content column of
+              about 832px at 1280 with the sidebar out. So Show, Category and
+              Group by took the line and SORT BY DROPPED TO A SECOND ROW ON ITS
+              OWN, leaving most of a row of empty space above it — the worst of
+              the three arrangements, because it reads as a mistake rather than
+              as a layout.
+
+              A GRID rather than tuned widths, because the widths were what
+              broke: four columns that share whatever the panel has cannot go
+              three-and-one at any viewport, and they cannot drift when somebody
+              adds an option with a longer label. 1280 gives each column ~196px,
+              1440 ~236px and 1920 ~356px.
+
+              The step below `lg` is TWO AND TWO, which is the arrangement to
+              fall back to rather than three-and-one: two even rows read as a
+              block of controls, and a row of three over a row of one reads as
+              something that failed to fit. One column on a phone.
+
+              The column count follows the number of controls — `scope` is null
+              on the report LIST and on Compare, where Group by and Sort by mean
+              nothing and are not rendered. A four-column grid holding two
+              pickers would set them at a quarter width each with half the panel
+              empty beside them. Both class strings are literals, because
+              Tailwind reads the source rather than the runtime value. */}
+          <div
+            className={`grid items-end gap-4 ${
+              scope ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4' : 'grid-cols-1 sm:grid-cols-2'
+            }`}
+          >
+            <div>
               <Select
                 label="Show"
                 name="results-status-filter"
@@ -508,7 +537,7 @@ export function ResultsControlBar({
                 this", and they are not the same KIND of answer. Where a view
                 has no result types to offer (everything but an open report) the
                 group is absent and this is the area picker it always was. */}
-            <div className="w-full sm:w-56">
+            <div>
               <Select
                 label="Category"
                 name="results-category-filter"
@@ -525,27 +554,46 @@ export function ResultsControlBar({
                     ))}
                   </optgroup>
                 )}
-                {categories.length > 0 &&
-                  (resultTypes.length > 0 ? (
-                    <optgroup label="Health area">
-                      {categories.map((c) => (
-                        <option key={c.key} value={c.key}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ) : (
-                    categories.map((c) => (
+                {/* A THIRD VOCABULARY, AND THE ONLY ONE OFFERED EVERYWHERE.
+                    Some markers in the grid carry no reference range and never
+                    will — the dipstick pads, the antibody result, and every
+                    physical measurement — so they render as untinted cards
+                    reading "Not compared to a range". Correct, and until now
+                    there was nothing a reader could do about a block of them:
+                    somebody reading their measured results scrolled past, and
+                    somebody who wanted just their blood pressure and their
+                    weight could not ask.
+
+                    Two options, exact complements, both self-describing so the
+                    chip in the row above names itself wherever it is carried.
+                    The wording is the sentence already on the cards — never
+                    "qualitative", which is not a word a patient has and is not
+                    even the right one (these cut across the result types).
+
+                    ALWAYS OFFERED, unlike the result types: every view this bar
+                    appears on has a measured grid, and every measured grid can
+                    contain both kinds. See reportSections.ts. */}
+                <optgroup label="Reference range">
+                  {RANGE_FILTERS.map((r) => (
+                    <option key={r.value} value={r.value}>
+                      {r.label}
+                    </option>
+                  ))}
+                </optgroup>
+                {categories.length > 0 && (
+                  <optgroup label="Health area">
+                    {categories.map((c) => (
                       <option key={c.key} value={c.key}>
                         {c.name}
                       </option>
-                    ))
-                  ))}
+                    ))}
+                  </optgroup>
+                )}
               </Select>
             </div>
             {scope && (
               <>
-                <div className="w-full sm:w-40">
+                <div>
                   <Select
                     label="Group by"
                     name="results-grouping"
@@ -559,7 +607,7 @@ export function ResultsControlBar({
                     ))}
                   </Select>
                 </div>
-                <div className="w-full sm:w-52">
+                <div>
                   <Select
                     label="Sort by"
                     name="results-sort"

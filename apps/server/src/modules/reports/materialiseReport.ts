@@ -3,6 +3,8 @@ import { encryptField } from '../../lib/crypto.js';
 import { computeMarkerStatus } from '../../lib/markerStatus.js';
 import { findBestMarkerMatch } from './matchMarker.js';
 import { assessParseCleanliness, holdFieldsFor } from '../../lib/cleanParse.js';
+import { recordAuditLog } from '../../lib/auditLog.js';
+import { releaseReport } from './service.js';
 import type { ParsedReport } from '../result-sources/ResultSourceAdapter.js';
 
 /**
@@ -25,10 +27,19 @@ import type { ParsedReport } from '../result-sources/ResultSourceAdapter.js';
  * it. Everything Randox-specific (void codes, order status, polling) is in
  * modules/randox/; everything about *writing a result* is here.
  *
- * Both callers land at exactly the same place — PARSED, never past it, with
- * `holdReasons` recording anything that was not clean about the delivery. A
- * linked result is not a released result, and neither is an ingested one; the one
- * clinician gate is untouched by either path.
+ * Both callers land at exactly the same place, and since Aug 2026 that place is
+ * RELEASED when the parse was CLEAN and PARSED with `holdReasons` when it was
+ * not. There is no clinician gate any more: a patient not seeing their own
+ * abnormal result is worse than them seeing it, and a result sitting in a queue
+ * nobody opens is the real risk.
+ *
+ * THE SPLIT IS THE WHOLE SAFETY PROPERTY, so it is worth being exact about it.
+ * `assessParseCleanliness` (lib/cleanParse.ts) is a CLOSED LIST of five facts
+ * about the delivery, and anything on it holds the report here rather than
+ * releasing it. Automation releases clean work; it never pushes a problem
+ * through. Nothing in this file may pass `acknowledgeHolds` — that is a person
+ * saying they have read the reasons, and a machine cannot say it about its own
+ * question.
  */
 
 export interface MappingFailure {
@@ -58,12 +69,19 @@ export interface MaterialiseResult {
   mappingFailures: MappingFailure[];
   /**
    * True when the parse was CLEAN — see lib/cleanParse.ts for the closed list of
-   * conditions. A clean report is awaiting clinician review; an unclean one is
-   * in the exception queue with `holdReasons` on it. Both are at PARSED.
+   * conditions. A clean report is RELEASED to the patient by this call; an
+   * unclean one stays at PARSED, in the exception queue, with `holdReasons` on it.
    */
   clean: boolean;
   /** Why it is held, in sentences a clinician reads. Empty when clean. */
   holdReasons: string[];
+  /**
+   * Whether the patient can see it now. Almost always equal to `clean` — it is
+   * false on a clean parse only if the release itself failed, which is recorded
+   * rather than thrown, because a report that is written and not released is
+   * recoverable and one that is neither is not.
+   */
+  released: boolean;
 }
 
 export async function materialiseParsedReport(input: {
@@ -342,29 +360,12 @@ export async function materialiseParsedReport(input: {
       });
     }
 
-    // PARSED EITHER WAY, AND THE DIFFERENCE IS ON THE REPORT (changed Aug 2026).
-    //
-    // A clean delivery used to advance to ADMIN_VERIFIED and an unclean one
-    // stopped at PARSED, so the pipeline position WAS the hold. With the admin
-    // stage gone there is no position left to hold in, so the hold moved onto
-    // the report: both land at PARSED, and `holdReasons` is what says whether
-    // this one is awaiting a clinician or waiting on a question.
-    //
-    // The safety property is unchanged and is still the whole point of automatic
-    // ingestion: "anything ambiguous is surfaced" cannot be enforced by a screen
-    // somebody has to open, because the failure mode is nobody opening it. What
-    // enforces it now is that `reviewReport` refuses a held report unless the
-    // clinician acknowledges the holds in the same action, and the exception
-    // queue sorts on heldAt. A report with an unmapped analyte cannot look
-    // identical to a clean one.
+    // PARSED, WITH THE HOLDS ON IT. The release is a separate step, outside this
+    // transaction and deliberately so — see below.
     //
     // verifiedById stays null — no staff user verified this, and stamping one
     // would put a name against a decision nobody made. The audit log entry is the
     // record of what happened and when.
-    //
-    // Clinician review and release remain untouched, explicit, human actions
-    // either way. Automatic ingestion is not automatic publication, and
-    // neither is an admin linking a result to an account.
     await tx.report.update({
       where: { id: report.id },
       data: { status: 'PARSED', ...holdFieldsFor(cleanliness) },
@@ -372,6 +373,47 @@ export async function materialiseParsedReport(input: {
 
     return report.id;
   });
+
+  /**
+   * ── AND A CLEAN PARSE RELEASES ITSELF (Aug 2026) ─────────────────────────
+   *
+   * OUTSIDE THE TRANSACTION, and the reason is escalation. `releaseReport` sends
+   * the clinic's email before it writes RELEASED, which is a network call to a
+   * third party; holding a database transaction open across it would put the
+   * mail provider's latency on a row lock over a patient's results.
+   *
+   * The two failure modes that produces are not symmetrical, which is why this
+   * order is the right one. Written-but-not-released is a report sitting at
+   * PARSED with nothing held, which the work queue shows as NOT_RELEASED and a
+   * person can release in one press. Released-but-not-written cannot happen at
+   * all, because the write has already committed.
+   *
+   * A THROW HERE IS SWALLOWED, for the same reason. The delivery has been
+   * ingested; turning a failed release into a failed ingestion would make the
+   * poller retry the whole delivery and lose the record of what arrived.
+   */
+  let released = false;
+  if (clean) {
+    try {
+      // No actor and no acknowledgement. SYSTEM in the audit log, and a machine
+      // may not acknowledge its own holds — which is moot here, since this only
+      // runs when there are none.
+      await releaseReport(reportId, null, null);
+      released = true;
+    } catch (releaseError) {
+      console.error('[materialise] the report was written but could not be released', {
+        reportId,
+        error: releaseError instanceof Error ? releaseError.message : releaseError,
+      });
+      await recordAuditLog({
+        actorType: 'SYSTEM',
+        action: 'REPORT_AUTO_RELEASE_FAILED',
+        targetType: 'Report',
+        targetId: reportId,
+        metadata: { error: releaseError instanceof Error ? releaseError.message : String(releaseError) },
+      });
+    }
+  }
 
   return {
     reportId,
@@ -381,6 +423,7 @@ export async function materialiseParsedReport(input: {
     mappingFailures,
     clean,
     holdReasons,
+    released,
   };
 }
 

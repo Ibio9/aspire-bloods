@@ -535,9 +535,9 @@ export function AdminReportsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const statusFilter = searchParams.get('status');
   /**
-   * The queue bucket, which is NOT the status. HELD and AWAITING_REVIEW are both
+   * The queue bucket, which is NOT the status. HELD and NOT_RELEASED are both
    * PARSED, so a `status=PARSED` filter cannot answer "what is held" — and that is
-   * the question the dashboard's most urgent tile asks. See lib/reportStatus.ts.
+   * the question the queue's most urgent tile asks. See lib/reportStatus.ts.
    */
   const queueFilter = searchParams.get('queue');
   const [query, setQuery] = useState('');

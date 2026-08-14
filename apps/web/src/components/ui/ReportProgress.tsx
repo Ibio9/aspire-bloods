@@ -1,13 +1,26 @@
 import { PIPELINE_STAGES, stageIndex, whatsNext, type ReportStatus } from '../../lib/reportStatus';
 
 /**
- * The five-stage release pipeline, made visible on every report (brief §1:
- * "the problem is it's invisible"). Shape carries the state, not colour
- * alone — done steps get a filled dot, the current one a ring, upcoming
- * ones an empty outline — so it reads correctly without relying on the
- * bronze/taupe contrast alone.
+ * The release pipeline, made visible on every report (brief §1: "the problem is
+ * it's invisible"). Shape carries the state, not colour alone — done steps get a
+ * filled dot, the current one a ring, upcoming ones an empty outline — so it
+ * reads correctly without relying on the bronze/taupe contrast alone.
+ *
+ * Three stages now, from five and then four. `held` is a separate prop rather
+ * than a stage: it is a property of the report and not a position in the
+ * pipeline, and it is the difference between "read, not released" and "held on a
+ * question" — which was being lost here, because the sentence underneath was
+ * being asked for the status alone.
  */
-export function ReportProgress({ status, voided }: { status: ReportStatus; voided?: boolean }) {
+export function ReportProgress({
+  status,
+  voided,
+  held = false,
+}: {
+  status: ReportStatus;
+  voided?: boolean;
+  held?: boolean;
+}) {
   const current = stageIndex(status);
   const isChangesRequested = status === 'CHANGES_REQUESTED';
 
@@ -55,7 +68,7 @@ export function ReportProgress({ status, voided }: { status: ReportStatus; voide
         })}
       </ol>
       <p className="mt-3 text-sm text-espresso/80">
-        {voided ? 'This report has been voided. It no longer moves through the pipeline.' : whatsNext(status)}
+        {voided ? 'This report has been voided. It no longer moves through the pipeline.' : whatsNext(status, held)}
       </p>
     </div>
   );

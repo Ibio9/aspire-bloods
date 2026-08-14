@@ -576,39 +576,52 @@
      the heading read as a caption on the paragraph beneath it. 16px, and the
      space inverted with it at the call site.
 
-     ── AND 16px WAS STILL UNDER THE SENTENCE IT LABELS (Aug 2026, fourth) ────
+     ── 16px WAS STILL UNDER THE SENTENCE IT LABELS (Aug 2026, fourth) ───────
      All three of those attempts compared this label with the SUB-LABELS and
      never with the LEAD — the definition of the marker, Fraunces, directly
-     beneath it and 75% larger at 28px. So the card's heading was the third
-     largest thing in its own card, which is the same failure one level up, and
-     it is the ONLY place in the product where that was true.
+     beneath it. So the card's heading was the third largest thing in its own
+     card. The fourth attempt fixed that by taking the heading to 28px and the
+     lead DOWN to 21px.
 
-     THE CARD'S LADDER IS WHAT DECIDES BOTH NUMBERS, and it decides them
-     uniquely. The answers are 18px and the sub-labels 12px, neither of which
-     moves. So the lead has to clear 18 and the heading has to clear the lead:
+     ── AND THAT PUT IT THE OTHER WAY ROUND (Aug 2026, FIFTH AND LAST) ───────
+     A 28px uppercase tracked semibold line over a 21px definition is a label
+     shouting over the thing it labels — and the thing it labels is THE POINT OF
+     THE CARD. Every one of the five attempts has been a contest between the
+     heading and something else, and four of them asked the wrong question. The
+     right question is not "how big should this label be", it is:
 
-       .card-eyebrow  28px   uppercase, tracked, semibold, full tone
-       the lead       21px   Fraunces, opsz-section — DOWN from 28px
-       the answers    18px
-       .sublabel      12px
+         THE DEFINITION IS THE CONTENT. IT WINS. Everything else is structure.
 
-     THE LEAD CAME DOWN RATHER THAN THE HEADING GOING FURTHER UP. The step past
-     28px is 38px — `.section-heading` — and a 38px uppercase tracked label sets
-     "WHAT THIS MARKER MEANS" at roughly 670px, which is wider than the card at
-     any width this product is read at and reads as the page's title rather than
-     as a card's label. 28px is 493px, which fits the card on a laptop with room
-     to spare and takes two balanced lines on a phone, where a 286px column
-     wraps anything above 16px whatever it is set in.
+     Which settles all four levels at once, in the order a reader should meet
+     them, and each is distinct from the one above it on more than one axis:
+
+       the lead      28px  Fraunces 400, opsz-section, full tone   ← the content
+       .card-eyebrow 16px  Plex 600, UPPERCASE, 0.14em, full tone
+       .sublabel     12px  Plex 600, sentence, 0.01em, full tone
+       the answers   18px  Plex 400, sentence, 0, /90
+
+     ── WHY THE HEADING IS 16px AND NOT 21px OR 14px ─────────────────────────
+     16px is the value the THIRD attempt landed on, and the record above says it
+     worked against the sub-labels — it was only ever overruled by a comparison
+     with the lead, which no longer applies now the lead is the largest thing in
+     the card. 16 against 12 is a 33% step, on top of uppercase against sentence
+     case and 0.14em of tracking against 0.01em.
+
+     14px is what the record already rejected: two pixels is 17%, which is
+     inside the noise of two different letter-cases. And 21px would put an
+     uppercase tracked semibold label within one step of a 28px definition,
+     where the extra presence uppercase and tracking carry would make the two
+     read as equals — which is the failure being fixed, one notch quieter.
 
      Never a substitute for a section heading, which is Fraunces (see
-     `.section-heading`). This is still an eyebrow: it labels a card whose
-     content is the thing to read. */
+     `.section-heading`). This is an eyebrow: it labels a card whose content is
+     the thing to read. */
   .card-eyebrow {
-    @apply font-eyebrow text-xl font-semibold uppercase tracking-eyebrow text-espresso;
-    /* On a phone this is a two-line label whatever is done to it — 493px of
-       text in a 286px card — so the only question is where it breaks. Balanced
-       it splits "WHAT THIS / MARKER MEANS"; left alone it orphans the last
-       word. Ignored by any browser that does not implement it. */
+    @apply font-eyebrow text-base font-semibold uppercase tracking-eyebrow text-espresso;
+    /* On a phone this wraps to two lines whatever it is set in, so the only
+       question is where it breaks. Balanced it splits "WHAT THIS / MARKER
+       MEANS"; left alone it orphans the last word. Ignored by any browser that
+       does not implement it. */
     text-wrap: balance;
   }
 
@@ -619,13 +632,32 @@
      what makes 12px loud, and three of them running down a card out-read one of
      them at the top however the heading is set.
 
-     Sentence case, the body face, medium weight — kept at medium rather than
-     dropped to regular for the same reason `.eyebrow` is: a thin 12px label
-     disappears on the dark page, and "quieter" must not become "fainter". It
-     pairs with its answer by proximity (see MarkerExplanation) and reads as an
-     introduction to one rather than as a fourth heading. */
+     Sentence case and the body face. It pairs with its answer by proximity (see
+     MarkerExplanation) and reads as an introduction to one rather than as a
+     fourth heading.
+
+     ── SEMIBOLD AND FULL TONE (Aug 2026) ────────────────────────────────────
+     It was 500 at /80 above an answer set 400 at /90 — so the LABEL WAS FAINTER
+     THAN THE TEXT IT LABELS, and the only axis running the right way was a size
+     difference that runs backwards anyway (12px label, 18px answer). Two
+     paragraphs of nearly equal weight, which is why three label/answer pairs
+     read as six loose lines.
+
+     600 and full tone reverses it on the two axes that are free: the label is
+     now the darkest and heaviest text in its own pair, and the answer is the
+     larger, lighter, longer one. A reader scans the labels and reads the
+     answers, which is what the pair is for. Nothing about CONTRAST is being
+     traded — this raises the label rather than dimming the answer, so the
+     answers stay at /90 and every AA floor is where it was.
+
+     Still 12px, still sentence case, still the floor of the type scale. What a
+     label subordinate to a card heading gives up is the SHOUT, and it gives it
+     up here. */
   .sublabel {
-    @apply font-body text-xs font-medium text-espresso/80;
+    @apply font-body text-xs font-semibold text-espresso;
+    /* A hair, not the eyebrow's 0.14em. At 12px semibold in sentence case it
+       stops the label setting as a solid block against the longer line below. */
+    letter-spacing: 0.01em;
   }
 
   /* Sidebar navigation labels, in both shells.

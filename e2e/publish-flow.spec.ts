@@ -12,9 +12,19 @@ import { test, expect, type APIRequestContext } from '@playwright/test';
  *     one request — markers matched, ranges resolved, statuses derived — and
  *     publishing it takes one more. That is the interaction budget the whole
  *     change exists to hit.
- *  2. The state machine survives it. The report passes through PARSED
- *     and CLINICIAN_REVIEWED on the way to RELEASED, and the patient can see
- *     nothing until it gets there.
+ *  2. The state machine survives it. The report passes through PARSED on the
+ *     way to RELEASED, and the patient can see nothing until it gets there.
+ *
+ * ── THE GATE IS GONE, AND WHAT IS ASSERTED CHANGED WITH IT (Aug 2026) ──────
+ *
+ * This used to assert that `reviewedAt` was set, on the reasoning that a
+ * timestamp only the review transition writes is proof the stage was passed
+ * through rather than skipped. There is no review stage now — a clean parse
+ * releases itself and this one-step path is verify → release — so a reviewedAt
+ * would be a timestamp against a decision nobody made. `verifiedAt` still
+ * proves the correction ran, `releasedAt` proves the release did, and
+ * reviewedAt being ABSENT is now the assertion: it is what says nothing
+ * pretended to be a review.
  */
 
 const SAMPLE = fileURLToPath(
@@ -135,11 +145,14 @@ test('the real Randox sample uploads, parses and publishes in one step', async (
 
   const afterPublish = await (await adminRequest.get(`/api/reports/${created.id}`)).json();
   expect(afterPublish.status).toBe('RELEASED');
-  // Every intermediate state was genuinely passed through, not skipped: both
-  // timestamps are set, which only the verify and review transitions write.
+  // Both transitions genuinely ran rather than the status being written
+  // directly: verifiedAt is only written by verify, releasedAt only by release.
   expect(afterPublish.verifiedAt).toBeTruthy();
-  expect(afterPublish.reviewedAt).toBeTruthy();
   expect(afterPublish.releasedAt).toBeTruthy();
+  // AND NOTHING CLAIMED TO BE A REVIEW. There is no review in this path, so a
+  // reviewedAt here would be a timestamp against a decision nobody made — the
+  // removed gate surviving as a column that still gets written.
+  expect(afterPublish.reviewedAt ?? null).toBeNull();
 
   // --- The patient can now see it, with both ranges where one exists. ---
   const patientReport = await patientCtx.request.get(`/api/patient/reports/${created.id}`);

@@ -36,7 +36,6 @@ export interface ReportDetail {
   markerCount?: number;
   title: string;
   sampleDate: string;
-  sourceLabel?: string;
   /** False for a manually entered report — there is no laboratory PDF behind one. */
   hasOriginalPdf?: boolean;
   originalFilename?: string | null;

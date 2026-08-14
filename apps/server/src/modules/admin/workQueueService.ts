@@ -6,10 +6,10 @@ import { queueState, type ReportQueueState } from '../../lib/reportTransitions.j
  *  THE CLINICIAN WORK QUEUE.
  * ============================================================================
  *
- * With the admin verification stage gone there is one human gate left, and the
- * question that matters is no longer "who has verified what" but the two the
- * console could not answer at all: WHAT IS WAITING FOR A CLINICIAN, and WHAT IS
- * STUCK.
+ * With no gate left in the pipeline, the question that matters is no longer
+ * "who has verified what" and no longer "what is waiting for a clinician" — a
+ * clean delivery releases itself. It is the two the console could not answer at
+ * all: WHAT IS HELD, and WHAT IS STUCK.
  *
  * NOTHING HERE IS NEW TRACKING, and that is a constraint rather than an
  * accident. Every figure below is derived from state already on the report or
@@ -26,15 +26,14 @@ import { queueState, type ReportQueueState } from '../../lib/reportTransitions.j
  * second record to drift, and the audit log is the one the practice is
  * accountable to.
  *
- * WHY TIME-IN-STATE NEEDS THE AUDIT LOG AT ALL. Three of the four states have a
- * timestamp on the report — UPLOADED has receivedDate, HELD has heldAt,
- * AWAITING_RELEASE has reviewedAt. AWAITING_REVIEW does not: a report becomes
- * "parsed with nothing held" through parse, through re-parse, through a
- * correction that cleared the last hold, or through a re-ingest, and none of
- * those writes a column. `updatedAt` is not that timestamp either — it moves
- * when anything at all on the row changes. So the entry time comes from the
- * latest of that report's own REPORT_PARSED / REPORT_VERIFIED entries, which is
- * precisely what the audit log is a record of.
+ * WHY TIME-IN-STATE NEEDS THE AUDIT LOG AT ALL. Two of the three open states
+ * have a timestamp on the report — UPLOADED has receivedDate, HELD has heldAt.
+ * NOT_RELEASED does not: a report becomes "parsed with nothing held" through
+ * parse, through re-parse, through a correction that cleared the last hold, or
+ * through a re-ingest, and none of those writes a column. `updatedAt` is not
+ * that timestamp either — it moves when anything at all on the row changes. So
+ * the entry time comes from the latest of that report's own REPORT_PARSED /
+ * REPORT_VERIFIED entries, which is precisely what the audit log is a record of.
  */
 
 /** A report on the queue, with the one number the list is sorted by. */
@@ -141,7 +140,7 @@ const BACKUP_OVERDUE_HOURS = 48;
  * first. HELD leads, for the reason recorded in lib/reportTransitions.ts: it is
  * now the only thing standing between a bad parse and a clinician's screen.
  */
-const BUCKET_ORDER: ReportQueueState[] = ['HELD', 'AWAITING_RELEASE', 'AWAITING_REVIEW', 'AWAITING_PARSE'];
+const BUCKET_ORDER: ReportQueueState[] = ['HELD', 'NOT_RELEASED', 'AWAITING_PARSE'];
 
 /**
  * The median of a sorted list, taking the LOWER of the two middles on an even
@@ -243,11 +242,9 @@ export async function getWorkQueue(now = new Date()): Promise<WorkQueue> {
     const since =
       state === 'AWAITING_PARSE'
         ? report.receivedDate
-        : state === 'AWAITING_RELEASE'
-          ? (report.reviewedAt ?? report.receivedDate)
-          : state === 'HELD'
-            ? (report.heldAt ?? latestEntryFor.get(report.id) ?? report.receivedDate)
-            : (latestEntryFor.get(report.id) ?? report.receivedDate);
+        : state === 'HELD'
+          ? (report.heldAt ?? latestEntryFor.get(report.id) ?? report.receivedDate)
+          : (latestEntryFor.get(report.id) ?? report.receivedDate);
     const profile = report.patient.patientProfile;
     return {
       id: report.id,

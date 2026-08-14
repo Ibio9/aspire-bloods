@@ -46,28 +46,27 @@ enum MarkerReviewStatus {
   PUBLISHED
 }
 
-/// ONE HUMAN GATE, AND IT IS A CLINICIAN (Aug 2026).
+/// RESULTS RELEASE AUTOMATICALLY (Aug 2026). THERE IS NO HUMAN GATE.
 ///
-/// ADMIN_VERIFIED is gone. It existed to catch transcription errors from a PDF,
-/// and results arrive structured through the Randox API now — so there was
-/// nothing being transcribed and nothing for the step to catch, and a person
-/// retyping what the laboratory already sent added a delay and a typo risk
-/// without adding a check.
+/// ADMIN_VERIFIED went first: it existed to catch transcription errors from a
+/// PDF, and results arrive structured through the Randox API now. CLINICIAN_
+/// REVIEWED has followed it, on the practice's own decision — a patient not
+/// seeing their own abnormal result is worse than them seeing it, and a result
+/// sitting in a queue nobody opens is the real risk.
 ///
-///   UPLOADED → PARSED → CLINICIAN_REVIEWED → RELEASED
+///   UPLOADED → PARSED → RELEASED
 ///
-/// with CHANGES_REQUESTED as a loop back, not a fifth forward stage.
+/// with CHANGES_REQUESTED as a loop back, not a fourth forward stage.
 ///
-/// PARSED means "the data is in, awaiting clinician review". Whether the parse
-/// was CLEAN is not a status — it is `holdReasons` on the report, because a
-/// four-state pipeline has no state left to hold a problem in, and the thing
-/// that must never happen is a report with a hole in it looking identical to a
-/// good one on a clinician's queue. See lib/cleanParse.ts.
+/// PARSED means "the data is in, not released". Whether the parse was CLEAN is
+/// not a status — it is `holdReasons` on the report — and it is now the ONLY
+/// thing between a bad parse and a patient: a clean parse releases itself, and a
+/// held one cannot be released by anybody until the reasons are acknowledged.
+/// See lib/cleanParse.ts and lib/reportTransitions.ts.
 enum ReportStatus {
   UPLOADED
   PARSED
   CHANGES_REQUESTED
-  CLINICIAN_REVIEWED
   RELEASED
 }
 
@@ -752,22 +751,22 @@ model Report {
 
   // WHY THIS PARSE IS NOT CLEAN, in sentences, persisted.
   //
-  // With ADMIN_VERIFIED gone there is no stage to park a problem in, so the
-  // problem is recorded on the report instead. Empty means a clean parse (see
-  // lib/cleanParse.ts for the closed list of conditions). Non-empty means the
-  // exception queue has this report and the clinician review screen leads with
-  // these sentences — automation never moves a problem forward, and the one
-  // human in the pipeline is never shown a panel with a result silently missing
-  // from it.
+  // With no gate left in the pipeline this is THE checkpoint, and it carries the
+  // whole safety property of automatic release: empty means a clean parse, which
+  // releases itself (see lib/cleanParse.ts for the closed list of conditions).
+  // Non-empty means the report CANNOT be released — by automation or by a person
+  // pressing a button — until the reasons are acknowledged, it is in the
+  // exception queue, and the review screen leads with these sentences.
+  // Automation releases clean work and never pushes a problem through.
   //
   // Recomputed on every parse/ingest/verify, so correcting the cause clears it.
   holdReasons String[] @default([])
   // When the current set of holds was raised — the "oldest first" sort key the
   // exception queue reads. Null exactly when holdReasons is empty.
   heldAt      DateTime?
-  // A clinician may review a held report: the holds are shown, and going ahead
-  // anyway is an explicit acknowledgement recorded here and in the audit log.
-  // This is NOT a second gate — it is part of the one review action.
+  // Releasing a held report is an explicit acknowledgement of every reason on
+  // it, recorded here and in the audit log. It is the only way a held report
+  // reaches a patient, and nothing automatic may perform it.
   holdsAcknowledgedAt   DateTime?
   holdsAcknowledgedById String?
   holdsAcknowledgedBy   User?     @relation("HoldsAcknowledgedByStaff", fields: [holdsAcknowledgedById], references: [id])

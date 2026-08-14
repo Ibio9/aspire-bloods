@@ -1,7 +1,6 @@
 import { prisma } from '../../db/client.js';
 import { decryptField } from '../../lib/crypto.js';
 import { decodeResultValue } from '../../lib/resultValue.js';
-import { sourceLabel } from '../../lib/sourceLabel.js';
 import { convertToDisplayUnit, hasKnownConversion } from '../../lib/unitConversion.js';
 import { optimalContextForPatient, optimalFor } from '../../lib/optimalRange.js';
 import { classifyMovement, isMeaningfulChange, movementMagnitude } from './markerMovement.js';
@@ -22,6 +21,20 @@ export type { MarkerMovement } from './markerMovement.js';
  *  - Values are normalised to the marker's own default unit through the
  *    named-conversion registry, never coerced. A series that needs a
  *    conversion we don't have is marked not-comparable rather than guessed.
+ *
+ * NO `sourceLabel` ANYWHERE IN THIS FILE, and it is not merely unused (Aug
+ * 2026). "Analysed by Randox Health" was removed from every patient-facing
+ * render months ago and the field went on being computed and sent on six
+ * payloads — a string one autocomplete away from being printed again, on the
+ * screens it was specifically taken off. It is deleted from the DTOs, the way
+ * `nextSteps` was deleted with the Overview section that rendered it.
+ *
+ * The clinician console still shows provenance and still should: on a card
+ * beside somebody's own result the laboratory's name says something about the
+ * practice's commercial arrangements and nothing about the number, and in the
+ * console it says which feed a row came from. It is computed for the ADMIN read
+ * models (patients/service.ts, reports/service.ts) and for the GP handover PDF,
+ * where a reference interval being assay-specific makes it load-bearing.
  */
 
 /** One released result, decrypted and normalised to its marker's display unit. */
@@ -64,7 +77,6 @@ interface NormalisedPoint {
    * begin exactly here. See severityThreshold in ./service.ts.
    */
   severityThreshold: number;
-  sourceLabel: string;
   amendedAt: Date | null;
   /** False when this point needed a conversion the registry doesn't define. */
   convertible: boolean;
@@ -168,7 +180,6 @@ async function loadReleasedPoints(patientId: string): Promise<NormalisedPoint[]>
       severityThreshold: round(
         r.marker.severityAbsoluteDelta ?? (high.value - low.value) * r.marker.severityMultiplier,
       ),
-      sourceLabel: sourceLabel(r.report.source.key, r.report.source.name),
       amendedAt: r.amendedAt,
       convertible: valueOk && rangeOk,
     };
@@ -354,7 +365,6 @@ export async function getPatientOverview(patientId: string) {
           panelName: latestReport.panel?.name ?? null,
           title: formatReportTitle(latestReport.panel?.name, latestPoints.length, latestReport.sampleDate),
           sampleDate: latestReport.sampleDate.toISOString().slice(0, 10),
-          sourceLabel: sourceLabel(latestReport.source.key, latestReport.source.name),
           markerCount: latestPoints.length,
           inRangeCount: inRangePoints.length,
           attentionCount: attentionPoints.length,
@@ -424,7 +434,6 @@ export async function listAllMarkersForPatient(patientId: string) {
         // nullable by design, reportTitle is the composed fallback.
         panelName: latest.panelName,
         reportTitle: latest.reportTitle,
-        sourceLabel: latest.sourceLabel,
         amendedAt: latest.amendedAt,
         resultCount: series.length,
         comparable,
@@ -493,7 +502,6 @@ export async function getMultiMarkerTrends(patientId: string, markerIds: string[
             referenceLow: p.referenceLow,
             referenceHigh: p.referenceHigh,
             severityThreshold: p.severityThreshold,
-            sourceLabel: p.sourceLabel,
             reportId: p.reportId,
           })),
       };
@@ -589,7 +597,6 @@ export async function listDocumentsForPatient(patientId: string) {
     title: formatReportTitle(r.panel?.name, r._count.results, r.sampleDate),
     sampleDate: r.sampleDate.toISOString().slice(0, 10),
     releasedAt: r.releasedAt?.toISOString() ?? null,
-    sourceLabel: sourceLabel(r.source.key, r.source.name),
     markerCount: r._count.results,
     hasOriginalPdf: !!r.originalPdfFileId,
     originalFilename: r.originalPdfFile?.originalFilename ?? null,

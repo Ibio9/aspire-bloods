@@ -401,10 +401,10 @@ export function ReportDetailPage() {
   }
 
   /**
-   * Publish — verify, review and release, in one request.
+   * Save this form's results and release, in one request. The manual-entry path.
    *
    * The server still walks each transition through its own guard; this just
-   * stops the admin making three round trips to say one thing.
+   * stops the admin making two round trips to say one thing.
    */
   async function handlePublish() {
     if (!id) return;
@@ -418,8 +418,8 @@ export function ReportDetailPage() {
           results: buildResults(),
           note: note || undefined,
           confirm: true,
-          // Publish runs verify → review → release, and verify clears the holds —
-          // so the server reads them BEFORE that and refuses without this. See
+          // This runs verify → release, and verify clears the holds — so the
+          // server reads them BEFORE that and refuses without this. See
           // publishReport.
           acknowledgeHolds: held ? acknowledged : false,
         }),
@@ -427,7 +427,7 @@ export function ReportDetailPage() {
       setPublishOpen(false);
       setRows([]);
       setSummary(null);
-      show('Report published and released to the patient.', 'success');
+      show('Results saved and released to the patient.', 'success');
       await load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Publish failed');
@@ -463,7 +463,13 @@ export function ReportDetailPage() {
     setError(null);
     setBusy(true);
     try {
-      await apiFetch(`/reports/${id}/release`, { method: 'POST' });
+      await apiFetch(`/reports/${id}/release`, {
+        method: 'POST',
+        // A held report can only be released with the reasons acknowledged, and
+        // the server refuses either way. This is the same acknowledgement the
+        // review path sends — it is the one checkpoint left in the pipeline.
+        body: JSON.stringify({ acknowledgeHolds: held ? acknowledged : false }),
+      });
       await load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Release failed');
@@ -527,8 +533,8 @@ export function ReportDetailPage() {
   const attentionRows = rows.map((r, i) => ({ row: r, i })).filter(({ row }) => row.attention.length > 0);
   const cleanRows = rows.map((r, i) => ({ row: r, i })).filter(({ row }) => row.attention.length === 0);
   // AND A HELD REPORT NEEDS THE ACKNOWLEDGEMENT FIRST. The server refuses either
-  // way (publishReport reads the holds before verify clears them), but a Publish
-  // button that looks available and then 409s is a worse way to say so.
+  // way (publishReport reads the holds before verify clears them), but a button
+  // that looks available and then 409s is a worse way to say so.
   const publishable =
     rows.length > 0 &&
     buildResults().length > 0 &&
@@ -566,7 +572,7 @@ export function ReportDetailPage() {
       {report.sourceLabel && <p className="mt-1 text-sm text-espresso/80">{report.sourceLabel}</p>}
 
       <div className="mt-6 max-w-xl">
-        <ReportProgress status={report.status as ReportStatus} voided={!!report.voidedAt} />
+        <ReportProgress status={report.status as ReportStatus} voided={!!report.voidedAt} held={held} />
       </div>
 
       {report.voidedAt && (
@@ -589,49 +595,36 @@ export function ReportDetailPage() {
         </p>
       )}
 
-      {/* ═══ ONE PRIMARY, AND IT IS THIS REPORT'S NEXT STEP (Aug 2026) ══════
-          Six controls sat in one row and TWO of them were bronze-filled:
-          Publish and Approve, separated by three secondaries, with a red
-          destructive on the end. That is the screen where the pipeline is
-          enforced, and its two loudest controls were the pair a clinician must
-          never confuse — Approve is the review gate, Publish releases to the
-          patient — offered at identical weight regardless of which one the
-          report was actually ready for. On a report reading "Needs clinician
-          review" the first bronze button on the screen was the one that skips
-          the review.
+      {/* ═══ THERE IS USUALLY NOTHING TO PRESS HERE (Aug 2026) ═════════
+          Results release automatically. A clean delivery is RELEASED before
+          anybody opens this screen, so on the ordinary report every control
+          below is absent and that is correct — a row of buttons offering to
+          advance a report that has already gone out is a screen inviting an
+          action with no meaning.
 
-          `advancing` names the single control that moves THIS report from THIS
-          state, and it is the only filled one. Everything else — the PDF, a
-          re-parse, requesting changes — is a secondary, and voiding is pushed
-          out of the row entirely: it is not a step in the pipeline, it is the
-          way of ending one, and it should not sit at the end of a row of
-          buttons somebody is working left to right along.
+          What is left is the two cases automation will not touch:
 
-          Nothing about who may do what has changed. The conditions are the same
-          conditions, in the same order; only the weight moved. */}
+            · a HELD report, where "Release to patient" means "I have read
+              these reasons and it goes out anyway", and is disabled until the
+              acknowledgement in the card below. The server refuses it either
+              way, and a button that looks available and then 409s is a worse
+              way to say so.
+            · a report automation left at PARSED — a keyed-in PDF, or a
+              release that failed — where it simply means release.
+
+          `advancing` still names the single control that moves THIS report from
+          THIS state, and it is still the only filled one. Everything else — the
+          PDF, a re-parse, requesting changes — is a secondary, and voiding is
+          out of the row entirely. */}
       <div className="mt-8 flex flex-wrap items-center gap-3">
-        {/* ── "PUBLISH" AND "RELEASE TO PATIENT" WERE THE SAME ROW (Aug 2026)
-            Two filled buttons, side by side, on a reviewed report: one said
-            "Publish" and one said "Release to patient", and nothing on the
-            screen said which was which. They are not the same act — this one is
-            the ADMIN shortcut PAST the clinician gate — and on a reviewed
-            report they were, at which point the console was offering the same
-            outcome twice under two names.
-
-            Two changes, and the second is the important one:
-              · It is HIDDEN once a clinician has reviewed the report. There is
-                nothing left to skip, and "Release to patient" below is the step.
-              · Where it does appear it SAYS what makes it different. "Publish"
-                is a verb that describes both buttons; "Release without
-                clinician review" describes exactly one. */}
-        {user?.role === 'ADMIN' &&
-          rows.length > 0 &&
-          !report.voidedAt &&
-          report.status !== 'CLINICIAN_REVIEWED' && (
-            <Button variant="secondary" onClick={() => setPublishOpen(true)} disabled={parsing || busy}>
-              Release without clinician review
-            </Button>
-          )}
+        {/* The manual-entry path: save what is in the table below AND release,
+            in one press. It is not a shortcut past a gate any more — there is no
+            gate — so it no longer says it is one. It reads as what it does. */}
+        {user?.role === 'ADMIN' && rows.length > 0 && !report.voidedAt && report.status !== 'RELEASED' && (
+          <Button variant="secondary" onClick={() => setPublishOpen(true)} disabled={parsing || busy}>
+            Save these results and release
+          </Button>
+        )}
 
         {/* Only where there is a document. A manually-entered report has no
             source PDF, and both of these used to be offered on one anyway:
@@ -651,30 +644,31 @@ export function ReportDetailPage() {
           </Button>
         )}
 
-        {/* THE ONE HUMAN GATE, and it is now reached from PARSED rather than from
-            a stage an admin had to clear first. Approving a HELD report is
-            disabled until the reasons have been acknowledged in the card below —
-            the server refuses it either way, and a button that looks available
-            and then 409s is a worse way to say so. */}
-        {canActAsClinician && report.status === 'PARSED' && (
+        {canActAsClinician && report.status === 'PARSED' && !report.voidedAt && (
           <>
-            {/* "Approve" reads as "release it", and it is not: it moves the
-                report to CLINICIAN_REVIEWED and the patient still sees nothing
-                until somebody presses Release. The label says which of the two
-                this is, and pairs with the button that appears next. */}
-            <Button onClick={() => handleReview(true)} loading={busy} disabled={held && !acknowledged}>
-              {held ? 'Mark as reviewed anyway' : 'Mark as reviewed'}
+            {/* ONE BUTTON, AND IT SAYS THE OUTCOME. It used to be "Mark as
+                reviewed", which moved the report to a status the patient could
+                not see — so the label had to be careful not to promise a
+                release. It releases now, so it says so.
+
+                TWO ROUTES BEHIND ONE LABEL, AND THE DIFFERENCE IS THE AUDIT
+                ENTRY. A HELD report goes through /review, because pressing this
+                IS a clinical decision — the reasons are read and overridden, and
+                the entry records which reasons and who. A clean one goes through
+                /release, because nobody reviewed anything: they released a
+                report automation had left standing, and an audit log saying
+                REPORT_REVIEWED_APPROVED about that is a review nobody did. */}
+            <Button
+              onClick={() => (held ? handleReview(true) : handleRelease())}
+              loading={busy}
+              disabled={held && !acknowledged}
+            >
+              {held ? 'Release to patient anyway' : 'Release to patient'}
             </Button>
             <Button variant="secondary" onClick={() => handleReview(false)} disabled={busy}>
               Request changes
             </Button>
           </>
-        )}
-
-        {canActAsClinician && report.status === 'CLINICIAN_REVIEWED' && (
-          <Button onClick={handleRelease} loading={busy}>
-            Release to patient
-          </Button>
         )}
       </div>
 
@@ -736,8 +730,8 @@ export function ReportDetailPage() {
                 onChange={(e) => setAcknowledged(e.target.checked)}
                 label={
                   <>
-                    I have read {holdReasons.length === 1 ? 'this' : 'these'} and am reviewing the report knowing what is
-                    missing from it. This is recorded against my name in the audit log.
+                    I have read {holdReasons.length === 1 ? 'this' : 'these'} and am releasing the report to the patient
+                    knowing what is missing from it. This is recorded against my name in the audit log.
                   </>
                 }
               />
@@ -909,7 +903,7 @@ export function ReportDetailPage() {
       <Modal
         open={publishOpen}
         onClose={() => setPublishOpen(false)}
-        title="Release this report without a clinician review?"
+        title="Release these results to the patient?"
         footer={
           <>
             <Button
@@ -923,7 +917,7 @@ export function ReportDetailPage() {
               Review first
             </Button>
             <Button variant="primary" loading={publishing} disabled={!publishable} onClick={handlePublish}>
-              {publishing ? 'Releasing…' : 'Release without review'}
+              {publishing ? 'Releasing…' : 'Save and release'}
             </Button>
           </>
         }
@@ -931,8 +925,8 @@ export function ReportDetailPage() {
         <p>
           <strong>{patientName}</strong> will be able to see {buildResults().length} result
           {buildResults().length === 1 ? '' : 's'} from {sampleDateLabel} immediately, and will be notified. The
-          report is verified, reviewed and released in one step; each stage is still recorded separately in the audit
-          log.
+          results are saved and released in one step; each stage is still recorded separately in the audit log, and
+          anything outside range escalates to the clinic before the release lands.
         </p>
         {summary && (
           <ul className="mt-3 flex flex-col gap-1 text-sm text-espresso/80">
@@ -947,7 +941,7 @@ export function ReportDetailPage() {
           <p className="mt-3 text-sm text-status-significantHigh">
             {attentionRows.length > 0
               ? `${attentionRows.length} row${attentionRows.length === 1 ? '' : 's'} still need${attentionRows.length === 1 ? 's' : ''} your input, so this can’t go out as parsed. Choose “Review first”.`
-              : 'There is nothing complete enough to publish yet. Choose “Review first”.'}
+              : 'There is nothing complete enough to release yet. Choose “Review first”.'}
           </p>
         )}
       </Modal>

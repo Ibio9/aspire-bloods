@@ -328,15 +328,15 @@ export function IngestionLogPage() {
   return (
     <ConsolePage
       title="Ingestion log"
-      /* ── A LEFTOVER FROM A REMOVED STAGE (fixed Aug 2026) ────────────────
-         This said a clean result "stops at admin-verified". ADMIN_VERIFIED was
-         deleted from the pipeline when the second gate went (see
-         lib/reportStatus.ts: it existed to catch transcription errors from a
-         PDF, and results arrive structured through the API now) — so the one
-         screen that explains where a result comes to rest was naming a state it
-         can no longer be in, to the people whose job is to know. The pipeline is
-         UPLOADED → PARSED → CLINICIAN_REVIEWED → RELEASED, and "waiting for a
-         clinician" is where a clean result stops. */
+      /* ── A LEFTOVER FROM A REMOVED STAGE, TWICE OVER (Aug 2026) ──────────
+         This said a clean result "stops at admin-verified", then "waiting for a
+         clinician". Both stages have now been deleted from the pipeline, so the
+         one screen that explains where a result comes to rest has twice named a
+         state it could no longer be in, to the people whose job is to know. The
+         pipeline is UPLOADED → PARSED → RELEASED, and a clean result does not
+         stop at all — it is released to the patient by the call that wrote it.
+         What stops is a HELD one, which is what the exception queues below are
+         for. */
       purpose="Every attempt to pull a result in from Randox’s API, successful or not, and below it the two ways a delivery can go quiet: a code we cannot read, and an analyte spelling no marker answered to."
     >
 

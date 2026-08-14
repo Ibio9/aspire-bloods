@@ -21,7 +21,8 @@
     "audit:analytes": "tsx scripts/auditAnalyteMap.ts",
     "prisma:seed:demo": "tsx prisma/seedDemo.ts",
     "prisma:seed:demo:purge": "tsx prisma/seedDemo.ts --purge",
-    "sandbox:pass": "tsx scripts/sandboxPass.ts"
+    "sandbox:pass": "tsx scripts/sandboxPass.ts",
+    "sandbox:poll": "tsx scripts/sandboxPoll.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

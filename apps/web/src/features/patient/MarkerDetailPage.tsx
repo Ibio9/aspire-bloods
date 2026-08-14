@@ -37,7 +37,6 @@ interface TrendPoint {
   /** Where significantly-out begins for this marker — the chart's band edges sit here. */
   severityThreshold?: number;
   sourceKey: string;
-  sourceLabel: string;
   amendedAt?: string | null;
 }
 
@@ -59,7 +58,6 @@ interface MarkerDetail {
     /** Null where this result has no position on its reference range. Never IN_RANGE by default. */
     status: MarkerStatusInput;
     optimal?: OptimalRangeDTO | null;
-    sourceLabel: string;
     amendedAt?: string | null;
   };
   trend: TrendPoint[];
@@ -391,16 +389,24 @@ export function MarkerDetailPage() {
           // `padding="roomy"` is 48px on every side at sm+, on a card whose
           // content is a label, a sentence and three short pairs. Between that
           // and a 32px gap under the heading, roughly 130px of the card's
-          // height was air. `default` (28px / 36px) and a 20px gap under the
-          // heading; the four-level ladder inside it — 28px heading, 21px lead,
-          // 18px answers, 12px sub-labels — is UNTOUCHED, because that ladder
-          // took four attempts to get right and none of the complaints were
-          // about it. What changed is the space around it.
+          // height was air. `default` (28px / 36px), and a 16px gap under the
+          // heading.
+          //
+          // The ladder inside it is 28px definition, 16px heading, 12px
+          // sub-labels, 18px answers — the FIFTH setting of it, and the one
+          // that stopped moving the heading and put the definition on top
+          // where it belongs. See MarkerExplanation.tsx for the full record;
+          // do not adjust any of the four by eye.
           <Card className="card-vellum">
             {/* Heading, then the definition as the loudest thing in the card,
                 then quiet label-and-answer pairs. Four levels, one component,
                 shared with the library — see MarkerExplanation.tsx. */}
-            <p className="card-eyebrow mb-5">What this marker means</p>
+            {/* mb-4 (16px), and it is deliberately LESS than the 36px between
+                the label/answer pairs below. The heading and the definition are
+                ONE unit — the card's header — and the three pairs are three
+                others; a heading floating in as much air as a block boundary
+                reads as a fourth block rather than as the label on the first. */}
+            <p className="card-eyebrow mb-4">What this marker means</p>
             <MarkerExplanationBody explanation={detail.explanation} />
           </Card>
         )}

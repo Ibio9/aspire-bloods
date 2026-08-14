@@ -1,28 +1,29 @@
 /**
- * ONE HUMAN GATE, AND IT IS A CLINICIAN (changed Aug 2026).
+ * RESULTS RELEASE AUTOMATICALLY (changed Aug 2026). THERE IS NO HUMAN GATE.
  *
- *   UPLOADED → PARSED → CLINICIAN_REVIEWED → RELEASED
+ *   UPLOADED → PARSED → RELEASED
  *
- * ADMIN_VERIFIED is gone. It caught transcription errors from a PDF, and results
- * arrive structured through the Randox API now.
+ * ADMIN_VERIFIED went first, then CLINICIAN_REVIEWED. A patient not seeing their
+ * own abnormal result is worse than them seeing it, and a result sitting in a
+ * queue nobody opens is the real risk.
  *
- * PARSED is "awaiting clinician review". Whether the parse was CLEAN is not a
- * status — it is `holdReasons` on the report, so every function here that has to
- * tell a ready report from a held one takes the holds as well as the status.
- * Passing only the status is how a report with a result missing from it would
- * read, on a work queue, as ready for a clinician.
+ * PARSED is "read, not released". Whether the parse was CLEAN is not a status —
+ * it is `holdReasons` on the report — and it is now the only thing that stops a
+ * release, so every function here that has to tell a released-able report from a
+ * held one takes the holds as well as the status. Passing only the status is how
+ * a report with a result missing from it would read, on a work queue, as
+ * something automation simply had not got round to.
  */
-export type ReportStatus = 'UPLOADED' | 'PARSED' | 'CHANGES_REQUESTED' | 'CLINICIAN_REVIEWED' | 'RELEASED';
+export type ReportStatus = 'UPLOADED' | 'PARSED' | 'CHANGES_REQUESTED' | 'RELEASED';
 
-/** The four stages of the release pipeline. Was five; the verification stage is gone. */
+/** The three stages of the release pipeline. Was five, then four. */
 export const PIPELINE_STAGES: { key: string; label: string }[] = [
   { key: 'UPLOADED', label: 'Received' },
   { key: 'PARSED', label: 'Results in' },
-  { key: 'CLINICIAN_REVIEWED', label: 'Clinician reviewed' },
   { key: 'RELEASED', label: 'Released' },
 ];
 
-/** CHANGES_REQUESTED sits at the same position as PARSED — a step back, not a fifth stage. */
+/** CHANGES_REQUESTED sits at the same position as PARSED — a step back, not a fourth stage. */
 export function stageIndex(status: ReportStatus): number {
   switch (status) {
     case 'UPLOADED':
@@ -30,10 +31,8 @@ export function stageIndex(status: ReportStatus): number {
     case 'PARSED':
     case 'CHANGES_REQUESTED':
       return 1;
-    case 'CLINICIAN_REVIEWED':
-      return 2;
     case 'RELEASED':
-      return 3;
+      return 2;
   }
 }
 
@@ -41,9 +40,10 @@ export function stageIndex(status: ReportStatus): number {
  * What is blocking this report, in plain language — shown beside the progress
  * indicator and used to sort the clinician's work queue.
  *
- * `held` is the holds on the report. A PARSED report is waiting on the clinician
- * when nothing is held and waiting on a question when something is, and those are
- * two different sentences: the removed stage used to be the difference.
+ * `held` is the holds on the report. A PARSED report with nothing held is one
+ * automation did not release (a PDF nobody has keyed in, or a release that
+ * failed); with something held it is waiting on a decision. Those are two
+ * different sentences and the removed stages used to be the difference.
  */
 export function whatsNext(status: ReportStatus, held = false): string {
   switch (status) {
@@ -51,12 +51,10 @@ export function whatsNext(status: ReportStatus, held = false): string {
       return 'Results have not been read from this yet.';
     case 'PARSED':
       return held
-        ? 'Held: something in this delivery needs a decision before it is reviewed.'
-        : 'Needs clinician review.';
+        ? 'Held: something in this delivery needs a decision before it can go to the patient.'
+        : 'Read, but not released. Automation releases a clean delivery on its own, so this one needs a person.';
     case 'CHANGES_REQUESTED':
       return 'Changes requested: needs correcting.';
-    case 'CLINICIAN_REVIEWED':
-      return 'Ready to release to the patient.';
     case 'RELEASED':
       return 'Visible to the patient.';
   }
@@ -68,11 +66,9 @@ export function statusLabel(status: ReportStatus, held = false): string {
     case 'UPLOADED':
       return 'Received';
     case 'PARSED':
-      return held ? 'Held' : 'Awaiting review';
+      return held ? 'Held' : 'Not released';
     case 'CHANGES_REQUESTED':
       return 'Changes requested';
-    case 'CLINICIAN_REVIEWED':
-      return 'Reviewed';
     case 'RELEASED':
       return 'Released';
   }
@@ -80,11 +76,14 @@ export function statusLabel(status: ReportStatus, held = false): string {
 
 /**
  * The buckets a work queue is grouped into. Not the status enum: HELD is a
- * property of the data and AWAITING_REVIEW is the same status with nothing held,
- * so the queue's own vocabulary has to carry the distinction the pipeline no
- * longer does. Mirrors `queueState` in the server's lib/reportTransitions.ts.
+ * property of the data and NOT_RELEASED is the same status with nothing held, so
+ * the queue's own vocabulary has to carry the distinction the pipeline no longer
+ * does. Mirrors `queueState` in the server's lib/reportTransitions.ts.
+ *
+ * AWAITING_REVIEW went with the gate. Nothing is awaiting review — a clean
+ * report is released by the call that wrote it.
  */
-export type QueueState = 'HELD' | 'AWAITING_REVIEW' | 'AWAITING_RELEASE' | 'AWAITING_PARSE';
+export type QueueState = 'HELD' | 'NOT_RELEASED' | 'AWAITING_PARSE';
 
 export function queueState(report: { status: string; holdReasons?: string[] }): QueueState | 'RELEASED' {
   const held = (report.holdReasons ?? []).length > 0;
@@ -94,9 +93,7 @@ export function queueState(report: { status: string; holdReasons?: string[] }): 
     case 'CHANGES_REQUESTED':
       return 'HELD';
     case 'PARSED':
-      return held ? 'HELD' : 'AWAITING_REVIEW';
-    case 'CLINICIAN_REVIEWED':
-      return 'AWAITING_RELEASE';
+      return held ? 'HELD' : 'NOT_RELEASED';
     default:
       return 'RELEASED';
   }
@@ -104,17 +101,17 @@ export function queueState(report: { status: string; holdReasons?: string[] }): 
 
 // Ordered by what a clinician should look at first, and HELD LEADS.
 //
-// It used to lead with CLINICIAN_REVIEWED, on the reasoning that a reviewed
-// report is the one a patient has been waiting on longest. That is still true and
-// is no longer the most urgent thing on the list: with the verification stage
-// gone, a held report is the only thing standing between a bad parse and a
-// clinician's screen, and it is the bucket nobody was looking at.
-const ACTION_QUEUE_ORDER: QueueState[] = ['HELD', 'AWAITING_RELEASE', 'AWAITING_REVIEW', 'AWAITING_PARSE'];
+// With no gate in the pipeline, HELD is the only thing between a bad parse and a
+// patient's screen — automation releases everything else on its own — so it is
+// both the most urgent bucket and the only one that represents a decision
+// somebody has to make. NOT_RELEASED comes next: a patient is waiting and
+// nothing is wrong, which is a smaller problem than a question nobody has
+// answered but is still somebody waiting.
+const ACTION_QUEUE_ORDER: QueueState[] = ['HELD', 'NOT_RELEASED', 'AWAITING_PARSE'];
 
 const QUEUE_LABEL: Record<QueueState, string> = {
-  HELD: 'Held: needs a decision before review',
-  AWAITING_RELEASE: 'Reviewed, ready to release',
-  AWAITING_REVIEW: 'Awaiting clinician review',
+  HELD: 'Held: needs a decision before the patient sees it',
+  NOT_RELEASED: 'Read, not released',
   AWAITING_PARSE: 'Results not read yet',
 };
 

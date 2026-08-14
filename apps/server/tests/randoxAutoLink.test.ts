@@ -22,6 +22,18 @@ const db: FakePrisma = createFakePrisma();
 vi.mock('../src/db/client.js', () => ({ prisma: db }));
 
 // Storage is a disk write and irrelevant to whose results these are.
+// A clean delivery releases itself now, and releaseReport escalates through a
+// nested `include` the fake prisma does not implement. Mocked out: this file's
+// subject is WHOSE a result is, not what the clinic is emailed about it.
+vi.mock('../src/modules/escalation/service.js', () => ({
+  checkAndEscalate: vi.fn(async () => ({
+    escalated: false,
+    severity: null,
+    flaggedCount: 0,
+    significantCount: 0,
+    channels: [],
+  })),
+}));
 vi.mock('../src/modules/storage/LocalDiskStorageAdapter.js', () => ({
   storageAdapter: { save: async () => ({ storageKey: 'k', sizeBytes: 1 }) },
 }));
@@ -137,7 +149,7 @@ beforeEach(reset);
 // ---------------------------------------------------------------------------
 
 describe('auto-linking on an order we placed ourselves', () => {
-  it('links the result to that order’s patient and lands it ready for clinician review', async () => {
+  it('links the result to that order’s patient and releases it', async () => {
     seedPatient(db, { id: 'p1', firstName: 'Aisha', lastName: 'Khan', dob: '1988-04-12' });
     seedOrder(db, {
       orderNumber: 'GC1123-001',
@@ -151,9 +163,9 @@ describe('auto-linking on an order we placed ourselves', () => {
     expect(outcome.outcome).toBe('INGESTED');
     expect(db.report.rows).toHaveLength(1);
     expect(db.report.rows[0].patientId).toBe('p1');
-    // A clean parse is awaiting clinician review and holds nothing. It stops
-    // there — there is no route to RELEASED that does not pass a clinician.
-    expect(db.report.rows[0].status).toBe('PARSED');
+    // A clean parse holds nothing and goes to the patient (Aug 2026). There is
+    // no gate; what stops a delivery is a hold, and this one has none.
+    expect(db.report.rows[0].status).toBe('RELEASED');
     expect(db.report.rows[0].holdReasons ?? []).toEqual([]);
     expect(db.reportResult.rows).toHaveLength(1);
   });
@@ -384,7 +396,7 @@ describe('refusals — the paths that must never reach a patient', () => {
 });
 
 describe('what stops for an admin, and what does not', () => {
-  it('holds a report at parsed when a marker could not be filed, rather than advancing it', async () => {
+  it('holds a report at parsed when a marker could not be filed, rather than releasing it', async () => {
     seedPatient(db, { id: 'p1', firstName: 'Aisha', lastName: 'Khan', dob: '1988-04-12' });
     seedOrder(db, {
       orderNumber: 'GC1123-060',
@@ -402,12 +414,15 @@ describe('what stops for an admin, and what does not', () => {
 
     await ingestOrderResults(ref('GC1123-060'));
 
-    // Linked — the identity is not in question. Held — the parse is not clean.
+    // Linked — the identity is not in question. Held — the parse is not clean,
+    // so it was NOT released, which is the whole safety property of automatic
+    // release stated on one delivery.
     expect(db.report.rows[0].patientId).toBe('p1');
     expect(db.report.rows[0].status).toBe('PARSED');
+    expect(db.report.rows[0].releasedAt ?? null).toBeNull();
     // And the reason is stated, not left to be noticed.
     const log = db.ingestionLogEntry.rows.at(-1);
-    expect(String(log!.message)).toMatch(/HELD for review/i);
+    expect(String(log!.message)).toMatch(/HELD:/i);
   });
 
   it('holds a report at parsed when Randox’s own high/low flag disagrees with the range they sent', async () => {

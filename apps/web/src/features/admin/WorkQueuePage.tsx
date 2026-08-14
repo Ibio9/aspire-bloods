@@ -86,17 +86,16 @@ interface WorkQueue {
 
 const STATE_LABEL: Record<string, string> = {
   HELD: 'Held',
-  AWAITING_REVIEW: 'Awaiting clinician review',
-  AWAITING_RELEASE: 'Reviewed, ready to release',
+  NOT_RELEASED: 'Read, not released',
   AWAITING_PARSE: 'Results not read yet',
   RELEASED: 'Released',
 };
 
 /** One line saying what this bucket is, for the person who has to clear it. */
 const STATE_MEANING: Record<string, string> = {
-  HELD: 'Something in the delivery needs a decision before the report is reviewed.',
-  AWAITING_REVIEW: 'A clinician has to decide the patient can see this.',
-  AWAITING_RELEASE: 'Reviewed. One press away from the patient.',
+  HELD: 'Something in the delivery needs a decision before the patient can see it. Nothing else in the pipeline stops a report, so this is the list that matters.',
+  NOT_RELEASED:
+    'Read, and still not with the patient. A clean delivery releases itself, so this is either a PDF nobody has keyed in or a release that failed.',
   AWAITING_PARSE: 'The results have not been read off the delivery yet.',
 };
 
@@ -483,7 +482,7 @@ function TurnaroundBand({ turnaround }: { turnaround: WorkQueue['turnaround'] })
 
 /** One line, at the top, saying what a clinician comes here to do. */
 const PURPOSE =
-  'Everything waiting on somebody, longest first: reports to review or release, deliveries that stopped on a question, and whether last night’s backup ran.';
+  'Everything waiting on somebody, longest first: deliveries held on a question, reports automation did not release, and whether last night’s backup ran.';
 
 export function WorkQueuePage() {
   const { user } = useAuth();

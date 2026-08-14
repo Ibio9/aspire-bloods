@@ -1,18 +1,35 @@
 /* eslint-disable no-console */
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { config as loadDotenv } from 'dotenv';
 import {
   RANDOX_DOCUMENTED,
   RANDOX_DOCUMENTED_BOOKING_BIOLOGICAL_SEX,
-  RANDOX_TRANSPORT_DEFAULTS,
   bookingBiologicalSexId,
 } from '../src/modules/randox/documentedDefaults.js';
 import type { RandoxApiConnection } from '../src/modules/randox/connection.js';
 import { RandoxHttpClient } from '../src/modules/randox/http/RandoxHttpClient.js';
-import { assertWithinDocumentedLimit } from '../src/modules/randox/http/rateLimiter.js';
 import { CLINIC_BOOKING_ENDPOINTS, NEXUS_ENDPOINTS } from '../src/modules/randox/endpoints.js';
+// The guards, the credentials and the capture format, shared with sandbox:poll
+// so that "same safety checks, same capture format" is a fact rather than a
+// claim. See sandboxShared.ts.
+import {
+  BOOKING_NEEDS,
+  NEXUS_NEEDS,
+  OUT_DIR,
+  asInt,
+  assertSandboxOnlyOrExit,
+  bookingConnection,
+  call,
+  captures,
+  missingOf,
+  nexusConnection,
+  pick,
+  read,
+  readBool,
+  readInt,
+  requireCredentialsOrExit,
+  type Capture,
+} from './sandboxShared.js';
 import {
   pickArray,
   pickNumber,
@@ -96,24 +113,6 @@ import {
  *    transport rather than by this file.
  */
 
-const SERVER_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-
-/**
- * `.env.sandbox` first, then `.env`, and anything already in the real
- * environment beats both — dotenv does not overwrite what is already set.
- *
- * Two files rather than one because they hold different things. `.env` is what
- * the SERVER needs to boot on this machine; `.env.sandbox` is the credentials
- * for somebody else's API. Keeping the Randox pair in their own file is what
- * lets this script need nothing else, which is the whole point of the change:
- * a file with two keys and a password in it, and no database URL anywhere near
- * it. Both are gitignored.
- */
-loadDotenv({ path: path.join(SERVER_ROOT, '.env.sandbox') });
-loadDotenv({ path: path.join(SERVER_ROOT, '.env') });
-
-const OUT_DIR = path.join(SERVER_ROOT, 'src/modules/randox/specs/sandbox-responses');
-
 // ---------------------------------------------------------------------------
 // The fixture. INVENTED, and deliberately obvious about it.
 // ---------------------------------------------------------------------------
@@ -131,126 +130,18 @@ const FIXTURE = {
   countryId: 1,
 } as const;
 
-// ---------------------------------------------------------------------------
-// Configuration — process.env only, Randox only, and it says what is missing
-// ---------------------------------------------------------------------------
-
-function read(name: string): string {
-  return (process.env[name] ?? '').trim();
-}
-
-/** The first of several spellings that is set. Shared pair, per-API override. */
-function readFirst(...names: string[]): string {
-  for (const name of names) {
-    const value = read(name);
-    if (value !== '') return value;
-  }
-  return '';
-}
-
-function readInt(name: string, fallback: number): number {
-  const raw = read(name);
-  if (raw === '') return fallback;
-  const parsed = Number(raw);
-  if (!Number.isInteger(parsed)) {
-    throw new Error(`${name} is "${raw}", which is not an integer.`);
-  }
-  return parsed;
-}
-
-function readBool(name: string, fallback: boolean): boolean {
-  const raw = read(name).toLowerCase();
-  if (raw === '') return fallback;
-  if (raw !== 'true' && raw !== 'false') {
-    throw new Error(`${name} is "${raw}", which is neither "true" nor "false".`);
-  }
-  return raw === 'true';
-}
-
-function trimTrailingSlash(url: string): string {
-  return url.replace(/\/+$/, '');
-}
-
-/**
- * A credential this run cannot proceed without, and the several variable names
- * it may arrive under. Reported by NAME, all at once — finding out about three
- * missing credentials one run at a time is its own kind of waste.
- */
-interface CredentialNeed {
-  names: string[];
-  why: string;
-}
-
-function missingOf(needs: CredentialNeed[]): CredentialNeed[] {
-  return needs.filter((need) => readFirst(...need.names) === '');
-}
-
-function describe(needs: CredentialNeed[]): string {
-  return needs.map((n) => `  - ${n.names.join(' (or ')}${n.names.length > 1 ? ')' : ''} — ${n.why}`).join('\n');
-}
-
-const ROPC_WHY = 'ROPC is a password grant, so it needs the service account created in the developer portal';
-
-function transportSettings() {
-  const maxRequestsPerMinute = readInt('RANDOX_MAX_REQUESTS_PER_MINUTE', RANDOX_TRANSPORT_DEFAULTS.maxRequestsPerMinute);
-  // The same guard the server boots with. A pace above Randox's documented
-  // ceiling is a mistake wherever it is set, and this script is the one place
-  // that would discover it against the real gateway.
-  assertWithinDocumentedLimit(maxRequestsPerMinute);
-  return {
-    maxRequestsPerMinute,
-    retryMaxAttempts: readInt('RANDOX_RETRY_MAX_ATTEMPTS', RANDOX_TRANSPORT_DEFAULTS.retryMaxAttempts),
-    retryBaseDelayMs: readInt('RANDOX_RETRY_BASE_DELAY_MS', RANDOX_TRANSPORT_DEFAULTS.retryBaseDelayMs),
-    bearerTokenEnabled: readBool('RANDOX_BEARER_TOKEN_ENABLED', RANDOX_TRANSPORT_DEFAULTS.bearerTokenEnabled),
-  };
-}
-
-const NEXUS_NEEDS: CredentialNeed[] = [
-  { names: ['RANDOX_NEXUS_SUBSCRIPTION_KEY'], why: 'Ocp-Apim-Subscription-Key on every Nexus request, from the Nexus developer portal' },
-  { names: ['RANDOX_NEXUS_USERNAME', 'RANDOX_USERNAME'], why: ROPC_WHY },
-  { names: ['RANDOX_NEXUS_PASSWORD', 'RANDOX_PASSWORD'], why: ROPC_WHY },
-];
-
-const BOOKING_NEEDS: CredentialNeed[] = [
-  { names: ['RANDOX_BOOKING_SUBSCRIPTION_KEY'], why: 'a SEPARATE key from a separate developer portal — not the Nexus one' },
-  { names: ['RANDOX_BOOKING_USERNAME', 'RANDOX_USERNAME'], why: ROPC_WHY },
-  { names: ['RANDOX_BOOKING_PASSWORD', 'RANDOX_PASSWORD'], why: ROPC_WHY },
-];
-
-function nexusConnection(): RandoxApiConnection {
-  return {
-    label: 'Nexus Lab',
-    baseUrl: trimTrailingSlash(readFirst('RANDOX_NEXUS_BASE_URL') || RANDOX_DOCUMENTED.nexusBaseUrl),
-    clientId: readFirst('RANDOX_NEXUS_CLIENT_ID') || RANDOX_DOCUMENTED.nexusClientId,
-    scope: readFirst('RANDOX_NEXUS_SCOPE') || RANDOX_DOCUMENTED.nexusScope,
-    subscriptionKey: read('RANDOX_NEXUS_SUBSCRIPTION_KEY'),
-    tokenUrl: readFirst('RANDOX_NEXUS_TOKEN_URL', 'RANDOX_B2C_TOKEN_URL') || RANDOX_DOCUMENTED.b2cTokenUrl,
-    username: readFirst('RANDOX_NEXUS_USERNAME', 'RANDOX_USERNAME'),
-    password: readFirst('RANDOX_NEXUS_PASSWORD', 'RANDOX_PASSWORD'),
-    transport: transportSettings(),
-  };
-}
-
-function bookingConnection(): RandoxApiConnection {
-  return {
-    label: 'Clinic Booking',
-    baseUrl: trimTrailingSlash(readFirst('RANDOX_BOOKING_BASE_URL') || RANDOX_DOCUMENTED.bookingBaseUrl),
-    clientId: readFirst('RANDOX_BOOKING_CLIENT_ID') || RANDOX_DOCUMENTED.bookingClientId,
-    scope: readFirst('RANDOX_BOOKING_SCOPE') || RANDOX_DOCUMENTED.bookingScope,
-    subscriptionKey: read('RANDOX_BOOKING_SUBSCRIPTION_KEY'),
-    tokenUrl: readFirst('RANDOX_BOOKING_TOKEN_URL', 'RANDOX_B2C_TOKEN_URL') || RANDOX_DOCUMENTED.b2cTokenUrl,
-    username: readFirst('RANDOX_BOOKING_USERNAME', 'RANDOX_USERNAME'),
-    password: readFirst('RANDOX_BOOKING_PASSWORD', 'RANDOX_PASSWORD'),
-    transport: transportSettings(),
-  };
-}
-
 interface SandboxPlan {
   nexus: RandoxApiConnection;
   /** null when the booking credentials are absent — the Nexus flow runs alone. */
   booking: RandoxApiConnection | null;
   /** Why the booking half is not running, in words, for ANSWERS.md. */
   bookingSkipped: string | null;
+  /**
+   * Leave one clean booking standing against the order instead of cancelling
+   * it, so the order can be left overnight and asked after with `sandbox:poll`.
+   * Skips the cancel AND the duplicate create — see planOrExit.
+   */
+  leaveBooking: boolean;
   bookingServiceId: number;
   region: 'UK' | 'ROI';
   locationId: number;
@@ -272,18 +163,7 @@ function planOrExit(): SandboxPlan {
   const region = read('RANDOX_BOOKING_REGION') === 'ROI' ? 'ROI' : 'UK';
   const nexus = nexusConnection();
 
-  const missingNexus = missingOf(NEXUS_NEEDS);
-  if (missingNexus.length > 0) {
-    console.error(
-      `Refusing to run the sandbox pass: ${missingNexus.length} Randox credential(s) are missing.\n` +
-        describe(missingNexus) +
-        '\n\nThose are the ONLY things this script needs. It does not touch the database, issue sessions or sign\n' +
-        'files, so it does not want DATABASE_URL, the JWT secrets, ENCRYPTION_KEY, FILE_SIGNING_SECRET or the app\n' +
-        `URLs. Put them in ${path.join(SERVER_ROOT, '.env.sandbox')} (gitignored) or in the shell.\n` +
-        'See src/modules/randox/specs/sandbox-responses/README.md.',
-    );
-    process.exit(1);
-  }
+  requireCredentialsOrExit('the sandbox pass', NEXUS_NEEDS);
 
   const missingBooking = missingOf(BOOKING_NEEDS);
   const booking = missingBooking.length === 0 ? bookingConnection() : null;
@@ -294,22 +174,33 @@ function planOrExit(): SandboxPlan {
 
   // The sandbox check runs on the URLs that will actually be called — the
   // booking one only if the booking half is running at all.
-  const problems: string[] = [];
-  if (process.env.NODE_ENV === 'production') problems.push('NODE_ENV is production.');
   const hosts: [string, string][] = [['Nexus', nexus.baseUrl]];
   if (booking) hosts.push(['Clinic Booking', booking.baseUrl]);
-  for (const [label, url] of hosts) {
-    if (!/(^|\/\/)stes-/.test(url)) problems.push(`${label} base URL "${url}" is not a stes- sandbox host.`);
-  }
-  if (problems.length > 0) {
-    console.error(
-      'Refusing to run the sandbox pass:\n' +
-        problems.map((p) => `  - ${p}`).join('\n') +
-        '\n\nThis script talks to a third party and creates an order. It runs only against the stes- sandbox hosts,\n' +
-        'which are the defaults, and never under NODE_ENV=production.',
-    );
-    process.exit(1);
-  }
+  assertSandboxOnlyOrExit('the sandbox pass', hosts);
+
+  /**
+   * LEAVE ONE BOOKING STANDING (SANDBOX_LEAVE_BOOKING=true, Aug 2026).
+   *
+   * The pass books an appointment and then cancels it at the end of the run, so
+   * the order it created has nothing attached to it — which is exactly why the
+   * sandbox order only ever reached status 1. An order nobody attends is an
+   * order the laboratory never runs, so questions 3 and 8 (what a status 4 looks
+   * like, and what GetOrderResultDetail actually returns) cannot be asked at
+   * all.
+   *
+   * With this set, TWO steps are skipped and both have to be:
+   *
+   *   · the CANCEL, obviously; and
+   *   · the SECOND create against the same GPExternalNumber (question 7), which
+   *     on the evidence of the last run SUCCEEDS and creates a distinct second
+   *     appointment. Skipping the cancel alone would leave TWO live bookings
+   *     against one order, which is worse than none: nobody could tell which one
+   *     the laboratory was working from.
+   *
+   * It is off by default. A run that leaves a booking behind is a run that has
+   * taken a slot in somebody's diary, and that should be asked for.
+   */
+  const leaveBooking = readBool('SANDBOX_LEAVE_BOOKING', false);
 
   // A pending order that is never booked does not progress, so polling it for
   // twenty minutes learns nothing after the first call. One GetOrderStatus is
@@ -320,6 +211,7 @@ function planOrExit(): SandboxPlan {
     nexus,
     booking,
     bookingSkipped,
+    leaveBooking,
     region,
     bookingServiceId:
       region === 'ROI'
@@ -333,102 +225,6 @@ function planOrExit(): SandboxPlan {
     cvScoreRequired: readBool('RANDOX_CV_SCORE_REQUIRED', false),
     statusWindowMs: readInt('SANDBOX_STATUS_TIMEOUT_MINUTES', defaultStatusMinutes) * 60_000,
   };
-}
-
-// ---------------------------------------------------------------------------
-// Capture
-// ---------------------------------------------------------------------------
-
-interface Capture {
-  step: number;
-  api: 'Nexus' | 'Clinic Booking';
-  name: string;
-  method: string;
-  path: string;
-  request: unknown;
-  status: number;
-  ok: boolean;
-  /** Parsed, where it parsed. */
-  body: unknown;
-  /** Exactly what came back on the wire, before anything read it. */
-  raw: string;
-  note?: string;
-}
-
-const captures: Capture[] = [];
-let step = 0;
-
-function slug(name: string): string {
-  return name.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '');
-}
-
-async function call(
-  client: RandoxHttpClient,
-  api: Capture['api'],
-  name: string,
-  endpoint: { path: string; verb: 'GET' | 'POST' },
-  body?: unknown,
-  note?: string,
-): Promise<Capture> {
-  step += 1;
-  const { res, text } = await client.requestRaw(endpoint.path, {
-    method: endpoint.verb,
-    body,
-    // A create is never retried, here as everywhere else: a 502 says nothing
-    // about whether it landed, and this script places real sandbox orders.
-    retryable: !/Create/i.test(name),
-  });
-  let parsed: unknown = null;
-  try {
-    parsed = text.trim() === '' ? null : JSON.parse(text);
-  } catch {
-    parsed = null;
-  }
-  const capture: Capture = {
-    step,
-    api,
-    name,
-    method: endpoint.verb,
-    path: endpoint.path,
-    request: body ?? null,
-    status: res.status,
-    ok: res.ok,
-    body: parsed,
-    raw: text,
-    ...(note ? { note } : {}),
-  };
-  captures.push(capture);
-  fs.writeFileSync(
-    path.join(OUT_DIR, `${String(step).padStart(2, '0')}-${slug(name)}.json`),
-    `${JSON.stringify(capture, null, 2)}\n`,
-  );
-  console.log(`  ${String(step).padStart(2, '0')}  ${res.status}  ${endpoint.verb} ${endpoint.path}  (${name})`);
-  return capture;
-}
-
-/** Reads a field under any of the spellings this API has been seen to use. */
-function pick(body: unknown, ...names: string[]): unknown {
-  if (body === null || typeof body !== 'object') return undefined;
-  const record = body as Record<string, unknown>;
-  for (const n of names) {
-    if (record[n] !== undefined && record[n] !== null) return record[n];
-    const lower = n.charAt(0).toLowerCase() + n.slice(1);
-    if (record[lower] !== undefined && record[lower] !== null) return record[lower];
-    const upper = n.charAt(0).toUpperCase() + n.slice(1);
-    if (record[upper] !== undefined && record[upper] !== null) return record[upper];
-  }
-  return undefined;
-}
-
-/**
- * Every scalar this API produces should be treated as a string and coerced at
- * the boundary — ids come back as strings on some endpoints and integers on
- * others (see the note in endpoints.ts). Returns null rather than NaN.
- */
-function asInt(value: unknown): number | null {
-  if (value === undefined || value === null || value === '') return null;
-  const parsed = Number(value);
-  return Number.isInteger(parsed) ? parsed : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -704,6 +500,20 @@ interface Outcome {
   /** Why the reschedule was not attempted, where it was not. */
   rescheduleSkipped: string | null;
   /**
+   * The booking this run DID NOT cancel, under SANDBOX_LEAVE_BOOKING=true.
+   *
+   * Null on an ordinary run, which cancels — and null is the right value for
+   * "there is nothing standing" rather than an empty object, because the whole
+   * point of these four strings is that somebody types them into `sandbox:poll`
+   * tomorrow morning.
+   */
+  leftStanding: {
+    orderNumber: string;
+    randoxBookingOrderId: string | null;
+    bookingId: string | null;
+    appointmentId: number | null;
+  } | null;
+  /**
    * What the order actually carried, every field of it read out of a reference
    * capture. In ANSWERS.md because "which panel produced these analytes" is the
    * first thing anybody reading a result capture needs to know.
@@ -755,6 +565,7 @@ async function main(): Promise<void> {
     statusOrderNumbers: [],
     bookingSkipped: plan.bookingSkipped,
     bookingStoppedAt: null,
+    leftStanding: null,
     serviceRegionsOk: null,
     bookingSex: null,
     rescheduleSkipped: null,
@@ -906,6 +717,29 @@ async function main(): Promise<void> {
   }
 
   writeAnswers(outcome);
+
+  /**
+   * WHAT IS LEFT STANDING, LAST, WHERE IT WILL BE READ.
+   *
+   * The two identifiers a person needs tomorrow morning, printed at the very
+   * end of a run that produces several hundred lines of output. Not buried in
+   * ANSWERS.md: the point of leaving a booking is that somebody comes back to
+   * it, and a value they have to go looking for is a value they will re-derive
+   * by starting another run — which creates another order, which is the thing
+   * this whole option exists to avoid.
+   */
+  if (outcome.leftStanding) {
+    const left = outcome.leftStanding;
+    console.log('\n══ ONE BOOKING LEFT STANDING ══════════════════════════════════');
+    console.log(`  order number        ${left.orderNumber}`);
+    console.log(`  booking order id    ${left.randoxBookingOrderId ?? '(none in the create response)'}`);
+    console.log(`  hold booking id     ${left.bookingId ?? '(none)'}`);
+    console.log(`  appointment id      ${left.appointmentId ?? '(none)'}`);
+    console.log('\n  Nothing was cancelled. Check on it in the morning with:');
+    console.log(`    npm run sandbox:poll --workspace=apps/server -- ${left.orderNumber}`);
+    console.log('\n  ⚠ That is a real slot in a real sandbox diary. Cancel it when you are done:');
+    console.log('    CancelRandoxBooking { RandoxBookingOrderId: ' + (left.randoxBookingOrderId ?? '…') + ' }');
+  }
 }
 
 /**
@@ -1119,6 +953,39 @@ async function runBookingHalf(booking: RandoxHttpClient, plan: SandboxPlan, outc
     console.log(`  reschedule not attempted: ${outcome.rescheduleSkipped}`);
   }
 
+  const randoxBookingOrderId = pick(booked.body, 'randoxBookingOrderId', 'bookingOrderId', 'orderId');
+  outcome.leftStanding = null;
+
+  /**
+   * ── LEAVE ONE BOOKING STANDING, OR ASK THE LAST TWO QUESTIONS. NOT BOTH ──
+   *
+   * The default run asks question 7 (does a second create against one
+   * GPExternalNumber succeed?) and then cancels, which leaves the order with
+   * nothing attached to it — and an order nobody attends is an order the
+   * laboratory never runs, which is exactly why the sandbox order has only ever
+   * reached status 1.
+   *
+   * SANDBOX_LEAVE_BOOKING=true skips BOTH steps, and it has to be both. On the
+   * last run the second create SUCCEEDED and produced a distinct second
+   * appointment, so skipping only the cancel would leave two live bookings
+   * against one order — worse than none, because nothing then says which one the
+   * laboratory is working from.
+   *
+   * What is left behind is one clean booking against one order, printed at the
+   * end of the run so it can be handed to `npm run sandbox:poll` in the morning.
+   */
+  if (plan.leaveBooking) {
+    console.log('\n── Clinic Booking: LEAVING ONE BOOKING STANDING ────────────────');
+    console.log('  SANDBOX_LEAVE_BOOKING=true, so the duplicate create (Q7) and the cancel are both skipped.');
+    outcome.leftStanding = {
+      orderNumber: outcome.externalNumber,
+      randoxBookingOrderId: randoxBookingOrderId === undefined ? null : String(randoxBookingOrderId),
+      bookingId: holdBookingId === undefined ? null : String(holdBookingId),
+      appointmentId,
+    };
+    return;
+  }
+
   // Q7: a SECOND booking against the same GPExternalNumber. Asked here rather
   // than left to a support ticket, because the answer decides whether the
   // composed reschedule can ever leave two live appointments behind. Whatever
@@ -1137,7 +1004,6 @@ async function runBookingHalf(booking: RandoxHttpClient, plan: SandboxPlan, outc
   });
 
   console.log('\n── Clinic Booking: cancel ─────────────────────────────────────');
-  const randoxBookingOrderId = pick(booked.body, 'randoxBookingOrderId', 'bookingOrderId', 'orderId');
   if (randoxBookingOrderId !== undefined) {
     await call(booking, 'Clinic Booking', 'CancelRandoxBooking', CLINIC_BOOKING_ENDPOINTS.cancelRandoxBooking, {
       RandoxBookingOrderId: randoxBookingOrderId,

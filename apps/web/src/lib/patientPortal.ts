@@ -79,7 +79,6 @@ export interface PatientOverview {
     /** Never empty — falls back to "12 markers · 4 August 2026". */
     title: string;
     sampleDate: string;
-    sourceLabel: string;
     markerCount: number;
     inRangeCount: number;
     attentionCount: number;
@@ -130,7 +129,6 @@ export interface MarkerRow {
   panelName: string | null;
   /** The composed house title, always present. */
   reportTitle: string;
-  sourceLabel: string;
   amendedAt: string | null;
   resultCount: number;
   comparable: boolean;
@@ -152,7 +150,6 @@ export interface TrendSeries {
     referenceHigh: number;
     /** Where significantly-out begins for this marker, in its own units. */
     severityThreshold?: number;
-    sourceLabel: string;
     reportId: string;
   }[];
 }
@@ -187,7 +184,6 @@ export interface PatientDocument {
   title: string;
   sampleDate: string;
   releasedAt: string | null;
-  sourceLabel: string;
   markerCount: number;
   hasOriginalPdf: boolean;
   originalFilename: string | null;

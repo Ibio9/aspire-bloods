@@ -47,6 +47,49 @@ It is one command:
 npm run sandbox:pass --workspace=apps/server
 ```
 
+## Leave a booking standing, and check on it in the morning
+
+**The sandbox order has only ever reached status 1, and the pass is why.** It
+books an appointment and then cancels it at the end of the run, so the order it
+created has nothing attached to it — and an order nobody attends is an order the
+laboratory never runs. Questions 3 and 8 (what does a status 4 look like, and
+what does GetOrderResultDetail actually return) have therefore never been
+askable.
+
+```
+SANDBOX_LEAVE_BOOKING=true npm run sandbox:pass --workspace=apps/server
+```
+
+skips **two** steps, and it has to be both: the cancel, and the second create
+against the same `GPExternalNumber` (question 7). That second create SUCCEEDS on
+the evidence of the last run, so skipping only the cancel would leave TWO live
+bookings against one order — worse than none, because nothing then says which
+one the laboratory is working from.
+
+Off by default: a run that leaves a booking behind has taken a slot in somebody's
+diary. The order number and the booking id are printed at the very end of the
+run, with the exact command to paste in the morning.
+
+```
+npm run sandbox:poll --workspace=apps/server -- GC1123-00010300
+```
+
+asks after an order that already exists and **creates nothing**. GetOrderStatus,
+and if the status is 4, GetOrderResultReports and GetOrderResultDetail, both
+captured. One call and then exit by default; `SANDBOX_POLL_MINUTES` keeps it
+asking at the pass's one-minute cadence.
+
+Its captures are prefixed `poll-<orderNumber>-` and it does **not** clear the
+directory — it runs hours after the pass, against the order the pass created, so
+joining that run's `NN-` numbering would put two runs in one sequence with
+nothing in the filenames to say so. ⚠ **A later `sandbox:pass` will delete
+them**, because that command clears the directory on purpose.
+
+Both commands share `scripts/sandboxShared.ts`: the credential check, the
+stes--only host check, the `NODE_ENV=production` refusal, the connection builders
+and the capture writer. A second script with its own copy of any of those is a
+second script that can be wrong about production while the first is right.
+
 ## What it needs, and where to put it
 
 **Three variables. That is the entire list.**
@@ -170,6 +213,8 @@ commit those two files rather than to sanitise them in place.
   carrying the request that produced it, the HTTP status, the parsed body and
   the **raw response text** — because "this is what our helpers made of it" is
   not a record of what Randox sent.
+* `poll-<orderNumber>-NN-<Endpoint>.json` from `sandbox:poll`, in the same
+  format and in its own filename space.
 * `ANSWERS.md`, answering the eleven open questions from the capture, and saying
   `UNANSWERED` in as many words where the run did not settle one.
 

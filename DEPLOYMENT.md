@@ -272,7 +272,8 @@ Worth knowing before you turn it on, because most of it needs nobody:
 
 - The order number Randox return is the reference we created the order under, so the result attaches itself to that patient. Before it does, the name and date of birth are checked against the account — against what Randox echo back where they supply it, and against what the order was placed under. Anything that disagrees is **not** linked; it goes to **Result linking** with the disagreement named.
 - A clean parse advances the report to admin-verified on its own. Anything ambiguous — a marker we could not file, a missing or one-sided reference range, a disagreement with Randox's own high/low flag, a lab that has not finished — stops at parsed and says why in the ingestion log.
-- **Nothing auto-releases.** A patient sees a report only after a clinician reviews and releases it, and the state machine enforces that server-side: the only route to released is through clinician-reviewed, and the only route into that is from admin-verified.
+- **A CLEAN DELIVERY AUTO-RELEASES (changed Aug 2026).** A patient sees a report as soon as it has been ingested and parsed cleanly, with no human step. What the state machine still enforces server-side is that `release` is only reachable from `PARSED` — nothing unread or sent-back can reach anybody — and that **a report carrying hold reasons cannot be released by anything until a person acknowledges them**. That refusal is the only checkpoint in the pipeline, so the exception queue on the work queue screen is the thing to keep an eye on after a deploy.
+- **Out-of-range escalation now fires BEFORE the release lands**, to `ESCALATION_EMAIL`, and a significantly out-of-range result is louder than a mildly out-of-range one (subject, priority headers, and the two groups listed separately). Check that address is a mailbox somebody reads: with no clinician gate it is the only thing that tells the practice a result went out.
 
 ## Deploy process
 

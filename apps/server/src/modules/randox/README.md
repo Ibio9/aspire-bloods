@@ -1,7 +1,7 @@
 # Randox API integration
 
 Two Randox APIs, one shared auth mechanism, one ingestion path into the
-existing normalised store — and no way past the clinician release gate.
+existing normalised store — and one refusal in front of the patient.
 
 ## What is verified and what is not
 
@@ -87,20 +87,30 @@ matches on name similarity, on a partial match, or on a probability. See
 linking flow (`lib/identityMatch.ts`) so the automatic bar can never end up
 lower than the one a person is held to.
 
-**Ingestion is not publication.** Every delivery lands at `PARSED` and stops.
-Whether the parse was CLEAN is `holdReasons` on the report, not a status —
-`lib/cleanParse.ts` holds the closed list of five conditions (an unmapped
-analyte, a row that could not be filed, a code not in our map, a disagreement
-with `lowHigh`, a lab that has not finished), and each one puts a sentence there
-and a row in the exception queue.
+**INGESTION IS PUBLICATION NOW, FOR A CLEAN DELIVERY (Aug 2026).** There is no
+clinician gate: a patient not seeing their own abnormal result is worse than them
+seeing it, and a result sitting in a queue nobody opens is the real risk. A clean
+parse is RELEASED by the same call that wrote it, with nobody in between.
 
-That asymmetry is still the safety property, and it is now enforced by the data
-rather than by the pipeline position: `reviewReport` REFUSES to approve a report
-with holds unless the clinician acknowledges them in the same action, which is
-stamped on the report and named in the audit entry. So a delivery with a hole in
-it cannot reach a clinician's queue looking complete. `PARSED` is not release;
-release is a clinician's explicit act from `CLINICIAN_REVIEWED`, enforced
-server-side, and there is exactly one human gate in front of it.
+**Which makes `lib/cleanParse.ts` the only thing between a delivery and a
+patient's screen.** Whether the parse was clean is `holdReasons` on the report,
+not a status, and it is a closed list of five conditions: an unmapped analyte, a
+row that could not be filed, a code not in our map, a disagreement with
+`lowHigh`, a lab that has not finished. Each one puts a sentence on the report
+and a row in the exception queue — and **stops the release outright**.
+`releaseBlockedByHolds` refuses a held report to automation and to a person
+alike, until the reasons are acknowledged in the same action, which is stamped on
+the report and named in the audit entry.
+
+So the safety property is unchanged in what it guarantees and different in how:
+automation releases CLEAN work and never pushes a problem through. Nothing in
+this module may release anything or acknowledge a hold — both are
+`materialiseParsedReport`'s and a human's respectively.
+
+⚠ **THE BOOT GUARD IS UNTOUCHED AND MATTERS MORE.** Production still refuses to
+start with `RANDOX_TRANSPORT=live` while the void/caveat code map is the
+checked-in placeholder. An unrecognised code used to be caught by a clinician
+looking at the report, and there is no longer a clinician looking at the report.
 
 ## Shape
 

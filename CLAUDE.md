@@ -60,23 +60,56 @@ opacity ladder, so what a subordinate label gives up is the SHOUT — uppercase 
 12px label disappears on the dark page, and "quieter" must never become
 "fainter". All three carry `break-after: avoid` in `@media print`.
 
-**ONE LABEL IS LARGER THAN THE COPY UNDER IT, AND IT IS THE ONLY ONE (Aug
-2026).** `.card-eyebrow` is **28px**, over a lead sentence brought DOWN to 21px.
+**THE EXPLANATION CARD'S FOUR LEVELS. FIFTH SETTING, AND THE FIRST FOUR ASKED
+THE WRONG QUESTION (Aug 2026).** Each earlier attempt was a contest between the
+card's HEADING and one other thing in the card — the sub-labels three times, then
+the lead — and each ended by moving the heading: 12px → 14 → 16 → 28, with the
+lead brought DOWN to 21px to get out of its way. At which point a label was
+shouting over the sentence it labels, which is the point of the card.
+
+The question is not how big the label should be. It is: **THE DEFINITION IS THE
+CONTENT. IT WINS. THE REST IS STRUCTURE, AND STRUCTURE IS READ BEFORE THE
+CONTENT AND NOT INSTEAD OF IT.** Which settles all four at once, each distinct
+from the one above on more than one axis:
+
+    the lead      28px  Fraunces 400, opsz-section, full tone   ← the content
+    .card-eyebrow 16px  Plex 600, UPPERCASE, 0.14em, full tone
+    .sublabel     12px  Plex 600, sentence, 0.01em, full tone
+    the answers   18px  Plex 400, sentence, 0, /90
+
 Every other eyebrow in the product is 12px and stays 12px.
 
-    .card-eyebrow   28px  uppercase, tracked, semibold, full tone
-    the lead        21px  Fraunces, opsz-section — down from 28px
-    the answers     18px
-    .sublabel       12px
+**16px, NOT 21 AND NOT 14.** 16 is the value the THIRD attempt landed on and the
+record says it worked against the sub-labels — it was only ever overruled by a
+comparison with the lead, which no longer applies now the lead is the largest
+thing in the card. 16 against 12 is a 33% step on top of uppercase against
+sentence case. 14 is what the record already rejected (two pixels is 17%, inside
+the noise of two letter-cases), and 21px would put an uppercase tracked semibold
+label within one step of the definition, where the extra presence uppercase and
+tracking carry makes the two read as equals.
 
-The card's own ladder decides both numbers uniquely: the answers are 18px and
-the sub-labels 12px, neither of which moves, so the lead has to clear 18 and the
-heading has to clear the lead. **THE LEAD CAME DOWN RATHER THAN THE HEADING
-GOING FURTHER UP** — the step past 28px is 38px, and a 38px uppercase tracked
-label sets "WHAT THIS MARKER MEANS" at ~670px, wider than the card at any width
-this product is read at. On a phone it is a two-line label whatever it is set in
-(493px of text in a 286px card), so `text-wrap: balance` decides where it
-breaks: "WHAT THIS / MARKER MEANS" rather than an orphan.
+**LEVELS 3 AND 4 WERE RUNNING BACKWARDS**, which is why they read as one flat
+level: the sub-label was 500 at /80 and its answer 400 at /90, so THE LABEL WAS
+FAINTER THAN THE TEXT IT LABELS, and the only size difference between them
+favours the answer. `.sublabel` is semibold at full tone now — the darkest and
+heaviest text in its own pair. **The answers were NOT dimmed to achieve it:**
+raising the label costs no contrast, and dimming body copy in a medical portal to
+win a typographic argument is not a trade worth making.
+
+**AND THE SPACING WAS MEASURED AT THE WRONG THING.** The margins were 24px
+between blocks and 6px inside a pair, which reads as 4:1 in the source. What a
+reader sees includes HALF-LEADING: an 18px answer at 1.65 puts ~5.9px above its
+own first line and a 12px label ~3px below its last, so the real gaps were ~33px
+and ~15px — barely 2:1, which is exactly "a sub-label sits almost as far from its
+own answer as from the block above". 36px and 4px now, landing at ~45px against
+~13px. The heading sits 16px above the lead, deliberately LESS than a block
+boundary, because the heading and the definition are one unit.
+
+⚠ **MEASURE BEFORE TOUCHING ANY OF THE FOUR.** It has been adjusted by eye five
+times and come back wrong in a new direction each time.
+`e2e/explanation-card-hierarchy.spec.ts` reads the computed size, weight,
+tracking and colour of all four off the rendered card in both themes, plus the
+painted gaps, and asserts the ORDER rather than the values.
 
 **AND EVERY OTHER EYEBROW WENT TO 21px FOR A DAY. DO NOT DO IT AGAIN.**
 The inverted hierarchy was real and was confined to that one card. Raising the
@@ -753,6 +786,14 @@ route-console.spec.ts). See DEPLOYMENT.md → Feature flags for the full note.
 - Source labels: `Analysed by Randox Health` where the result genuinely came
   from Randox. In-house results carry NO source line at all (sourceLabel is
   empty for `aspire_inhouse`), so every render site guards it.
+  **IT IS OFF EVERY PATIENT SURFACE AND ON EXACTLY ONE DOCUMENT (Aug 2026).**
+  The clinician console still shows it, and the GP HANDOVER PDF names the
+  laboratory in its identity grid — see below. `sourceLabel` is imported by
+  `patients/service.ts` and `reports/service.ts` and **by nothing else**;
+  `sourceAttribution.test.ts` pins that list, because the field went on being
+  computed and sent on six patient-portal payloads for months after the last
+  render of it was deleted, and a field nothing renders is one autocomplete away
+  from being printed again.
 - **`ESCALATION_EMAIL` and `CLINIC_CONTACT_EMAIL` ARE TWO VARIABLES (Aug
   2026).** They were one, and `getClinicContact()` read the escalation address
   — so the address a clinician is paged at was also the address printed in the
@@ -1441,6 +1482,56 @@ write into the same numbering. **Do not start a pass while one is polling** -
 and note that killing the shell does not kill the node process, which keeps
 writing.
 
+## Leave one booking standing, and ask after it in the morning (Aug 2026)
+
+**THE SANDBOX ORDER HAS ONLY EVER REACHED STATUS 1, AND THE PASS IS WHY.** It
+books an appointment and then cancels it at the end of the run, so the order it
+created has nothing attached to it — and an order nobody attends is an order the
+laboratory never runs. Questions 3 and 8 (what does a status 4 look like, and
+what does GetOrderResultDetail actually return) have therefore never been
+askable, and they are the two that matter most now that a clean delivery releases
+itself: **the analyte map has never been confirmed against a real payload**, and
+that map is what stands between a delivery and a patient's screen.
+
+**`SANDBOX_LEAVE_BOOKING=true` skips TWO steps and it has to be both** — the
+cancel, and the SECOND create against the same GPExternalNumber (question 7).
+The last run showed that second create SUCCEEDS and produces a distinct
+appointment, so skipping only the cancel would leave TWO live bookings against
+one order, which is worse than none: nothing then says which one the laboratory
+is working from. Off by default, because a run that leaves a booking behind has
+taken a slot in somebody's diary. The order number and the booking id are printed
+LAST, after several hundred lines of output, with the exact `sandbox:poll`
+command to paste in the morning — a value somebody has to go looking for is a
+value they will re-derive by starting another run, which creates another order,
+which is the thing this option exists to avoid.
+
+**`npm run sandbox:poll --workspace=apps/server -- <order number>`** asks after
+an order that already exists and **creates nothing**. GetOrderStatus, and if the
+status is 4, GetOrderResultReports and GetOrderResultDetail, both captured. It
+polls at the pass's one-minute cadence for `SANDBOX_POLL_MINUTES`, which is **0
+by default — one call, then exit**: this is the command somebody runs over coffee
+to find out where an order got to, and a script that then sits there for twenty
+minutes is a script they stop running.
+
+**THE GUARDS AND THE CAPTURE FORMAT ARE SHARED, NOT RETYPED.**
+`scripts/sandboxShared.ts` holds the credential check, the stes--only host check,
+the NODE_ENV refusal, the connection builders and `call()`. A second script with
+its own copy of any of those is a second script that can be wrong about
+production while the first is right. What is NOT shared is any flow.
+
+**THE POLL DOES NOT CLEAR THE DIRECTORY AND PREFIXES ITS FILENAMES**
+(`poll-<orderNumber>-NN-…`). It runs hours after the pass, against the order the
+pass created, so joining the pass's `NN-` sequence would put two runs in one
+numbering with nothing in the filenames to say so — the exact failure
+`clearPreviousRun` exists to prevent. A second poll of the same order replaces
+its own captures and nobody else's. ⚠ **A later `sandbox:pass` WILL delete
+them**, because that command clears the directory on purpose.
+
+**The clinic id is FETCHED here too.** The poll has no database, so it cannot use
+`loadDiscoveredClinicId` — it calls GetMyClinicDetails and refuses rather than
+guessing, because a wrong clinic id on GetOrderResultDetail is a request for
+somebody else's order. `RANDOX_CLINIC_ID` overrides, exactly as on the server.
+
 **THE PANEL AND TEST CAPTURES CARRY RANDOX PRICING** (~1.5 MB, all 616 panels
 and 1189 tests). Deliberate: `stripPricing()` runs in the CLIENT, this script
 bypasses it, and a capture is the raw wire or it is not evidence. Commercial
@@ -2071,16 +2162,30 @@ foods keeps `(IgG)`, all nine urinalysis pads keep `(urine)` (which is
 load-bearing: it is what stops a dipstick glucose merging into a plasma one),
 and `Lipoprotein (a)` keeps its `(a)`.
 
-**"ANALYSED BY RANDOX HEALTH" IS GONE FROM EVERY SURFACE (Aug 2026).** It said
-something about the practice's laboratory arrangements and nothing about the
-results beside it. Removed from: the marker page, the report header, the By test
-cards, the Overview's latest-panel card, the Documents list, the chart tooltip,
-and BOTH PDFs — including the GP handover's `Laboratory` row and the "analysed
-by" clause in its one non-clinical sentence. ⚠ **The handover is the one place
-that costs something**: a reference interval is assay-specific and a GP reading
-one has less to weigh without knowing whose analyser produced it. Restoring it
-is one line, flagged in gpHandover.ts. `sourceLabel` stays on the DTOs — the
-clinician console still shows it.
+**"ANALYSED BY RANDOX HEALTH" IS GONE FROM EVERY PATIENT SURFACE (Aug 2026).**
+It said something about the practice's laboratory arrangements and nothing about
+the results beside it. Removed from: the marker page, the report header, the By
+test cards, the Overview's latest-panel card, the Documents list, the chart
+tooltip, the report list, Compare, and the PATIENT summary PDF.
+
+**AND IT IS BACK ON THE GP HANDOVER, WHICH IS THE ONE PLACE IT EARNS ITS LINE.**
+It was removed from there too, and flagged at the time as the one removal that
+cost something. It did. **The argument is the same one in both directions:** on a
+patient's result card the laboratory's name is a fact about the practice's
+commercial arrangements; on a doctor's page it is the reason two numbers might
+not be comparable, because a REFERENCE INTERVAL IS ASSAY-SPECIFIC. The handover's
+identity grid carries a `Laboratory` row again — a field a GP can find, rather
+than a clause inside the paragraph, which is where it used to be. It stays off
+the patient PDF.
+
+**AND THE FIELD IS OFF THE PATIENT DTOs, not merely unrendered.** It was still
+being computed and sent on six `portalService.ts` payloads long after the last
+render of it was deleted — dormant rather than removed, invisible to any
+screenshot review, and one autocomplete away from the screens it was taken off.
+Deleted, the way `nextSteps` was deleted with the Overview section that rendered
+it. `sourceLabel` is imported by `patients/service.ts` and `reports/service.ts`
+only (both ADMIN read models), and `sourceAttribution.test.ts` pins that list,
+pins the handover's row and pins its absence from the patient PDF.
 
 # The marker page: two cards, 40/60, then everything else (Aug 2026)
 
@@ -2297,6 +2402,35 @@ hit-tested.
   may write it; that is what made the disclosure fail to toggle. It is
   unmounted when shut, so it cannot overlap or displace the search field or
   the tab switcher.
+- **THE FOUR PICKERS ARE A GRID, NOT FOUR FIXED WIDTHS (Aug 2026).** They were
+  192 + 224 + 160 + 208 plus three 16px gaps = 832px, against a content column of
+  about 832px at 1280 with the sidebar out — so Show, Category and Group by took
+  the line and **Sort by dropped to a second row on its own**, under most of a row
+  of empty space. Three-and-one reads as a failure to fit. `grid-cols-1
+  sm:grid-cols-2 lg:grid-cols-4`, which cannot go three-and-one at any viewport
+  and cannot drift when somebody adds a longer option label; the fallback below
+  `lg` is **two and two**, which reads as a block of controls. The column count
+  follows the number of controls, because `scope` is null on the report list and
+  on Compare where Group by and Sort by are not rendered at all — a four-column
+  grid holding two pickers sets them at a quarter width with half the panel
+  empty. `e2e/filter-panel-layout.spec.ts` measures the painted tops at 1280,
+  1440 and 1920, and that the four cover more than 80% of the row.
+- **THE CATEGORY FILTER CARRIES A THIRD VOCABULARY: "Not compared to a range" /
+  "Compared to a range" (Aug 2026).** The nine measured markers that keep an
+  empty unit on purpose and every physical measurement have no reference range
+  and never will, so they render as untinted cards reading "Not compared to a
+  range" — correct, and until now nothing a reader could do about a block of
+  them. Two options, EXACT COMPLEMENTS, both self-describing so the chip names
+  itself wherever it is carried, worded as the sentence already printed on the
+  cards (`NO_STATUS_LABEL`). Never "qualitative": not a word a patient has, and
+  not even the right one, since this cuts ACROSS the result types. It lives in
+  `reportSections.ts` beside `RESULT_TYPE_FILTERS` because `categoryFilter` is
+  ONE string carrying three vocabularies and the prefixes are what stop a
+  catalogue key colliding with ours — three prefixed lists in one file cannot
+  drift apart. It narrows the MEASURED GRID and hides the personal-measurements
+  section under "Compared to a range"; the sections below the grid have no range
+  either and are not what anybody asking this means, and each already has its own
+  entry in the picker.
 - Results screens (a report, All markers) share one search/filter/sort contract,
   in lib/markerCopy.ts: name+alias search, status filter, health-area filter,
   and sort by health area (grouped under headings) / name / needs-attention.
@@ -2735,94 +2869,196 @@ search quietly does not cover two thirds of a page.
   label off the CLOSED LIST rather than off what the current view offers, so a
   filter carried out of a report still names itself.
 
-# One human gate, and it is a clinician (Aug 2026)
+# Results release automatically. There is no human gate (Aug 2026)
 
-The pipeline is **UPLOADED → PARSED → CLINICIAN_REVIEWED → RELEASED**, with
-CHANGES_REQUESTED as a loop back rather than a fifth forward stage.
+The pipeline is **UPLOADED → PARSED → RELEASED**, with CHANGES_REQUESTED as a
+loop back rather than a fourth forward stage. **A clean parse reaches the patient
+with no human step, significantly out-of-range results included.**
 
-**ADMIN_VERIFIED is gone. Do not bring it back.** It existed to catch
-transcription errors from a PDF, and results arrive structured through the Randox
-API now — so there was nothing being transcribed and nothing for the step to
-catch, and a person retyping what the laboratory already sent added a delay and a
-typo risk without adding a check. CLINICIAN_REVIEWED stays and is the only gate:
-one click, and it is a clinician deciding a patient can see this, which is a
-different question from whether the numbers copied across correctly. Enforced
-server-side in `lib/reportTransitions.ts` — `review` only from PARSED, `release`
-only from CLINICIAN_REVIEWED. No bypass, no setting that skips it.
+**The practice's decision, and the reasoning is Richard's:** a patient not seeing
+their own abnormal result is worse than them seeing it, and a result sitting in a
+queue nobody opens is the real risk.
 
-**`verify` is a CORRECTION, not a stage.** It is how a clinician fixes a value or
-keys in a report that never came through the API, it may repeat, and it lands
-back on PARSED. If it ever lands on a status of its own again, that status is a
-gate whether or not anybody meant it to be, because `review` would have to be
-permitted from it. It also CLEARS the holds, because a person has just entered
-every row deliberately.
+**ADMIN_VERIFIED went first, CLINICIAN_REVIEWED has followed it, and neither is
+coming back.** Both are removed from the enum. Reports sitting at
+CLINICIAN_REVIEWED are migrated to RELEASED — a clinician had already said yes
+and the only thing left was a second press — and PARSED reports with nothing held
+AND results actually written are released too, which is where automation would
+have left them. A parsed PDF with no `ReportResult` rows is NOT released by that
+migration: it would put an empty report in front of a patient.
+`20260814140000_automatic_release`. Every `REPORT_REVIEWED_APPROVED` audit entry
+stays exactly where it is.
 
-**The console reads clinician.** "Clinician console" in every eyebrow and in the
-sidebar; the `/admin` routes keep their URLs because they are in bookmarks. The
-button that said "Save & mark as verified" says "Save results, review later" —
-a label claiming a check that no longer exists is the removed stage surviving as
-a word. Release audit entries name the clinician and mean a clinician judged this
-releasable. `ADMIN_EMAILS` still governs who may act; no new non-clinical role
-was invented, and if one is ever added it does not get the release action.
+**WHAT REPLACED THE GATE, AND IT IS NOT NOTHING.** Two refusals, both in
+`lib/reportTransitions.ts`, both server-side:
 
-## What "a clean parse" means, and it is load-bearing
+1. **`release` is permitted only from PARSED.** A file nobody has read cannot
+   reach anybody, and a report somebody has sent back (CHANGES_REQUESTED) cannot
+   either.
+2. **`releaseBlockedByHolds()`.** A report carrying `holdReasons` cannot be
+   released — by automation or by a person pressing a button — until those
+   reasons are acknowledged in the same action. **This is the only checkpoint
+   left and it is a REFUSAL rather than a queue**, which is the point: a refusal
+   cannot be defeated by nobody opening a screen. Nothing automatic may pass the
+   acknowledgement; a machine acknowledging its own question is not an
+   acknowledgement.
+
+**`review` SURVIVES AND IS NOT A STAGE.** It is what a person does about a HELD
+report: approving means "I have read these reasons and it goes out anyway", and
+it lands on RELEASED directly, because there is no intermediate status left and
+inventing one would be the gate returning under another name. Rejecting lands on
+CHANGES_REQUESTED. The console sends a held report through `/review` (a real
+clinical decision, audited as one) and a clean unreleased one through `/release`
+(nobody reviewed anything, and an audit entry saying REPORT_REVIEWED_APPROVED
+about that is a review nobody did).
+
+**`verify` is still a CORRECTION, not a stage.** It fixes a value or keys in a
+report that never came through the API, it may repeat, and it lands back on
+PARSED — it does NOT release, because saving a form is not the same act as
+sending it. It still CLEARS the holds, because a person has just entered every
+row deliberately. The one-step publish path is verify → release and reads the
+holds BEFORE verify clears them, or it would launder one.
+
+**`materialiseParsedReport` releases what it wrote, OUTSIDE the transaction.**
+Escalation is a network call to a third party and holding a row lock across it
+would put a mail provider's latency on a patient's results. The two failure modes
+are not symmetrical: written-but-not-released is a report at PARSED that the work
+queue shows as NOT_RELEASED and a person releases in one press;
+released-but-not-written cannot happen, because the write has already committed.
+A failed release is audited (`REPORT_AUTO_RELEASE_FAILED`) and does not fail the
+ingestion — turning it into one would make the poller retry the whole delivery
+and lose the record of what arrived.
+
+## Escalation fires BEFORE the release commits, and severity changes what arrives
+
+It used to run after a successful release, from the route. Both halves of that
+were right until release stopped being a human act: with a gate, the escalation
+told the practice about something one of their own people had just done; with
+automatic release, **the patient and the clinic learn at the same moment**, so
+anything arriving afterwards is an email about a conversation the patient may
+already be having.
+
+`checkAndEscalate` is now awaited by `releaseReport` **before the status write**,
+rather than by the two routes that used to remember to call it — so a route that
+forgets is no longer a thing that can exist. `automaticRelease.test.ts` measures
+the ORDER rather than asserting it: the mock reads the report row at the moment
+escalation runs and the test fails if it says RELEASED.
+
+**IT CANNOT BLOCK THE RELEASE.** A mail provider being down is caught, audited as
+`ESCALATION_FAILED`, and the release proceeds. The whole argument for automatic
+release is that a result nobody can see is the worse outcome; making it
+conditional on Resend would reintroduce exactly that with a third party holding
+the switch.
+
+**SEVERITY IS NOT A LABEL ANY MORE.** Significant and mild used to differ by four
+words in a subject line, which on a busy morning is no difference at all. They
+now differ in the three places a difference is noticed:
+
+- the **subject** leads with `URGENT` and carries the count, so the inbox list
+  sorts by eye;
+- the mail carries `Importance: high` / `X-Priority: 1` — **on SIGNIFICANT
+  only**, because a sender that marks everything important is one nobody
+  believes twice. `EmailMessage.headers` exists for this and nothing else;
+- the **body splits the two groups**. "Significantly outside range: Ferritin"
+  over "Also outside range: ALT, GGT" is a triage instruction; one
+  comma-separated list of five markers is a list.
+
+The SMS still carries no values and no marker names — it is a ping at a phone
+that may be on a waiting-room table — and what differs is the instruction. Every
+escalation now says, in as many words, that **the report is being released to the
+patient now**, because the clinician's question is no longer "should this go out"
+but "does this need a call today".
+
+**`releaseReport({ escalate: false })` has ONE caller in the product and it is
+the demo seeder**, which drives real reports through the real pipeline and would
+otherwise email `ESCALATION_EMAIL` for every fabricated out-of-range result. It
+writes its own `EscalationEvent` with `channelsNotified: []`, which says
+truthfully that nothing was sent.
+
+## What "a clean parse" means, and it is now the ONLY checkpoint
 
 `lib/cleanParse.ts` is the single definition, because anything it lets through
-reaches a clinician who has no way to know something is missing. The conditions
-are a CLOSED LIST of five, each a fact about the delivery:
+goes **straight onto a patient's screen** and anything it holds is the only thing
+that stops it. The conditions are a CLOSED LIST of five — `HOLD_CONDITIONS` is
+the array as well as the type, and `cleanParse.test.ts` pins both, so a sixth
+cannot be added without being named:
 
 1. **UNMAPPED_ANALYTE** — a row the laboratory sent that no marker answered to.
    The commonest one in practice: the analyte map has never been confirmed
-   against a real payload.
+   against a real payload. With nobody reviewing, this is the one that matters
+   most.
 2. **UNFILED_ROW** — matched a marker but could not be written (no usable
    two-sided range, an unparseable value, a duplicate marker on one report).
 3. **UNRECOGNISED_CODE** — a void or caveat code not in the configured map. It is
    already treated as void and the result withheld, which is the safe default,
    and it means a test the patient paid for is absent for a reason nobody has
-   read. This is the ONE case where a withheld-by-the-lab exclusion holds.
+   read. This is the ONE case where a withheld-by-the-lab exclusion holds. ⚠ It
+   got MORE important when the gate came off, not less: an unrecognised code used
+   to be caught by a clinician looking at the report and there is no longer a
+   clinician looking at the report. **The production boot guard that refuses to
+   start with `RANDOX_TRANSPORT=live` while the code map is the checked-in
+   placeholder is untouched and is not to be weakened.**
 4. **LAB_DISAGREEMENT** — Randox's own `lowHigh` contradicts the status we
    computed from the value and the range they sent.
 5. **PARTIAL_DELIVERY** — the laboratory has not finished reporting the order.
 
 **Two deliberate non-conditions.** A result withheld under a RECOGNISED void code
 does not hold — that report is complete as far as anyone here can make it and the
-exclusion is on the record. Nor does an out-of-range result: a significantly
-raised marker is a clinical finding, which is exactly what the clinician is being
-asked to look at, and holding on it would make the queue the whole report list.
+exclusion is on the record.
+
+**NOR DOES AN OUT-OF-RANGE RESULT, INCLUDING A SIGNIFICANTLY OUT-OF-RANGE ONE,
+AND THIS WAS RECONSIDERED WHEN THE GATE CAME OFF AND DELIBERATELY LEFT ALONE.**
+It is the whole reasoning behind automatic release. Holding on severity would make
+the exception queue the entire report list, which is the queue nobody opens
+wearing a safety label. What a significant result does instead is escalate,
+harder than a mild one and before the release commits.
 
 ## A hold is a property of the report, not a stage
 
-`Report.holdReasons` (plus `heldAt`, `holdsAcknowledgedAt/ById`). A four-state
+`Report.holdReasons` (plus `heldAt`, `holdsAcknowledgedAt/ById`). A three-state
 pipeline has no state left to park a problem in, and the failure that has to be
 impossible is a report with an unmapped analyte in it looking identical, on a
-clinician's queue, to one with nothing wrong. So:
+work queue, to one with nothing wrong. So:
 
-- PARSED with no holds is "awaiting clinician review"; PARSED with holds is HELD.
-  `queueState()` on the server and in `lib/reportStatus.ts` is the one place that
-  distinction is made, and every label function takes the holds as well as the
-  status. A function that only sees the status cannot tell them apart.
-- `reviewReport` REFUSES to approve a held report without `acknowledgeHolds`. The
-  acknowledgement is stamped on the report and the reasons AS THEY STOOD are
-  copied into the audit entry, because the report's own holds are cleared by the
-  next correction. Requesting changes needs no acknowledgement — sending a held
-  report back is the right answer to a hold.
-- This is NOT a second gate: it is part of the one review action.
+- PARSED with no holds is NOT_RELEASED; PARSED with holds is HELD. `queueState()`
+  on the server and in `lib/reportStatus.ts` is the one place that distinction is
+  made, and every label function takes the holds as well as the status. A
+  function that only sees the status cannot tell them apart.
+- **AWAITING_REVIEW is gone with the gate.** Nothing is awaiting review — a clean
+  report is released by the call that wrote it. What sits at PARSED with nothing
+  held is a PDF nobody has keyed in, or a release that failed; both need a person
+  and neither is "awaiting review", which is why the bucket says NOT_RELEASED.
+- `releaseReport` and `reviewReport` both REFUSE a held report without
+  `acknowledgeHolds`. The acknowledgement is stamped on the report and the
+  reasons AS THEY STOOD are copied into the audit entry, because the report's own
+  holds are cleared by the next correction. Requesting changes needs no
+  acknowledgement — sending a held report back is the right answer to a hold.
 - A new hold retracts any previous acknowledgement (`holdFieldsFor`), or a
   clinician who acknowledged one problem would have silently pre-cleared the next
   delivery's.
-- The work queue leads with HELD. It used to lead with CLINICIAN_REVIEWED on the
-  reasoning that those patients have waited longest — still true, and no longer
-  the most urgent thing, because held is now the only thing standing between a
-  bad parse and a clinician's screen.
+- The work queue leads with HELD, and it is now the ONLY thing between a bad
+  parse and a patient's screen rather than between a bad parse and a clinician's.
 
-`reportTransitions.test.ts` and `cleanParse.test.ts` pin all of it, including
-that `clean` is exactly "no holds" rather than a second judgement that could
-drift from the list.
+`reportTransitions.test.ts`, `cleanParse.test.ts` and `automaticRelease.test.ts`
+pin all of it, including that `clean` is exactly "no holds" rather than a second
+judgement that could drift from the list.
+
+**A REDELIVERY OF A RELEASED ORDER IS IGNORED, AND THAT BRANCH FIRES FAR MORE
+OFTEN NOW.** `MERGEABLE_STATUSES` in ingestionService.ts is UPLOADED / PARSED /
+CHANGES_REQUESTED, and a clean delivery is RELEASED by the time a second copy
+arrives — so it no longer quietly overwrites results a patient has read.
+Amending a released value goes through `editReleasedReportResult`, which
+versions. A PARTIAL delivery is HELD and therefore still at PARSED, so the merge
+case that actually matters — the rest of the panel arriving — is untouched. **A
+VOIDED report is not a duplicate**: somebody deliberately took it away, usually
+by unlinking it from the wrong account, so a redelivery goes to the admin queue
+rather than being dropped as "nothing to do here".
 
 ## What the catalogue reference range fallbacks are still for
 
-They were built to suggest a range in the verify form. That form is no longer a
-gate, so the honest answer to "does that work retain its purpose":
+They were built to suggest a range in the verify form. That form has not been a
+gate for some time and there is now no gate at all, so the honest answer to "does
+that work retain its purpose":
 
 - **Yes, and unchanged in kind.** `resolveReferenceRange()` is read in exactly
   two places, and NEITHER was the gate: `reports/service.ts` (the parse

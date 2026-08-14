@@ -8,8 +8,9 @@ import { sourceLabel } from '../../lib/sourceLabel.js';
 import { storageAdapter } from '../storage/LocalDiskStorageAdapter.js';
 import { resultSourceAdapter } from '../result-sources/index.js';
 import { findBestMarkerMatch } from './matchMarker.js';
-import { canPerform } from '../../lib/reportTransitions.js';
+import { canPerform, releaseBlockedByHolds } from '../../lib/reportTransitions.js';
 import { holdFieldsFor } from '../../lib/cleanParse.js';
+import { checkAndEscalate } from '../escalation/service.js';
 import {
   resolveReferenceRange,
   ageFromDob,
@@ -546,20 +547,27 @@ export async function verifyReport(
 }
 
 /**
- * THE ONE HUMAN GATE.
+ * REVIEW — NO LONGER A GATE, AND STILL THE ANSWER TO A HELD REPORT.
  *
- * A clinician deciding a patient can see this. Not a check that the numbers
- * copied across correctly — there is nothing being copied any more — which is
- * why the admin verification stage that used to sit in front of this is gone.
+ * With automatic release there is nothing for a clinician to wave through: a
+ * clean parse has already gone out by the time anybody could look at it. What is
+ * left for this action is the two cases automation deliberately will not touch:
  *
- * A HELD REPORT MAY BE REVIEWED, BUT NOT BY ACCIDENT. Where the parse was not
- * clean (lib/cleanParse.ts), going ahead requires `acknowledgeHolds`, and that
- * acknowledgement is stamped on the report and named in the audit entry. This is
- * not a second gate: it is part of this one action, and it is what makes
- * "automation never moves a problem forward" true without a second human step.
- * The alternative — letting a held report be approved by the same click as a
- * clean one — is precisely the failure of removing the earlier stage, since the
- * clinician would have no way to know a result was missing.
+ *   · a HELD report — something in the delivery needs a decision — where
+ *     approving means "I have read these reasons and it goes out anyway", and
+ *   · a report automation left standing at PARSED (a keyed-in PDF, or a release
+ *     that failed), where approving is simply the release.
+ *
+ * APPROVING RELEASES. There is no intermediate status to land in and inventing
+ * one would be the removed gate coming back under another name, so this delegates
+ * to releaseReport once the review is stamped. Rejecting lands on
+ * CHANGES_REQUESTED, which is unchanged.
+ *
+ * A HELD REPORT MAY BE RELEASED, BUT NOT BY ACCIDENT. Going ahead requires
+ * `acknowledgeHolds`, that acknowledgement is stamped on the report and the
+ * reasons AS THEY STOOD are named in the audit entry. This is the whole of the
+ * safety property now: it is not a second human step, it is the refusal that
+ * makes "automation releases clean work and never pushes a problem through" true.
  */
 export async function reviewReport(
   reportId: string,
@@ -580,30 +588,40 @@ export async function reviewReport(
   // Sending it BACK needs no acknowledgement — requesting changes is the
   // correct response to a hold, and demanding a tick box before somebody is
   // allowed to say "this is not right" would be the check working backwards.
-  if (approve && held && !acknowledgeHolds) {
+  if (approve && releaseBlockedByHolds(report, acknowledgeHolds)) {
     throw new ReportError(
-      `This report is held for review and cannot be approved until the reasons are acknowledged: ` +
+      `This report is held and cannot be released until the reasons are acknowledged: ` +
         report.holdReasons.join(' '),
       409,
     );
   }
 
+  if (!approve) {
+    await prisma.report.update({ where: { id: reportId }, data: { status: 'CHANGES_REQUESTED' } });
+    await recordAuditLog({
+      actorUserId,
+      action: 'REPORT_CHANGES_REQUESTED',
+      targetType: 'Report',
+      targetId: reportId,
+      ipAddress: ip,
+      metadata: { ...(note ? { note } : {}) },
+    });
+    return;
+  }
+
   const now = new Date();
   await prisma.report.update({
     where: { id: reportId },
-    data: approve
-      ? {
-          status: 'CLINICIAN_REVIEWED',
-          reviewedById: actorUserId,
-          reviewedAt: now,
-          ...(held ? { holdsAcknowledgedAt: now, holdsAcknowledgedById: actorUserId } : {}),
-        }
-      : { status: 'CHANGES_REQUESTED' },
+    data: {
+      reviewedById: actorUserId,
+      reviewedAt: now,
+      ...(held ? { holdsAcknowledgedAt: now, holdsAcknowledgedById: actorUserId } : {}),
+    },
   });
 
   await recordAuditLog({
     actorUserId,
-    action: approve ? 'REPORT_REVIEWED_APPROVED' : 'REPORT_CHANGES_REQUESTED',
+    action: 'REPORT_REVIEWED_APPROVED',
     targetType: 'Report',
     targetId: reportId,
     ipAddress: ip,
@@ -616,51 +634,166 @@ export async function reviewReport(
       ...(held ? { acknowledgedHolds: report.holdReasons } : {}),
     },
   });
+
+  return releaseReport(reportId, actorUserId, ip, { acknowledgeHolds });
 }
 
-export async function releaseReport(reportId: string, actorUserId: string, ip: string | null) {
+export interface ReleaseOptions {
+  /**
+   * Set only by a HUMAN releasing a report that carries hold reasons. Nothing
+   * automatic may pass it — see releaseBlockedByHolds in lib/reportTransitions.ts
+   * — because a machine acknowledging its own question is not an acknowledgement.
+   */
+  acknowledgeHolds?: boolean;
+  /**
+   * The demo seeder, and nothing else in the product.
+   *
+   * It drives real reports through the real pipeline on purpose, which since
+   * escalation moved inside this function would mean a live email to
+   * ESCALATION_EMAIL for every fabricated out-of-range result it writes. It
+   * records its own EscalationEvent with `channelsNotified: []` instead, which
+   * says truthfully that nothing was sent.
+   */
+  escalate?: boolean;
+}
+
+/**
+ * RELEASE. THE PATIENT CAN SEE IT AFTER THIS, AND USUALLY NOBODY PRESSED
+ * ANYTHING (changed Aug 2026).
+ *
+ * `actorUserId` is nullable because the ordinary caller is now
+ * materialiseParsedReport rather than a person: a clean delivery releases itself
+ * and the audit entry is written actorType SYSTEM. Stamping a staff id on a
+ * decision nobody made would put a name against automation.
+ *
+ * THE ORDER OF THE THREE STEPS IS THE DESIGN.
+ *
+ *  1. REFUSE A HELD REPORT. Automation cannot reach this with holds on the
+ *     report — it only calls when the parse was clean — and a person cannot
+ *     either without acknowledging them. This is the one checkpoint left in the
+ *     pipeline and it is a refusal rather than a queue, which is the point: a
+ *     refusal cannot be forgotten by nobody opening a screen.
+ *  2. ESCALATE, BEFORE THE WRITE. With automatic release the patient and the
+ *     clinic learn at the same moment, so the clinic's mail must be sent before
+ *     the report becomes visible rather than after. Best-effort: a mail provider
+ *     being down must never keep results from the person they belong to, so the
+ *     failure is caught, audited as ESCALATION_FAILED, and the release proceeds.
+ *  3. WRITE RELEASED. Once, ever — the status guard above makes re-release
+ *     impossible, which is what keeps escalation exactly-once per report.
+ */
+export async function releaseReport(
+  reportId: string,
+  actorUserId: string | null,
+  ip: string | null,
+  options: ReleaseOptions = {},
+) {
+  const { acknowledgeHolds = false, escalate = true } = options;
   const report = await prisma.report.findUnique({ where: { id: reportId } });
   if (!report) throw new ReportError('Report not found', 404);
   if (report.voidedAt) throw new ReportError('This report has been voided and cannot be progressed', 409);
   if (!canPerform('release', report.status)) {
     throw new ReportError(`Cannot release a report in status ${report.status}`, 409);
   }
+  if (releaseBlockedByHolds(report, acknowledgeHolds)) {
+    throw new ReportError(
+      `This report is held and cannot be released until the reasons are acknowledged: ` +
+        report.holdReasons.join(' '),
+      409,
+    );
+  }
+
+  const held = report.holdReasons.length > 0;
+  const escalation = escalate ? await escalateBeforeRelease(reportId, actorUserId, ip) : null;
 
   await prisma.report.update({
     where: { id: reportId },
-    data: { status: 'RELEASED', releasedAt: new Date() },
+    data: {
+      status: 'RELEASED',
+      releasedAt: new Date(),
+      // A human releasing a held report acknowledges it here as well as through
+      // reviewReport, because the one-step publish path reaches release without
+      // going through a review.
+      ...(held && actorUserId
+        ? { holdsAcknowledgedAt: new Date(), holdsAcknowledgedById: actorUserId }
+        : {}),
+    },
   });
 
   await recordAuditLog({
     actorUserId,
+    actorType: actorUserId ? 'USER' : 'SYSTEM',
     action: 'REPORT_RELEASED',
     targetType: 'Report',
     targetId: reportId,
     ipAddress: ip,
+    metadata: {
+      // "Nobody pressed anything" is the single most important fact about a
+      // release now, and an audit log that cannot answer it cannot answer how
+      // this practice actually operates.
+      automatic: actorUserId === null,
+      ...(held ? { releasedWithAcknowledgedHolds: report.holdReasons } : {}),
+      ...(escalation
+        ? {
+            escalated: escalation.escalated,
+            ...(escalation.escalated
+              ? { escalationSeverity: escalation.severity, escalatedBeforeRelease: true }
+              : {}),
+          }
+        : {}),
+    },
   });
 
   return prisma.report.findUniqueOrThrow({ where: { id: reportId } });
 }
 
 /**
- * Publish — one admin action, the whole pipeline.
+ * Escalation must not be able to stop a release.
  *
- * The interaction cost of releasing a routine report was the problem: upload,
- * parse, scroll a forty-row table correcting statuses by hand, save, approve,
- * release. This collapses the last four into one click and a confirmation.
+ * It runs BEFORE the status write now (see releaseReport), which puts a network
+ * call to a mail provider in front of the thing a patient is waiting for. That
+ * is the right order and the wrong dependency, so the failure is swallowed here
+ * and recorded: the clinic not being emailed is a problem the audit log can
+ * surface, and a patient not receiving results because Resend was down is not a
+ * problem at all until somebody notices, which is the failure mode this whole
+ * change exists to remove.
+ */
+async function escalateBeforeRelease(reportId: string, actorUserId: string | null, ip: string | null) {
+  try {
+    return await checkAndEscalate(reportId);
+  } catch (escalationError) {
+    console.error('[escalation] failed before release; releasing anyway', {
+      reportId,
+      error: escalationError instanceof Error ? escalationError.message : escalationError,
+    });
+    await recordAuditLog({
+      actorUserId,
+      actorType: actorUserId ? 'USER' : 'SYSTEM',
+      action: 'ESCALATION_FAILED',
+      targetType: 'Report',
+      targetId: reportId,
+      ipAddress: ip,
+      metadata: { error: escalationError instanceof Error ? escalationError.message : String(escalationError) },
+    });
+    return null;
+  }
+}
+
+/**
+ * Publish — save this form's results and release, in one request.
+ *
+ * This is the MANUAL-ENTRY path, and it is what is left of one-click publish now
+ * that the machine path releases itself. A clinician keying in a report that
+ * never came through the API, or correcting one that did, should not have to
+ * save it and then press a second button to send the thing they have just
+ * finished entering.
  *
  * What it deliberately does NOT do is collapse the state machine. Each
  * transition still runs through its own function above, which means each one
  * still checks canPerform() against reportTransitions.ts, still writes its own
  * audit entry, and still refuses from a status it isn't allowed to run from.
- * Nothing here writes RELEASED directly, nothing skips CLINICIAN_REVIEWED, and a
- * report that fails halfway is left in whatever legitimate intermediate state it
- * reached rather than being forced onward. Since `verify` no longer advances a
- * status, what this collapses is three actions rather than four — and the one it
- * cannot collapse is the review, because that is the gate.
- *
- * So the pipeline is unchanged and the saving is entirely in interactions —
- * which is the only place the saving was ever wanted.
+ * Nothing here writes RELEASED directly, and a report that fails halfway is left
+ * in whatever legitimate intermediate state it reached rather than being forced
+ * onward.
  */
 export async function publishReport(
   reportId: string,
@@ -672,32 +805,37 @@ export async function publishReport(
   //
   // `verify` clears them, legitimately — a person has just entered every row
   // deliberately, so whatever the machine could not file, they have now filed. But
-  // that means by the time `reviewReport` looks, there is nothing left to
-  // acknowledge, and this path would have approved a held report without the
+  // that means by the time `releaseReport` looks, there is nothing left to
+  // acknowledge, and this path would have released a held report without the
   // acknowledgement the two-step path demands. Not a bypass anybody chose: a
-  // bypass produced by the order of three calls.
+  // bypass produced by the order of two calls.
   //
-  // So the holds are captured first, refused on here rather than three calls
-  // later, and passed through to the review so the acknowledgement lands on the
-  // report and in the audit entry exactly as it would have.
+  // So the holds are captured first, refused on here rather than two calls
+  // later, and recorded on the publish entry so the audit says what the
+  // clinician was told.
   const before = await prisma.report.findUnique({ where: { id: reportId }, select: { holdReasons: true } });
   if (!before) throw new ReportError('Report not found', 404);
   const heldReasons = before.holdReasons;
   if (heldReasons.length > 0 && !input.acknowledgeHolds) {
     throw new ReportError(
-      `This report is held for review and cannot be published until the reasons are acknowledged: ` +
+      `This report is held and cannot be published until the reasons are acknowledged: ` +
         heldReasons.join(' '),
       409,
     );
   }
 
   await verifyReport(reportId, { sampleDate: input.sampleDate, results: input.results }, actorUserId, ip);
-  await reviewReport(reportId, true, input.note, actorUserId, ip, input.acknowledgeHolds ?? false);
-  const report = await releaseReport(reportId, actorUserId, ip);
+  const report = await releaseReport(reportId, actorUserId, ip, {
+    // verify has already cleared the holds, so this changes nothing on a clean
+    // run. It is passed so that if verify ever stops clearing them, this path
+    // still carries the acknowledgement the clinician actually gave rather than
+    // failing with a 409 they cannot act on.
+    acknowledgeHolds: input.acknowledgeHolds ?? false,
+  });
 
-  // One extra entry on top of the three each transition already wrote, so the
-  // audit trail records that these three happened as a single deliberate
-  // action rather than reading as three separate decisions taken minutes apart.
+  // One extra entry on top of the two each transition already wrote, so the
+  // audit trail records that these happened as a single deliberate action
+  // rather than reading as two separate decisions taken minutes apart.
   await recordAuditLog({
     actorUserId,
     action: 'REPORT_PUBLISHED',
@@ -707,9 +845,9 @@ export async function publishReport(
     metadata: {
       resultCount: input.results.length,
       viaSingleStepPublish: true,
-      // Written here as well as on the review entry, because verify has cleared
-      // the report's own holdReasons by now and this is the record of what the
-      // clinician was told when they published.
+      // Written here as well, because verify has cleared the report's own
+      // holdReasons by now and this is the record of what the clinician was told
+      // when they published.
       ...(heldReasons.length > 0 ? { acknowledgedHolds: heldReasons } : {}),
     },
   });

@@ -12,22 +12,25 @@ export type Sex = 'MALE' | 'FEMALE' | 'ANY';
 export type MarkerReviewStatus = 'DRAFT' | 'REVIEWED' | 'PUBLISHED';
 
 /**
- * ONE HUMAN GATE, AND IT IS A CLINICIAN (changed Aug 2026).
+ * RESULTS RELEASE AUTOMATICALLY (changed Aug 2026). NO HUMAN GATE.
  *
- *   UPLOADED → PARSED → CLINICIAN_REVIEWED → RELEASED
+ *   UPLOADED → PARSED → RELEASED
  *
- * with CHANGES_REQUESTED as a loop back rather than a fifth forward stage.
- * ADMIN_VERIFIED is gone: it caught transcription errors from a PDF, and results
- * arrive structured through the Randox API now.
+ * with CHANGES_REQUESTED as a loop back rather than a fourth forward stage.
+ * ADMIN_VERIFIED went first (it caught transcription errors from a PDF, and
+ * results arrive structured through the Randox API now); CLINICIAN_REVIEWED has
+ * followed it, because a result waiting in a queue for somebody to press a
+ * second button is a result the patient does not have.
  *
- * PARSED is "awaiting clinician review". Whether the parse was clean is
- * `holdReasons` on the report, not a status — see server lib/cleanParse.ts.
+ * PARSED is "read, not released". Whether the parse was CLEAN is `holdReasons`
+ * on the report, not a status — see server lib/cleanParse.ts — and it is the one
+ * thing that stops an automatic release. A clean parse releases itself; a held
+ * one waits for a person to acknowledge what is wrong with it.
  */
 export type ReportStatus =
   | 'UPLOADED'
   | 'PARSED'
   | 'CHANGES_REQUESTED'
-  | 'CLINICIAN_REVIEWED'
   | 'RELEASED';
 
 /**

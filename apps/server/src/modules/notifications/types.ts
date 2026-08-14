@@ -3,6 +3,17 @@ export interface EmailMessage {
   subject: string;
   html: string;
   text: string;
+  /**
+   * Extra RFC-822 headers. Added for the escalation path, where a significantly
+   * out-of-range result has to be louder than a mildly out-of-range one in the
+   * one place a clinician sees before opening anything — the inbox list. Subject
+   * wording does most of that work; `Importance` / `X-Priority` are what make a
+   * mail client draw it differently.
+   *
+   * Optional and unused everywhere else: a transactional email that marks itself
+   * important is an email nobody believes the next time.
+   */
+  headers?: Record<string, string>;
 }
 
 export interface EmailProvider {

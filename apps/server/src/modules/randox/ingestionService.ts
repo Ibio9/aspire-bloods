@@ -41,8 +41,10 @@ import type { GetOrderResultDetailResponse, RandoxReportResultRow, OrderRef } fr
  *
  * So this file's job is exactly: fetch → normalise into a ParsedReport →
  * hand it to the shared writer, or park it for an admin if we cannot say
- * whose it is. Ingestion never publishes; the writer lands everything at
- * PARSED, clean or held, and the one clinician gate is untouched.
+ * whose it is. Whether the result reaches the patient is the writer's decision
+ * and not this file's: a clean parse is released by materialiseParsedReport and
+ * a held one stays at PARSED with its reasons on it. Nothing here may release
+ * anything, and nothing here may acknowledge a hold.
  */
 
 const SOURCE_KEY = 'randox_api';
@@ -415,7 +417,21 @@ export async function ingestOrderResults(ref: OrderRef): Promise<IngestResult> {
   const { orderNumber } = ref;
   const existing = await prisma.report.findUnique({ where: { externalId: orderNumber } });
 
-  if (existing && !MERGEABLE_STATUSES.has(existing.status)) {
+  // ⚠ THIS BRANCH FIRES FAR MORE OFTEN SINCE AUTOMATIC RELEASE (Aug 2026), and
+  // that is correct rather than incidental. A clean delivery is RELEASED by the
+  // time a redelivery arrives, where it used to be sitting at PARSED and
+  // mergeable — so a second copy of the same order no longer quietly overwrites
+  // the results a patient has already read. Amending a released value goes
+  // through the versioned path (editReleasedReportResult), which keeps what was
+  // there before. A PARTIAL delivery is HELD and therefore still at PARSED, so
+  // the merge case that actually matters — the rest of the panel arriving — is
+  // untouched.
+  //
+  // A VOIDED report is NOT a duplicate. Somebody deliberately took it away
+  // (usually by unlinking it from the wrong account), so the right answer to a
+  // redelivery is the admin queue rather than "nothing to do here" — which is
+  // what DUPLICATE means and would silently drop it.
+  if (existing && !existing.voidedAt && !MERGEABLE_STATUSES.has(existing.status)) {
     const message = `Redelivery of order ${orderNumber} ignored: the report is already ${existing.status.toLowerCase().replace(/_/g, ' ')}.`;
     await logAttempt({ orderNumber, outcome: 'DUPLICATE', reportId: existing.id, message });
     return { outcome: 'DUPLICATE', reportId: existing.id, markersIngested: 0, markersExcluded: 0, message };
@@ -634,14 +650,19 @@ export async function ingestOrderResults(ref: OrderRef): Promise<IngestResult> {
   if (outcome.disagreementCount > 0) {
     parts.push(`${outcome.disagreementCount} where Randox’s own high/low flag disagrees with the range they sent`);
   }
-  // Whether it is waiting on the clinician or waiting on a question, and why.
-  // A clean parse needs nobody before the clinician sees it; a held one has to
-  // say what is being asked, or the "automatic up to release" promise quietly
-  // becomes "sometimes automatic, and you find out by noticing".
+  // WHETHER THE PATIENT CAN SEE IT, and if not, why not. A clean parse releases
+  // itself; a held one has to say what is being asked, or the "automatic"
+  // promise quietly becomes "sometimes automatic, and you find out by noticing".
+  //
+  // `released` rather than `clean` is deliberate. They differ only when a clean
+  // report failed to release, which is exactly the case a log line saying
+  // "released to the patient" must not be written about.
   parts.push(
     outcome.clean
-      ? 'parse clean, waiting on clinician review'
-      : `HELD for review: ${outcome.holdReasons.join(' ')}`,
+      ? outcome.released
+        ? 'parse clean, released to the patient'
+        : 'parse clean, but the automatic release failed — needs releasing by hand'
+      : `HELD: ${outcome.holdReasons.join(' ')}`,
   );
   // No trailing full stop where the last part already ends in one: the hold
   // reasons are whole sentences now (lib/cleanParse.ts), and appending to them

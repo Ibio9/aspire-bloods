@@ -182,18 +182,31 @@ export async function generateGpHandoverPdf(reportId: string): Promise<Buffer> {
       ['Sample taken', formatDate(report.sampleDate), true],
       ['Report', reportTitle, false],
       /**
-       * ── NO LABORATORY ROW (Aug 2026) ────────────────────────────────────
+       * ── THE LABORATORY ROW IS BACK, AND ONLY HERE (restored Aug 2026) ───
        *
-       * "Analysed by Randox Health" is removed from every surface in the
-       * product, and this document is one of them.
+       * It was removed with "Analysed by Randox Health" everywhere else, and
+       * the removal was flagged at the time as the one place it cost
+       * something. It did, so it is back.
        *
-       * ⚠ FLAGGED, because this is the one place removing it costs something.
-       * A reference interval is ASSAY-SPECIFIC — the sentence below still says
-       * so — and a GP reading a range without knowing whose analyser produced
-       * it has one less thing to weigh. Restoring it is this one line. Every
-       * other removal in this pass was a line that said nothing about the
-       * results beside it; this one did.
+       * THE ARGUMENT IS THE SAME ONE IN BOTH DIRECTIONS. On a patient's result
+       * card, the name of the laboratory says something about the practice's
+       * commercial arrangements and nothing about the number beside it. On a
+       * doctor's page it is the reason two numbers might not be comparable: a
+       * REFERENCE INTERVAL IS ASSAY-SPECIFIC, so a GP holding this against
+       * their own laboratory's range needs to know whose analyser produced it.
+       * The sentence below has always said the ranges are assay-specific; this
+       * row is what makes that sentence actionable rather than a caveat.
+       *
+       * ⚠ IT STAYS OFF THE PATIENT PDF, which is the other half of the
+       * decision. This is not "we changed our mind about the removal" — it is
+       * the one document in the product whose reader can use it.
+       *
+       * `sourceLabel` is deliberately not used: it returns the empty string for
+       * an in-house result, which is right on a screen that guards it and wrong
+       * in a two-column grid that would print a label over a blank cell. The
+       * source's own NAME is what a GP wants anyway.
        */
+      ['Laboratory', report.source.name, false],
       ['Summary prepared', formatDate(new Date()), true],
     ];
     const colGap = 12;
@@ -219,9 +232,9 @@ export async function generateGpHandoverPdf(reportId: string): Promise<Buffer> {
     // the laboratory and states that a private result is not a diagnosis, and
     // stops there.
     use(doc, 'body', 9).fillColor(ESPRESSO).text(
-      // "and analysed by <laboratory>" is removed with the Laboratory row
-      // above. What survives is the half that bears on how the figures should
-      // be read: the ranges belong to whoever ran the assay.
+      // The laboratory is NAMED in the grid above rather than in this sentence.
+      // A row is a field a GP can find; a clause inside a paragraph is a thing
+      // they have to read the paragraph to reach.
       `These are private laboratory results requested by the patient. ` +
         `They are a measurement, not a diagnosis, and were not taken in the context of a clinical assessment. ` +
         `Reference ranges are the laboratory’s own and are assay-specific.`,

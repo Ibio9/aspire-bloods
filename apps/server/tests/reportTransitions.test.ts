@@ -1,24 +1,30 @@
 import { describe, it, expect } from 'vitest';
 import type { ReportStatus } from '@aspire-bloods/shared';
-import { canPerform, resultingStatus, isPatientVisible, queueState } from '../src/lib/reportTransitions.js';
+import {
+  canPerform,
+  resultingStatus,
+  isPatientVisible,
+  queueState,
+  releaseBlockedByHolds,
+} from '../src/lib/reportTransitions.js';
 
 /**
- * ONE HUMAN GATE, AND IT IS A CLINICIAN (changed Aug 2026).
+ * RESULTS RELEASE AUTOMATICALLY (changed Aug 2026).
  *
- *   UPLOADED → PARSED → CLINICIAN_REVIEWED → RELEASED
+ *   UPLOADED → PARSED → RELEASED
  *
- * ADMIN_VERIFIED is gone. What this file has to keep proving is that removing a
- * stage did not remove the guarantee: nothing reaches a patient without a
- * clinician having said so, and the fact that a parse was not clean survives the
- * loss of the stage that used to carry it.
+ * CLINICIAN_REVIEWED is gone, after ADMIN_VERIFIED. This file used to prove that
+ * removing a stage did not remove the guarantee "nothing reaches a patient
+ * without a clinician having said so". That guarantee has been deliberately
+ * given up, so what this file has to prove is the one that replaced it:
+ *
+ *   AUTOMATION RELEASES CLEAN WORK AND NEVER PUSHES A PROBLEM THROUGH.
+ *
+ * Which is two claims, and both are here: a report still has to have been READ
+ * before it can be released, and a report with anything HELD on it cannot be
+ * released by anybody until the reasons are acknowledged.
  */
-const ALL_STATUSES: ReportStatus[] = [
-  'UPLOADED',
-  'PARSED',
-  'CHANGES_REQUESTED',
-  'CLINICIAN_REVIEWED',
-  'RELEASED',
-];
+const ALL_STATUSES: ReportStatus[] = ['UPLOADED', 'PARSED', 'CHANGES_REQUESTED', 'RELEASED'];
 
 describe('release pipeline transitions', () => {
   it('exposes exactly one patient-visible status', () => {
@@ -26,30 +32,38 @@ describe('release pipeline transitions', () => {
     expect(visible).toEqual(['RELEASED']);
   });
 
-  describe('the gate cannot be skipped', () => {
-    it('only allows release from CLINICIAN_REVIEWED', () => {
+  describe('there is no stage between the results arriving and the patient', () => {
+    it('releases from PARSED, and from nothing else', () => {
       const releasable = ALL_STATUSES.filter((s) => canPerform('release', s));
-      expect(releasable).toEqual(['CLINICIAN_REVIEWED']);
+      expect(releasable).toEqual(['PARSED']);
     });
 
-    it('only allows clinician review from PARSED', () => {
-      const reviewable = ALL_STATUSES.filter((s) => canPerform('review', s));
-      expect(reviewable).toEqual(['PARSED']);
-    });
-
-    // Together these two are the whole guarantee, and it is now shorter than it
-    // was rather than weaker: CLINICIAN_REVIEWED is reachable only via review,
-    // review only from PARSED, and release only from CLINICIAN_REVIEWED. So an
-    // UPLOADED report cannot reach a patient without a clinician acting on it.
-    it('cannot release an unparsed or unreviewed report', () => {
+    // The half of the old guarantee that SURVIVES. Automatic release is not
+    // "anything can go out"; a file nobody has read cannot reach anybody, and a
+    // report somebody has actively sent back cannot either.
+    it('cannot release a report nothing has been read from', () => {
       expect(canPerform('release', 'UPLOADED')).toBe(false);
-      expect(canPerform('release', 'PARSED')).toBe(false);
+    });
+
+    it('cannot release a report somebody has asked for changes on', () => {
       expect(canPerform('release', 'CHANGES_REQUESTED')).toBe(false);
     });
+  });
 
-    it('has no action that lands on RELEASED except release', () => {
-      const actions = (['parse', 'verify', 'review'] as const).map((a) => resultingStatus(a));
-      expect(actions).not.toContain('RELEASED');
+  describe('the hold is the only checkpoint left, and it is a refusal', () => {
+    it('blocks a held report with no acknowledgement', () => {
+      expect(releaseBlockedByHolds({ holdReasons: ['1 result could not be matched.'] }, false)).toBe(true);
+    });
+
+    it('lets it through when the reasons are acknowledged', () => {
+      expect(releaseBlockedByHolds({ holdReasons: ['1 result could not be matched.'] }, true)).toBe(false);
+    });
+
+    // The common case, and the one automation takes: nothing held, nothing to
+    // acknowledge, released with no human anywhere near it.
+    it('does not block a clean report, and does not want an acknowledgement for one', () => {
+      expect(releaseBlockedByHolds({ holdReasons: [] }, false)).toBe(false);
+      expect(releaseBlockedByHolds({ holdReasons: [] }, true)).toBe(false);
     });
   });
 
@@ -61,14 +75,9 @@ describe('release pipeline transitions', () => {
       // Re-releasing is what would fire escalation a second time.
       expect(canPerform('release', 'RELEASED')).toBe(false);
     });
-
-    it('refuses to re-parse or correct underneath a completed clinical review', () => {
-      expect(canPerform('parse', 'CLINICIAN_REVIEWED')).toBe(false);
-      expect(canPerform('verify', 'CLINICIAN_REVIEWED')).toBe(false);
-    });
   });
 
-  describe('CHANGES_REQUESTED is a loop back, not a fifth forward stage', () => {
+  describe('CHANGES_REQUESTED is a loop back, not a fourth forward stage', () => {
     it('allows re-parsing and correcting', () => {
       expect(canPerform('parse', 'CHANGES_REQUESTED')).toBe(true);
       expect(canPerform('verify', 'CHANGES_REQUESTED')).toBe(true);
@@ -81,29 +90,38 @@ describe('release pipeline transitions', () => {
 
     it('is where a rejected review lands', () => {
       expect(resultingStatus('review', false)).toBe('CHANGES_REQUESTED');
-      expect(resultingStatus('review', true)).toBe('CLINICIAN_REVIEWED');
     });
   });
 
-  describe('verify is a correction, not a gate', () => {
-    // The single change that removes the second human step. If this ever lands
-    // on a status of its own again, that status is a gate whether or not anybody
-    // meant it to be, because `review` would have to be permitted from it.
+  describe('review is what a person does about a held report', () => {
+    it('lands on RELEASED when approved, because there is nowhere else to land', () => {
+      // If this ever lands on a status of its own again, that status is a gate
+      // whether or not anybody meant it to be.
+      expect(resultingStatus('review', true)).toBe('RELEASED');
+    });
+
+    it('is only reachable from PARSED', () => {
+      const reviewable = ALL_STATUSES.filter((s) => canPerform('review', s));
+      expect(reviewable).toEqual(['PARSED']);
+    });
+  });
+
+  describe('verify is a correction, not a decision to publish', () => {
     it('lands back on PARSED', () => {
       expect(resultingStatus('verify')).toBe('PARSED');
     });
 
-    it('can be performed from every state before the review', () => {
+    it('can be performed from every state before the release', () => {
       expect(canPerform('verify', 'UPLOADED')).toBe(true);
       expect(canPerform('verify', 'PARSED')).toBe(true);
       expect(canPerform('verify', 'CHANGES_REQUESTED')).toBe(true);
     });
 
-    it('does not advance a report toward the patient', () => {
-      // Reviewable before the correction and reviewable after it — no more, no
-      // less. A correction that made a report reviewable when it was not would be
-      // the removed gate coming back through another door.
-      expect(canPerform('review', resultingStatus('verify'))).toBe(canPerform('review', 'PARSED'));
+    it('does not by itself release anything', () => {
+      // Correcting the data lands a report where release is PERMITTED, which is
+      // the whole pipeline now — so what has to be true is that the correction
+      // does not itself write RELEASED.
+      expect(resultingStatus('verify')).not.toBe('RELEASED');
     });
   });
 
@@ -115,24 +133,23 @@ describe('release pipeline transitions', () => {
 });
 
 /**
- * THE DISTINCTION THE REMOVED STAGE USED TO CARRY.
+ * THE DISTINCTION THE REMOVED STAGES USED TO CARRY.
  *
  * ADMIN_VERIFIED meant "clean and awaiting a clinician" and PARSED meant "held".
- * With one of those gone, PARSED means both, and the difference has to come from
- * the report's own holdReasons. A held report reading as awaiting-review is the
- * exact failure mode of removing the stage, so it is measured rather than
+ * With both gone, PARSED means both, and the difference comes from the report's
+ * own holdReasons. A held report reading as an ordinary not-yet-released one is
+ * the exact failure mode of removing the stages, so it is measured rather than
  * assumed.
  */
-describe('a held report never reads as ready for a clinician', () => {
+describe('a held report never reads as ordinary work', () => {
   it('splits PARSED on whether anything is held', () => {
-    expect(queueState({ status: 'PARSED', holdReasons: [] })).toBe('AWAITING_REVIEW');
+    expect(queueState({ status: 'PARSED', holdReasons: [] })).toBe('NOT_RELEASED');
     expect(queueState({ status: 'PARSED', holdReasons: ['1 result could not be matched.'] })).toBe('HELD');
   });
 
   it('places every other status exactly once', () => {
     expect(queueState({ status: 'UPLOADED', holdReasons: [] })).toBe('AWAITING_PARSE');
     expect(queueState({ status: 'CHANGES_REQUESTED', holdReasons: [] })).toBe('HELD');
-    expect(queueState({ status: 'CLINICIAN_REVIEWED', holdReasons: [] })).toBe('AWAITING_RELEASE');
     expect(queueState({ status: 'RELEASED', holdReasons: [] })).toBe('RELEASED');
   });
 
