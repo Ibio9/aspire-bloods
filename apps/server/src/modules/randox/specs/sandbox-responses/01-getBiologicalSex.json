@@ -1,0 +1,22 @@
+{
+  "step": 1,
+  "api": "Nexus",
+  "name": "getBiologicalSex",
+  "method": "GET",
+  "path": "BiologicalSex/GetBiologicalSex",
+  "request": null,
+  "status": 200,
+  "ok": true,
+  "body": [
+    {
+      "id": 1,
+      "name": "Male"
+    },
+    {
+      "id": 2,
+      "name": "Female"
+    }
+  ],
+  "raw": "[{\"id\":1,\"name\":\"Male\"},{\"id\":2,\"name\":\"Female\"}]",
+  "note": "Reference data. The spec declares GET; earlier guidance said POST."
+}

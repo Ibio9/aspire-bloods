@@ -1,0 +1,62 @@
+{
+  "step": 10,
+  "api": "Clinic Booking",
+  "name": "GetServiceRegions",
+  "method": "GET",
+  "path": "RandoxServices/GetServiceRegions",
+  "request": null,
+  "status": 200,
+  "ok": true,
+  "body": [
+    {
+      "Id": 2,
+      "Name": "North West",
+      "CurrencyCode": "UK",
+      "DisplayOrder": 9999
+    },
+    {
+      "Id": 3,
+      "Name": "Northern Ireland",
+      "CurrencyCode": "UK",
+      "DisplayOrder": 9999
+    },
+    {
+      "Id": 4,
+      "Name": "Scotland / North East",
+      "CurrencyCode": "UK",
+      "DisplayOrder": 9999
+    },
+    {
+      "Id": 5,
+      "Name": "South England / London",
+      "CurrencyCode": "UK",
+      "DisplayOrder": 9999
+    },
+    {
+      "Id": 6,
+      "Name": "Southern Ireland",
+      "CurrencyCode": "ROI",
+      "DisplayOrder": 9999
+    },
+    {
+      "Id": 7,
+      "Name": "Wales and Midlands",
+      "CurrencyCode": "UK",
+      "DisplayOrder": 9999
+    },
+    {
+      "Id": 8,
+      "Name": "Remote",
+      "CurrencyCode": "UK",
+      "DisplayOrder": 9999
+    },
+    {
+      "Id": 9,
+      "Name": "Third Party",
+      "CurrencyCode": "UK",
+      "DisplayOrder": 9999
+    }
+  ],
+  "raw": "[{\"Id\":2,\"Name\":\"North West\",\"CurrencyCode\":\"UK\",\"DisplayOrder\":9999},{\"Id\":3,\"Name\":\"Northern Ireland\",\"CurrencyCode\":\"UK\",\"DisplayOrder\":9999},{\"Id\":4,\"Name\":\"Scotland / North East\",\"CurrencyCode\":\"UK\",\"DisplayOrder\":9999},{\"Id\":5,\"Name\":\"South England / London\",\"CurrencyCode\":\"UK\",\"DisplayOrder\":9999},{\"Id\":6,\"Name\":\"Southern Ireland\",\"CurrencyCode\":\"ROI\",\"DisplayOrder\":9999},{\"Id\":7,\"Name\":\"Wales and Midlands\",\"CurrencyCode\":\"UK\",\"DisplayOrder\":9999},{\"Id\":8,\"Name\":\"Remote\",\"CurrencyCode\":\"UK\",\"DisplayOrder\":9999},{\"Id\":9,\"Name\":\"Third Party\",\"CurrencyCode\":\"UK\",\"DisplayOrder\":9999}]",
+  "note": "Q8: the cheap credential probe, replacing GetBiologicalSex — which 404s. Also: what does a region look like?"
+}

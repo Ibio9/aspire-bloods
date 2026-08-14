@@ -401,3 +401,116 @@ function londonOffsetMs(instant: Date): number {
   );
   return asUtc - Math.floor(instant.getTime() / 1000) * 1000;
 }
+
+/**
+ * ---------------------------------------------------------------------------
+ * A SUCCESS CODE INSIDE A 200, AND THE ONLY PLACE IT IS JUDGED.
+ * ---------------------------------------------------------------------------
+ *
+ * THE CLINIC BOOKING MUTATIONS SHARE ONE ENVELOPE, and it can report a refusal
+ * in the BODY of a successful response:
+ *
+ *   { "BookingId": 87608, "SuccessFailCode": "Success",
+ *     "FailureDescription": null, "NewAppointmentDateTime": "..." }
+ *
+ * The OpenAPI file calls it `RescheduleAppointmentResponse` and declares it on
+ * that one operation, which is how it was read here at first. **It is not
+ * specific to the reschedule.** HoldAvailabilityBooking answers with exactly
+ * the same four fields — observed against the sandbox, Aug 2026 — so a hold
+ * that FAILED could arrive as an HTTP 200 and be read as a hold that worked.
+ * Nothing else on either API behaves this way: everywhere else a refusal is a
+ * 4xx and the transport throws before anything reads the body.
+ *
+ * THE DEFAULT IS FAILURE, and that is the whole design of this function. Only a
+ * value that recognisably says success counts as one; an absent code, an empty
+ * string, an unrecognised word or a populated `FailureDescription` all mean no.
+ * The cost of the two mistakes is not symmetrical: reading a failure as a
+ * success tells a patient their appointment moved when it did not, and they
+ * arrive on the wrong day. Reading a success as a failure tells them to try
+ * again, which is recoverable and visible.
+ *
+ * Only "Success" is documented. The others are accepted because a status word
+ * is exactly the kind of field an API spells three ways, and every one of them
+ * is unambiguously affirmative.
+ */
+const BOOKING_SUCCESS_CODES = new Set(['success', 'succeeded', 'ok', 'true', '0', '200']);
+
+export function bookingOutcomeSucceeded(code: string | null, failureDescription: string | null): boolean {
+  if (failureDescription !== null && failureDescription.trim() !== '') return false;
+  if (code === null) return false;
+  return BOOKING_SUCCESS_CODES.has(code.trim().toLowerCase());
+}
+
+/**
+ * ---------------------------------------------------------------------------
+ * A SLOT'S INSTANT, FROM THE TWO STRINGS RANDOX ACTUALLY SEND.
+ * ---------------------------------------------------------------------------
+ *
+ * OBSERVED (Aug 2026), against the real sandbox. AvailabilityDetails returns a
+ * bare array of
+ *
+ *   { "Id": "slot-room33-2026-08-17T07:00-staff19",
+ *     "Date": "17/08/2026", "Time": "07:00", "AvailableQuantity": 1 }
+ *
+ * and there is NO `AppointmentSlotDateTime`, no `startUtc`, no offset, no `Z`
+ * and no epoch anywhere in it. Every field name this client used to read for a
+ * slot was invented, and the guessed date field is the one that mattered: with
+ * nothing to read, `availabilityDetails()` returned an empty list from a
+ * response carrying 114 slots — which looks exactly like a clinic with no
+ * diary.
+ *
+ * THE SLOT ID IS A SECOND FORMAT, NOT THE ONE WE HAD. The Postman collection
+ * shows `72164:72164::1760607000:`, whose embedded epoch is what proved the
+ * slot fields are the UTC wall clock. The sandbox returns
+ * `slot-room33-2026-08-17T07:00-staff19` — no epoch, a bare wall clock, and the
+ * exact shape the OpenAPI file's RescheduleAppointment example uses, which
+ * makes that example real rather than the placeholder it looked like. Two
+ * formats is why NOTHING here parses a slot id: it is opaque, it is echoed, and
+ * that is all.
+ *
+ * ── WHY UTC IS FORCED RATHER THAN CHOSEN ──────────────────────────────────
+ *
+ * `Date` is day-first and `Time` is HH:mm — which are, to the character, the
+ * two fields HoldAvailabilityBooking wants back as `AppointmentSlotDate` and
+ * `AppointmentSlotTIme`. Whatever those strings mean, THE ONE THING THAT CANNOT
+ * BE WRONG IS ECHOING THEM: booking a slot by sending Randox a time they did
+ * not offer is the failure with no upside.
+ *
+ * The client reaches the wire through `slotDateDayFirst(startUtc)` and
+ * `slotTimeOfDay(startUtc)`, which are pure UTC formatters. So reading Date and
+ * Time as UTC here is the only reading under which the round trip is the
+ * IDENTITY — send back exactly what arrived. Read them as London and a 07:00
+ * slot goes back to Randox as 06:00. That is not an argument about what Randox
+ * mean; it is an argument that this is the only interpretation that keeps our
+ * request equal to their response, and it is asserted on the real captured
+ * payload in randoxBookingContract.test.ts.
+ *
+ * ── WHAT IS STILL OPEN, AND IT IS ONLY THE DISPLAY ────────────────────────
+ *
+ * The wire is settled by the paragraph above. What is NOT settled is what to
+ * SHOW a patient, because the same two strings are consistent with two stories:
+ *
+ *   UTC     the flow diagram says availability is UTC, and the collection's
+ *           own slot id decodes to a UTC wall clock. Then a 07:00 slot is
+ *           08:00 on a clinic wall in August, and `local` says so.
+ *   LONDON  the observed diary runs 07:00 to 14:45, which is an ordinary
+ *           phlebotomy day read as local time. Then `local` is an hour late.
+ *
+ * The documents win, so it is UTC, and the exposure is exactly one hour on one
+ * rendered string — never on what is booked. **For Randox: are the `Date` and
+ * `Time` on an availability slot UTC or clinic-local?** Until they answer,
+ * `slot.wireDate` / `slot.wireTime` carry their own strings untouched beside
+ * `local`, so a caller that would rather show Randox's own words can.
+ */
+const DAY_FIRST_DATE = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+const TIME_OF_DAY = /^(\d{2}):(\d{2})$/;
+
+export function slotInstantFromWireParts(date: string | null, time: string | null): string | null {
+  if (!date || !time) return null;
+  const day = DAY_FIRST_DATE.exec(date.trim());
+  const clock = TIME_OF_DAY.exec(time.trim());
+  if (!day || !clock) return null;
+  const ms = Date.UTC(Number(day[3]), Number(day[2]) - 1, Number(day[1]), Number(clock[1]), Number(clock[2]));
+  if (Number.isNaN(ms)) return null;
+  return new Date(ms).toISOString();
+}

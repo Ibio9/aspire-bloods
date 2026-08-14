@@ -3,6 +3,9 @@ dist/
 build/
 .env
 .env.local
+# The Randox sandbox credentials, read by scripts/sandboxPass.ts. Its
+# .example is committed; the filled-in file never is.
+.env.sandbox
 *.log
 .DS_Store
 coverage/

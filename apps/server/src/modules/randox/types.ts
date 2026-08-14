@@ -441,46 +441,61 @@ export interface RandoxClinicDetails extends RandoxClinicLocation {
 
 /**
  * ---------------------------------------------------------------------------
- * WHAT THE POSTMAN COLLECTION SETTLES, AND WHAT IT LEAVES OPEN (Aug 2026).
+ * TWO DOCUMENTS NOW, AND THE ASYMMETRY MOVED RATHER THAN CLOSING (Aug 2026).
  * ---------------------------------------------------------------------------
  *
- * specs/"Clinic Booking Platform Testing APIs.postman_collection.json" is the
- * real collection from the developer portal. It gives, for all five booking
- * calls: the path, the verb, and a complete request body with real field names
- * and real values. It gives NO response examples at all — the `response` array
- * on every item is empty.
+ * specs/clinic-booking-openapi3.json is the portal's own API definition: seven
+ * operations, one GET and six POSTs, with a request example on each. Beside it,
+ * specs/"Clinic Booking Platform Testing APIs.postman_collection.json" gives
+ * five of those seven a complete request body with real field names and real
+ * values, and no response examples at all.
  *
- * That asymmetry is the shape of this section and is worth stating plainly,
- * because it is easy to read "we have the collection now" as "the API is
- * documented now":
+ * WHAT EACH ONE IS GOOD FOR, because the answer is not "the newer one":
  *
- *   OUTBOUND  verified, literal, and built exactly as the collection spells it
- *             — including a misspelling and two different date formats for one
- *             field, both of which are Randox's and neither of which is ours
- *             to correct.
- *   INBOUND   still assumed. Every response below is read through the tolerant
- *             helpers in clients/parse.ts under several plausible spellings, so
- *             a name guessed wrong degrades to "field absent" (handled) rather
- *             than a crash.
+ *   THE SPEC        the SURFACE. Which operations exist, their verbs, and — for
+ *                   RescheduleAppointment alone — a `required` list and a
+ *                   response schema. It is the only document that names
+ *                   GetServiceRegions or gives Reschedule a body, and it is
+ *                   what proved GetBiologicalSex is gone.
+ *   THE COLLECTION  the BODIES of the five it covers. Its examples are newer
+ *                   and internally coherent where the spec's are neither: the
+ *                   spec's hold sends a ServiceId of 488 (there are two, 787
+ *                   and 788), both its slot examples put a DATE in the time
+ *                   field, and its create omits GPExternalNumber — the one
+ *                   field joining a booking to a laboratory order.
+ *
+ * So OUTBOUND is still built to the collection where the collection covers it,
+ * and INBOUND is still assumed for six of the seven: every response type below
+ * is read through the tolerant helpers in clients/parse.ts under several
+ * plausible spellings, so a name guessed wrong degrades to "field absent"
+ * (handled) rather than to a crash. The seventh, RescheduleAppointment, is the
+ * FIRST Clinic Booking response anybody has documented — and it is read
+ * tolerantly too, because one undated example with a null in it is not a
+ * contract.
  *
  * ALSO STILL DOCUMENTED ONLY IN THE FLOW PDF, and treated as fact: availability
  * is UTC, a hold lasts 30 minutes, and the Nexus order number goes across as
  * GPExternalNumber.
  *
- * AND ONE ENDPOINT WENT MISSING. RescheduleAppointment is NOT in the
- * collection. It was in this section as a documented path; it never came from
- * a document we still hold, and the one machine-readable list of this API's
- * endpoints does not have it. See ClinicBookingClient.rescheduleAppointment.
+ * TWO ENDPOINTS ARRIVED AND ONE LEFT. RescheduleAppointment is specified at
+ * last and GetServiceRegions is new; `BiologicalSex/GetBiologicalSex` answered
+ * 404 in the sandbox and is not in the definition — see
+ * RANDOX_DOCUMENTED_BOOKING_BIOLOGICAL_SEX in documentedDefaults.ts for the one
+ * sentence that documents the ids instead.
  */
 
 /**
  * THE SERVICE ID, WHICH IS NOT OPTIONAL AND IS NOT DISCOVERABLE.
  *
  * Third-party in-clinic bookings have exactly two: 787 for the UK, 788 for the
- * Republic of Ireland (Chris Caulfield, Aug 2026 — not in any document). Three
- * of the five calls take one and nothing the API returns tells you which to
+ * Republic of Ireland (Chris Caulfield, Aug 2026 — not in any document). Five
+ * of the seven calls take one and nothing the API returns tells you which to
  * use, so it is configuration: RANDOX_BOOKING_REGION picks, and
  * `bookingServiceId()` in config.ts is the only place it is read.
+ *
+ * GetServiceRegions does NOT settle it. A region is not a service — the spec
+ * gives no field relating the two, and 787/788 being "UK and Ireland" is an
+ * email rather than a lookup. Do not infer one from the other.
  */
 export type RandoxBookingRegion = 'UK' | 'ROI';
 
@@ -492,6 +507,14 @@ export type RandoxBookingRegion = 'UK' | 'ROI';
  * the only one that works: ACCEPT BOTH IN, SEND WHATEVER THAT ENDPOINT'S OWN
  * EXAMPLE USES. Each wire type below therefore states the form its own
  * endpoint wants, and the client converts at the boundary.
+ *
+ * THE TWO DOCUMENTS AGREE ON EVERY TYPE BUT ONE. Checked field by field when
+ * the OpenAPI file arrived: the only disagreement anywhere is the hold's
+ * ServiceId — a number in the collection, `"488"` in the spec — and 488 is not
+ * a service id at all, which is what dates that example. The collection's form
+ * is sent. The mock enforces the type where the two documents agree and accepts
+ * either where they do not, because enforcing one side of a genuine
+ * disagreement is enforcing a coin toss (see mock/bookingSpecServer.ts).
  */
 
 /** POST /Locations/GetServiceLocations. ServiceId as a NUMBER. */
@@ -511,12 +534,20 @@ export interface AvailabilityDetailsWireRequest {
  * POST /RandoxBookings/HoldAvailabilityBooking. ServiceId NUMBER, LocationId
  * STRING, and the date day-first.
  *
- * `AppointmentSlotTIme` IS SPELLED THAT WAY ON THE WIRE. Capital I in the
- * middle of "Time", in both this call and CreateRandoxBooking. It is Randox's
- * field name, so it is what we send; correcting it would produce a request
- * with no slot time in it, which is a 400 at best and a booking at an
- * unspecified time at worst. It is spelled correctly nowhere else in this
- * codebase — the conversion happens here, at the wire, and only here.
+ * `AppointmentSlotTIme` IS SPELLED THAT WAY ON THE WIRE, in both this call and
+ * CreateRandoxBooking. It is Randox's field name, so it is what we send.
+ *
+ * IT IS A CASE DIFFERENCE AND NOT A MISSPELLING (Aug 2026). This note used to
+ * warn that correcting the capital I "would produce a request with no slot time
+ * in it, which is a 400 at best and a booking at an unspecified time at worst".
+ * That was a guess with a consequence attached to it. `AppointmentSlotTIme` and
+ * the OpenAPI file's `appointmentSlotTime` differ in ONE CHARACTER'S CASE and
+ * in nothing else — and the two documents disagree on case for every field of
+ * every endpoint they share, which is what ASP.NET Core's default
+ * case-insensitive model binding looks like from outside. The collection's
+ * spelling is still what goes on the wire, for the ordinary reason that it is
+ * the coherent example and there is no reason to change a request the moment
+ * before testing it. The spelling is converted here, at the wire, and only here.
  */
 export interface HoldAvailabilityBookingWireRequest {
   ServiceId: number;
@@ -577,6 +608,93 @@ export interface CancelRandoxBookingWireRequest {
   RandoxBookingOrderId: number;
 }
 
+/**
+ * POST /RandoxBookings/RescheduleAppointment.
+ *
+ * THE ONLY REQUEST ON THIS API WITH A REAL SCHEMA BEHIND IT. Every other body
+ * here is transcribed from an example, which says what one caller once sent;
+ * this one has `required: [appointmentId, serviceId, locationId,
+ * newAppointmentSlotId]` and a typed property for each, which says what the API
+ * will accept. Four fields, all integers except the slot id, and camelCase —
+ * sent as the spec spells it, since the spec is the only document that spells
+ * it at all.
+ *
+ * IT TAKES NO DATE AND NO TIME, which is the interesting part: the new slot is
+ * identified by its id alone, so Randox derive the instant from it. That is
+ * consistent with an AppointmentSlotId carrying its own epoch
+ * ("72164:72164::1760607000:") and it means there is no second field here to
+ * disagree with the first.
+ *
+ * AND NO HOLD. The documented reschedule is one call with no
+ * HoldAvailabilityBooking in front of it, so there is no 30-minute window to
+ * race and no way to check the new slot is free before committing to it. See
+ * bookingService.rescheduleBooking for why that matters and why the composed
+ * path is still what production runs.
+ */
+export interface RescheduleAppointmentWireRequest {
+  appointmentId: number;
+  serviceId: number;
+  locationId: number;
+  /** Randox's AppointmentSlotId for the NEW slot. */
+  newAppointmentSlotId: string;
+}
+
+/**
+ * What RescheduleAppointment answers with — the first documented Clinic Booking
+ * response there has ever been, and read tolerantly all the same.
+ *
+ * `SuccessFailCode` IS THE FIELD TO BE CAREFUL WITH. It is a soft outcome
+ * inside a 200: a refusal arrives with an HTTP status that says everything went
+ * fine, and reading it wrong means telling a patient their appointment moved
+ * when it did not. `bookingOutcomeSucceeded()` in clients/parse.ts is the one
+ * place that judgement is made, and it treats anything not recognisably a
+ * success as a failure.
+ *
+ * AND THIS ENVELOPE IS NOT THIS OPERATION'S (observed Aug 2026). The spec
+ * declares it here and only here, which is how it was first read. All FOUR
+ * booking mutations answer with it — the hold, the create, the reschedule and
+ * the cancel — so `assertBookingOutcome` in the client reads it on every one.
+ * The create spells the code as the NUMBER `0` where the other three send the
+ * string `"Success"`, in the same flow.
+ */
+export interface RescheduleAppointmentResponse {
+  /** The booking id AFTER the move. 87608 in the example, from an 87556. */
+  bookingId: number | null;
+  succeeded: boolean;
+  /** Randox's own word — "Success" in the example. Kept verbatim for the log. */
+  successFailCode: string | null;
+  failureDescription: string | null;
+  /** The new appointment instant, normalised to UTC. */
+  newStartUtc: string | null;
+}
+
+/**
+ * GET /RandoxServices/GetServiceRegions — no body, no parameters.
+ *
+ * In no document before the OpenAPI file arrived. It is the cheapest possible
+ * proof that the booking subscription key and B2C scope are working: no order,
+ * no patient, no side effect and nothing to clean up afterwards. That is its
+ * job in the sandbox pass, which used to probe with GetBiologicalSex — an
+ * endpoint that turned out not to exist, so its 404 proved nothing about the
+ * credentials at all.
+ *
+ * The shape is a guess like every other response here. Region 787/788 is the
+ * SERVICE id and this is a REGION id; whether they are related is unknown and
+ * nothing infers one from the other.
+ */
+export interface RandoxServiceRegion {
+  id: string;
+  name: string;
+  /**
+   * "UK" or "ROI" on every region observed. It is NOT the ServiceId decision:
+   * that is 787 or 788, picked by RANDOX_BOOKING_REGION, and no document
+   * relates the two — a region is a group of clinic locations (each location
+   * carries a `RegionId`), not a service. Recorded because it is real and
+   * because the resemblance is exactly the kind that gets inferred from later.
+   */
+  currencyCode: string | null;
+}
+
 // --- What we hand upward (responses: assumed shapes, tolerantly read) -------
 
 export interface RandoxServiceLocation {
@@ -591,11 +709,41 @@ export interface RandoxServiceLocation {
 }
 
 export interface RandoxAvailabilitySlot {
-  /** UTC — documented on the flow diagram, "all UTC". */
+  /**
+   * The instant, derived from `wireDate` + `wireTime` READ AS UTC. See
+   * `slotInstantFromWireParts` in clients/parse.ts for why that reading is
+   * forced rather than chosen, and what is still open about it.
+   */
   startUtc: string;
+  /**
+   * Randox send no end time. Null on every real slot; kept because a future
+   * payload may carry one and a caller should not have to guess a duration.
+   */
   endUtc: string | null;
-  /** Randox's AppointmentSlotId, e.g. "72164:72164::1760607000:". */
+  /**
+   * Randox's slot id. OBSERVED (Aug 2026):
+   * `slot-room33-2026-08-17T07:00-staff19` — room, wall clock and staff member,
+   * and NOT the `72164:72164::1760607000:` form the Postman collection shows.
+   * Opaque either way: nothing parses it, and the two formats are the reason
+   * why (see parse.ts).
+   */
   slotReference: string;
+  /**
+   * `Date` and `Time` EXACTLY AS RANDOX SENT THEM — "17/08/2026" and "07:00".
+   *
+   * Carried verbatim because they are, to the character, the two fields
+   * HoldAvailabilityBooking wants back: `AppointmentSlotDate` day-first and
+   * `AppointmentSlotTIme` as HH:mm. Anything we compute is a chance to send
+   * something they did not say, and these let a test prove we did not.
+   */
+  wireDate: string;
+  wireTime: string;
+  /**
+   * `AvailableQuantity` — 1 on every slot in the sandbox. Recorded rather than
+   * interpreted: a slot with a quantity is a slot that could have more than
+   * one, and nothing documents what a 2 would mean for a single appointment.
+   */
+  availableQuantity: number | null;
   /**
    * The same instant as UK local wall clock, computed once at the boundary.
    *

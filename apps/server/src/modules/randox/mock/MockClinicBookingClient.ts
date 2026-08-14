@@ -1,12 +1,14 @@
-import { RandoxUnsupportedOperationError, RandoxWindowExpiredError } from '../errors.js';
-import { londonWallClock } from '../clients/parse.js';
+import { RandoxWindowExpiredError } from '../errors.js';
+import { londonWallClock, slotDateDayFirst } from '../clients/parse.js';
 import type { ClinicBookingClient } from '../clients/types.js';
 import type {
   RandoxServiceLocation,
+  RandoxServiceRegion,
   RandoxAvailabilitySlot,
   HoldAvailabilityBookingResponse,
   CreateRandoxBookingRequest,
   CreateRandoxBookingResponse,
+  RescheduleAppointmentResponse,
 } from '../types.js';
 
 const HOLD_DURATION_MS = 30 * 60 * 1000;
@@ -34,6 +36,8 @@ interface MockHold {
 interface MockBooking {
   bookingReference: string;
   randoxBookingOrderId: number;
+  /** What RescheduleAppointment identifies the booking by. Moves on a move. */
+  appointmentId: number;
   orderNumber: string;
   locationId: string;
   slotReference: string;
@@ -86,6 +90,21 @@ export class MockClinicBookingClient implements ClinicBookingClient {
     },
   ];
 
+  /**
+   * A region is not a service. 787/788 are SERVICE ids from an email, these
+   * are region ids from an endpoint, and nothing published relates the two —
+   * so the fixture deliberately does not make them look related.
+   */
+  async getServiceRegions(): Promise<RandoxServiceRegion[]> {
+    // Shaped like the real ones: {Id, Name, CurrencyCode, DisplayOrder}, and
+    // the currency code is UK/ROI — which resembles the 787/788 choice and is
+    // not it. Nothing here relates them, deliberately.
+    return [
+      { id: '3', name: 'Northern Ireland', currencyCode: 'UK' },
+      { id: '6', name: 'Southern Ireland', currencyCode: 'ROI' },
+    ];
+  }
+
   async getServiceLocations(): Promise<RandoxServiceLocation[]> {
     return this.locations;
   }
@@ -103,8 +122,12 @@ export class MockClinicBookingClient implements ClinicBookingClient {
     // the caller has to handle it without reading it as a failure.
     if (locationId === '15') return [];
 
-    // Half-hourly, 09:00–12:00 UTC. Explicitly UTC: the real API documents UTC
-    // and the caller must never re-zone them.
+    // Half-hourly, 09:00–12:00. THE SHAPE IS THE OBSERVED ONE: a slot is a
+    // day-first `Date` and a bare `Time`, and the id embeds the same wall clock
+    // (`slot-room33-2026-09-01T09:00-staff19`) rather than an epoch. The
+    // epoch-bearing `72164:72164::1760607000:` form is in the Postman
+    // collection and has never been seen on the wire; a fixture that models the
+    // document rather than the API is how 114 slots came back as none.
     const day = searchFromIsoDate.slice(0, 10);
     const untilMs = untilIsoDate ? Date.parse(`${untilIsoDate.slice(0, 10)}T23:59:59.999Z`) : null;
     const slots: RandoxAvailabilitySlot[] = [];
@@ -112,16 +135,19 @@ export class MockClinicBookingClient implements ClinicBookingClient {
     for (let halfHour = 0; halfHour < 6; halfHour += 1) {
       const hour = 9 + Math.floor(halfHour / 2);
       const minute = halfHour % 2 === 0 ? '00' : '30';
-      const startUtc = `${day}T${String(hour).padStart(2, '0')}:${minute}:00.000Z`;
+      const wireTime = `${String(hour).padStart(2, '0')}:${minute}`;
+      const startUtc = `${day}T${wireTime}:00.000Z`;
       if (untilMs !== null && Date.parse(startUtc) > untilMs) continue;
-      // The real slot id embeds the slot's epoch — see the note in parse.ts.
-      const epoch = Math.floor(Date.parse(startUtc) / 1000);
-      const slotReference = `${72164 + halfHour}:${72164 + halfHour}::${epoch}:`;
+      const slotReference = `slot-room33-${day}T${wireTime}-staff${19 + halfHour}`;
       if (this.takenSlots.has(slotReference)) continue;
       slots.push({
         startUtc,
-        endUtc: new Date(Date.parse(startUtc) + 30 * 60 * 1000).toISOString(),
+        // Randox send no end time on a real slot.
+        endUtc: null,
         slotReference,
+        wireDate: slotDateDayFirst(startUtc),
+        wireTime,
+        availableQuantity: 1,
         local: londonWallClock(startUtc),
       });
     }
@@ -162,6 +188,10 @@ export class MockClinicBookingClient implements ClinicBookingClient {
       expiresAt,
       consumed: false,
     });
+    // Randox return ONE id and the create needs two — the fixture makes them
+    // equal because the collection's own example does (1144015 twice) and
+    // because a real create without an AppointmentId is
+    // `400 "Randox Booking failure, invalid appointment id."`
     return {
       holdReference,
       expiresAtUtc: new Date(expiresAt).toISOString(),
@@ -203,6 +233,7 @@ export class MockClinicBookingClient implements ClinicBookingClient {
     const booking: MockBooking = {
       bookingReference: String(randoxBookingOrderId),
       randoxBookingOrderId,
+      appointmentId: request.appointmentId,
       orderNumber: request.gpExternalNumber,
       locationId: request.serviceLocationId,
       slotReference: hold.slotReference,
@@ -243,12 +274,63 @@ export class MockClinicBookingClient implements ClinicBookingClient {
     this.takenSlots.delete(booking.slotReference);
   }
 
-  /** Not a documented endpoint — the mock refuses exactly as the live client does. */
-  async rescheduleAppointment(): Promise<never> {
-    throw new RandoxUnsupportedOperationError(
-      'RescheduleAppointment',
-      'The Clinic Booking API documents no reschedule endpoint. Cancel and book the new slot instead.',
+  /**
+   * Specified since Aug 2026 — and it REFUSES INSIDE A 200, which is the whole
+   * reason to model it rather than to throw.
+   *
+   * Every other failure on this API arrives as a 4xx and the transport throws,
+   * so a caller that forgets to check gets an exception. Here a refusal is a
+   * successful response with `succeeded: false` in it, and a caller that
+   * forgets tells a patient their appointment moved when it did not. A fixture
+   * that always succeeded would make that bug untestable.
+   *
+   * No hold is taken, exactly as the documented request implies — so the "slot
+   * gone" case is a soft failure rather than a RandoxWindowExpiredError.
+   */
+  async rescheduleAppointment(
+    appointmentId: number,
+    serviceLocationId: string,
+    newSlotReference: string,
+  ): Promise<RescheduleAppointmentResponse> {
+    const fail = (failureDescription: string): RescheduleAppointmentResponse => ({
+      bookingId: null,
+      succeeded: false,
+      successFailCode: 'Fail',
+      failureDescription,
+      newStartUtc: null,
+    });
+
+    const booking = [...this.bookings.values()].find(
+      (b) => b.appointmentId === appointmentId && !b.cancelled,
     );
+    if (!booking) return fail('No active appointment was found for that appointment id.');
+    if (booking.locationId !== serviceLocationId) {
+      return fail('That appointment is not at the location given.');
+    }
+    if (this.takenSlots.has(newSlotReference)) {
+      return fail('That appointment slot is no longer available.');
+    }
+
+    // The observed id carries the slot's own wall clock. The fixture is allowed
+    // to read its own format; nothing in the CLIENT parses a slot id, because
+    // two formats exist and neither is documented.
+    const wall = /-(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})-/.exec(newSlotReference);
+    if (!wall) return fail('That appointment slot id was not recognised.');
+
+    this.takenSlots.delete(booking.slotReference);
+    this.takenSlots.add(newSlotReference);
+    booking.slotReference = newSlotReference;
+    booking.startUtc = `${wall[1]}T${wall[2]}:00.000Z`;
+    this.counter += 1;
+    booking.appointmentId = 87608 + this.counter;
+
+    return {
+      bookingId: booking.appointmentId,
+      succeeded: true,
+      successFailCode: 'Success',
+      failureDescription: null,
+      newStartUtc: booking.startUtc,
+    };
   }
 
   reset(): void {

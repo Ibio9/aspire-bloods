@@ -12,6 +12,8 @@ import { createFakePrisma, seedCatalogue, seedPatient, seedOrder, type FakePrism
  *   → Nexus GetOrderStatus through 1, 2, 3, 4
  *   → Nexus GetOrderResultReports and GetOrderResultDetail at status 4
  *
+ *   → CB RescheduleAppointment, which refuses INSIDE a 200
+ *
  * Plus the four failure paths that are NORMAL rather than exceptional: a hold
  * that expires, a booking that fails after a hold, a cancel, and a slot taken
  * between availability and hold.
@@ -22,10 +24,12 @@ import { createFakePrisma, seedCatalogue, seedPatient, seedOrder, type FakePrism
  * and a single-host test would prove none of that stayed separate.
  *
  * WHAT THE BOOKING MOCK ENFORCES is the point of the exercise: it is generated
- * from the Postman collection and rejects a request whose fields, types or
- * date shapes differ from the collection's own example. So "we send what
- * Randox documented" is a 400 when it stops being true, rather than a comment
- * claiming it.
+ * from BOTH Randox documents — the OpenAPI definition for the surface, the
+ * Postman collection for the bodies — and rejects a request whose fields, types
+ * or date shapes differ from what the two AGREE on. So "we send what Randox
+ * documented" is a 400 when it stops being true, rather than a comment claiming
+ * it. Where the two documents disagree it accepts either, because enforcing one
+ * side of a genuine disagreement is enforcing a coin toss.
  *
  * NOTHING REAL GOES NEAR IT. Invented names, invented dates of birth, invented
  * order numbers, and a date of birth that belongs to nobody.
@@ -98,10 +102,9 @@ const { LiveClinicBookingClient } = await import('../src/modules/randox/clients/
 const { NEXUS_ENDPOINTS, CLINIC_BOOKING_ENDPOINTS, bookingVerbForPath } = await import(
   '../src/modules/randox/endpoints.js'
 );
-const { RandoxWindowExpiredError, RandoxUnsupportedOperationError } = await import('../src/modules/randox/errors.js');
-const { slotDateDayFirst, slotDateIsoMidnightZ, slotTimeOfDay, londonWallClock } = await import(
-  '../src/modules/randox/clients/parse.js'
-);
+const { RandoxWindowExpiredError } = await import('../src/modules/randox/errors.js');
+const { slotDateDayFirst, slotDateIsoMidnightZ, slotTimeOfDay, londonWallClock, slotInstantFromWireParts } =
+  await import('../src/modules/randox/clients/parse.js');
 const { __setConfigCachesForTest } = await import('../src/modules/randox/config.js');
 
 __setConfigCachesForTest({}, { panels: {}, tests: {}, markerNameOverrides: {}, panelsByRandoxId: {} });
@@ -140,48 +143,130 @@ const PATIENT = {
 // The collection itself
 // ---------------------------------------------------------------------------
 
-describe('the Clinic Booking Postman collection', () => {
-  it('is five POSTs, and our endpoint table matches it path for path', () => {
+describe('the two Clinic Booking documents, reconciled', () => {
+  const byPath = () => new Map(loadBookingRoutes().map((r) => [r.path, r]));
+
+  it('is seven operations — one GET and six POSTs — and our table matches path for path', () => {
     const routes = loadBookingRoutes();
-    expect(routes).toHaveLength(5);
-    expect(routes.every((r) => r.verb === 'POST')).toBe(true);
+    expect(routes).toHaveLength(7);
     for (const route of routes) {
-      expect(bookingVerbForPath(route.path), route.path).toBe('POST');
+      expect(bookingVerbForPath(route.path), route.path).toBe(route.verb);
     }
-    // GetBiologicalSex is the auth document's worked example and the one GET.
-    expect(CLINIC_BOOKING_ENDPOINTS.getBiologicalSex.verb).toBe('GET');
+    expect(routes.filter((r) => r.verb === 'GET').map((r) => r.path)).toEqual(['RandoxServices/GetServiceRegions']);
+    expect(routes.filter((r) => r.verb === 'POST')).toHaveLength(6);
+    // Every name in our table is a path in the definition, and vice versa.
+    expect(new Set(Object.values(CLINIC_BOOKING_ENDPOINTS).map((e) => e.path))).toEqual(
+      new Set(routes.map((r) => r.path)),
+    );
   });
 
-  it('has NO reschedule endpoint, which is why the client refuses to invent one', async () => {
-    const routes = loadBookingRoutes();
-    expect(routes.map((r) => r.path).some((p) => /reschedul/i.test(p))).toBe(false);
-    await expect(booking().rescheduleAppointment()).rejects.toBeInstanceOf(RandoxUnsupportedOperationError);
+  it('HAS NO GetBiologicalSex, which is why it 404’d in the sandbox', () => {
+    // It is in the CB STES auth document's worked example, it was in our
+    // endpoint table as the one GET, and Randox answered
+    // 404 {"statusCode": 404, "message": "Resource not found"}.
+    // The ids come from the CreateRandoxBooking description instead.
+    expect(loadBookingRoutes().some((r) => /biologicalsex/i.test(r.path))).toBe(false);
+    expect(Object.keys(CLINIC_BOOKING_ENDPOINTS)).not.toContain('getBiologicalSex');
+  });
+
+  it('DOES have a reschedule, with all four fields required — so the client no longer refuses', () => {
+    const route = byPath().get('RandoxBookings/RescheduleAppointment')!;
+    expect(route.verb).toBe('POST');
+    // The only request on this API with a schema rather than an example behind
+    // it. Its body comes from the spec, because nothing else spells it at all.
+    expect(Object.keys(route.specExample!).sort()).toEqual([
+      'appointmentId',
+      'locationId',
+      'newAppointmentSlotId',
+      'serviceId',
+    ]);
+    expect(route.collectionExample).toBeNull();
   });
 
   it('really does type ServiceId and LocationId inconsistently across its own calls', () => {
-    const byName = new Map(loadBookingRoutes().map((r) => [r.path, r.example!]));
+    const example = (path: string) => byPath().get(path)!.collectionExample!;
     // Their inconsistency, not ours, and the reason each request is built to
     // its OWN example rather than to one house style.
-    expect(typeof byName.get('Locations/GetServiceLocations')!.ServiceId).toBe('number');
-    expect(typeof byName.get('Availability/AvailabilityDetails')!.ServiceId).toBe('string');
-    expect(typeof byName.get('Availability/AvailabilityDetails')!.LocationId).toBe('number');
-    expect(typeof byName.get('RandoxBookings/HoldAvailabilityBooking')!.LocationId).toBe('string');
-  });
-
-  it('spells the slot time AppointmentSlotTIme in both calls that carry it', () => {
-    const byName = new Map(loadBookingRoutes().map((r) => [r.path, r.example!]));
-    for (const path of ['RandoxBookings/HoldAvailabilityBooking', 'RandoxBookings/CreateRandoxBooking']) {
-      expect(Object.keys(byName.get(path)!)).toContain('AppointmentSlotTIme');
-      expect(Object.keys(byName.get(path)!)).not.toContain('AppointmentSlotTime');
-    }
+    expect(typeof example('Locations/GetServiceLocations').ServiceId).toBe('number');
+    expect(typeof example('Availability/AvailabilityDetails').ServiceId).toBe('string');
+    expect(typeof example('Availability/AvailabilityDetails').LocationId).toBe('number');
+    expect(typeof example('RandoxBookings/HoldAvailabilityBooking').LocationId).toBe('string');
   });
 
   it('sends the same slot date in two different formats, one per endpoint', () => {
-    const byName = new Map(loadBookingRoutes().map((r) => [r.path, r.example!]));
-    expect(shapeOf(String(byName.get('RandoxBookings/HoldAvailabilityBooking')!.AppointmentSlotDate))).toBe(
+    const example = (path: string) => byPath().get(path)!.collectionExample!;
+    expect(shapeOf(String(example('RandoxBookings/HoldAvailabilityBooking').AppointmentSlotDate))).toBe(
       'day-first-date',
     );
-    expect(shapeOf(String(byName.get('RandoxBookings/CreateRandoxBooking')!.AppointmentSlotDate))).toBe('iso-instant');
+    expect(shapeOf(String(example('RandoxBookings/CreateRandoxBooking').AppointmentSlotDate))).toBe('iso-instant');
+  });
+
+  /**
+   * THE RECONCILIATION ITSELF, PINNED — because "the two documents differ only
+   * in case" is the claim the mock's whole body checker rests on, and it is a
+   * claim about two files that Randox can change under us.
+   */
+  it('DIFFERS FROM THE SPEC ONLY IN CASE, on every field of every shared endpoint', () => {
+    const shared = loadBookingRoutes().filter((r) => r.collectionExample && r.specExample);
+    expect(shared).toHaveLength(5);
+
+    for (const route of shared) {
+      const collection = Object.keys(route.collectionExample!).map((k) => k.toLowerCase()).sort();
+      const spec = Object.keys(route.specExample!).map((k) => k.toLowerCase()).sort();
+      // GPExternalNumber is in the collection's create and not in the spec's,
+      // and the flow diagram requires it in as many words — a spec example that
+      // omits a field is SILENT about it, not against it. That is the one and
+      // only field either document has that the other does not.
+      const onlyInCollection = collection.filter((k) => !spec.includes(k));
+      const onlyInSpec = spec.filter((k) => !collection.includes(k));
+      expect(onlyInSpec, route.path).toEqual([]);
+      expect(onlyInCollection, route.path).toEqual(
+        route.path === 'RandoxBookings/CreateRandoxBooking' ? ['gpexternalnumber'] : [],
+      );
+    }
+  });
+
+  it('“AppointmentSlotTIme” IS A CASE VARIANT, NOT A MISSPELLING', () => {
+    // Recorded as a fact rather than as a fear. The capital I was described for
+    // two revisions as a misspelling whose correction "would produce a request
+    // with no slot time in it" — a guess with a consequence attached. The two
+    // documents spell it `AppointmentSlotTIme` and `appointmentSlotTime`, which
+    // differ in one character's CASE and nothing else.
+    const hold = byPath().get('RandoxBookings/HoldAvailabilityBooking')!;
+    const create = byPath().get('RandoxBookings/CreateRandoxBooking')!;
+
+    expect(Object.keys(hold.collectionExample!)).toContain('AppointmentSlotTIme');
+    expect(Object.keys(create.collectionExample!)).toContain('AppointmentSlotTIme');
+
+    // The spec is not even self-consistent about case between its OWN two
+    // examples — PascalCase on the hold, camelCase on the create — which is
+    // the strongest evidence there is that the API does not care.
+    expect(Object.keys(hold.specExample!)).toContain('AppointmentSlotTime');
+    expect(Object.keys(create.specExample!)).toContain('appointmentSlotTime');
+
+    for (const spelling of ['AppointmentSlotTime', 'appointmentSlotTime']) {
+      expect(spelling.toLowerCase()).toBe('AppointmentSlotTIme'.toLowerCase());
+    }
+  });
+
+  it('disagrees with the spec on exactly ONE type, and it is the stale example', () => {
+    const hold = byPath().get('RandoxBookings/HoldAvailabilityBooking')!;
+    // 488 is not a service id. There are two in the world, 787 and 788, and no
+    // third — which is what dates the spec's example rather than ours.
+    expect(hold.specExample!.ServiceId).toBe('488');
+    expect(typeof hold.collectionExample!.ServiceId).toBe('number');
+
+    const disagreements = loadBookingRoutes()
+      .filter((r) => r.collectionExample && r.specExample)
+      .flatMap((r) =>
+        Object.entries(r.collectionExample!)
+          .map(([field, value]) => {
+            const match = Object.entries(r.specExample!).find(([k]) => k.toLowerCase() === field.toLowerCase());
+            return match && typeof match[1] !== typeof value ? `${r.path}.${field}` : null;
+          })
+          .filter((x): x is string => x !== null),
+      );
+    expect(disagreements).toEqual(['RandoxBookings/HoldAvailabilityBooking.ServiceId']);
   });
 });
 
@@ -208,6 +293,43 @@ describe('slot times are the UTC wall clock, not the UK one', () => {
     // And the London clock disagrees, which is the whole point.
     expect(londonWallClock(instant).time).toBe('10:30');
     expect(londonWallClock(instant).time).not.toBe(example.AppointmentSlotTIme);
+  });
+
+  /**
+   * THE OBSERVED SLOT, AND THE ONE PROPERTY THAT CANNOT BE WRONG.
+   *
+   * The sandbox returns `{Id: "slot-room33-2026-08-17T07:00-staff19", Date:
+   * "17/08/2026", Time: "07:00", AvailableQuantity: 1}` — a day-first date and
+   * a bare HH:mm, no combined datetime, no offset, no epoch. Nothing in either
+   * document shows that shape, and the client's five guessed field names turned
+   * 114 real slots into an empty diary.
+   *
+   * Whether those two strings are UTC or clinic-local is NOT settled. What is
+   * settled is that they must be echoed: `Date` and `Time` are exactly the two
+   * fields HoldAvailabilityBooking wants back. Reading them as UTC is the only
+   * reading under which our own formatters reproduce them character for
+   * character, which is what this asserts on the real captured values.
+   */
+  it('a slot read from Randox’s Date and Time round-trips to the identical strings', () => {
+    const startUtc = slotInstantFromWireParts('17/08/2026', '07:00')!;
+    expect(startUtc).toBe('2026-08-17T07:00:00.000Z');
+    expect(slotDateDayFirst(startUtc)).toBe('17/08/2026');
+    expect(slotTimeOfDay(startUtc)).toBe('07:00');
+
+    // And the failure it rules out: read as London in August, 07:00 would go
+    // back to Randox as 06:00 — a booking at a time they never offered.
+    expect(londonWallClock(startUtc).time).toBe('08:00');
+    expect(londonWallClock(startUtc).time).not.toBe('07:00');
+  });
+
+  it('refuses a malformed Date or Time rather than inventing an instant', () => {
+    // The spec's own create example puts a DATE in the time field
+    // ("appointmentSlotTime": "2024-04-11"). Anything that is not day-first
+    // date plus HH:mm is null, and the slot is dropped rather than guessed at.
+    expect(slotInstantFromWireParts('17/08/2026', '2024-04-11')).toBeNull();
+    expect(slotInstantFromWireParts('2026-08-17', '07:00')).toBeNull();
+    expect(slotInstantFromWireParts(null, '07:00')).toBeNull();
+    expect(slotInstantFromWireParts('17/08/2026', null)).toBeNull();
   });
 
   it('the create’s date is midnight Z on the same day, per its own example', () => {
@@ -307,34 +429,74 @@ describe('Clinic Booking auth', () => {
 // ---------------------------------------------------------------------------
 
 describe('the mock’s body checking', () => {
-  const holdExample = () => loadBookingRoutes().find((r) => r.path === 'RandoxBookings/HoldAvailabilityBooking')!.example!;
+  const holdRoute = () => loadBookingRoutes().find((r) => r.path === 'RandoxBookings/HoldAvailabilityBooking')!;
+  const holdExample = () => holdRoute().collectionExample!;
+  const holdSpec = () => holdRoute().specExample!;
 
   it('passes the collection’s own example', () => {
-    expect(bodyMismatches(holdExample(), holdExample())).toEqual([]);
+    expect(bodyMismatches(holdExample(), holdExample(), holdSpec())).toEqual([]);
   });
 
-  it('catches the misspelling being corrected', () => {
+  it('ACCEPTS a case variant, because the two documents disagree on case throughout', () => {
+    // This test used to assert the OPPOSITE — that correcting the capital I in
+    // `AppointmentSlotTIme` was a 400. That was the mock enforcing one side of
+    // a disagreement between two Randox documents, which is enforcing a coin
+    // toss. `AppointmentSlotTIme` and `appointmentSlotTime` differ in one
+    // character's case, and every field of every shared endpoint differs the
+    // same way, which is what case-insensitive model binding looks like.
     const { AppointmentSlotTIme, ...rest } = holdExample();
-    const problems = bodyMismatches(holdExample(), { ...rest, AppointmentSlotTime: AppointmentSlotTIme });
+    expect(bodyMismatches(holdExample(), { ...rest, AppointmentSlotTime: AppointmentSlotTIme }, holdSpec())).toEqual([]);
+  });
+
+  it('still catches a field that is genuinely misspelled', () => {
+    // Case-insensitive is not name-insensitive. A dropped letter is a field
+    // Randox have never named, and it is still refused.
+    const { AppointmentSlotTIme, ...rest } = holdExample();
+    const problems = bodyMismatches(holdExample(), { ...rest, AppointmentSlotTme: AppointmentSlotTIme }, holdSpec());
     expect(problems.join(' ')).toMatch(/"AppointmentSlotTIme" is missing/);
-    expect(problems.join(' ')).toMatch(/"AppointmentSlotTime" is not a field/);
+    expect(problems.join(' ')).toMatch(/"AppointmentSlotTme" is not a field/);
   });
 
   it('catches the two date formats being swapped', () => {
-    const problems = bodyMismatches(holdExample(), { ...holdExample(), AppointmentSlotDate: '2025-10-16T00:00:00Z' });
+    const problems = bodyMismatches(
+      holdExample(),
+      { ...holdExample(), AppointmentSlotDate: '2025-10-16T00:00:00Z' },
+      holdSpec(),
+    );
     expect(problems.join(' ')).toMatch(/AppointmentSlotDate.*iso-instant.*day-first-date/);
   });
 
-  it('catches an id sent in the wrong form', () => {
-    const problems = bodyMismatches(holdExample(), { ...holdExample(), ServiceId: '787' });
-    expect(problems.join(' ')).toMatch(/"ServiceId" is a string; this endpoint's example sends a number/);
+  it('catches an id sent in the wrong form — unless the other document sends it that way', () => {
+    // AvailabilityDetails: both documents type ServiceId as a string, so a
+    // number is refused with nothing to fall back on.
+    const availability = loadBookingRoutes().find((r) => r.path === 'Availability/AvailabilityDetails')!;
+    const problems = bodyMismatches(
+      availability.collectionExample!,
+      { ...availability.collectionExample!, ServiceId: 787 },
+      availability.specExample,
+    );
+    expect(problems.join(' ')).toMatch(/"ServiceId" is a number; this endpoint's example sends a string/);
+
+    // The hold is the one field the two disagree about (787 against "488"), so
+    // a string passes there. Accepting where they differ is the point — see
+    // the note at the top of bookingSpecServer.ts.
+    expect(bodyMismatches(holdExample(), { ...holdExample(), ServiceId: '787' }, holdSpec())).toEqual([]);
   });
 
-  it('catches a field the endpoint does not have', () => {
+  it('catches a field NO Randox document has', () => {
     // An invented SearchTo would be ignored by a real API and would silently
     // return an unbounded range, which is the failure this refuses to allow.
-    const problems = bodyMismatches(holdExample(), { ...holdExample(), SearchTo: '2025-10-20' });
+    const problems = bodyMismatches(holdExample(), { ...holdExample(), SearchTo: '2025-10-20' }, holdSpec());
     expect(problems.join(' ')).toMatch(/"SearchTo" is not a field/);
+  });
+
+  it('accepts GPExternalNumber, which only the collection has', () => {
+    // The field joining a booking to a laboratory order. The spec's create
+    // example omits it and the flow diagram requires it in as many words; an
+    // example that does not show a field is SILENT about it, not against it.
+    const create = loadBookingRoutes().find((r) => r.path === 'RandoxBookings/CreateRandoxBooking')!;
+    expect(Object.keys(create.specExample!)).not.toContain('gpExternalNumber');
+    expect(bodyMismatches(create.collectionExample!, create.collectionExample!, create.specExample)).toEqual([]);
   });
 });
 
@@ -388,6 +550,10 @@ describe('the documented flow', () => {
     const slot = slots.find((s) => s.startUtc.includes('T09:30'))!;
     // BST: the instant is 09:30Z and the clinic clock says 10:30.
     expect(slot.local.time).toBe('10:30');
+    // Randox's own two strings, carried untouched beside the instant.
+    expect(slot.wireDate).toBe('16/10/2025');
+    expect(slot.wireTime).toBe('09:30');
+    expect(slot.availableQuantity).toBe(1);
 
     // ---- 4. HoldAvailabilityBooking --------------------------------------
     const hold = await booking().holdAvailabilityBooking(CRUMLIN, slot.slotReference, slot.startUtc);
@@ -400,6 +566,11 @@ describe('the documented flow', () => {
       AppointmentSlotDate: '16/10/2025',
       AppointmentSlotTIme: '09:30',
     });
+    // THE ECHO, ASSERTED AS ONE LINE: the two strings sent back are the two
+    // strings that arrived. Whatever zone Randox mean by them, we do not
+    // reinterpret them on the way out.
+    expect((holdCall.body as Record<string, unknown>).AppointmentSlotDate).toBe(slot.wireDate);
+    expect((holdCall.body as Record<string, unknown>).AppointmentSlotTIme).toBe(slot.wireTime);
     // The 30-minute window, which is what everything after this is racing.
     const heldFor = Date.parse(hold.expiresAtUtc) - Date.now();
     expect(heldFor).toBeGreaterThan(25 * 60 * 1000);
@@ -477,6 +648,62 @@ describe('the documented flow', () => {
     nexusServer.setOverride(NEXUS_ENDPOINTS.getOrderResultDetail.path, null);
   });
 
+  it('GetServiceRegions is a GET with no body — the credential probe', async () => {
+    // The sandbox pass's probe used to be GetBiologicalSex, which 404s. A probe
+    // that hits a non-existent endpoint cannot tell a working key from a broken
+    // one, which is the only thing a probe is for.
+    const regions = await booking().getServiceRegions();
+    expect(regions.length).toBeGreaterThan(0);
+    const call = bookingServer.requests.at(-1)!;
+    expect(call.method).toBe('GET');
+    expect(call.body).toBeUndefined();
+    expect(call.hadSubscriptionKey).toBe(true);
+    expect(call.hadBearer).toBe(true);
+  });
+
+  it('RESCHEDULES with the spec’s four fields, and reports a refusal inside a 200', async () => {
+    const slots = await booking().availabilityDetails(CRUMLIN, bookingFixtures.FIXTURE_SLOT_DAY);
+    const slot = slots[0];
+    const hold = await booking().holdAvailabilityBooking(CRUMLIN, slot.slotReference, slot.startUtc);
+    const confirmed = await booking().createRandoxBooking({
+      holdReference: hold.holdReference,
+      bookingId: hold.bookingId!,
+      appointmentId: hold.appointmentId!,
+      serviceLocationId: CRUMLIN,
+      slotReference: slot.slotReference,
+      startUtc: slot.startUtc,
+      gpExternalNumber: bookingFixtures.FIXTURE_GP_EXTERNAL_NUMBER,
+      patient: PATIENT,
+    });
+
+    const target = slots.find((s) => s.slotReference !== slot.slotReference)!;
+    const moved = await booking().rescheduleAppointment(hold.appointmentId!, CRUMLIN, target.slotReference);
+
+    // camelCase and all four, which is the spec's schema and not an example.
+    expect(bookingServer.requests.at(-1)!.body).toEqual({
+      appointmentId: hold.appointmentId,
+      serviceId: 787,
+      locationId: 30,
+      newAppointmentSlotId: target.slotReference,
+    });
+    expect(moved.succeeded).toBe(true);
+    expect(moved.newStartUtc).toBe(target.startUtc);
+
+    // THE FAILURE MODE UNIQUE TO THIS CALL. A refusal is a 200 with
+    // SuccessFailCode set to something else — nothing else on either API does
+    // that, and a caller reading only the HTTP status would report a move that
+    // never happened.
+    const refused = await booking().rescheduleAppointment(999999, CRUMLIN, target.slotReference);
+    expect(refused.succeeded).toBe(false);
+    expect(refused.failureDescription).toBeTruthy();
+
+    // Both slots go back on the diary. The mock server holds one state for the
+    // whole file, so a test that books and walks away silently shortens the
+    // diary for every test after it — which is how the service tests below
+    // started reading `slots[2]` of an array with two things in it.
+    await booking().cancelRandoxBooking(confirmed.randoxBookingOrderId!, bookingFixtures.FIXTURE_GP_EXTERNAL_NUMBER);
+  });
+
   it('keeps the two APIs on separate hosts and separate keys', async () => {
     await booking().getServiceLocations();
     await nexus().getTestingReasons();
@@ -509,6 +736,57 @@ describe('the failure paths', () => {
     await expect(
       booking().holdAvailabilityBooking(CRUMLIN, slot.slotReference, slot.startUtc),
     ).rejects.toBeInstanceOf(RandoxWindowExpiredError);
+
+    bookingServer.setOverride(CLINIC_BOOKING_ENDPOINTS.holdAvailabilityBooking.path, null);
+  });
+
+  it('A HOLD CAN FAIL INSIDE A 200, and is not read as a hold that worked', async () => {
+    /**
+     * OBSERVED (Aug 2026). A real hold answers `{BookingId, SuccessFailCode,
+     * FailureDescription, NewAppointmentDateTime}` — the same four fields the
+     * OpenAPI file declares only on RescheduleAppointment. So the envelope is
+     * shared, and a REFUSED hold is a successful HTTP response: the transport
+     * does not throw, and a client reading only the status gets a hold with a
+     * null booking id and finds out two requests later, at a create that 400s
+     * for reasons that make no sense there.
+     */
+    const slot = await freshSlot();
+    bookingServer.setOverride(CLINIC_BOOKING_ENDPOINTS.holdAvailabilityBooking.path, () => ({
+      status: 200,
+      payload: {
+        BookingId: null,
+        SuccessFailCode: 'Fail',
+        FailureDescription: 'That appointment slot is no longer available.',
+        NewAppointmentDateTime: null,
+      },
+    }));
+
+    // And the slot being gone is a race, so it surfaces as a closed window —
+    // "that time has gone, choose another" — rather than an error page.
+    await expect(
+      booking().holdAvailabilityBooking(CRUMLIN, slot.slotReference, slot.startUtc),
+    ).rejects.toBeInstanceOf(RandoxWindowExpiredError);
+
+    bookingServer.setOverride(CLINIC_BOOKING_ENDPOINTS.holdAvailabilityBooking.path, null);
+  });
+
+  it('a soft failure that is NOT a lost slot is a fault, not a closed window', async () => {
+    const slot = await freshSlot();
+    bookingServer.setOverride(CLINIC_BOOKING_ENDPOINTS.holdAvailabilityBooking.path, () => ({
+      status: 200,
+      payload: {
+        BookingId: null,
+        SuccessFailCode: 'Fail',
+        FailureDescription: 'Randox Booking failure, invalid location id.',
+        NewAppointmentDateTime: null,
+      },
+    }));
+
+    const attempt = booking().holdAvailabilityBooking(CRUMLIN, slot.slotReference, slot.startUtc);
+    await expect(attempt).rejects.not.toBeInstanceOf(RandoxWindowExpiredError);
+    // The sentence Randox sent survives into the message, rather than being
+    // flattened to "the hold failed".
+    await expect(attempt).rejects.toThrow(/invalid location id/);
 
     bookingServer.setOverride(CLINIC_BOOKING_ENDPOINTS.holdAvailabilityBooking.path, null);
   });

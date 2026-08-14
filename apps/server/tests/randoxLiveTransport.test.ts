@@ -42,6 +42,7 @@ const { LiveNexusLabClient } = await import('../src/modules/randox/clients/Nexus
 const { RandoxHttpClient, parseRetryAfter } = await import('../src/modules/randox/http/RandoxHttpClient.js');
 const { ingestOrderResults } = await import('../src/modules/randox/ingestionService.js');
 const { __setConfigCachesForTest } = await import('../src/modules/randox/config.js');
+const { DEFAULT_TRANSPORT_SETTINGS } = await import('../src/modules/randox/connection.js');
 const { env } = await import('../src/config/env.js');
 
 /** Undo hooks a single test registers, run after it. */
@@ -250,6 +251,7 @@ describe('when Randox are slow or down', () => {
       tokenUrl: 'https://example.test/oauth2/v2.0/token',
       username: 'u',
       password: 'p',
+      transport: DEFAULT_TRANSPORT_SETTINGS,
     });
 
     queued = [() => new Response('', { status: 503 }), () => json({ ok: true })];
@@ -269,6 +271,7 @@ describe('when Randox are slow or down', () => {
       tokenUrl: 'https://example.test/oauth2/v2.0/token',
       username: 'u',
       password: 'p',
+      transport: DEFAULT_TRANSPORT_SETTINGS,
     });
 
     queued = [

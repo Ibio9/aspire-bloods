@@ -12,10 +12,12 @@ import type {
   RandoxClinicDetails,
   RandoxClinicStaffMember,
   RandoxServiceLocation,
+  RandoxServiceRegion,
   RandoxAvailabilitySlot,
   HoldAvailabilityBookingResponse,
   CreateRandoxBookingRequest,
   CreateRandoxBookingResponse,
+  RescheduleAppointmentResponse,
 } from '../types.js';
 
 /**
@@ -57,11 +59,17 @@ export interface NexusLabClient {
 }
 
 /**
- * REQUESTS VERIFIED AGAINST THE POSTMAN COLLECTION, RESPONSES STILL ASSUMED.
- * The method set and call order are the flow diagram's; every request body is
- * the collection's, literally. See ../types.ts for what that asymmetry means.
+ * REQUESTS VERIFIED, RESPONSES STILL ASSUMED. The SURFACE — which operations
+ * exist and their verbs — is specs/clinic-booking-openapi3.json; the request
+ * BODIES are the Postman collection's, literally, where it covers an endpoint.
+ * See ../types.ts for why the newer document does not win on both.
  */
 export interface ClinicBookingClient {
+  /**
+   * GET. No body. The cheapest proof that the booking key and scope work,
+   * which is its only job here — a ServiceId is configuration, not a lookup.
+   */
+  getServiceRegions(): Promise<RandoxServiceRegion[]>;
   /** POST. Takes the configured ServiceId (787 UK / 788 ROI). */
   getServiceLocations(): Promise<RandoxServiceLocation[]>;
   /**
@@ -95,10 +103,16 @@ export interface ClinicBookingClient {
    */
   cancelRandoxBooking(randoxBookingOrderId: number, orderNumber: string): Promise<void>;
   /**
-   * NOT A DOCUMENTED ENDPOINT. Throws RandoxUnsupportedOperationError. Kept on
-   * the interface rather than deleted so that the absence is visible where
-   * somebody would go looking for it, instead of being a method that quietly
-   * never existed. See LiveClinicBookingClient.rescheduleAppointment.
+   * POST. Specified at last (Aug 2026) and NOT what production reschedules
+   * with — see LiveClinicBookingClient.rescheduleAppointment for both halves.
+   *
+   * Reports a refusal INSIDE a 200 via `succeeded`, which no other call on
+   * either API does. A caller that ignores that field will report a move that
+   * did not happen.
    */
-  rescheduleAppointment(): Promise<never>;
+  rescheduleAppointment(
+    appointmentId: number,
+    serviceLocationId: string,
+    newSlotReference: string,
+  ): Promise<RescheduleAppointmentResponse>;
 }

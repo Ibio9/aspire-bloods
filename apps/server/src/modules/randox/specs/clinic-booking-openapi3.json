@@ -1,0 +1,930 @@
+{
+    "openapi": "3.0.1",
+    "info": {
+        "title": "Clinic Booking",
+        "description": "Clinic booking endpoints made available to 3rd party clients.",
+        "version": "1.0"
+    },
+    "servers": [
+        {
+            "url": "https://stes-cb-platform-apim.azure-api.net"
+        }
+    ],
+    "paths": {
+        "/booking-platform-api/RandoxServices/GetServiceRegions": {
+            "get": {
+                "tags": [
+                    "Randox Services"
+                ],
+                "summary": "Get Service Regions",
+                "description": "Gets all Randox service regions",
+                "operationId": "get-service-regions",
+                "responses": {
+                    "200": {
+                        "description": "Got service regions successfully.",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "200",
+                                    "message": "Success: Got service regions successfully."
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "400",
+                                    "message": "Bad Request: The submitted request is not a valid JSON./orderId is invalid or missing."
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization failure",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "status": "401",
+                                    "message": "Unauthorized: You are not authorized to make this call. Contact Randox support if you think this is incorrect."
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/StatusResponse"
+                                },
+                                "example": {
+                                    "statusCode": "500",
+                                    "message": "Internal server error."
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/booking-platform-api/RandoxBookings/CreateRandoxBooking": {
+            "post": {
+                "tags": [
+                    "Randox Booking"
+                ],
+                "summary": "Create Randox Booking",
+                "description": "Creates a booking with Randox\n\nNote - Biological Sex Id: Male = 1, Female = 2",
+                "operationId": "create-randox-booking",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "example": {
+                                "bookingId": 402713,
+                                "appointmentId": 402713,
+                                "serviceId": "787",
+                                "locationId": "30",
+                                "appointmentSlotId": "41641:41641::1706634900:",
+                                "appointmentSlotDate": "2024-01-30T02:56:35.0000000+00:00",
+                                "appointmentSlotTime": "2024-04-11",
+                                "firstName": "Jim",
+                                "lastName": "Smith",
+                                "dateOfBirth": "1983-01-19T01:52:15.0000000+00:00",
+                                "biologicalSexId": 1,
+                                "emailAddress": "test@sharklasers.com",
+                                "confirmEmailAddress": "test@sharklasers.com",
+                                "contactNumber": "07111226545",
+                                "addressLine1": "24 Test Road",
+                                "addressLine2": "string",
+                                "townCity": "test town",
+                                "postalCode": "BT01 9AG",
+                                "countryId": 1,
+                                "communicationPreferenceEmail": true,
+                                "communicationPreferenceSMS": true,
+                                "communicationPreferenceTelephone": true
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Created booking successfully.",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "200",
+                                    "message": "Success: Created booking successfully."
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "400",
+                                    "message": "Bad Request: The submitted request is not a valid JSON request."
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization failure",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "status": "401",
+                                    "message": "Unauthorized: You are not authorized to make this call. Contact Randox support if you think this is incorrect."
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/StatusResponse"
+                                },
+                                "example": {
+                                    "statusCode": "500",
+                                    "message": "Internal server error."
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/booking-platform-api/RandoxBookings/HoldAvailabilityBooking": {
+            "post": {
+                "tags": [
+                    "Availability"
+                ],
+                "summary": "Hold Availability",
+                "description": "Hold booking availability",
+                "operationId": "hold-availability",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "example": {
+                                "ServiceId": "488",
+                                "LocationId": "42",
+                                "AppointmentSlotId": "41636:41636::1706178900:",
+                                "AppointmentSlotDate": "25/01/2024",
+                                "AppointmentSlotTime": "2024-04-11"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Got availability successfully.",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "200",
+                                    "message": "Success: Got availability successfully."
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "400",
+                                    "message": "Bad Request: The submitted request is not a valid JSON./orderId is invalid or missing."
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization failure",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "status": "401",
+                                    "message": "Unauthorized: You are not authorized to make this call. Contact Randox support if you think this is incorrect."
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/StatusResponse"
+                                },
+                                "example": {
+                                    "statusCode": "500",
+                                    "message": "Internal server error."
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/booking-platform-api/RandoxBookings/CancelRandoxBooking": {
+            "post": {
+                "tags": [
+                    "Randox Booking"
+                ],
+                "summary": "Cancel Randox Booking",
+                "description": "Cancels a booking with Randox",
+                "operationId": "cancel-randox-booking",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "example": {
+                                "randoxBookingOrderId": 1521
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Cancelled booking successfully.",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "200",
+                                    "message": "Success: Got your order status successfully."
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "400",
+                                    "message": "Bad Request: The submitted request is not a valid JSON request."
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization failure",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "status": "401",
+                                    "message": "Unauthorized: You are not authorized to make this call. Contact Randox support if you think this is incorrect."
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/StatusResponse"
+                                },
+                                "example": {
+                                    "statusCode": "500",
+                                    "message": "Internal server error."
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/booking-platform-api/Locations/GetServiceLocations": {
+            "post": {
+                "tags": [
+                    "Locations"
+                ],
+                "summary": "Get Service Locations",
+                "description": "Get all service locations",
+                "operationId": "get-service-locations",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "example": {
+                                "ServiceId": 787
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Got service locations successfully.",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "200",
+                                    "message": "Success: Got service locations successfully."
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "400",
+                                    "message": "Bad Request: The submitted request is not a valid JSON request."
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization failure",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "status": "401",
+                                    "message": "Unauthorized: You are not authorized to make this call. Contact Randox support if you think this is incorrect."
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/StatusResponse"
+                                },
+                                "example": {
+                                    "statusCode": "500",
+                                    "message": "Internal server error."
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/booking-platform-api/Availability/AvailabilityDetails": {
+            "post": {
+                "summary": "Availability Details",
+                "description": "Get all booking availabilities details",
+                "operationId": "6655b3abfd7c2826e6f62e78",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "example": {
+                                "ServiceId": "787",
+                                "LocationId": 30,
+                                "SearchFrom": "2025-11-26T12:00:00.0000000+00:00"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Got availability successfully.",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "200",
+                                    "message": "Success: Got availability successfully."
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "statusCode": "400",
+                                    "message": "Bad Request: The submitted request is not a valid JSON request."
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization failure",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "status": "401",
+                                    "message": "Unauthorized: You are not authorized to make this call. Contact Randox support if you think this is incorrect."
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "headers": {
+                            "statusCode": {
+                                "description": "Internal Randox status code.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "message": {
+                                "description": "Additional information on message response status.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/StatusResponse"
+                                },
+                                "example": {
+                                    "statusCode": "500",
+                                    "message": "Internal server error."
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/booking-platform-api/RandoxBookings/RescheduleAppointment": {
+            "post": {
+                "tags": [
+                    "Randox Booking"
+                ],
+                "summary": "Reschedule Appointment",
+                "description": "Reschedule an existing booking appointment",
+                "operationId": "RescheduleAppointment",
+                "requestBody": {
+                    "description": "",
+                    "content": {
+                        "ISO/IEC 19757-2:2003/FDAM-1": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RescheduleAppointmentRequest"
+                            },
+                            "example": {
+                                "appointmentId": 87556,
+                                "serviceId": 787,
+                                "locationId": 30,
+                                "newAppointmentSlotId": "slot-room33-2026-08-13T09:00-staff22"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "ISO/IEC 19757-2:2003/FDAM-1": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/RescheduleAppointmentResponse"
+                                },
+                                "example": {
+                                    "BookingId": 87608,
+                                    "SuccessFailCode": "Success",
+                                    "FailureDescription": null,
+                                    "NewAppointmentDateTime": "2026-08-14T12:00:00.0000000+00:00"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": ""
+                    },
+                    "401": {
+                        "description": ""
+                    },
+                    "500": {
+                        "description": ""
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "BiologicalSexResponse": {
+                "type": "object",
+                "properties": {
+                    "Id": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "Name": {
+                        "type": "string"
+                    },
+                    "DisplayOrder": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                }
+            },
+            "StatusResponse": {
+                "type": "object",
+                "properties": {
+                    "statusCode": {
+                        "type": "string"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            },
+            "RescheduleAppointmentResponse": {
+                "type": "object",
+                "properties": {
+                    "BookingId": {
+                        "type": "integer"
+                    },
+                    "SuccessFailCode": {
+                        "type": "string"
+                    },
+                    "FailureDescription": {
+                        "type": "string"
+                    },
+                    "NewAppointmentDateTime": {
+                        "type": "string"
+                    }
+                },
+                "example": {
+                    "BookingId": 87608,
+                    "SuccessFailCode": "Success",
+                    "FailureDescription": null,
+                    "NewAppointmentDateTime": "2026-08-14T12:00:00Z"
+                }
+            },
+            "RescheduleAppointmentRequest": {
+                "required": [
+                    "appointmentId",
+                    "serviceId",
+                    "locationId",
+                    "newAppointmentSlotId"
+                ],
+                "type": "object",
+                "properties": {
+                    "appointmentId": {
+                        "type": "integer"
+                    },
+                    "serviceId": {
+                        "type": "integer"
+                    },
+                    "locationId": {
+                        "type": "integer"
+                    },
+                    "newAppointmentSlotId": {
+                        "type": "string"
+                    }
+                },
+                "example": {
+                    "appointmentId": 87556,
+                    "serviceId": 787,
+                    "locationId": 30,
+                    "newAppointmentSlotId": "slot-room33-2026-08-13T09:00-staff22"
+                }
+            }
+        },
+        "securitySchemes": {
+            "apiKeyHeader": {
+                "type": "apiKey",
+                "name": "Ocp-Apim-Subscription-Key",
+                "in": "header"
+            },
+            "apiKeyQuery": {
+                "type": "apiKey",
+                "name": "subscription-key",
+                "in": "query"
+            }
+        }
+    },
+    "security": [
+        {
+            "apiKeyHeader": []
+        },
+        {
+            "apiKeyQuery": []
+        }
+    ]
+}

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { MockNexusLabClient } from '../src/modules/randox/mock/MockNexusLabClient.js';
 import { MockClinicBookingClient } from '../src/modules/randox/mock/MockClinicBookingClient.js';
-import { RandoxUnsupportedOperationError, RandoxWindowExpiredError } from '../src/modules/randox/errors.js';
+import { RandoxWindowExpiredError } from '../src/modules/randox/errors.js';
 import { orderStatusFromCode } from '../src/modules/randox/types.js';
 import type { CreateRandoxBookingRequest } from '../src/modules/randox/types.js';
 import {
@@ -378,10 +378,32 @@ describe('MockClinicBookingClient', () => {
     await expect(booking.cancelRandoxBooking(999999, ORDER_NUMBER)).rejects.toBeInstanceOf(RandoxWindowExpiredError);
   });
 
-  it('refuses to reschedule, because there is no such endpoint', async () => {
-    // The mock refuses exactly as the live client does. A mock that quietly
-    // supported an endpoint Randox do not document would make the absence
-    // invisible until production. See ClinicBookingClient.rescheduleAppointment.
-    await expect(booking.rescheduleAppointment()).rejects.toBeInstanceOf(RandoxUnsupportedOperationError);
+  it('reschedules an appointment onto another slot', async () => {
+    const { location, hold, slot } = await bookFirstSlot();
+    const slots = await booking.availabilityDetails(location.id, '2026-09-01', '2026-09-01');
+    const target = slots.find((s) => s.slotReference !== slot.slotReference)!;
+
+    const moved = await booking.rescheduleAppointment(hold.appointmentId!, location.id, target.slotReference);
+    expect(moved.succeeded).toBe(true);
+    expect(moved.newStartUtc).toBe(target.startUtc);
+    // The booking id CHANGES on a move — 87556 → 87608 in the spec's own
+    // example — so a caller storing the old one has a stale identifier.
+    expect(moved.bookingId).toBeTypeOf('number');
+    expect(moved.bookingId).not.toBe(hold.appointmentId);
+  });
+
+  it('A REFUSED RESCHEDULE IS A SUCCESSFUL RESPONSE, and `succeeded` is the only thing that says so', async () => {
+    // THE ONE FAILURE MODE UNIQUE TO THIS CALL. Everywhere else on either API a
+    // refusal is a 4xx and the transport throws, so a caller that forgets to
+    // check gets an exception. Here it resolves — with `SuccessFailCode` set to
+    // something else — and a caller that reads only the absence of a throw
+    // tells a patient their appointment moved when it did not.
+    const { location } = await bookFirstSlot();
+    const slots = await booking.availabilityDetails(location.id, '2026-09-01', '2026-09-01');
+
+    const refused = await booking.rescheduleAppointment(999999, location.id, slots[0].slotReference);
+    expect(refused.succeeded).toBe(false);
+    expect(refused.failureDescription).toBeTruthy();
+    expect(refused.newStartUtc).toBeNull();
   });
 });

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { z } from 'zod';
 import { env } from '../../config/env.js';
 import { assertWithinDocumentedLimit } from './http/rateLimiter.js';
+import type { RandoxApiConnection, RandoxTransportSettings } from './connection.js';
 import type { RandoxBookingRegion } from './types.js';
 
 /**
@@ -168,20 +169,28 @@ export function __setConfigCachesForTest(
 // Per-API connection config
 // ---------------------------------------------------------------------------
 
-export interface RandoxApiConnection {
-  /** Human name used in errors and logs. */
-  label: string;
-  baseUrl: string;
-  clientId: string;
-  scope: string;
-  subscriptionKey: string;
-  tokenUrl: string;
-  username: string;
-  password: string;
-}
+/**
+ * THE SHAPE LIVES IN connection.ts, WHICH IMPORTS NO ENVIRONMENT. This file is
+ * one of the things that BUILDS one — from `env`, for the server. The other is
+ * scripts/sandboxPass.ts, which builds one from the Randox credentials alone
+ * and must not have to satisfy the server's whole configuration (a database
+ * URL, three signing secrets and two app URLs) in order to call an external API
+ * and write files. Re-exported here so existing importers are unaffected.
+ */
+export type { RandoxApiConnection, RandoxTransportSettings } from './connection.js';
 
 function trimTrailingSlash(url: string): string {
   return url.replace(/\/+$/, '');
+}
+
+/** Pacing, retry and the bearer switch, as this deployment configures them. */
+function transportSettings(): RandoxTransportSettings {
+  return {
+    maxRequestsPerMinute: env.RANDOX_MAX_REQUESTS_PER_MINUTE,
+    retryMaxAttempts: env.RANDOX_RETRY_MAX_ATTEMPTS,
+    retryBaseDelayMs: env.RANDOX_RETRY_BASE_DELAY_MS,
+    bearerTokenEnabled: env.RANDOX_BEARER_TOKEN_ENABLED,
+  };
 }
 
 export function nexusConnection(): RandoxApiConnection {
@@ -194,6 +203,7 @@ export function nexusConnection(): RandoxApiConnection {
     tokenUrl: env.RANDOX_NEXUS_TOKEN_URL || env.RANDOX_B2C_TOKEN_URL,
     username: env.RANDOX_NEXUS_USERNAME || env.RANDOX_USERNAME,
     password: env.RANDOX_NEXUS_PASSWORD || env.RANDOX_PASSWORD,
+    transport: transportSettings(),
   };
 }
 
@@ -207,6 +217,7 @@ export function bookingConnection(): RandoxApiConnection {
     tokenUrl: env.RANDOX_BOOKING_TOKEN_URL || env.RANDOX_B2C_TOKEN_URL,
     username: env.RANDOX_BOOKING_USERNAME || env.RANDOX_USERNAME,
     password: env.RANDOX_BOOKING_PASSWORD || env.RANDOX_PASSWORD,
+    transport: transportSettings(),
   };
 }
 

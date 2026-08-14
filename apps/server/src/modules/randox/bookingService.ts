@@ -405,20 +405,34 @@ export async function cancelBooking(orderNumber: string, actorUserId: string | n
 }
 
 /**
- * MOVING AN APPOINTMENT, WITHOUT A CALLABLE RESCHEDULE ENDPOINT.
+ * MOVING AN APPOINTMENT. THE ENDPOINT IS CALLABLE NOW AND THIS STILL DOES NOT
+ * CALL IT — WHICH IS A DIFFERENT REASON FROM THE LAST TWO (Aug 2026).
  *
- * THERE IS ONE AND WE CANNOT CALL IT (corrected Aug 2026). This note used to
- * say `RandoxBookings/RescheduleAppointment` did not exist. It does: page 3 of
- * specs/20241028-Corporate-Customer-API-Flow.pdf, dated 1-Nov-24, lists it as a
- * primary Clinic Booking endpoint. What no document gives is its path, its verb
- * or a single field of its body — and a guessed request body on this API is
- * refused whole, which is the lesson the rest of this client was rebuilt
- * around.
+ * The history is worth three lines, because the conclusion has survived two
+ * arguments that were both wrong:
  *
- * So the composition below is unchanged, and its justification is now the
- * narrower and better one: not "there is no such endpoint" but "there is no way
- * to spell a call to it". The ORDER OF THE THREE CALLS IS STILL THE WHOLE
- * DESIGN:
+ *   "there is no such endpoint"        WRONG. It is on page 3 of
+ *                                     specs/20241028-Corporate-Customer-API-Flow.pdf,
+ *                                     dated 1-Nov-24.
+ *   "there is no way to spell a call"  Right at the time, and no longer true.
+ *                                     specs/clinic-booking-openapi3.json gives
+ *                                     the path, the verb and four REQUIRED
+ *                                     fields, and LiveClinicBookingClient
+ *                                     implements it.
+ *
+ * SO WHY IS THIS STILL COMPOSED? Because of what the documented request does
+ * NOT contain: a hold. RescheduleAppointment takes an appointment id and a new
+ * slot id, and there is no HoldAvailabilityBooking in front of it — so there is
+ * no way to find out whether the new slot is free BEFORE giving up the one the
+ * patient already has. Its own response schema says the same thing from the
+ * other side: it carries a `SuccessFailCode`, i.e. it can refuse, and by then
+ * the request has been made.
+ *
+ * Every previous version of this note argued from a gap in the documents. This
+ * one argues from what the documents say, and it is the first version that will
+ * still be right after Randox answer their email.
+ *
+ * THE ORDER OF THE THREE CALLS IS THE WHOLE DESIGN:
  *
  *   1. hold the new slot   — if it has gone, nothing has happened yet and the
  *                            patient still has their original appointment
@@ -439,6 +453,11 @@ export async function cancelBooking(orderNumber: string, actorUserId: string | n
  * IF STEP 3 FAILS the new appointment is kept and the failure is audited: a
  * stale booking Randox still hold is a phone call, and a patient with no
  * appointment at all is a wasted trip.
+ *
+ * WHAT WOULD CHANGE THIS. The sandbox pass now calls RescheduleAppointment. If
+ * a capture shows it holds the slot itself — or refuses cleanly and leaves the
+ * original standing — then one atomic call beats three, and this becomes a
+ * two-line function. That is a decision to make on a capture, not on a schema.
  */
 export async function rescheduleBooking(
   orderNumber: string,
@@ -574,7 +593,7 @@ export async function rescheduleBooking(
       to: booking.startUtc,
       previousBookingReference: previous.bookingReference,
       previousCancelled,
-      note: 'Composed from HoldAvailabilityBooking + CreateRandoxBooking + CancelRandoxBooking. Randox document a RescheduleAppointment endpoint but have published no request shape for it.',
+      note: 'Composed from HoldAvailabilityBooking + CreateRandoxBooking + CancelRandoxBooking. RescheduleAppointment is specified and callable, and is not used here because it takes no hold — so it cannot check the new slot is free before the old one is given up.',
     },
   });
 

@@ -1,0 +1,33 @@
+{
+  "step": 9,
+  "api": "Nexus",
+  "name": "CreatePendingOrder",
+  "method": "POST",
+  "path": "Order/CreatePendingOrder",
+  "request": {
+    "FirstName": "Testpatient",
+    "LastName": "Sandbox",
+    "DateOfBirth": "1990-01-01",
+    "BiologicalSexId": 2,
+    "TestClinicLocationId": 1298,
+    "PanelIds": [
+      451
+    ],
+    "TestIds": [],
+    "IsHealthCheckPanelReport": true,
+    "IsCvScoreRequired": false,
+    "TestReasons": [
+      {
+        "Id": 7,
+        "Details": "Sandbox integration test."
+      }
+    ]
+  },
+  "status": 200,
+  "ok": true,
+  "body": {
+    "orderId": 163636,
+    "externalNumber": "AWL002-00163636"
+  },
+  "raw": "{\"orderId\":163636,\"externalNumber\":\"AWL002-00163636\"}"
+}

@@ -1,7 +1,6 @@
 import { B2CTokenClient } from '../auth/B2CTokenClient.js';
 import { RandoxApiError, RandoxWindowExpiredError, looksLikeWindowExpired } from '../errors.js';
-import { env } from '../../../config/env.js';
-import type { RandoxApiConnection } from '../config.js';
+import type { RandoxApiConnection } from '../connection.js';
 import { limiterFor, sleep, type RequestRateLimiter } from './rateLimiter.js';
 import { SUBSCRIPTION_KEY_HEADER, parseRandoxErrorBody } from '../endpoints.js';
 
@@ -59,6 +58,12 @@ const RETRYABLE_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
  * When everything is exhausted the error is thrown, and the caller (the poll
  * sweep) records it against the order and backs that order off. A failing
  * Randox never loses an order and never stops the job.
+ *
+ * IT READS NO ENVIRONMENT. Pacing, retry and the bearer switch arrive on the
+ * connection (see ../connection.ts). The server builds one from `env`; the
+ * sandbox pass builds one from the Randox credentials alone and gets the same
+ * transport, which is what makes its captures a record of what this
+ * integration really sends rather than of a second implementation.
  */
 export class RandoxHttpClient {
   private readonly tokens: B2CTokenClient;
@@ -73,7 +78,7 @@ export class RandoxHttpClient {
     // Shared per API, not owned by this client. Randox's limit is 600 a minute
     // PER API, so two clients for the same API must not each get their own
     // budget — see limiterFor().
-    this.limiter = limiterFor(connection.label, env.RANDOX_MAX_REQUESTS_PER_MINUTE);
+    this.limiter = limiterFor(connection.label, connection.transport.maxRequestsPerMinute);
   }
 
   get label(): string {
@@ -97,7 +102,7 @@ export class RandoxHttpClient {
     const url = this.buildUrl(path, options.query);
     const method = options.method ?? 'GET';
     const retryable = options.retryable !== false;
-    const maxAttempts = retryable ? Math.max(1, env.RANDOX_RETRY_MAX_ATTEMPTS) : 1;
+    const maxAttempts = retryable ? Math.max(1, this.connection.transport.retryMaxAttempts) : 1;
 
     let lastError: unknown = null;
 
@@ -134,7 +139,7 @@ export class RandoxHttpClient {
         console.error(
           `[randox] 401 from ${this.connection.label} ${method} ${path}. ` +
             `Sent: subscription key ${this.connection.subscriptionKey ? 'YES' : 'MISSING'} (header ${SUBSCRIPTION_KEY_HEADER}), ` +
-            `bearer ${env.RANDOX_BEARER_TOKEN_ENABLED ? 'YES' : 'NO (RANDOX_BEARER_TOKEN_ENABLED=false)'}. ` +
+            `bearer ${this.connection.transport.bearerTokenEnabled ? 'YES' : 'NO (RANDOX_BEARER_TOKEN_ENABLED=false)'}. ` +
             `Randox said: ${parsed.message ?? '(no message)'}${parsed.code ? ` [${parsed.code}]` : ''}. ` +
             'Both are documented as required. Check the subscription key belongs to this API (Nexus and Clinic ' +
             'Booking have separate keys, separate client ids and separate scopes) and that the scope matches the ' +
@@ -145,7 +150,7 @@ export class RandoxHttpClient {
         // transient budget: see the class comment. Pointless when the bearer
         // is switched off, in which case the retry would send the identical
         // request and get the identical answer.
-        if (env.RANDOX_BEARER_TOKEN_ENABLED) {
+        if (this.connection.transport.bearerTokenEnabled) {
           this.tokens.invalidate();
           await this.limiter.acquire();
           res = await this.send(url, method, options);
@@ -233,8 +238,8 @@ export class RandoxHttpClient {
    */
   private backoffFor(attempt: number, retryAfterMs: number | null): number {
     if (retryAfterMs !== null) return Math.min(retryAfterMs, RandoxHttpClient.MAX_BACKOFF_MS);
-    const base = env.RANDOX_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
-    const jitter = Math.random() * env.RANDOX_RETRY_BASE_DELAY_MS;
+    const base = this.connection.transport.retryBaseDelayMs * 2 ** (attempt - 1);
+    const jitter = Math.random() * this.connection.transport.retryBaseDelayMs;
     return Math.min(base + jitter, RandoxHttpClient.MAX_BACKOFF_MS);
   }
 
@@ -264,7 +269,7 @@ export class RandoxHttpClient {
    * credential into every access log between here and Randox.
    */
   private async send(url: string, method: string, options: RandoxRequestOptions): Promise<Response> {
-    const withBearer = env.RANDOX_BEARER_TOKEN_ENABLED;
+    const withBearer = this.connection.transport.bearerTokenEnabled;
     const token = withBearer ? await this.tokens.getToken() : null;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? RandoxHttpClient.DEFAULT_TIMEOUT_MS);

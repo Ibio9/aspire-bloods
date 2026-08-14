@@ -1,0 +1,46 @@
+{
+  "step": 7,
+  "api": "Nexus",
+  "name": "getTestingReasons",
+  "method": "GET",
+  "path": "TestReason/GetTestingReasons",
+  "request": null,
+  "status": 200,
+  "ok": true,
+  "body": [
+    {
+      "id": 1,
+      "name": "To investigate the cause of the patient's symptoms"
+    },
+    {
+      "id": 2,
+      "name": "To confirm a suspected diagnosis"
+    },
+    {
+      "id": 3,
+      "name": "To monitor an existing medical condition"
+    },
+    {
+      "id": 4,
+      "name": "To confirm treatment efficiency / determine the need for treatment"
+    },
+    {
+      "id": 5,
+      "name": "Other"
+    },
+    {
+      "id": 6,
+      "name": "At the patient's request"
+    },
+    {
+      "id": 7,
+      "name": "Wellness screening / health check"
+    },
+    {
+      "id": 12,
+      "name": "In-Clinic Appointment"
+    }
+  ],
+  "raw": "[{\"id\":1,\"name\":\"To investigate the cause of the patient's symptoms\"},{\"id\":2,\"name\":\"To confirm a suspected diagnosis\"},{\"id\":3,\"name\":\"To monitor an existing medical condition\"},{\"id\":4,\"name\":\"To confirm treatment efficiency / determine the need for treatment\"},{\"id\":5,\"name\":\"Other\"},{\"id\":6,\"name\":\"At the patient's request\"},{\"id\":7,\"name\":\"Wellness screening / health check\"},{\"id\":12,\"name\":\"In-Clinic Appointment\"}]",
+  "note": "Reference data. The spec declares GET; earlier guidance said POST."
+}

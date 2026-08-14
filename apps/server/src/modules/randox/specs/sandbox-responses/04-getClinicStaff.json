@@ -1,0 +1,13 @@
+{
+  "step": 4,
+  "api": "Nexus",
+  "name": "getClinicStaff",
+  "method": "GET",
+  "path": "Clinic/GetClinicStaff",
+  "request": null,
+  "status": 200,
+  "ok": true,
+  "body": [],
+  "raw": "[]",
+  "note": "Reference data. The spec declares GET; earlier guidance said POST."
+}

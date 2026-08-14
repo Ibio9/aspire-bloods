@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { RANDOX_DOCUMENTED, RANDOX_TRANSPORT_DEFAULTS } from '../modules/randox/documentedDefaults.js';
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -79,14 +80,20 @@ const envSchema = z.object({
   RANDOX_TRANSPORT: z.enum(['mock', 'live']).default('mock'),
 
   // Sandbox base URLs (stes-). Production is a one-variable change each.
-  RANDOX_NEXUS_BASE_URL: z.string().default('https://stes-gpto-appapi-001-apim.azure-api.net/api/'),
-  RANDOX_BOOKING_BASE_URL: z.string().default('https://stes-cb-platform-apim.azure-api.net/booking-platform-api/'),
+  //
+  // EVERY DOCUMENTED RANDOX DEFAULT BELOW COMES FROM
+  // modules/randox/documentedDefaults.ts AND IS NOT REPEATED HERE. Two readers
+  // need them — this schema and the standalone scripts/sandboxPass.ts, which
+  // does not load this file at all — and a second copy of a value like the
+  // Nexus scope is a second chance to lose the hyphen out of it.
+  RANDOX_NEXUS_BASE_URL: z.string().default(RANDOX_DOCUMENTED.nexusBaseUrl),
+  RANDOX_BOOKING_BASE_URL: z.string().default(RANDOX_DOCUMENTED.bookingBaseUrl),
 
   // Azure B2C client ids. Documented, not secret — defaulted so a
   // misconfiguration can't silently point at the wrong application, but
   // still overridable if Randox issue us different ones for production.
-  RANDOX_NEXUS_CLIENT_ID: z.string().default('791f0001-20d7-4771-b4ab-359b4b9efd21'),
-  RANDOX_BOOKING_CLIENT_ID: z.string().default('0b0399a4-d61f-43fc-a0d0-3311f60cdcb1'),
+  RANDOX_NEXUS_CLIENT_ID: z.string().default(RANDOX_DOCUMENTED.nexusClientId),
+  RANDOX_BOOKING_CLIENT_ID: z.string().default(RANDOX_DOCUMENTED.bookingClientId),
 
   // NOT ISSUED YET — subscription keys come from the Randox developer
   // portal. No defaults: a live boot without them fails at startup with a
@@ -112,22 +119,14 @@ const envSchema = z.object({
   // 401s from the first one, with a message about the token and not about the
   // scope. TRANSCRIBE FROM THE LINK TARGET OR THE COLLECTION, NEVER FROM THE
   // RENDERED PARAGRAPH.
-  RANDOX_NEXUS_SCOPE: z
-    .string()
-    .default('https://randoxclinicbooking.onmicrosoft.com/gptestorderportal-external-api/User.Read.All'),
-  RANDOX_BOOKING_SCOPE: z
-    .string()
-    .default('https://randoxclinicbooking.onmicrosoft.com/clinic-booking-platform-api/user_impersonation'),
+  RANDOX_NEXUS_SCOPE: z.string().default(RANDOX_DOCUMENTED.nexusScope),
+  RANDOX_BOOKING_SCOPE: z.string().default(RANDOX_DOCUMENTED.bookingScope),
 
   // ROPC token endpoint. Both auth documents give the SAME tenant and
   // policy (randoxclinicbooking / B2C_1_apim_ropc_signin1); only client id
   // and scope differ per API, so one shared default is correct. The per-API
   // overrides remain for a production tenant that splits them.
-  RANDOX_B2C_TOKEN_URL: z
-    .string()
-    .default(
-      'https://randoxclinicbooking.b2clogin.com/randoxclinicbooking.onmicrosoft.com/B2C_1_apim_ropc_signin1/oauth2/v2.0/token',
-    ),
+  RANDOX_B2C_TOKEN_URL: z.string().default(RANDOX_DOCUMENTED.b2cTokenUrl),
   RANDOX_NEXUS_TOKEN_URL: z.string().optional().default(''),
   RANDOX_BOOKING_TOKEN_URL: z.string().optional().default(''),
 
@@ -162,8 +161,8 @@ const envSchema = z.object({
   // RANDOX_BOOKING_REGION picks between them — the region a booking is made in
   // is a deployment fact, not a per-request one, and a portal that could send
   // either would eventually send the wrong one.
-  RANDOX_BOOKING_SERVICE_ID_UK: z.coerce.number().int().default(787),
-  RANDOX_BOOKING_SERVICE_ID_ROI: z.coerce.number().int().default(788),
+  RANDOX_BOOKING_SERVICE_ID_UK: z.coerce.number().int().default(RANDOX_DOCUMENTED.bookingServiceIdUk),
+  RANDOX_BOOKING_SERVICE_ID_ROI: z.coerce.number().int().default(RANDOX_DOCUMENTED.bookingServiceIdRoi),
   RANDOX_BOOKING_REGION: z.enum(['UK', 'ROI']).default('UK'),
 
   // The two CreatePendingOrder report flags. Both documented, neither
@@ -230,7 +229,7 @@ const envSchema = z.object({
   // access log.
   RANDOX_BEARER_TOKEN_ENABLED: z
     .enum(['true', 'false'])
-    .default('true')
+    .default(RANDOX_TRANSPORT_DEFAULTS.bearerTokenEnabled ? 'true' : 'false')
     .transform((v) => v === 'true'),
 
   // Client-side pacing on outbound Randox calls, PER API. A poll sweep makes
@@ -243,11 +242,11 @@ const envSchema = z.object({
   // which refuses a value above it at boot. 60 is a tenth of the ceiling and
   // is deliberately well below: the limit is what Randox will enforce, and
   // pacing at the enforcement threshold means every burst discovers it.
-  RANDOX_MAX_REQUESTS_PER_MINUTE: z.coerce.number().default(60),
+  RANDOX_MAX_REQUESTS_PER_MINUTE: z.coerce.number().default(RANDOX_TRANSPORT_DEFAULTS.maxRequestsPerMinute),
   // Transient failures only (429, 5xx, timeout, dropped connection). Never
   // applied to CreatePendingOrder — a retried create is a duplicate order.
-  RANDOX_RETRY_MAX_ATTEMPTS: z.coerce.number().min(1).max(10).default(3),
-  RANDOX_RETRY_BASE_DELAY_MS: z.coerce.number().default(500),
+  RANDOX_RETRY_MAX_ATTEMPTS: z.coerce.number().min(1).max(10).default(RANDOX_TRANSPORT_DEFAULTS.retryMaxAttempts),
+  RANDOX_RETRY_BASE_DELAY_MS: z.coerce.number().default(RANDOX_TRANSPORT_DEFAULTS.retryBaseDelayMs),
 
   // Which sample collection routes we may offer. Empty by default because
   // we have not confirmed what we're contractually entitled to; an order

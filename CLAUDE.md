@@ -971,14 +971,28 @@ because that is how each endpoint's own example is written; this API is not
 consistent with itself and imposing consistency on it is how a 400 gets
 invented.
 
-# Clinic Booking — requests verified, responses not (Aug 2026)
+# Clinic Booking — the surface is the spec, the bodies are the collection (Aug 2026)
 
-`specs/Clinic Booking Platform Testing APIs.postman_collection.json` is the real
-collection. It gives every REQUEST body literally — path, verb, field names,
-value types — and **no response examples at all**. That asymmetry is the shape
-of the whole client: what we send is built to the collection, what we receive is
-still read through the tolerant helpers in `clients/parse.ts`. Do not read "we
-have the collection" as "the API is documented".
+**TWO DOCUMENTS, AND THE NEWER ONE DOES NOT WIN ON BOTH HALVES.**
+`specs/clinic-booking-openapi3.json` is the portal's own API definition — seven
+operations, one GET and six POSTs, downloaded from the API-definition dropdown.
+`specs/Clinic Booking Platform Testing APIs.postman_collection.json` covers five
+of those seven with a complete REQUEST body and no response examples at all.
+
+    THE SPEC        the SURFACE. Which operations exist, their verbs, and -
+                    for RescheduleAppointment alone — a `required` list and a
+                    response schema.
+    THE COLLECTION  the BODIES of the five it covers. Its examples are newer
+                    and coherent where the spec's are neither.
+
+The spec's request examples are demonstrably stale: the hold sends
+`"ServiceId": "488"` where only 787 and 788 exist, both slot examples put a DATE
+in the time field (`"appointmentSlotTime": "2024-04-11"`), and the create omits
+`GPExternalNumber` — the only field joining a booking to a laboratory order. The
+collection's example is self-consistent to the second. So: **definition for the
+surface, collection for the bodies, and the definition alone where it is the
+only source.** Do not read "we have the OpenAPI file now" as "the API is
+documented" — six of the seven responses are still undocumented.
 
 **Every guessed request body was wrong, and that is the lesson.** The client had
 `{serviceLocationId, slotReference}` for a hold and `{holdReference, startUtc}`
@@ -987,11 +1001,40 @@ Tolerance is right for a RESPONSE and worthless for a REQUEST: a misread
 response loses a field, a misspelled request is refused whole. Not one guessed
 name was right.
 
-**Five POSTs and one GET**, same rule as Nexus — takes a body, POST.
+**Six POSTs and one GET**, same rule as Nexus — takes a body, POST.
 `GetServiceLocations`, `AvailabilityDetails`, `HoldAvailabilityBooking`,
-`CreateRandoxBooking`, `CancelRandoxBooking`; `GetBiologicalSex` is the GET.
-`CLINIC_BOOKING_ENDPOINTS` in endpoints.ts is the table and `bookingVerbForPath`
-throws on anything not in it.
+`CreateRandoxBooking`, `RescheduleAppointment`, `CancelRandoxBooking`;
+`GetServiceRegions` is the GET. `CLINIC_BOOKING_ENDPOINTS` in endpoints.ts is
+the table and `bookingVerbForPath` throws on anything not in it.
+
+**`GetBiologicalSex` IS NOT ONE OF THEM AND IT 404'd.** It was in the table as
+the one GET, on the strength of the CB auth document's worked example; the
+sandbox answered `404 {"statusCode": 404, "message": "Resource not found"}` and
+the portal's operation list does not contain it. That document is stale on the
+point. What survives is a ghost — the spec still declares a
+`BiologicalSexResponse` schema (Id / Name / DisplayOrder) that **no path
+references**, so the endpoint was WITHDRAWN rather than never existing, which is
+why the id list is unenumerable rather than merely absent.
+
+**So the BiologicalSexId is DOCUMENTED IN PROSE AND IS AN ASSUMPTION.** The
+`CreateRandoxBooking` operation's own description says "Note - Biological Sex
+Id: Male = 1, Female = 2" (their hyphen, quoted verbatim), and that pair is
+`RANDOX_DOCUMENTED_BOOKING_BIOLOGICAL_SEX` in documentedDefaults.ts. It is a
+Clinic Booking statement about Clinic Booking, which is why it is used rather
+than borrowing the Nexus id across two gateways — Nexus returns the same pair,
+and the sandbox pass reports that agreement as CORROBORATION rather than as the
+source. A name the note does not cover is **refused, never guessed**: this field
+decides which reference ranges a laboratory applies. ANSWERS.md files it as
+question 10, labelled an assumption.
+
+**AND `GetServiceRegions` IS THE CREDENTIAL PROBE NOW.** A GET with no body, no
+order and nothing to clean up, and it fails for exactly the reasons a bad
+subscription key or a bad scope fails. The old probe hit an endpoint that does
+not exist, so a 404 was indistinguishable from a working key — the one thing a
+probe must never be. Observed: a bare array of `{Id, Name, CurrencyCode,
+DisplayOrder}`, eight regions, CurrencyCode UK or ROI. **That is NOT the 787/788
+decision**; a region groups clinic locations (each carries a `RegionId`) and no
+document relates the two.
 
 **THE SERVICE ID IS REQUIRED AND IS NOT DISCOVERABLE.** 787 (UK) and 788 (ROI),
 and there is no third. Not in any document — Chris Caulfield's email. It is
@@ -1002,24 +1045,65 @@ Irish clinics with nothing in the response to say so.
 
 **THE SAME FIELD TAKES TWO DATE FORMATS IN ONE FLOW.** `AppointmentSlotDate` is
 `"16/10/2025"` on the hold and `"2025-10-16T00:00:00Z"` on the create, two
-requests apart. **`AppointmentSlotTIme` is misspelled** — capital I — in both.
-Each endpoint is sent what its OWN example uses, which is the rule the Nexus
-side already runs on, and correcting the spelling would produce a request with
-no slot time in it.
+requests apart. Each endpoint is sent what its OWN example uses, which is the
+rule the Nexus side already runs on.
 
-**AND THE SLOT FIELDS ARE THE UTC WALL CLOCK, WHICH THE COLLECTION PROVES ON ITS
-OWN.** Their `AppointmentSlotId` is `"72164:72164::1760607000:"`, and 1760607000
-as an epoch is `2025-10-16T09:30:00Z` — the same 09:30 they send as
-`AppointmentSlotTIme`. In London that instant reads 10:30, because 16 October is
-inside BST. So a formatter using LOCAL getters on a UK-hosted server would have
-held a slot an hour from the one the patient chose, for seven months of every
-year, with nothing in any response to say so. `slotDateDayFirst`,
-`slotDateIsoMidnightZ` and `slotTimeOfDay` in clients/parse.ts use `getUTC*`
-throughout and the arithmetic is pinned against the collection's own example.
-The other direction is `londonWallClock`, and every slot carries its UK-local
-rendering BESIDE the instant (`slot.local`) so a consumer cannot accidentally
-localise into the READER's zone — right only by accident, and wrong for anyone
-booking from abroad.
+**`AppointmentSlotTIme` IS A CASE VARIANT, NOT A MISSPELLING (Aug 2026).** This
+note said the capital I was a misspelling whose correction "would produce a
+request with no slot time in it" — a guess with a consequence attached, repeated
+in four files. `AppointmentSlotTIme` and the spec's `appointmentSlotTime` differ
+in ONE CHARACTER'S CASE and nothing else, and the two documents differ in case
+on **every field of every shared endpoint** — the spec is not even consistent
+with itself, PascalCase on the hold and camelCase on the create. That is what
+ASP.NET Core's default case-insensitive model binding looks like from outside.
+Nothing changed on the wire: the collection's spelling still goes, because it is
+the coherent example and there is no reason to alter a request the moment before
+testing it. What is retired is the anxiety, and the mock no longer 400s a case
+variant. Pinned by `randoxBookingContract.test.ts`.
+
+**A SLOT IS TWO STRINGS, AND EVERY FIELD NAME WE GUESSED WAS WRONG (observed Aug
+2026).** AvailabilityDetails returns a **bare top-level array** of
+
+    { "Id": "slot-room33-2026-08-17T07:00-staff19",
+      "Date": "17/08/2026", "Time": "07:00", "AvailableQuantity": 1 }
+
+- a day-first date and a bare HH:mm in **two separate fields**, with no combined
+datetime, no offset, no `Z` and no epoch anywhere. The client read
+`appointmentSlotDateTime` and four other invented names, found none, and turned
+**114 real slots into an empty diary**, which is indistinguishable from a clinic
+with no availability. That is the whole reason the pass exists.
+
+**THE SLOT ID IS A SECOND FORMAT.** The collection's `"72164:72164::1760607000:"`
+is not what the sandbox returns, and the epoch it embeds was the entire proof
+that the slot fields are the UTC wall clock. The observed id carries a bare wall
+clock instead — and is exactly the shape of the OpenAPI file's
+RescheduleAppointment example, which makes that example real rather than the
+placeholder it looked like. Two formats is why **nothing parses a slot id**: it
+is opaque, it is echoed, and that is all.
+
+**SO UTC IS FORCED RATHER THAN CHOSEN, AND ONLY FOR THE WIRE.** `Date` and
+`Time` are, to the character, the two fields HoldAvailabilityBooking wants back
+as `AppointmentSlotDate` and `AppointmentSlotTIme`. Reading them as UTC in
+`slotInstantFromWireParts` is the only reading under which our own formatters
+reproduce them exactly — read them as London and a 07:00 slot goes back to
+Randox as 06:00, booking a time they never offered. **That is not a claim about
+what Randox mean; it is the only interpretation that makes the request equal the
+response**, and it is asserted on the real captured values.
+
+What is NOT settled is the DISPLAY. The documents say UTC (the flow diagram, and
+the collection's own epoch), so `slot.local` renders 07:00Z as 08:00 on a clinic
+wall in August; but the observed diary runs 07:00-14:45, which is an ordinary
+phlebotomy day read as local time. The exposure is **exactly one hour on one
+rendered string, never on what is booked**. `slot.wireDate` / `slot.wireTime`
+carry Randox's own strings untouched beside `local` so a caller can show theirs.
+**For Randox: are a slot's `Date` and `Time` UTC or clinic-local?**
+
+`slotDateDayFirst`, `slotDateIsoMidnightZ` and `slotTimeOfDay` in
+clients/parse.ts use `getUTC*` throughout. The other direction is
+`londonWallClock`, and every slot carries its UK-local rendering BESIDE the
+instant (`slot.local`) so a consumer cannot accidentally localise into the
+READER's zone — right only by accident, and wrong for anyone booking from
+abroad.
 
 **THE 30-MINUTE HOLD IS ENFORCED HERE, BEFORE RANDOX ARE ASKED (Aug 2026).**
 "Slots will be held for a 30 minute period" is the flow document's own sentence
@@ -1045,61 +1129,100 @@ a distinct column, the same rule as the three order identifiers. Everything the
 create needs is written at the HOLD, because the create is a separate request
 and possibly after a reload.
 
-**THERE IS A RESCHEDULE ENDPOINT AND WE CANNOT CALL IT — THE PREVIOUS NOTE HERE
-WAS WRONG (corrected Aug 2026).** This said `RescheduleAppointment` came from
-somebody's recollection and did not exist. It is on **page 3 of
-specs/20241028-Corporate-Customer-API-Flow.pdf, "Last Updated: 1-Nov-24"**,
-listed under "Clinic Booking · Primary endpoints are:" — "there is a window of
-opportunity for the clinic booking record to be rescheduled to a different
-clinic location, date and time."
+**RescheduleAppointment IS SPECIFIED AT LAST, AND PRODUCTION STILL DOES NOT USE
+IT (Aug 2026).** Both halves matter, and the endpoint has now been through all
+three states in order — which is the argument for the middle one existing:
 
-Every CHECK behind the earlier reading was correct: it genuinely is absent from
-both Postman collections, from the API-overview flow diagram and from both auth
-documents. The INFERENCE was not — a TESTING collection does not claim to list
-every endpoint, and absence from one is not evidence of absence from the API.
-Worth knowing how it stayed wrong: **that PDF's text is not mechanically
-greppable**. Its fonts carry no usable ToUnicode, so a search over the
-decompressed streams returns nothing for a string that is plainly on the page.
+    FICTIONAL   wrong. Demoted here because it is absent from both Postman
+                collections, from the API-overview flow diagram and from both
+                auth documents. Every check was right; the inference was not,
+                because a TESTING collection does not claim to be exhaustive.
+    NAMED ONLY  right, from page 3 of
+                specs/20241028-Corporate-Customer-API-Flow.pdf (1-Nov-24):
+                "there is a window of opportunity for the clinic booking record
+                to be rescheduled to a different clinic location, date and
+                time." Worth knowing how the earlier reading stayed wrong for
+                so long: **that PDF's text is not mechanically greppable** — its
+                fonts carry no usable ToUnicode, so a search over the
+                decompressed streams returns nothing for a string plainly on
+                the page.
+    SPECIFIED   now. POST `RandoxBookings/RescheduleAppointment`, four REQUIRED
+                fields (appointmentId, serviceId, locationId,
+                newAppointmentSlotId) and a response schema — the only request
+                on this API with a schema rather than an example behind it, and
+                the only documented response of the seven.
 
-**SO THERE ARE THREE STATES, NOT TWO**, and `NAMED_BUT_UNSPECIFIED_ENDPOINTS`
-in endpoints.ts is where the middle one lives: SPECIFIED (path, verb and body),
-NAMED ONLY (named in a Randox document, no request shape anywhere), FICTIONAL
-(nobody has written it down). Collapsing the middle into either neighbour has
-now caused a mistake in each direction. `GetOrderStatusDetails` — home-dispatch
-tracking and kit URNs, page 2 of the same document, absent from the OpenAPI
-file's seventeen — is the other NAMED ONLY entry.
+Had it been left at FICTIONAL, the spec's arrival would have read as "a new
+endpoint appeared" rather than "the one Randox told us about in 2024 finally got
+written down". `NAMED_BUT_UNSPECIFIED_ENDPOINTS` in endpoints.ts keeps the
+middle state; `GetOrderStatusDetails` — home-dispatch tracking and kit URNs,
+page 2 of the same document, absent from the Nexus spec's seventeen — is what is
+left in it.
 
-**NOTHING ABOUT THE CODE CHANGES, AND THE REASON IS BETTER.** No document gives
-the reschedule's path, verb or one field of its body, and a guessed REQUEST on
-this API is refused whole — which is the lesson this entire client was rebuilt
-around. An endpoint we cannot spell is exactly as uncallable as one that does
-not exist. So the client and the mock still throw
-`RandoxUnsupportedOperationError` (501), and moving an appointment is still
-COMPOSED from three documented calls — but the justification is now "there is no
-way to spell a call to it" rather than "there is no such endpoint", and the ASK
-for Randox narrows from "does this exist?" to "what body does it take?".
-**The order is the whole design**: hold the new slot,
+**THE CLIENT CALLS IT. `bookingService.rescheduleBooking` STILL COMPOSES hold ->
+create -> cancel, AND THE REASON IS NEW.** The last two justifications were
+"there is no such endpoint" and "there is no way to spell a call to it"; both
+argued from a gap in the documents and both expired. This one argues from what
+the documents SAY: **the documented reschedule takes no hold.** One call, an
+appointment id and a slot id, with no HoldAvailabilityBooking in front of it -
+so there is no way to learn whether the new slot is free before giving up the
+one the patient already has. Its own response schema says the same from the
+other side: it carries a `SuccessFailCode`, so it can refuse, and by then the
+request has been made. **The order is the whole design**: hold the new slot,
 book the new slot, then cancel the old one. Cancelling first is simpler and
 loses somebody's appointment when step 2 fails. Whether Randox accept a second
 booking against one `GPExternalNumber` is unknown and this ordering is safe
 under both answers — refused, the original stands; accepted, step 3 leaves
 exactly one. If step 3 fails the new appointment is KEPT and audited: a stale
-booking is a phone call, no appointment is a wasted trip.
+booking is a phone call, no appointment is a wasted trip. The sandbox pass now
+calls the real endpoint (question 9), so this is a decision to revisit **on a
+capture, not on a schema**.
 
-**THE MOCK IS GENERATED FROM THE COLLECTION AND CHECKS WHAT WE SEND, FIELD BY
-FIELD.** `mock/bookingSpecServer.ts` rejects a body whose fields, JSON types or
-string SHAPES differ from the collection's own example — so correcting the
-misspelling is a 400, swapping the two date formats is a 400, sending
-`ServiceId` as a number where that endpoint's example says `"787"` is a 400, and
-an invented `SearchTo` is a 400 rather than a field a real API would ignore
-while returning an unbounded range. It requires BOTH credentials, unlike the
-Nexus mock, because the CB document requires both and the Nexus spec does not
-mention one: the two mocks differ exactly where the two documents differ.
-Responses are fixtures and live in `mock/bookingScenarios.ts`, separately and
-labelled, because nobody has documented one.
+**AND IT IS THE ONE CALL ON EITHER API THAT REFUSES INSIDE A 200.** Everywhere
+else a refusal is a 4xx and the transport throws, so a caller who forgets to
+check gets an exception. Here the response resolves with `SuccessFailCode` set
+to something else, and a caller reading only the HTTP status tells a patient
+their appointment moved when it did not. `rescheduleSucceeded()` in
+clients/parse.ts is the single place that judgement is made and **defaults to
+failure**: an absent code, an empty one, an unrecognised word or a populated
+`FailureDescription` all mean no. The two mistakes are not symmetrical — a false
+success puts somebody at a clinic on the wrong day, a false failure tells them
+to try again. Both mocks model the soft refusal, because a fixture that always
+succeeds makes that bug untestable.
+
+**THE MOCK IS GENERATED FROM BOTH DOCUMENTS AND ENFORCES WHERE THEY AGREE.**
+`mock/bookingSpecServer.ts` reads the OpenAPI file for the route set and the
+collection for the bodies, then rejects a request whose fields, JSON types or
+string SHAPES differ from what the two agree on — so swapping the hold's and the
+create's date formats is a 400, and an invented `SearchTo` is a 400 rather than
+a field a real API would ignore while returning an unbounded range.
+
+**Where the two DISAGREE it accepts either**, and that is the design rather than
+a loosening: enforcing one side of a genuine disagreement is enforcing a coin
+toss, with the authority of a document behind it. So a case variant passes (they
+differ in case on every shared field), the hold's `ServiceId` passes as a number
+or a string (787 against `"488"` — the only type disagreement anywhere), and
+`GPExternalNumber` passes because the collection has it even though the spec's
+example does not. A field NEITHER document names is still a 400, and a genuinely
+misspelled one still is too: case-insensitive is not name-insensitive.
+
+It requires BOTH credentials, unlike the Nexus mock, because the CB document
+requires both and the Nexus spec does not mention one: the two mocks differ
+exactly where the two documents differ. Responses are fixtures and live in
+`mock/bookingScenarios.ts`, separately and labelled, because only one of the
+seven has ever been documented.
+
+**AND THE FIXTURES NOW MODEL THE OBSERVED PAYLOADS, WHICH IS THE WHOLE POINT.**
+Availability was a wrapped `{availability: [{AppointmentSlotId,
+AppointmentSlotDateTime}]}` — a shape invented to match what the client was
+asking for, so every test passed while the client could not read one real slot.
+Locations and regions are bare arrays with `Id` as a string, and a slot is
+`{Id, Date, Time, AvailableQuantity}`. **A fixture that models the document
+rather than the API tests nothing.**
+
 `tests/randoxBookingContract.test.ts` runs the real client over HTTP through the
 whole documented flow — Nexus create → locations → availability → hold → booking
-carrying the order number → status 1–4 → reports and detail — plus the four
+carrying the order number → reschedule → status 1–4 → reports and detail — plus the four
 failure paths that are OUTCOMES rather than faults: a slot taken between
 availability and hold, a lapsed hold, a create that fails after a hold (which is
 NOT dressed up as a lost slot — the slot is still held and trying again is the
@@ -1117,24 +1240,159 @@ controlled by Randox. This is usually 7 days of available appointment slots for
 primary clinics and a longer period for pop-up style locations. The objective is
 to present 7 dates of available appointments, which depending on availability,
 **may not be consecutive dates**." Anything that renders availability as a
-calendar week has to survive gaps.
+calendar week has to survive gaps. Observed at Crumlin: **5 dates, consecutive,
+114 slots at 15-minute intervals** — so "usually 7" is a description and not a
+guarantee, and the gap case has still never been seen. Note that the dates
+arrive day-first, which sorts by day of month: anything checking
+consecutiveness has to convert first or it answers the wrong question at a month
+boundary.
 
-# The sandbox pass — one command, and it has NOT been run (Aug 2026)
+# The sandbox pass — both APIs called end to end, and it is where the defects came from (Aug 2026)
 
 `npm run sandbox:pass --workspace=apps/server` walks the whole documented flow
 against the `stes-` sandbox and writes every response body **verbatim** into
 `modules/randox/specs/sandbox-responses/`, one file per call, each carrying the
 request that produced it, the HTTP status, the parsed body and the RAW response
 text — because "this is what our helpers made of it" is not a record of what
-Randox sent. Then `ANSWERS.md`, which answers the seven open questions from the
+Randox sent. Then `ANSWERS.md`, which answers the ten open questions from the
 capture and writes `UNANSWERED` in as many words where the run did not settle
-one. **A blank is a result and is written as one.**
+one — and `UNASKED` where it never got to ask. **A blank is a result and is
+written as one.**
 
-**THE DIRECTORY IS EMPTY AND THAT IS THE STATE OF THE WORK.** The pass needs
-four things this repository does not have and cannot have: the two subscription
-keys (each from its own developer portal) and the ROPC username/password. Every
-other setting — both base URLs, both client ids, both scopes, the token
-endpoint — is already defaulted in `config/env.ts` and is correct.
+**BOTH HALVES HAVE NOW BEEN CALLED (14 Aug 2026).** Clinic 1298, panel 451
+"Signature woman" (137 test items), Crumlin (LocationId 30). Q1 and Q2 are
+answered from evidence — the orderNumber GetOrderStatus returns IS
+byte-identical to the creation response's externalNumber, on one order, and all
+eight reference endpoints answered 200 to GET. `reconcileOrderNumber()` STAYS
+regardless: one order agreeing is evidence and not a contract, and it is the
+half that would silently break a lookup. Q3 still waits on status 4, which a
+pending order never reaches.
+
+**THIS SECTION IS THE ARGUMENT FOR THE PASS EXISTING.** Every item below is
+something no amount of reading the documents would have found, and several were
+live defects sitting behind green tests. The pattern is the same each time: a
+fixture built to match what the client believed, agreeing with the client.
+
+**WHAT THE NEXUS HALF TAUGHT, and the first two were live defects:**
+- **The eight reference endpoints return BARE TOP-LEVEL ARRAYS**, not
+  `{panels: [...]}`. `pickArray` handles that as its first case so the
+  production client was always right — the SCRIPT had reinvented the helper
+  and got it wrong, which sent `PanelIds: []` and produced the 400.
+- **A THIRD ERROR-BODY SHAPE, and it is the one that names the field.**
+  ASP.NET ProblemDetails: `{"errors":{"Request":["No panels or test items
+  provided"]},"title":…,"status":400,"traceId":…}`, with **no `message`
+  anywhere**. `parseRandoxErrorBody` read `status` and returned `message:
+  null`, so the only sentence explaining the refusal was dropped and the log
+  said "failed with HTTP 400". Fixed; `randoxErrorBody.test.ts` pins it with
+  the captured body verbatim.
+- **`statusDate` carries NO timezone** (`2026-08-14T09:42:38.39`), not the
+  documented .NET round-trip form. `toUtcIso` already appends `Z` absent a
+  zone, so this CONFIRMS an assumption rather than exposing a bug.
+- **`externalNumber` is `<clinic code>-<zero-padded orderId>`** — a THIRD
+  prefix format after the spec's two. Infer nothing from it.
+
+**WHAT THE BOOKING HALF TAUGHT, and THREE of the four were live defects.** The
+booking client had never made a real call before this, and not one of its
+response readings survived contact:
+
+- **A SLOT IS `{Id, Date, Time, AvailableQuantity}` IN A BARE ARRAY.** No
+  combined datetime, no offset, no epoch. The client looked for
+  `appointmentSlotDateTime` and four other invented names and **turned 114 real
+  slots into an empty diary** — which is indistinguishable from a clinic with no
+  availability, so nothing would have looked broken. See the Clinic Booking
+  section above for why UTC is then forced rather than chosen.
+- **THE HOLD RETURNS ONE ID AND THE CREATE NEEDS TWO.** A successful hold is
+  `{"BookingId": 87819, "SuccessFailCode": "Success", "FailureDescription":
+  null, "NewAppointmentDateTime": null}` — **no AppointmentId at all**. The
+  create went out without one and Randox answered
+  `400 "Randox Booking failure, invalid appointment id."`, naming the field.
+  They are the same number: the collection's own example sends 1144015 twice,
+  and the hold is the only call before the create that could produce either.
+- **THE HOLD USES THE SAME ENVELOPE AS THE RESCHEDULE, SO A HOLD CAN REFUSE
+  INSIDE A 200.** The OpenAPI file declares those four fields as
+  `RescheduleAppointmentResponse`, on that one operation, which is how it was
+  read at first. It is the shared envelope for booking mutations. A refused hold
+  is therefore a successful HTTP response that the transport does not throw on -
+  read as success it yields a null booking id and a create that 400s two
+  requests later, where the failure makes no sense. `bookingOutcomeSucceeded()`
+  is the one place that judgement is made, for both calls, and it defaults to
+  failure.
+- **A FOURTH ERROR-BODY SHAPE: A BARE JSON STRING.** `"Randox Booking failure,
+  invalid appointment id."`, quotes and all — not an object, so
+  `parseRandoxErrorBody` refused it and dropped the only sentence that named the
+  broken field. **That is the identical failure as the ProblemDetails one above,
+  in a new shape, from the other API** — which is why the parser now ends at
+  "whatever prose there is" rather than at "an object I recognise".
+- **GetServiceRegions and GetServiceLocations are bare arrays too**, with `Id`
+  as a STRING on a location and a `RegionId` joining the two. Five dates of
+  availability came back, consecutive, 114 slots at 15-minute intervals — so the
+  flow document's "usually 7" is a description and the non-consecutive case has
+  still never been observed.
+
+**NOTHING IN THE ORDER IS DEFAULTED ANY MORE.** Every id it sends is read from
+a reference capture — panel, testing reason, biological sex BY NAME from Nexus's
+own GetBiologicalSex, and TestClinicLocationId from `clinicTestLocations` rather
+than from the clinic id. (The BOOKING body's BiologicalSexId is the exception
+and cannot be one of these: Clinic Booking has no endpoint for it, so it comes
+from the documented pair and is reported as an ASSUMPTION — see the Clinic
+Booking section.) A value that cannot be resolved is REFUSED BY NAME and the create
+is not sent. That rule comes from the first run: the `?? 1` fallback on
+TestReasons fired, and id 1 happens to be a real reason in this sandbox — so it
+passed validation on a value nobody had read off anything. **A default that is
+accidentally valid is worse than one that is obviously wrong.** The panel
+defaults to the one with the most test items, which also cannot land on the 25
+of 616 panels that have none.
+
+**A RERUN CLEARS THE DIRECTORY FIRST.** Captures are numbered by step, so a
+shorter run leaves the tail of a longer earlier one behind — two orders, two
+days, one directory, nothing in the filenames to say so. That guard is
+sequential and cannot help with two runs at once: the second clears, then both
+write into the same numbering. **Do not start a pass while one is polling** -
+and note that killing the shell does not kill the node process, which keeps
+writing.
+
+**THE PANEL AND TEST CAPTURES CARRY RANDOX PRICING** (~1.5 MB, all 616 panels
+and 1189 tests). Deliberate: `stripPricing()` runs in the CLIENT, this script
+bypasses it, and a capture is the raw wire or it is not evidence. Commercial
+question, not a patient-data one.
+
+The pass needs THREE things this repository does not have and cannot have:
+`RANDOX_NEXUS_SUBSCRIPTION_KEY`, `RANDOX_USERNAME` and `RANDOX_PASSWORD`. They
+go in `apps/server/.env.sandbox` (gitignored, `.env.sandbox.example` beside it),
+which the script loads itself.
+
+**IT IS STANDALONE, AND THE SERVER'S CONFIG IS NOT ITS BUSINESS (Aug 2026).**
+It imported `src/config/env.ts`, which parses the whole server configuration at
+module scope — so it demanded `APP_BASE_URL`, `API_BASE_URL`, `DATABASE_URL`,
+`JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `CSRF_SECRET`, `ENCRYPTION_KEY` and
+`FILE_SIGNING_SECRET` before making one call, and named none of the three
+credentials it actually wanted. It reads `process.env` directly now, for the
+Randox settings only, and refuses BY NAME. It does not want `RANDOX_ENABLED` or
+`RANDOX_TRANSPORT` either: those are the server's switches and this script is
+the live call by definition.
+
+**WHAT IT DOES NOT DO IS RE-IMPLEMENT THE TRANSPORT.** It builds a
+`RandoxApiConnection` and hands it to the real `RandoxHttpClient` — real B2C
+ROPC auth, real headers, real pacing, real retry, real 401 handling. A capture
+taken through a second implementation is a record of the second implementation.
+That is what `modules/randox/connection.ts` is for: the connection SHAPE, with
+pacing/retry/bearer on it, and no environment anywhere. `config.ts` builds one
+from `env` for the server; the script builds one from three credentials.
+
+**AND EVERY DOCUMENTED NON-SECRET VALUE IS IN ONE FILE, `documentedDefaults.ts`,
+WHICH `config/env.ts` DEFAULTS FROM AS WELL.** Both base URLs, both client ids,
+both scopes, the token endpoint, 787/788, LocationId 30. Two copies of the Nexus
+scope is a second chance to lose the hyphen out of it, and the wrong copy would
+be the one the sandbox pass sent.
+
+**THE CLINIC BOOKING HALF IS OPTIONAL AND ITS ABSENCE IS A RECORDED RESULT.**
+`RANDOX_BOOKING_SUBSCRIPTION_KEY` is a separate key from a separate developer
+portal, and booking is out of this portal's scope. Unset, the Nexus flow runs
+alone and `ANSWERS.md` says questions 4–7 went UNASKED and why. **"We did not
+ask" and "we asked and learned nothing" are different states and are written
+down differently** — only one of them is worth rerunning for a key. Refusing to
+take a Nexus capture for want of an unrelated key would be the script choosing
+all-or-nothing on somebody's behalf.
 
 **NOTHING IS WRITTEN THERE IN ADVANCE.** The Clinic Booking collection carries
 no response examples at all, so these files will be the ONLY record of those

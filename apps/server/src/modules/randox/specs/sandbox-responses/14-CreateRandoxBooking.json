@@ -1,0 +1,42 @@
+{
+  "step": 14,
+  "api": "Clinic Booking",
+  "name": "CreateRandoxBooking",
+  "method": "POST",
+  "path": "RandoxBookings/CreateRandoxBooking",
+  "request": {
+    "BookingId": 87821,
+    "ServiceId": "787",
+    "LocationId": "30",
+    "AppointmentId": 87821,
+    "AppointmentSlotId": "slot-room33-2026-08-17T07:15-staff19",
+    "AppointmentSlotDate": "2026-08-17T00:00:00Z",
+    "AppointmentSlotTIme": "07:15",
+    "FirstName": "Testpatient",
+    "LastName": "Sandbox",
+    "DateOfBirth": "1990-01-01T00:00:00",
+    "BiologicalSexId": 2,
+    "EmailAddress": "sandbox.fixture@example.invalid",
+    "ConfirmEmailAddress": "sandbox.fixture@example.invalid",
+    "ContactNumber": "07000000000",
+    "AddressLine1": "1 Example Street",
+    "AddressLine2": "Testing",
+    "TownCity": "Testville",
+    "PostalCode": "BS2 9RX",
+    "CountryId": 1,
+    "CommunicationPreferenceEmail": false,
+    "CommunicationPreferenceSMS": false,
+    "CommunicationPreferenceTelephone": false,
+    "GPExternalNumber": "AWL002-00163636"
+  },
+  "status": 200,
+  "ok": true,
+  "body": {
+    "BookingId": 87821,
+    "RandoxBookingOrderId": 22562,
+    "RandoxBookingAppointmentId": 87821,
+    "SuccessFailCode": 0,
+    "FailureDescription": null
+  },
+  "raw": "{\"BookingId\":87821,\"RandoxBookingOrderId\":22562,\"RandoxBookingAppointmentId\":87821,\"SuccessFailCode\":0,\"FailureDescription\":null}"
+}

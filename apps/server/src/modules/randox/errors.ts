@@ -45,11 +45,18 @@ export class RandoxWindowExpiredError extends Error {
  *
  * Distinct from every other error here, and the distinction is the point: an
  * API error means we asked and were refused, and this means THERE IS NOTHING
- * TO ASK. It exists for RescheduleAppointment, which was in this codebase as a
- * documented path and is absent from the Postman collection — the only
- * machine-readable list of this API's endpoints anyone has sent us. Calling a
- * path on the strength of remembering it once is how an integration acquires a
- * feature that 404s in production and works in every test.
+ * TO ASK.
+ *
+ * NOTHING THROWS IT AT PRESENT (Aug 2026), and it is kept rather than deleted.
+ * It existed for RescheduleAppointment, which has now been through all three
+ * states in endpoints.ts — believed fictional, then named with no request
+ * shape, and now fully specified in clinic-booking-openapi3.json — so the
+ * client calls it instead of refusing. The class stays because the SITUATION
+ * recurs on these two APIs: `GetOrderStatusDetails` is named in a Randox PDF
+ * and absent from the Nexus spec today, and the next endpoint somebody
+ * half-remembers will need exactly this. Calling a path on the strength of
+ * remembering it once is how an integration acquires a feature that 404s in
+ * production and works in every test.
  *
  * Surfaced as 501 rather than 500: the request was well-formed and the server
  * cannot do it.

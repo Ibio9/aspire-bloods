@@ -1,0 +1,18 @@
+{
+  "step": 17,
+  "api": "Clinic Booking",
+  "name": "CancelRandoxBooking",
+  "method": "POST",
+  "path": "RandoxBookings/CancelRandoxBooking",
+  "request": {
+    "RandoxBookingOrderId": 22562
+  },
+  "status": 200,
+  "ok": true,
+  "body": {
+    "RandoxBookingOrderId": 22562,
+    "SuccessFailCode": "Success",
+    "FailureDescription": null
+  },
+  "raw": "{\"RandoxBookingOrderId\":22562,\"SuccessFailCode\":\"Success\",\"FailureDescription\":null}"
+}

@@ -1,0 +1,62 @@
+{
+  "step": 3,
+  "api": "Nexus",
+  "name": "getEthnicity",
+  "method": "GET",
+  "path": "Ethnicity/GetEthnicity",
+  "request": null,
+  "status": 200,
+  "ok": true,
+  "body": [
+    {
+      "id": 1,
+      "name": "White"
+    },
+    {
+      "id": 2,
+      "name": "Asian - Bangladeshi"
+    },
+    {
+      "id": 3,
+      "name": "Asian - Indian"
+    },
+    {
+      "id": 4,
+      "name": "Asian - Pakistani"
+    },
+    {
+      "id": 5,
+      "name": "Any Other Asian Background"
+    },
+    {
+      "id": 6,
+      "name": "Black - African"
+    },
+    {
+      "id": 7,
+      "name": "Black - Caribbean"
+    },
+    {
+      "id": 8,
+      "name": "Any Other Black Background"
+    },
+    {
+      "id": 9,
+      "name": "Chinese"
+    },
+    {
+      "id": 10,
+      "name": "Mixed"
+    },
+    {
+      "id": 11,
+      "name": "Middle Eastern"
+    },
+    {
+      "id": 12,
+      "name": "Other"
+    }
+  ],
+  "raw": "[{\"id\":1,\"name\":\"White\"},{\"id\":2,\"name\":\"Asian - Bangladeshi\"},{\"id\":3,\"name\":\"Asian - Indian\"},{\"id\":4,\"name\":\"Asian - Pakistani\"},{\"id\":5,\"name\":\"Any Other Asian Background\"},{\"id\":6,\"name\":\"Black - African\"},{\"id\":7,\"name\":\"Black - Caribbean\"},{\"id\":8,\"name\":\"Any Other Black Background\"},{\"id\":9,\"name\":\"Chinese\"},{\"id\":10,\"name\":\"Mixed\"},{\"id\":11,\"name\":\"Middle Eastern\"},{\"id\":12,\"name\":\"Other\"}]",
+  "note": "Reference data. The spec declares GET; earlier guidance said POST."
+}

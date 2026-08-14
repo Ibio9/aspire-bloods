@@ -1,5 +1,5 @@
 import { RandoxAuthError } from '../errors.js';
-import type { RandoxApiConnection } from '../config.js';
+import type { RandoxApiConnection } from '../connection.js';
 
 interface TokenResponse {
   access_token?: string;

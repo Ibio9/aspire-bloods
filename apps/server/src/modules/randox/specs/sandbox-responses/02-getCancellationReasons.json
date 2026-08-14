@@ -1,0 +1,42 @@
+{
+  "step": 2,
+  "api": "Nexus",
+  "name": "getCancellationReasons",
+  "method": "GET",
+  "path": "CancellationReason/GetCancellationReasons",
+  "request": null,
+  "status": 200,
+  "ok": true,
+  "body": [
+    {
+      "id": 1,
+      "name": "Cancellation By Clinic"
+    },
+    {
+      "id": 2,
+      "name": "Cancellation By Lab"
+    },
+    {
+      "id": 3,
+      "name": "External Partner"
+    },
+    {
+      "id": 193,
+      "name": "FltfwEeKq"
+    },
+    {
+      "id": 195,
+      "name": "TXXWmfrjP<>zaaabda"
+    },
+    {
+      "id": 214,
+      "name": "ycUDpjLdl"
+    },
+    {
+      "id": 216,
+      "name": "OAhMFQgZM"
+    }
+  ],
+  "raw": "[{\"id\":1,\"name\":\"Cancellation By Clinic\"},{\"id\":2,\"name\":\"Cancellation By Lab\"},{\"id\":3,\"name\":\"External Partner\"},{\"id\":193,\"name\":\"FltfwEeKq\"},{\"id\":195,\"name\":\"TXXWmfrjP<>zaaabda\"},{\"id\":214,\"name\":\"ycUDpjLdl\"},{\"id\":216,\"name\":\"OAhMFQgZM\"}]",
+  "note": "Reference data. The spec declares GET; earlier guidance said POST."
+}

@@ -95,37 +95,105 @@ export function nexusEndpoint(name: NexusEndpointName): { path: string; verb: Ra
 
 /**
  * ---------------------------------------------------------------------------
- * THE CLINIC BOOKING ENDPOINTS, FROM THE POSTMAN COLLECTION.
+ * THE SEVEN CLINIC BOOKING ENDPOINTS, FROM ITS OWN OpenAPI DOCUMENT.
  * ---------------------------------------------------------------------------
  *
- * Transcribed from specs/"Clinic Booking Platform Testing APIs.postman_collection.json"
- * and the CB STES auth document beside it. There is still no OpenAPI document
- * for this API — the collection gives REQUEST bodies and verbs and no response
- * examples at all, so what is verified here is exactly what goes OUT and
- * nothing about what comes back. That asymmetry is honoured throughout:
- * requests are built to the collection literally, responses are still read
- * through the tolerant helpers in clients/parse.ts.
+ * specs/clinic-booking-openapi3.json — "Clinic Booking" v1.0, server
+ * https://stes-cb-platform-apim.azure-api.net, every path under
+ * /booking-platform-api. Downloaded from the developer portal's API-definition
+ * dropdown (Aug 2026), and it settles three things the Postman collection could
+ * not, because a TESTING collection lists what somebody wanted to test and a
+ * definition lists what exists.
  *
- * THE SAME ONE-SENTENCE RULE HOLDS HERE AS ON NEXUS: takes a body, POST; takes
- * nothing, GET. All five booking calls take a body and all five are POST;
- * GetBiologicalSex takes nothing and is the GET the auth document uses as its
- * worked example.
+ * ONE GET AND SIX POSTS. Same one-sentence rule as Nexus: takes a body, POST;
+ * takes nothing, GET.
  *
- * The base URL is a DIFFERENT HOST from Nexus
- * (stes-cb-platform-apim.azure-api.net/booking-platform-api), with its own
- * subscription key, its own B2C client id and its own scope — which is why
- * "per API" is a structural property of the connection config and of the rate
- * limiter rather than a convention.
+ * ── 1. GetBiologicalSex IS NOT ONE OF THEM, AND IT 404'd ───────────────────
+ *
+ * It was in this table as the one GET, on the strength of the CB STES auth
+ * document's worked example. The sandbox pass called it and Randox answered
+ *
+ *   404 {"statusCode": 404, "message": "Resource not found"}
+ *
+ * and the portal's own operation list does not contain it. The auth document is
+ * stale on that point. What survives is a ghost: `BiologicalSexResponse`
+ * (Id/Name/DisplayOrder) is still declared in the spec's `components.schemas`
+ * with no path referencing it — an endpoint that was withdrawn rather than one
+ * that never existed, which is worth knowing because it means the id list is
+ * unenumerable rather than absent. See RANDOX_DOCUMENTED.bookingBiologicalSexIds
+ * for what is documented instead and what stays assumed.
+ *
+ * GET GetServiceRegions is the replacement CHEAP PROBE: no body, no order, no
+ * side effect, and it fails for exactly the same reasons a bad key or a bad
+ * scope fails. A probe that 404s proves nothing about the credentials.
+ *
+ * ── 2. RescheduleAppointment IS SPECIFIED NOW, PATH, VERB AND BODY ─────────
+ *
+ * POST RandoxBookings/RescheduleAppointment, four required fields
+ * (appointmentId, serviceId, locationId, newAppointmentSlotId) and a response
+ * schema. It has been through all three states in this file and the sequence is
+ * the lesson: FICTIONAL (wrongly — absence from a testing collection is not
+ * absence from an API), then NAMED ONLY (right, from the flow PDF), and now
+ * SPECIFIED. It moves out of NAMED_BUT_UNSPECIFIED_ENDPOINTS below.
+ *
+ * ── 3. GetServiceRegions IS IN NO DOCUMENT WE HELD BEFORE THIS ONE ─────────
+ *
+ * Not in the collection, not in the flow PDF, not in either auth document.
+ * Which is the general point: the collection was never a list of this API.
+ *
+ * ── WHAT THE SPEC DOES *NOT* OUTRANK: THE REQUEST EXAMPLES ────────────────
+ *
+ * On Nexus the OpenAPI file is the source of truth outright. Here it is the
+ * source of truth for the SURFACE and not for the bodies, because its examples
+ * are demonstrably older than the collection's:
+ *
+ *   · the hold example sends `"ServiceId": "488"` and `"LocationId": "42"`,
+ *     and 488 is not a service id — there are exactly two in the world, 787 and
+ *     788, and no third (Chris Caulfield);
+ *   · both slot examples put a DATE in the time field
+ *     (`"appointmentSlotTime": "2024-04-11"`), which is not a format, it is a
+ *     mistake;
+ *   · the create example has no `GPExternalNumber`, the field the flow diagram
+ *     requires in as many words and the only thing joining a booking to a
+ *     laboratory order.
+ *
+ * The collection's example is self-consistent to the second: its slot id
+ * "72164:72164::1760607000:" decodes to exactly the date and time it then
+ * sends. So SURFACE from the definition, BODIES from the collection where both
+ * describe an endpoint, and the definition alone where it is the only source.
+ * `mock/bookingSpecServer.ts` reads both and enforces where they AGREE.
+ *
+ * ── AND THE "MISSPELLING" WAS ONLY EVER A CASE DIFFERENCE ─────────────────
+ *
+ * `AppointmentSlotTIme` and `appointmentSlotTime` differ in one character's
+ * CASE and nothing else. This file and three others carried a warning that
+ * correcting the capital I would "produce a request with no slot time in it";
+ * that was a guess dressed as a fact. The two documents disagree on case for
+ * EVERY field of EVERY shared endpoint — the spec is camelCase on
+ * create/cancel and PascalCase on hold/availability/locations, the collection
+ * PascalCase throughout — which is what ASP.NET Core's default
+ * case-insensitive model binding looks like from the outside. Nothing here is
+ * changed on the strength of that inference: we still send the collection's
+ * spelling, because it is the coherent example and because there is no reason
+ * to alter a request the moment before testing it. What is retired is the
+ * anxiety, and the mock no longer treats a case variant as a 400.
+ *
+ * The base URL is a DIFFERENT HOST from Nexus, with its own subscription key,
+ * its own B2C client id and its own scope — which is why "per API" is a
+ * structural property of the connection config and of the rate limiter rather
+ * than a convention.
  */
 export const CLINIC_BOOKING_ENDPOINTS = {
-  // The one GET. The auth document's worked example.
-  getBiologicalSex: { path: 'BiologicalSex/GetBiologicalSex', verb: 'GET' },
+  // The one GET. Takes nothing, returns the service regions — and is the
+  // cheapest proof that the booking key and scope work.
+  getServiceRegions: { path: 'RandoxServices/GetServiceRegions', verb: 'GET' },
 
-  // The five POSTs, in the order the flow diagram walks them.
+  // The six POSTs, in the order the flow diagram walks them.
   getServiceLocations: { path: 'Locations/GetServiceLocations', verb: 'POST' },
   availabilityDetails: { path: 'Availability/AvailabilityDetails', verb: 'POST' },
   holdAvailabilityBooking: { path: 'RandoxBookings/HoldAvailabilityBooking', verb: 'POST' },
   createRandoxBooking: { path: 'RandoxBookings/CreateRandoxBooking', verb: 'POST' },
+  rescheduleAppointment: { path: 'RandoxBookings/RescheduleAppointment', verb: 'POST' },
   cancelRandoxBooking: { path: 'RandoxBookings/CancelRandoxBooking', verb: 'POST' },
 } as const satisfies Record<string, { path: string; verb: RandoxVerb }>;
 
@@ -141,8 +209,9 @@ export function bookingVerbForPath(path: string): RandoxVerb {
   const verb = BOOKING_BY_PATH.get(normalised);
   if (!verb) {
     throw new Error(
-      `"${normalised}" is not one of the ${BOOKING_BY_PATH.size} Clinic Booking endpoints in the Postman collection. ` +
-        'Add it to CLINIC_BOOKING_ENDPOINTS with the verb the collection gives it rather than calling it with a guessed one.',
+      `"${normalised}" is not one of the ${BOOKING_BY_PATH.size} Clinic Booking endpoints in ` +
+        'specs/clinic-booking-openapi3.json. Add it to CLINIC_BOOKING_ENDPOINTS with the verb the spec gives it ' +
+        'rather than calling it with a guessed one.',
     );
   }
   return verb;
@@ -164,49 +233,37 @@ export function bookingEndpoint(name: ClinicBookingEndpointName): { path: string
  *   NAMED ONLY   named in a Randox document, with no request shape anywhere.
  *   FICTIONAL    nobody has written it down. Never call one.
  *
- * `RescheduleAppointment` was moved from NAMED ONLY to FICTIONAL and that was
- * WRONG. It is on page 3 of specs/20241028-Corporate-Customer-API-Flow.pdf
- * ("Last Updated: 1-Nov-24"), under "Clinic Booking · Primary endpoints are:",
- * in as many words:
+ * `RescheduleAppointment` HAS NOW BEEN THROUGH ALL THREE, IN ORDER, AND THE
+ * SEQUENCE IS THE WHOLE ARGUMENT FOR THE MIDDLE STATE EXISTING.
  *
- *   "RescheduleAppointment — there is a window of opportunity for the clinic
- *    booking record to be rescheduled to a different clinic location, date and
- *    time."
+ *   FICTIONAL   — wrong. It was demoted here because it is absent from the
+ *                 Postman collection, from the API-overview flow diagram and
+ *                 from both auth documents. Every one of those checks was
+ *                 correct and the inference was not: a TESTING collection does
+ *                 not claim to be exhaustive.
+ *   NAMED ONLY  — right, from page 3 of
+ *                 specs/20241028-Corporate-Customer-API-Flow.pdf (1-Nov-24):
+ *                 "there is a window of opportunity for the clinic booking
+ *                 record to be rescheduled to a different clinic location, date
+ *                 and time." Named, with no request shape anywhere. That PDF's
+ *                 text is not mechanically greppable — its fonts carry no
+ *                 usable ToUnicode — which is how a document in this very
+ *                 directory got read as silent.
+ *   SPECIFIED   — now. specs/clinic-booking-openapi3.json gives the path, the
+ *                 verb, four REQUIRED fields and a response schema, so it is in
+ *                 CLINIC_BOOKING_ENDPOINTS above and the client calls it.
  *
- * The earlier reading checked the Postman collection, the OpenAPI file and both
- * auth documents, found nothing, and concluded the path had come from somebody's
- * recollection. Every one of those checks was correct and the conclusion was
- * not: the collection is a TESTING collection and does not claim to be
- * exhaustive, and absence from it is not evidence of absence from the API. The
- * text of that PDF is not mechanically greppable — its fonts carry no usable
- * ToUnicode, so a search over the decompressed streams returns nothing for a
- * string that is plainly on the page — which is how a document in this very
- * directory got read as silent.
+ * Had it been left at FICTIONAL, the arrival of the spec would have been read
+ * as "a new endpoint appeared" rather than "the one Randox told us about in
+ * 2024 finally got written down".
  *
- * WHAT IS STILL TRUE, AND IS WHY THE COMPOSED PATH STAYS: there is no request
- * shape for it anywhere. A named endpoint with unknown fields is exactly as
- * uncallable as a fictional one, for the reason the whole Clinic Booking client
- * is built around — a misspelled request is refused whole. So
- * `rescheduleBooking` remains composed from hold → create → cancel, which is
- * built entirely from documented bodies and is safe under either answer, and
- * the ASK for Randox changes from "does this exist?" to "what body does it
- * take?".
- *
- * `GetOrderStatusDetails` is the other one, on page 2 of the same document: the
+ * `GetOrderStatusDetails` is what is left, on page 2 of the same document: the
  * home-dispatch tracking and kit URNs, usable once an order reaches status 2.
- * It is absent from the OpenAPI file's seventeen. Nothing in this product calls
- * it — home dispatch is not a route we offer — and it is recorded here so that
- * "it is not in the spec" is never again read as "it does not exist".
+ * It is absent from the Nexus OpenAPI file's seventeen. Nothing in this product
+ * calls it — home dispatch is not a route we offer — and it is recorded here so
+ * that "it is not in the spec" is never again read as "it does not exist".
  */
 export const NAMED_BUT_UNSPECIFIED_ENDPOINTS = [
-  {
-    api: 'Clinic Booking' as const,
-    name: 'RescheduleAppointment',
-    source: 'specs/20241028-Corporate-Customer-API-Flow.pdf, page 3 (Last Updated 1-Nov-24)',
-    quote:
-      'RescheduleAppointment — there is a window of opportunity for the clinic booking record to be rescheduled to a different clinic location, date and time.',
-    missing: 'No path, verb or request body in any document or collection.',
-  },
   {
     api: 'Nexus' as const,
     name: 'GetOrderStatusDetails',
@@ -256,15 +313,59 @@ export const SUBSCRIPTION_KEY_HEADER = 'Ocp-Apim-Subscription-Key';
 
 /**
  * ---------------------------------------------------------------------------
- * THE ERROR BODY HAS TWO SHAPES, AND THE 401 IS THE ODD ONE.
+ * THE ERROR BODY HAS FOUR SHAPES. TWO ARE DOCUMENTED AND TWO WERE OBSERVED.
  * ---------------------------------------------------------------------------
  *
  *   200 / 400 / 500   {"statusCode": "...", "message": "..."}
  *   401               {"status": "401",     "message": "..."}
+ *   VALIDATION        RFC 9110 ProblemDetails — see below
+ *   CLINIC BOOKING    a BARE JSON STRING — see below
  *
- * One key differs on exactly the response you meet first with a new
- * subscription key, so reading only `statusCode` produces "Randox returned an
- * error with no code" on the one error that has the most to tell you.
+ * The first two are what the spec documents. One key differs on exactly the
+ * response you meet first with a new subscription key, so reading only
+ * `statusCode` produces "Randox returned an error with no code" on the one
+ * error that has the most to tell you.
+ *
+ * THE THIRD IS UNDOCUMENTED AND WAS OBSERVED (Aug 2026), on the first real
+ * CreatePendingOrder against the sandbox. ASP.NET Core's model-validation
+ * response, not the hand-written envelope the spec shows:
+ *
+ *   {"errors":{"Request":["No panels or test items provided"]},
+ *    "type":"https://tools.ietf.org/html/rfc9110#section-15.5.1",
+ *    "title":"One or more validation errors occurred.",
+ *    "status":400,
+ *    "traceId":"00-0e521a42…"}
+ *
+ * There is NO `message` anywhere in it. The parser read `status` for the code,
+ * found no `message`, and returned null — so `RandoxApiError` was thrown as
+ * "…failed with HTTP 400" and **the one sentence naming the broken field was
+ * dropped on the floor**. That is the worst possible thing to lose from a 400:
+ * the whole difference between "a request was refused" and "a request was
+ * refused because PanelIds was empty".
+ *
+ * So `errors` is flattened into the message, field by field, and `title` is
+ * used when it is the only prose there is. The order matters — `message` still
+ * wins where Randox sent one, because that is the documented field.
+ *
+ * THE FOURTH IS CLINIC BOOKING'S, AND IT IS NOT AN OBJECT AT ALL (observed Aug
+ * 2026). A failed CreateRandoxBooking answers 400 with the body
+ *
+ *   "Randox Booking failure, invalid appointment id."
+ *
+ * — a bare JSON string, quotes and all. Not an envelope, not ProblemDetails, no
+ * `statusCode` and no `message` to read. This function required an OBJECT and
+ * returned `{code: null, message: null}` for it, so the log said "failed with
+ * HTTP 400" and **threw away a sentence that names the exact field that was
+ * wrong**. That is the identical failure the ProblemDetails case was written to
+ * fix, arriving in a new shape from the other API, and it is why the parse now
+ * ends at "whatever prose there is" rather than at "an object I recognise".
+ *
+ * A body that is not JSON AT ALL still parses to nothing, which is unchanged
+ * and deliberate — an unparseable body is a gateway's HTML page far more often
+ * than a sentence from Randox, and `RandoxApiError` keeps the raw body
+ * regardless, so what is given up there is a summary line and never the
+ * evidence. The message is capped all the same, in case a valid JSON string
+ * ever arrives carrying a stack trace.
  *
  * Also worth stating: `statusCode` is DOCUMENTED as an integer and RETURNED as
  * a string in every example in the file. The same is true of ids across the
@@ -278,22 +379,79 @@ export interface RandoxErrorBody {
   message: string | null;
 }
 
+/**
+ * "Request: No panels or test items provided" from a ProblemDetails `errors`
+ * map. Field names are kept: a validation message without the field it is
+ * about is half a sentence, and this API's field names are exactly what a
+ * reader needs (PanelIds, TestReasons, TestClinicLocationId).
+ */
+function flattenValidationErrors(errors: unknown): string | null {
+  if (typeof errors !== 'object' || errors === null || Array.isArray(errors)) return null;
+  const parts: string[] = [];
+  for (const [field, value] of Object.entries(errors as Record<string, unknown>)) {
+    const messages = (Array.isArray(value) ? value : [value])
+      .filter((m) => m != null)
+      .map((m) => String(m).trim())
+      .filter((m) => m !== '');
+    if (messages.length === 0) continue;
+    // ASP.NET uses an empty key for errors that belong to no single field.
+    parts.push(field.trim() === '' ? messages.join('; ') : `${field}: ${messages.join('; ')}`);
+  }
+  return parts.length === 0 ? null : parts.join(' | ');
+}
+
+/**
+ * A body that carries prose and no structure. Capped, because the alternative
+ * to a bare sentence is a gateway's HTML error page and a log line nobody reads.
+ */
+const MAX_BARE_MESSAGE = 300;
+
+function bareMessage(value: string): RandoxErrorBody {
+  const trimmed = value.trim();
+  if (trimmed === '') return { code: null, message: null };
+  return {
+    code: null,
+    message: trimmed.length > MAX_BARE_MESSAGE ? `${trimmed.slice(0, MAX_BARE_MESSAGE)}…` : trimmed,
+  };
+}
+
 export function parseRandoxErrorBody(text: string | null): RandoxErrorBody {
   if (!text || text.trim() === '') return { code: null, message: null };
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
   } catch {
+    // Not JSON at all. Still nothing, deliberately, and unchanged: an
+    // unparseable body is a gateway's HTML page far more often than it is a
+    // sentence from Randox, and `RandoxApiError` carries the RAW body anyway —
+    // so what is given up here is a summary line, never the evidence.
     return { code: null, message: null };
   }
+  // Clinic Booking's shape: the whole body is one sentence.
+  if (typeof parsed === 'string') return bareMessage(parsed);
   if (typeof parsed !== 'object' || parsed === null) return { code: null, message: null };
   const record = parsed as Record<string, unknown>;
   // Both spellings, and both casings of each — the spec is lower-camel
   // throughout but nothing in it promises that of an error path.
   const rawCode = record.statusCode ?? record.StatusCode ?? record.status ?? record.Status;
   const rawMessage = record.message ?? record.Message;
+
+  const documented =
+    typeof rawMessage === 'string' ? rawMessage : rawMessage == null ? null : String(rawMessage);
+  const validation = flattenValidationErrors(record.errors ?? record.Errors);
+  const title = typeof record.title === 'string' ? record.title : null;
+
+  // The documented field first; then the validation detail, which is the only
+  // thing that names the field; then the title, which is generic but is prose.
+  // Where both a message and validation detail exist, both are kept — they are
+  // different information and a 400 has room for two clauses.
+  const message =
+    documented && validation
+      ? `${documented} (${validation})`
+      : (documented ?? validation ?? title);
+
   return {
     code: rawCode == null ? null : String(rawCode),
-    message: typeof rawMessage === 'string' ? rawMessage : rawMessage == null ? null : String(rawMessage),
+    message,
   };
 }
