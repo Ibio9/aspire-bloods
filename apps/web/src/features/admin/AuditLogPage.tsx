@@ -1,6 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { formatDateTime } from '@aspire-bloods/shared';
-import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
@@ -9,6 +8,7 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Table, TableHead, TableBody, TableRow, TableHeaderCell, TableCell } from '../../components/ui/Table';
 import { apiFetch } from '../../lib/api';
+import { ConsolePage } from './ConsolePage';
 
 interface AuditRow {
   id: string;
@@ -69,11 +69,10 @@ export function AuditLogPage() {
   }
 
   return (
-    <>
-      <TwoTierHeading eyebrow="Aspire Clinic · Clinician console" title="Audit log" />
-      <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
-        Every admin and clinician action, and every view of patient data. Nothing is filtered out for anyone.
-      </p>
+      <ConsolePage
+        title="Audit log"
+        purpose="Every action a member of staff has taken and every view of patient data, with who did it and when. Nothing is filtered out for anyone, including yourself."
+      >
 
       {/* THREE "(optional)"s IN A ROW, and a filled bronze button as the
           loudest thing on a page of records. Every filter is optional — saying
@@ -108,7 +107,9 @@ export function AuditLogPage() {
           />
           <div className="flex items-end">
             <Button type="submit" variant="secondary" className="w-full">
-              Filter
+              {/* "Filter" is a verb with no object on a page that is entirely
+                  a filter form. It says what pressing it does. */}
+              Apply these filters
             </Button>
           </div>
         </form>
@@ -186,6 +187,6 @@ export function AuditLogPage() {
           </div>
         </>
       )}
-    </>
+    </ConsolePage>
   );
 }

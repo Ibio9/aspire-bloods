@@ -182,7 +182,29 @@ export function RangeBar({ value, low, high, status, severityThreshold = null, o
   const displayLeft = settled ? pointLeft : bandLeft + (bandRight - bandLeft) / 2;
 
   return (
-    <div className="w-full" role="img" aria-label={label}>
+    /**
+     * ── THE BAR NEVER PAINTS OUTSIDE ITSELF (Aug 2026) ─────────────────────
+     *
+     * `MARK_GUTTER` reserves the mark's own overhang on both sides, and it is
+     * measured rather than chosen: the dot is `h-3.5 w-3.5` (14px) centred with
+     * `-translate-x-1/2`, so at 0% or 100% exactly half of it — 7px — is drawn
+     * outside the track.
+     *
+     * That is not hypothetical and it is what "the bar runs past the card's
+     * edges, and it is inconsistent from card to card" was. `rangeBarScale`
+     * guarantees `MARK_HEADROOM` (6%) at the TOP end and deliberately yields it
+     * at the bottom: a quantity that cannot be negative gets a hard floor at
+     * zero, so a value of 0 lands at 0% and the dot hangs 7px into the card's
+     * padding. Whether it did depended on the value, which is exactly why one
+     * card looked different from the next.
+     *
+     * Reserving the gutter is the fix rather than clamping the mark. Clamping
+     * would move the mark off the position it is drawn to state, which is the
+     * one thing this component may not do (see rangeScale.ts, rule 1). The
+     * track loses 14px of width and gains the guarantee that every bar in a row
+     * is the same length and none of them reaches its card's border.
+     */
+    <div className="w-full px-[7px]" role="img" aria-label={label}>
       {/* The dot has to overhang the track, and the track has to clip its own
           segments to a rounded-input pill — two things one element can't do, so the
           clipping box is inset inside a wrapper the dot is free to overflow. */}
@@ -406,7 +428,20 @@ function ScaleAxis({ scale }: { scale: Extract<Scale, { outOfScale: false }> }) 
 
 const clampPct = (v: number) => Math.min(100, Math.max(0, v));
 
-const anchorAt = (at: number) => (at <= 0.5 ? 'translateX(0)' : at >= 99.5 ? 'translateX(-100%)' : 'translateX(-50%)');
+/**
+ * WHERE A LABEL IS ANCHORED, AND WHY THE THRESHOLDS ARE WIDE.
+ *
+ * A centred label at 3% of a 200px bar starts 10px to the LEFT of the bar — the
+ * same overflow the mark had, in the axis. The two ends were already special-
+ * cased at 0.5%/99.5%, which only covers a label sitting exactly ON an end.
+ *
+ * 8% either side. At 200px that is 16px of run-up, comfortably more than half
+ * of the widest label the ladder produces, and the cost is that a label near an
+ * end is aligned to its tick rather than centred under it — which is what the
+ * two scale ends already do and reads as deliberate. The TICK still marks the
+ * exact position; only the number beside it shifts.
+ */
+const anchorAt = (at: number) => (at <= 8 ? 'translateX(0)' : at >= 92 ? 'translateX(-100%)' : 'translateX(-50%)');
 
 /**
  * THE CARD-SIZED VERSION of the bar above, and deliberately the same
@@ -490,7 +525,10 @@ export function MiniRangeBar({
   const track = trackGradient(scale, lowN, highN, severityThreshold);
 
   return (
-    <div className="w-full" role="img" aria-label={label}>
+    // Same reserved gutter as the full bar, at this mark's own half-width: the
+    // pointer is a 12px triangle centred with `-translate-x-1/2`, so 6px of it
+    // is drawn outside the track at either end. See the note on the full bar.
+    <div className="w-full px-[6px]" role="img" aria-label={label}>
       {/* The pointer's own row, so the triangle has somewhere to live without
           overlapping the track or being clipped by it.
 

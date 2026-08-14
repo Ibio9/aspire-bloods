@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatDateTime } from '@aspire-bloods/shared';
-import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { Button } from '../../components/ui/Button';
+import { Card } from '../../components/ui/Card';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Table, TableHead, TableBody, TableRow, TableHeaderCell, TableCell } from '../../components/ui/Table';
 import { apiFetch } from '../../lib/api';
 import { AnalyteMappingPanel } from './AnalyteMappingPanel';
+import { ConsolePage } from './ConsolePage';
+import { useAuth } from '../../lib/AuthContext';
 
 interface IngestionLogRow {
   id: string;
@@ -32,6 +34,191 @@ const OUTCOME_LABEL: Record<IngestionLogRow['outcome'], string> = {
 };
 
 const PAGE_SIZE = 50;
+
+/**
+ * "3h ago". Moved here with the cards that used it when the console landing
+ * page was merged away (Aug 2026) — it is a relative REQUEST age, which is a
+ * different question from `formatDuration`'s "how long has this been in this
+ * state", and the two read differently on purpose.
+ */
+function timeAgo(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  const mins = Math.round(ms / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
+}
+
+type DemoSeedOutcome = 'SKIPPED' | 'SUCCEEDED' | 'FAILED';
+
+interface DemoSeedRun {
+  outcome: DemoSeedOutcome;
+  ranAt: string;
+  durationMs: number | null;
+  reportsCreated: number;
+  patientEmail: string | null;
+  detail: string;
+  errorMessage: string | null;
+}
+
+/** Shape first, colour second — the same rule the marker statuses follow. */
+function SeedIcon({ outcome }: { outcome: DemoSeedOutcome }) {
+  if (outcome === 'SUCCEEDED') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M3 8.5 L6.5 12 L13 4" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  if (outcome === 'FAILED') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M8 3 L8 9" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" />
+        <circle cx="8" cy="12.5" r="1.25" fill="currentColor" />
+      </svg>
+    );
+  }
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <rect x="3" y="7" width="10" height="2" rx="1" fill="currentColor" />
+    </svg>
+  );
+}
+
+const SEED_LABEL: Record<DemoSeedOutcome, string> = {
+  SUCCEEDED: 'Demo data seeded',
+  FAILED: 'Demo data seed failed',
+  SKIPPED: 'Demo data not enabled',
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  THE DEMO SEED — MOVED HERE FROM THE OLD CONSOLE LANDING PAGE (Aug 2026)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// It is a deployment diagnostic rather than anything clinical, and this is the
+// other screen in the console that answers "what has this deployment actually
+// done" — what arrived from Randox, what could not be read, and now whether
+// the boot-mode seed ran. ADMIN only, on a page that is already ADMIN only.
+
+/**
+ * The last boot-mode demo seed, for the deployment you are looking at.
+ *
+ * seedDemo.ts swallows its own failures so synthetic data can never stop the
+ * API booting. That is the right call and it has one bad consequence: a failed
+ * seed and a deliberately-disabled one look identical from the outside — a
+ * demo account that signs in and shows an empty portal. This is where the two
+ * are told apart without shell access to the deploy logs.
+ *
+ * Renders for ADMIN only, and only once a boot-mode seed has recorded
+ * something. Nothing here means the running container never made the call at
+ * all, which is itself worth knowing — see the copy below.
+ */
+function DemoSeedCard() {
+  const [run, setRun] = useState<DemoSeedRun | null | undefined>(undefined);
+  const [missing, setMissing] = useState(false);
+  const [reseeding, setReseeding] = useState(false);
+  const [reseedError, setReseedError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void apiFetch<DemoSeedRun | null>('/admin/demo-seed')
+      .then((r) => (r ? setRun(r) : setMissing(true)))
+      .catch(() => setMissing(true));
+  }, []);
+
+  // The break-glass path: re-run the seed against this deployment without a
+  // redeploy. Synthetic data only ever lands on the single demo account, and
+  // the run replaces the demo reports rather than stacking them.
+  async function reseed() {
+    setReseeding(true);
+    setReseedError(null);
+    try {
+      await apiFetch('/admin/demo-seed/run', { method: 'POST' });
+    } catch (e) {
+      setReseedError(e instanceof Error ? e.message : 'The seed run failed.');
+    } finally {
+      // Whatever happened, the recorded row is the truth — re-read it.
+      await apiFetch<DemoSeedRun | null>('/admin/demo-seed')
+        .then((r) => {
+          if (r) {
+            setRun(r);
+            setMissing(false);
+          }
+        })
+        .catch(() => undefined);
+      setReseeding(false);
+    }
+  }
+
+  if (run === undefined && !missing) {
+    return (
+      <div className="mt-14" aria-busy="true" aria-label="Loading demo data status">
+        <p className="eyebrow mb-4">Demo data</p>
+        <Card className="max-w-2xl">
+          <Skeleton className="h-5 w-44" />
+          <Skeleton className="mt-3 h-4 w-72" />
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-14">
+      <p className="eyebrow mb-4">Demo data</p>
+      <Card className="max-w-2xl">
+        {missing || !run ? (
+          <>
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-espresso/80">
+              <SeedIcon outcome="SKIPPED" />
+              No demo seed recorded
+            </span>
+            <p className="mt-2.5 text-sm leading-relaxed text-espresso/80">
+              This deployment has not run the boot-mode demo seed. Either the running image predates it, or the
+              start command no longer calls it.
+            </p>
+          </>
+        ) : (
+          <>
+            <span
+              className={`inline-flex items-center gap-1.5 text-sm font-medium ${
+                run.outcome === 'FAILED' ? 'text-status-significantHigh' : 'text-espresso'
+              }`}
+            >
+              <SeedIcon outcome={run.outcome} />
+              {SEED_LABEL[run.outcome]}
+            </span>
+            <p className="mt-2.5 text-sm leading-relaxed text-espresso/80">{run.detail}</p>
+            {run.errorMessage && (
+              <p className="mt-2.5 rounded-input border border-taupe bg-cream-50 px-3 py-2 font-mono text-xs leading-relaxed text-espresso">
+                {run.errorMessage}
+              </p>
+            )}
+            <p className="mt-3 text-xs text-espresso/80">
+              {timeAgo(run.ranAt)}
+              {run.patientEmail ? ` · ${run.patientEmail}` : ''}
+              {run.outcome === 'SUCCEEDED' && run.durationMs !== null ? ` · ${(run.durationMs / 1000).toFixed(1)}s` : ''}
+            </p>
+          </>
+        )}
+        {reseedError && (
+          <p role="alert" className="mt-3 text-sm text-status-significantHigh">
+            {reseedError}
+          </p>
+        )}
+        <div className="mt-5 border-t border-taupe pt-4">
+          <Button variant="secondary" loading={reseeding} onClick={() => void reseed()}>
+            Run the demo seed now
+          </Button>
+          <p className="mt-2 text-xs leading-relaxed text-espresso/80">
+            Replaces the demo patient’s reports with a fresh set. Touches nothing else.
+          </p>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 
 interface UnknownCode {
   code: string;
@@ -110,6 +297,7 @@ function UnknownCodesPanel() {
  * outcome first (never colour alone), same house rule as StatusBadge.
  */
 export function IngestionLogPage() {
+  const { user } = useAuth();
   const [rows, setRows] = useState<IngestionLogRow[] | null>(null);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -138,22 +326,19 @@ export function IngestionLogPage() {
   }, []);
 
   return (
-    <>
-      <TwoTierHeading eyebrow="Aspire Clinic · Clinician console" title="Ingestion log" />
-      {/* ── A LEFTOVER FROM A REMOVED STAGE (fixed Aug 2026) ────────────────
-          This said a clean result "stops at admin-verified". ADMIN_VERIFIED was
-          deleted from the pipeline when the second gate went (see
-          lib/reportStatus.ts: it existed to catch transcription errors from a
-          PDF, and results arrive structured through the API now) — so the one
-          screen that explains where a result comes to rest was naming a state
-          it can no longer be in, to the people whose job is to know. The
-          pipeline is UPLOADED → PARSED → CLINICIAN_REVIEWED → RELEASED, and
-          "waiting for a clinician" is where a clean result stops. */}
-      <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
-        Every attempt to pull a result in from Randox’s API, successful or not. A clean result attaches itself to the
-        patient its order was placed for and waits there for a clinician; anything ambiguous stops earlier and says
-        so here. A clinician reviews and releases before a patient sees anything.
-      </p>
+    <ConsolePage
+      title="Ingestion log"
+      /* ── A LEFTOVER FROM A REMOVED STAGE (fixed Aug 2026) ────────────────
+         This said a clean result "stops at admin-verified". ADMIN_VERIFIED was
+         deleted from the pipeline when the second gate went (see
+         lib/reportStatus.ts: it existed to catch transcription errors from a
+         PDF, and results arrive structured through the API now) — so the one
+         screen that explains where a result comes to rest was naming a state it
+         can no longer be in, to the people whose job is to know. The pipeline is
+         UPLOADED → PARSED → CLINICIAN_REVIEWED → RELEASED, and "waiting for a
+         clinician" is where a clean result stops. */
+      purpose="Every attempt to pull a result in from Randox’s API, successful or not, and below it the two ways a delivery can go quiet: a code we cannot read, and an analyte spelling no marker answered to."
+    >
 
       {error != null ? (
         <div className="mt-6">
@@ -241,6 +426,9 @@ export function IngestionLogPage() {
           reported that we could not file. Both belong on the page an admin
           comes to when something is missing, and neither had a home before. */}
       <AnalyteMappingPanel />
-    </>
+      {/* Last on the page, and last for a reason: it is about this DEPLOYMENT
+          rather than about any delivery. See the banner above DemoSeedCard. */}
+      {user?.role === 'ADMIN' && <DemoSeedCard />}
+    </ConsolePage>
   );
 }

@@ -8,7 +8,6 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-  usePlotArea,
 } from 'recharts';
 import {
   formatDate,
@@ -118,39 +117,22 @@ function epochOf(sampleDate: string): number {
 const DAY_MS = 86_400_000;
 
 /**
- * THE PLOT AS AN INSET PANEL, exactly as the single-marker chart draws it —
- * one hairline frame over a surface fractionally away from the card. It was
- * absent here, so the same drawing appeared framed on a marker page and
- * unframed one press away.
+ * THE INSET PANEL IS GONE HERE TOO (Aug 2026).
+ *
+ * It was added so the same drawing did not appear framed on a marker page and
+ * unframed one press away. The single-marker chart's panel has now been removed
+ * with its bands — the plot is the card — and the argument runs the same way in
+ * reverse: two charts one press apart must not sit on two different grounds.
  */
-function PlotPanel() {
-  const plot = usePlotArea();
-  if (!plot) return null;
-  return (
-    <rect
-      x={plot.x}
-      y={plot.y}
-      width={plot.width}
-      height={plot.height}
-      fill={chartTokens.plotSurface}
-      stroke={chartTokens.plotFrame}
-      strokeOpacity={chartTokens.plotFrameOpacity}
-      strokeWidth={1}
-      shapeRendering="crispEdges"
-      aria-hidden="true"
-    />
-  );
-}
 
 /**
- * A point: an OUTLINE on the plot's own ground, filled with the plot surface
- * and stroked in the line colour — so the line visibly passes behind it and
- * the interior is a hole in the band rather than more colour on top of one.
- * Same construction as the single-marker chart's marks.
+ * A point: an OUTLINE on the card, filled with the card's own surface and
+ * stroked in the line colour, so the line visibly passes behind it. Same
+ * construction as the single-marker chart's marks.
  */
 function SeriesDot({ cx, cy, shape }: { cx?: number; cy?: number; shape: 'circle' | 'square' | 'diamond' }) {
   if (cx == null || cy == null) return null;
-  const common = { fill: chartTokens.plotSurface, stroke: chartTokens.line, strokeWidth: 1.8 };
+  const common = { fill: chartTokens.surface, stroke: chartTokens.line, strokeWidth: 1.8 };
   return (
     <g>
       {/* Generous invisible hit area — the visible mark stays small. */}
@@ -165,7 +147,7 @@ function SeriesDot({ cx, cy, shape }: { cx?: number; cy?: number; shape: 'circle
 /** The legend and tooltip swatch — the mark and its dash, as the plot draws them. */
 function SeriesSwatch({ index }: { index: number }) {
   const style = SERIES_STYLES[index % SERIES_STYLES.length];
-  const common = { fill: chartTokens.plotSurface, stroke: chartTokens.line, strokeWidth: 1.4 };
+  const common = { fill: chartTokens.surface, stroke: chartTokens.line, strokeWidth: 1.4 };
   return (
     <svg width="26" height="10" viewBox="0 0 26 10" aria-hidden="true" className="shrink-0">
       <line x1="0" y1="5" x2="26" y2="5" stroke={chartTokens.line} strokeWidth="2" strokeDasharray={style.dash} />
@@ -441,9 +423,8 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
               width={74}
             />
 
-            {/* The panel first, then the bands on it, then everything else. */}
-            <PlotPanel />
-
+            {/* No panel — the bands are drawn straight onto the card, as on the
+                single-marker chart. See the note where PlotPanel used to be. */}
             {bandRects.map((b) => (
               <ReferenceArea
                 key={b.status}

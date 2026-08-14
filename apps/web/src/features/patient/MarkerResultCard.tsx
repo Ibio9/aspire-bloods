@@ -2,15 +2,14 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
   asMarkerStatus,
-  formatReferenceRange,
   NO_STATUS_LABEL,
+  splitMarkerName,
   type MarkerStatusInput,
   type OptimalRangeDTO,
 } from '@aspire-bloods/shared';
 import { Card } from '../../components/ui/Card';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { MiniRangeBar } from '../../components/ui/RangeBar';
-import { optimalRangeLabel, optimalStatusLabel } from '../../lib/markerCopy';
 import type { MarkerNavState } from './markerNavState';
 
 /**
@@ -27,15 +26,44 @@ import type { MarkerNavState } from './markerNavState';
  *
  * THE LAYOUT, top to bottom, and the order is the point:
  *
- *   1. The marker's name, as an uppercase eyebrow. The only text above the bar.
+ *   1. The marker's name — the abbreviation on the strong line where it has
+ *      one, the expansion beneath it. The only text above the bar.
  *   2. The range bar, with the result's position marked by a pointer above it.
  *   3. Everything else, in the order somebody reads it: the value with its
- *      unit, the status chevron and word, the lab's reference range, then the
- *      panel and the date.
+ *      unit, the status chevron and word, then the package and the date.
  *
  * The bar is second because it is the fastest thing on the card to read. On a
  * page of forty of these, "where does this sit" is answered by a shape before
  * any number is parsed, and the number underneath then says exactly where.
+ *
+ * ═══ WHAT CAME OFF, AND WHY EACH (Aug 2026) ═══════════════════════════════
+ *
+ * The brief was "remove these three, then go through what is left and cut
+ * further; anything a patient does not need in order to read the result comes
+ * off". Five lines went in total:
+ *
+ *  · "LAB REFERENCE RANGE 3.9–5.1 mmol/L". The bar directly above it draws
+ *    that range, marks both bounds with ticks and prints the scale it is drawn
+ *    on. The line was the same fact in figures under a picture of it — and it
+ *    was the widest thing on the card, so it was setting the 15rem floor the
+ *    grid is built to. It is still on the marker's own page, in the tooltip on
+ *    every chart point, and in both PDFs.
+ *  · "OPTIMAL BELOW 5.0 mmol/L · OUTSIDE OPTIMAL". Two facts, of which the
+ *    second is the one that means anything on a card. A patient inside their
+ *    optimal band needs no line at all; one outside it needs to know that, and
+ *    the figures are on the marker page. So: **"Outside optimal", and nothing
+ *    more**, and nothing at all when the answer is "within".
+ *  · "3 RESULTS". A count of how many times this marker has been measured is a
+ *    fact about the history, and the history is a click away with a chart on
+ *    it. On a card about the LATEST result it was a number nobody could act on.
+ *  · THE ONE-LINE NOTE (`note`). The catalogue's gloss, clamped to two lines,
+ *    under a result — a definition truncated mid-sentence is worse than no
+ *    definition, and the marker page carries the whole of it under a heading.
+ *    The prop is gone rather than left unused, so nothing can pass one again.
+ *  · "AMENDED 3 February 2026" stays, and is the one that was NOT cut. It is
+ *    not context about the marker: it says this number changed after it was
+ *    released to the patient, which is the one thing on the card that a reader
+ *    who remembers a different figure needs.
  *
  * WHAT THE BAR REPLACED. A mini sparkline used to sit at the foot of the card
  * on the marker list. It answered a question about history at a size too small
@@ -92,25 +120,24 @@ export interface MarkerCardResult {
 }
 
 /**
- * The panel, the date and the result count — ONE PER LINE.
+ * THE PACKAGE AND THE DATE. Two facts, two lines, and the package is LABELLED.
  *
- * They used to be middot-joined onto a single line ("Signature · 3 February
- * 2026 · 3 results"), which in a 15rem column wrapped wherever the browser
- * felt like and split the date across two lines about a third of the time.
- * Three facts, three lines, and the date on its own is legible as a date
- * rather than as the middle of a sentence.
+ * It was "Signature · 3 February 2026 · 3 results" on one middot-joined line,
+ * then three unlabelled lines. Both had the same fault: "Signature" on its own
+ * is a word with no job in the sentence, and a reader who has bought one test
+ * has no reason to know it is the name of a package. So it says which:
  *
- * A structured object rather than the pre-joined string it used to be, so the
- * card decides the arrangement and neither view can quietly go back to
- * inventing its own.
+ *     Package: Signature
+ *     3 February 2026
+ *
+ * The date keeps its own line and its mono face — it is data. "Package:" is
+ * prose and is not mono. The result count is gone (see the note above).
  */
 export interface MarkerCardMeta {
   /** Null on a report with no catalogue panel behind it — panels are optional. */
   panelName?: string | null;
   /** Already formatted for display — the card sets it in mono and nothing else. */
   sampleDate: string;
-  /** Absent on a report, which has one sample and so nothing to count. */
-  resultCount?: number;
   /** The formatted date this result was corrected after release, where it was. */
   amendedDate?: string | null;
 }
@@ -119,16 +146,13 @@ export function MarkerResultCard({
   marker: m,
   navState,
   meta,
-  note,
   footer,
 }: {
   marker: MarkerCardResult;
   /** Prev/next on the marker page walks the list this card came from. */
   navState?: MarkerNavState;
-  /** The provenance stack under the value — one item per line. */
+  /** The package and the date, under the status. */
   meta?: MarkerCardMeta;
-  /** The catalogue's one-line gloss, on a report. Clamped: this is a card, not the marker's page. */
-  note?: string | null;
   /** Anything a view needs to add below the rest. */
   footer?: ReactNode;
 }) {
@@ -136,6 +160,9 @@ export function MarkerResultCard({
   // card asks this rather than comparing against null.
   const status = asMarkerStatus(m.status);
   const hasRange = m.referenceHigh > m.referenceLow;
+  // The abbreviation and what it stands for, where the name carries one — see
+  // splitMarkerName, which refuses far more often than it splits.
+  const name = splitMarkerName(m.name);
   return (
     <Link
       to={`/markers/${m.markerId}`}
@@ -169,8 +196,26 @@ export function MarkerResultCard({
             a 15rem card gives it. `e2e/marker-name-wrapping.spec.ts` renders
             the longest names in the catalogue at the narrowest card the product
             draws and checks that no word is broken and nothing paints outside
-            the card. */}
-        <p className="eyebrow text-balance leading-snug">{m.name}</p>
+            the card.
+
+            ── AND THE ABBREVIATION LEADS (Aug 2026) ─────────────────────────
+            `ALT (ALANINE AMINOTRANSFERASE)` put the four letters a patient
+            recognises first and then spent three more lines on the expansion,
+            all at the same weight, inside brackets. Two lines instead: the
+            abbreviation as the eyebrow, the expansion under it at the same
+            12px floor, no uppercase and no tracking, so it reads as a gloss
+            rather than as a second label competing with the first.
+            Where a name has no abbreviation — which is most of them, and every
+            one of the 207 foods — `splitMarkerName` returns the whole name and
+            nothing is invented. */}
+        <p className="eyebrow text-balance leading-snug">{name.primary}</p>
+        {name.expansion && (
+          // NOT `.sublabel`: that class is the label half of a pair inside an
+          // explanation card, and this is a gloss on a heading. 12px is the
+          // floor of the scale and /80 the floor of the opacity ladder, which
+          // is as quiet as anything in this product is allowed to be.
+          <p className="mt-1 text-xs leading-snug text-espresso/80">{name.expansion}</p>
+        )}
 
         {/* A textual result has no position on a numeric scale, and a result
             with no status was never placed on one — the bar would be a guess
@@ -199,53 +244,36 @@ export function MarkerResultCard({
             place of the range, and no tint is applied to the card at all. */}
         {status !== null && <StatusBadge status={status} className="mt-2.5" />}
 
-        {/* The lab's range and the optimal band are two different things and
-            are labelled as two different things. Only the first decides the
-            status above it.
-            A qualitative result ("Not detected") has no numeric range behind
-            it, and the row for one used to read "Lab reference range 0–0" —
-            a half-populated row saying something false. Where there is no
-            range, the line is simply absent.
-            The range is also only shown where it was actually applied. A result
-            with no status was not compared against it, so printing the range
-            beside the value would invite the reader to do the comparison
-            themselves — which is the thing nobody could do. */}
-        {status !== null && hasRange && (
-          <p className="mt-2.5 text-xs leading-snug text-espresso/80">
-            Lab reference range{' '}
-            {/* Formatted, never interpolated raw — a converted range has no
-                rounding of its own. See the same line in MarkerDetailPage. */}
-            <span className="numeric">{formatReferenceRange(m.referenceLow, m.referenceHigh, m.unit)}</span>
-          </p>
-        )}
+        {/* "LAB REFERENCE RANGE …" IS GONE (Aug 2026) — the bar two elements
+            up draws that range, ticks both its bounds and prints the scale.
+            What replaces it is nothing at all, because there was nothing left
+            to say.
+
+            The no-status line STAYS and is not the same kind of thing: it says
+            the result was never compared to a range, which is the one case
+            where the bar is absent and its absence needs a sentence. */}
         {status === null && <p className="mt-2.5 text-xs leading-snug text-espresso/80">{NO_STATUS_LABEL}</p>}
-        {m.optimal && (
-          <p className="tabular mt-1 text-xs leading-snug text-espresso/80">
-            {optimalRangeLabel(m.optimal)}
-            {optimalStatusLabel(m.optimal) && <span> · {optimalStatusLabel(m.optimal)!.toLowerCase()}</span>}
-          </p>
+
+        {/* OPTIMAL: THE VERDICT ONLY, AND ONLY WHEN IT IS "OUTSIDE".
+            "Optimal below 5.0 mmol/L · outside optimal" was the band's figures
+            and the answer; a card needs the answer. Within optimal is the
+            ordinary case and gets no line — the marker page carries the band
+            and its source for anybody who wants them. */}
+        {m.optimal?.within === false && (
+          <p className="mt-1 text-xs leading-snug text-espresso/80">Outside optimal</p>
         )}
 
-        {/* Panel, date and count — one per line, the date always on its own.
-            Top-aligned, deliberately, and NOT pushed to the card's floor with
-            mt-auto. Grid rows are as tall as their tallest card, and a marker
-            whose name runs to three lines sets that height for everything
-            beside it — so a floored block opened a hole in the middle of every
-            shorter card in the row, which is the same complaint about empty
-            space these cards were reshaped to answer. Slack at the bottom of a
+        {/* Package and date. Top-aligned, deliberately, and NOT pushed to the
+            card's floor with mt-auto. Grid rows are as tall as their tallest
+            card, and a marker whose name runs to three lines sets that height
+            for everything beside it — so a floored block opened a hole in the
+            middle of every shorter card in the row. Slack at the bottom of a
             short card reads as nothing at all. */}
         {meta && (
           <div className="mt-4 flex flex-col gap-0.5 text-xs leading-snug text-espresso/80">
-            {meta.panelName && <span>{meta.panelName}</span>}
+            {/* "Package:" is prose and is not mono; the date is data and is. */}
+            {meta.panelName && <span>Package: {meta.panelName}</span>}
             {meta.sampleDate && <span className="numeric">{meta.sampleDate}</span>}
-            {/* The NUMBER is mono, the noun beside it is not — mono is for
-                numeric data, and "results" is a word. Same for the amendment
-                line: the date is data, "Amended" is prose. */}
-            {meta.resultCount !== undefined && meta.resultCount > 1 && (
-              <span>
-                <span className="numeric">{meta.resultCount}</span> results
-              </span>
-            )}
             {meta.amendedDate && (
               <span>
                 Amended <span className="numeric">{meta.amendedDate}</span>
@@ -254,7 +282,6 @@ export function MarkerResultCard({
           </div>
         )}
 
-        {note && <p className="mt-3 line-clamp-2 text-xs leading-relaxed text-espresso/90">{note}</p>}
         {footer && <div className="mt-3">{footer}</div>}
       </Card>
     </Link>

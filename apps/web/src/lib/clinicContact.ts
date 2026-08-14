@@ -14,7 +14,15 @@ export const CLINIC_PHONE: string | null = import.meta.env.VITE_CLINIC_PHONE?.tr
 
 export const CLINIC_EMAIL = 'clinical-team@aspireshield.com';
 
-export const CLINIC_ADDRESS = '27 Mortimer Street, London';
+/**
+ * CORRECTED Aug 2026: it was "27 Mortimer Street, London", with no postcode.
+ * The practice is at 29-35 and the postcode is W1T 3JG. A postcode is not
+ * decoration on a clinic address — it is what a patient types into a map and
+ * what a courier delivers a sample against — so it goes wherever the address
+ * renders. Hyphen rather than an en dash: a street number range is a compound,
+ * and the en dash in this product belongs to a numeric RANGE (3.9–5.1).
+ */
+export const CLINIC_ADDRESS = '29-35 Mortimer Street, London, W1T 3JG';
 
 /** `tel:` needs the number stripped of spacing to dial reliably on mobile. */
 export const CLINIC_PHONE_HREF = CLINIC_PHONE ? `tel:${CLINIC_PHONE.replace(/[^\d+]/g, '')}` : null;

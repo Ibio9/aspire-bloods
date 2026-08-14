@@ -610,18 +610,28 @@ export function ReportDetailPage() {
           Nothing about who may do what has changed. The conditions are the same
           conditions, in the same order; only the weight moved. */}
       <div className="mt-8 flex flex-wrap items-center gap-3">
-        {/* Publish is the ADMIN shortcut past the gate and stays available where
-            it always was — but it only LEADS on a report that has been reviewed,
-            which is the one state where publishing is the step. */}
-        {user?.role === 'ADMIN' && rows.length > 0 && !report.voidedAt && (
-          <Button
-            variant={report.status === 'CLINICIAN_REVIEWED' ? 'primary' : 'secondary'}
-            onClick={() => setPublishOpen(true)}
-            disabled={parsing || busy}
-          >
-            Publish
-          </Button>
-        )}
+        {/* ── "PUBLISH" AND "RELEASE TO PATIENT" WERE THE SAME ROW (Aug 2026)
+            Two filled buttons, side by side, on a reviewed report: one said
+            "Publish" and one said "Release to patient", and nothing on the
+            screen said which was which. They are not the same act — this one is
+            the ADMIN shortcut PAST the clinician gate — and on a reviewed
+            report they were, at which point the console was offering the same
+            outcome twice under two names.
+
+            Two changes, and the second is the important one:
+              · It is HIDDEN once a clinician has reviewed the report. There is
+                nothing left to skip, and "Release to patient" below is the step.
+              · Where it does appear it SAYS what makes it different. "Publish"
+                is a verb that describes both buttons; "Release without
+                clinician review" describes exactly one. */}
+        {user?.role === 'ADMIN' &&
+          rows.length > 0 &&
+          !report.voidedAt &&
+          report.status !== 'CLINICIAN_REVIEWED' && (
+            <Button variant="secondary" onClick={() => setPublishOpen(true)} disabled={parsing || busy}>
+              Release without clinician review
+            </Button>
+          )}
 
         {/* Only where there is a document. A manually-entered report has no
             source PDF, and both of these used to be offered on one anyway:
@@ -635,7 +645,9 @@ export function ReportDetailPage() {
 
         {user?.role === 'ADMIN' && report.originalPdfFileId && !report.voidedAt && PARSEABLE.includes(report.status) && (
           <Button variant="secondary" onClick={handleParse} loading={parsing}>
-            {rows.length > 0 ? 'Parse again' : 'Parse PDF'}
+            {/* "Parse" is what the code calls it. A clinician who has never
+                seen this screen is being asked whether to parse something. */}
+            {rows.length > 0 ? 'Read the PDF again' : 'Read results from the PDF'}
           </Button>
         )}
 
@@ -646,8 +658,12 @@ export function ReportDetailPage() {
             and then 409s is a worse way to say so. */}
         {canActAsClinician && report.status === 'PARSED' && (
           <>
+            {/* "Approve" reads as "release it", and it is not: it moves the
+                report to CLINICIAN_REVIEWED and the patient still sees nothing
+                until somebody presses Release. The label says which of the two
+                this is, and pairs with the button that appears next. */}
             <Button onClick={() => handleReview(true)} loading={busy} disabled={held && !acknowledged}>
-              {held ? 'Approve anyway' : 'Approve'}
+              {held ? 'Mark as reviewed anyway' : 'Mark as reviewed'}
             </Button>
             <Button variant="secondary" onClick={() => handleReview(false)} disabled={busy}>
               Request changes
@@ -893,7 +909,7 @@ export function ReportDetailPage() {
       <Modal
         open={publishOpen}
         onClose={() => setPublishOpen(false)}
-        title="Publish this report?"
+        title="Release this report without a clinician review?"
         footer={
           <>
             <Button
@@ -907,7 +923,7 @@ export function ReportDetailPage() {
               Review first
             </Button>
             <Button variant="primary" loading={publishing} disabled={!publishable} onClick={handlePublish}>
-              {publishing ? 'Publishing…' : 'Publish now'}
+              {publishing ? 'Releasing…' : 'Release without review'}
             </Button>
           </>
         }

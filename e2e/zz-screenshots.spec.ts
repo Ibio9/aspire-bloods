@@ -139,7 +139,7 @@ test.describe('screenshots', () => {
       const routes: { name: string; path: string }[] = [
         { name: 'overview', path: '/overview' },
         { name: 'results-by-marker', path: '/results' },
-        { name: 'results-by-report', path: '/results?view=by-report' },
+        { name: 'results-by-test', path: '/results?view=by-test' },
         { name: 'results-compare', path: `/results?view=compare&markers=${plottable.slice(0, 3).map((m) => m.markerId).join(',')}` },
         { name: 'report', path: `/reports/${biggest.reportId}` },
         { name: 'marker-detail', path: `/markers/${plottable[0].markerId}` },
@@ -186,15 +186,24 @@ test.describe('screenshots', () => {
        * walk must never photograph, since by construction every path in the
        * list is meant to be real.
        *
-       * `/` and `/admin/queue` are added for the opposite reason: they are the
-       * two screens a clinician actually lands on, and neither was ever walked.
-       * `/` is the console (HomeRouter sends an admin to AdminDashboard);
-       * `/admin` is the reports list.
+       * `/` is the screen a clinician actually lands on and was never walked.
+       *
+       * ── AND IT IS THE WORK QUEUE NOW (Aug 2026) ──────────────────────────
+       *
+       * The console screen was merged into the work queue, so `/` and
+       * `/admin/queue` used to photograph two different screens and now
+       * photograph the same one — `/admin/queue` redirects. It is dropped
+       * rather than kept as a duplicate: a walk whose job is "so a person can
+       * look at them" is worth nothing on two names for one picture, which is
+       * the same argument that removed the three 404s above.
+       *
+       * `/admin/analytics` is added: it is a new screen and it is the one a
+       * practice owner opens.
        */
       const routes = [
-        { name: 'console', path: '/' },
-        { name: 'queue', path: '/admin/queue' },
+        { name: 'queue', path: '/' },
         { name: 'reports', path: '/admin' },
+        { name: 'analytics', path: '/admin/analytics' },
         { name: 'patients', path: '/admin/patients' },
         { name: 'panels', path: '/admin/panels' },
         { name: 'markers', path: '/admin/markers' },

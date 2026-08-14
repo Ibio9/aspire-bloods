@@ -262,7 +262,7 @@ export function ReportDetailView({
               <div className={MARKER_GRID_CLASS}>
                 {g.markers.map((m, i) => (
                   <Reveal key={m.markerId} delay={staggerDelay(i, 30)} className="h-full">
-                    <MarkerResultCard marker={m} navState={navState} note={m.gloss} meta={cardMeta(m)} />
+                    <MarkerResultCard marker={m} navState={navState} meta={cardMeta(m)} />
                   </Reveal>
                 ))}
               </div>
@@ -273,7 +273,7 @@ export function ReportDetailView({
         <div className={`mt-6 ${MARKER_GRID_CLASS}`}>
           {visible.map((m, i) => (
             <Reveal key={m.markerId} delay={staggerDelay(i, 30)} className="h-full">
-              <MarkerResultCard marker={m} navState={navState} note={m.gloss} meta={cardMeta(m)} />
+              <MarkerResultCard marker={m} navState={navState} meta={cardMeta(m)} />
             </Reveal>
           ))}
         </div>

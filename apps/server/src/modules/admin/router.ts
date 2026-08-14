@@ -32,6 +32,7 @@ import {
 } from './linkingService.js';
 import { runDemoSeed } from './demoSeedService.js';
 import { getWorkQueue } from './workQueueService.js';
+import { analyticsToCsv, getPracticeAnalytics } from './analyticsService.js';
 
 export const adminRouter = Router();
 
@@ -513,6 +514,90 @@ adminRouter.get(
       metadata: { view: 'work_queue', reportCount: queue.reports.length },
     });
     res.json(queue);
+  }),
+);
+
+/**
+ * ── PRACTICE ANALYTICS (Aug 2026) ──────────────────────────────────────────
+ *
+ * AGGREGATE ONLY. No row this returns names a patient or carries a value, and
+ * small cells are suppressed before they leave the service — see
+ * `SUPPRESS_BELOW` in analyticsService.ts.
+ *
+ * AND IT IS STILL AUDITED. "Every admin view of patient data is audited" is a
+ * rule about the ACT of looking, not about the shape of what comes back: a
+ * screen saying which markers most often come back out of range is derived
+ * entirely from patients' results, and the practice is accountable for who read
+ * it. `ANALYTICS_VIEWED` rather than `PATIENT_DATA_VIEWED`, because the entry
+ * has to say which of the two happened — an audit log where reading one
+ * patient's file and reading a rate per thousand look identical is a log that
+ * cannot answer the question it exists for.
+ *
+ * The window is a query parameter with a documented default and a hard cap: an
+ * unbounded `days` is a request to scan every report the practice has ever
+ * taken, from an unauthenticated-by-content query string.
+ */
+const analyticsWindowSchema = z.object({
+  days: z.coerce.number().int().min(7).max(1095).default(90),
+});
+
+adminRouter.get(
+  '/analytics',
+  asyncHandler(async (req, res) => {
+    const parsed = analyticsWindowSchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ message: 'The analytics window must be a whole number of days between 7 and 1095.' });
+      return;
+    }
+    const analytics = await getPracticeAnalytics(parsed.data.days);
+    await recordAuditLog({
+      actorUserId: req.user!.id,
+      action: 'ANALYTICS_VIEWED',
+      targetType: 'Report',
+      ipAddress: req.ip ?? null,
+      metadata: { view: 'practice_analytics', windowDays: parsed.data.days, format: 'json' },
+    });
+    res.json(analytics);
+  }),
+);
+
+/**
+ * THE SAME NUMBERS, AS A FILE. Rendered from ONE call to the same service, so
+ * the spreadsheet cannot disagree with the screen — see `analyticsToCsv`.
+ *
+ * Audited separately from the JSON view, and the metadata says which: a
+ * download leaves the building and a page view does not, and "who exported the
+ * practice's figures" is a different question from "who looked at them".
+ */
+adminRouter.get(
+  '/analytics.csv',
+  asyncHandler(async (req, res) => {
+    const parsed = analyticsWindowSchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ message: 'The analytics window must be a whole number of days between 7 and 1095.' });
+      return;
+    }
+    const analytics = await getPracticeAnalytics(parsed.data.days);
+    await recordAuditLog({
+      actorUserId: req.user!.id,
+      action: 'ANALYTICS_EXPORTED',
+      targetType: 'Report',
+      ipAddress: req.ip ?? null,
+      metadata: { view: 'practice_analytics', windowDays: parsed.data.days, format: 'csv' },
+    });
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="aspire-analytics-${analytics.window.from}-to-${analytics.window.to}.csv"`,
+    );
+    // A BOM, so Excel reads the file as UTF-8 rather than as the system
+    // codepage. Without it "Anti-Müllerian Hormone" and every en dash in the
+    // file open as mojibake, which is the one failure a spreadsheet export
+    // cannot afford: it looks like the data is wrong.
+    // Written as an ESCAPE, never as the literal character: a BOM typed into a
+    // source file is an invisible glyph that lint flags and a reviewer cannot
+    // see, which is the worst way to write down something load-bearing.
+    res.send(`\ufeff${analyticsToCsv(analytics)}`);
   }),
 );
 

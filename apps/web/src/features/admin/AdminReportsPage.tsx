@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { formatDate } from '@aspire-bloods/shared';
-import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
@@ -10,6 +9,7 @@ import { ErrorState } from '../../components/ui/ErrorState';
 import { FileDropzone } from '../../components/ui/FileDropzone';
 import { DateField } from '../../components/ui/DateField';
 import { Tabs } from '../../components/ui/Tabs';
+import { ConsolePage } from './ConsolePage';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { apiFetch, ApiError, extractErrorMessage } from '../../lib/api';
@@ -245,7 +245,7 @@ function PdfUploadForm({
           </p>
         )}
         <Button type="submit" loading={submitting} className="self-start">
-          {submitting ? 'Uploading…' : 'Upload'}
+          {submitting ? 'Uploading…' : 'Upload this PDF'}
         </Button>
       </form>
     </Card>
@@ -494,7 +494,7 @@ function ManualEntryForm({
           </p>
         )}
         <Button type="submit" loading={submitting} className="self-start">
-          {submitting ? 'Saving…' : 'Save entry'}
+          {submitting ? 'Saving…' : 'Save this report'}
         </Button>
       </form>
     </Card>
@@ -619,8 +619,10 @@ export function AdminReportsPage() {
   }
 
   return (
-    <>
-      <TwoTierHeading eyebrow="Aspire Clinic · Clinician console" title="Reports" />
+    <ConsolePage
+      title="Reports"
+      purpose="Every report the practice holds, newest first: open one to review it, release it to the patient, or correct a value. Adding a report by hand is at the foot of the page. Results from Randox arrive on their own."
+    >
 
       {/* ═══ THE LIST LEADS. ENTRY IS BELOW IT (Aug 2026) ═══════════════════
           This page opened on two full screens of data-entry form — a patient
@@ -843,6 +845,6 @@ export function AdminReportsPage() {
           />
         </div>
       </details>
-    </>
+    </ConsolePage>
   );
 }

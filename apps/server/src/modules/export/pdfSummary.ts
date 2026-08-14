@@ -2,7 +2,13 @@ import { prisma } from '../../db/client.js';
 import { renderPdf } from '../../lib/pdfRender.js';
 import { decryptField } from '../../lib/crypto.js';
 import { decodeResultValue } from '../../lib/resultValue.js';
-import { formatDate, formatReportTitle, hasResultValue, NO_STATUS_LABEL } from '@aspire-bloods/shared';
+import {
+  formatDate,
+  formatReferenceRange,
+  formatReportTitle,
+  hasResultValue,
+  NO_STATUS_LABEL,
+} from '@aspire-bloods/shared';
 import { getClinicContact } from '../content/clinicContact.js';
 import { listAllMarkersForPatient } from '../patients/portalService.js';
 
@@ -209,15 +215,28 @@ export async function generateAspireSummaryPdf(reportId: string): Promise<Buffer
     // before drawing it, break when it would cross the bottom margin, and
     // re-draw the column header on every new page so no page of results is
     // ever unlabelled.
-    const colX = [56, 250, 320, 400, 470];
-    const colWidth = [190, 66, 76, 66, 90];
+    /**
+     * ── RANGE, THEN RESULT, THEN STATUS (Aug 2026) ───────────────────────────
+     *
+     * It was MARKER · RESULT · UNIT · RANGE · STATUS in both documents. The
+     * order is now the comparison a reader is actually making: the range this
+     * was measured against, then the result, then what the two came to. The
+     * unit stays beside the result, because it is a property of that number
+     * rather than a column anybody scans.
+     *
+     * The x offsets are recomputed rather than permuted — the widths differ per
+     * column and moving the labels over the old offsets would print each header
+     * over its neighbour's cells. Right edge unchanged at 560.
+     */
+    const colX = [56, 250, 330, 400, 470];
+    const colWidth = [190, 76, 66, 66, 90];
     const ROW_GAP = 6;
     const bottomLimit = doc.page.height - doc.page.margins.bottom - 24;
 
     function drawTableHeader() {
       const y = doc.y;
       use(doc, 'bodyBold', 8).fillColor(ESPRESSO);
-      for (const [i, label] of ['MARKER', 'RESULT', 'UNIT', 'RANGE', 'STATUS'].entries()) {
+      for (const [i, label] of ['MARKER', 'RANGE', 'RESULT', 'UNIT', 'STATUS'].entries()) {
         doc.text(label, colX[i], y, { width: colWidth[i], characterSpacing: 0.8 });
       }
       const lineY = y + 13;
@@ -238,11 +257,18 @@ export async function generateAspireSummaryPdf(reportId: string): Promise<Buffer
     for (const { r, decoded } of rows) {
       const cells = [
         r.marker.name,
+        // THROUGH `formatReferenceRange`, NOT INTERPOLATED (fixed Aug 2026).
+        // This was `${low}–${high}`, which is the one thing CLAUDE.md says every
+        // reference range that reaches a screen or a PDF must not be: an eGFR
+        // whose catalogue ceiling is the OPEN_UPPER_BOUND sentinel printed as
+        // "60–999" in a document a patient keeps, and a converted range printed
+        // as "3.884960761896305–5.494444506110488". The formatter sets an
+        // open-topped range in words and rounds a converted one.
+        formatReferenceRange(r.referenceRange.low, r.referenceRange.high),
         // Numeric or textual ("< 0.6") — decodeResultValue has already separated
         // the two and rejected the placeholders that are neither.
         decoded.valueText ?? String(decoded.value),
         r.unit,
-        `${r.referenceRange.low}–${r.referenceRange.high}`,
         r.status === null ? NO_STATUS_LABEL : (STATUS_LABEL[r.status] ?? r.status),
       ];
       // Tallest cell decides the row height — a long marker name wraps to two
@@ -401,8 +427,10 @@ export async function generateAllMarkersPdf(patientId: string): Promise<Buffer> 
     );
     doc.moveDown(1);
 
-    const colX = [56, 236, 300, 366, 432];
-    const colWidth = [176, 60, 62, 62, 107];
+    // Range, then result, then status — the same order as the table above and
+    // as the GP handover. See the note there.
+    const colX = [56, 236, 302, 366, 432];
+    const colWidth = [176, 62, 60, 62, 107];
     // Marker, then three numeric columns, then the status word.
     const cellFont: FontRole[] = ['body', 'mono', 'mono', 'mono', 'body'];
     const ROW_GAP = 6;
@@ -410,7 +438,7 @@ export async function generateAllMarkersPdf(patientId: string): Promise<Buffer> 
     function drawTableHeader() {
       const y = doc.y;
       use(doc, 'bodyBold', 8).fillColor(ESPRESSO);
-      for (const [i, label] of ['MARKER', 'RESULT', 'RANGE', 'SAMPLED', 'STATUS'].entries()) {
+      for (const [i, label] of ['MARKER', 'RANGE', 'RESULT', 'SAMPLED', 'STATUS'].entries()) {
         doc.text(label, colX[i], y, { width: colWidth[i], characterSpacing: 0.8 });
       }
       const lineY = y + 13;
@@ -427,8 +455,9 @@ export async function generateAllMarkersPdf(patientId: string): Promise<Buffer> 
       const hasRange = m.status !== null && m.referenceHigh > m.referenceLow;
       const cells = [
         m.name,
+        // Formatted, never interpolated — see the same fix in the table above.
+        hasRange ? formatReferenceRange(m.referenceLow, m.referenceHigh) : '',
         `${m.valueText ?? m.value ?? ''}${m.unit ? ` ${m.unit}` : ''}`.trim(),
-        hasRange ? `${m.referenceLow}–${m.referenceHigh}` : '',
         formatDate(m.sampleDate),
         m.status === null ? NO_STATUS_LABEL : (STATUS_LABEL[m.status] ?? m.status),
       ];

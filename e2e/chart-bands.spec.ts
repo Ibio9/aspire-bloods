@@ -4,40 +4,51 @@ import { test, expect, type APIRequestContext, type BrowserContext, type Page } 
 
 /**
  * ---------------------------------------------------------------------------
- * NO CHART BAND IS EVER A SLIVER.
+ * THE TREND CHART'S GEOMETRY, MEASURED — AND THE BANDS ARE GONE (Aug 2026).
  * ---------------------------------------------------------------------------
  *
- * The trend chart used to draw one band set PER RESULT, running from that
- * result's x to the next one's — and the LAST one from its own x to tMax,
- * which is the padding gutter. So a marker whose reference range changed on
- * the most recent result had the new range drawn as a 24px vertical strip
- * against a 510px plot, stacked beside the final point, with nothing on screen
- * saying the range had changed. Measured, on the demo data's Fasting Insulin
- * (2–25, 2–25, then 2–10): segment widths 235, 187, 24.
+ * WHAT THIS FILE USED TO MEASURE AND WHY IT STILL EXISTS.
  *
- * Two bands overlapping, or one of them 5% of the plot wide, is a fact you
- * MEASURE — it is not something anybody reliably notices in a screenshot,
- * which is how it survived. Same reasoning as previous-results-layout.spec.ts.
+ * The chart drew five filled status bands per reference-range period, and this
+ * file measured their rectangles: one range meant one full-width band set, a
+ * changed range meant one set per period, and no set was ever a sliver. That
+ * last one was a real defect — a marker whose range changed on the most recent
+ * result had the new range drawn as a 24px strip against a 510px plot
+ * (measured: 235, 187, 24) with nothing on screen saying the range had moved.
  *
- * What is asserted:
+ * THE BANDS HAVE BEEN REMOVED. The chart is a line, four boundary rules and an
+ * axis, drawn on the card. So the RECTANGLES this file measured no longer
+ * exist — and every property they protected still does, because the periods are
+ * still periods and the rules are still drawn per period. The measurement moved
+ * from the rects to the RULES rather than being deleted:
  *
- *  1. A series on ONE reference range gets ONE band set, spanning the whole
- *     plot. Not N abutting copies of the same geometry.
- *  2. A series whose range CHANGES gets one band set per period, each a
- *     substantial share of the plot, with the step drawn as a dashed rule.
- *  3. The chart SAYS the range changed, in words, and names it in the key.
- *  4. In neither case is any band narrower than a tenth of the plot.
+ *   · one range  → one x-extent, spanning the plot
+ *   · a change   → one x-extent per period, none of them a sliver
+ *   · the step   → a dashed vertical at exactly the boundary between them
+ *   · the words  → the sentence and the key entry
  *
- * THE STEPPED SERIES IS BUILT BY THIS FILE (Aug 2026). It used to be found —
- * whichever demo marker happened to have drifted — and the demo deliberately
- * has none now: one reference range per marker for the whole of a patient's
- * history, because a step drawn over a change that never happened is noise in
- * the artefact used to show the product. `buildSteppedSeries` publishes two
- * reports with two ranges on one marker, so the numbers being measured are
- * written down rather than inherited. The derivation underneath is unit-tested
- * from fixtures too (apps/server/tests/referenceRangePeriods.test.ts); this
- * file is the half of it that has to happen in a browser, because two boxes
- * overlapping and a 1px band edge out of place are facts you measure.
+ * AND THREE THINGS ARE ASSERTED THAT COULD NOT BE BEFORE, because they are the
+ * new evidence:
+ *
+ *   5. NOTHING IS FILLED. Zero band rects, zero optimal regions, zero plot
+ *      panel — "no filled regions of any kind" is the instruction, and it is
+ *      the one property a screenshot review is worst at checking.
+ *   6. THE LINE CARRIES THE STATUS ALONG ITS LENGTH, as a gradient with a stop
+ *      per point in that point's own status colour.
+ *   7. EVERY BOUNDARY IS LABELLED WITH ITS VALUE, and a reference bound is
+ *      told from a significantly-out threshold by a solid lead rule against a
+ *      dashed one — not by colour.
+ *
+ * Two boxes overlapping, a 1px rule out of place and a gradient with one stop
+ * are all facts you MEASURE. Same reasoning as previous-results-layout.spec.ts.
+ *
+ * THE STEPPED SERIES IS BUILT BY THIS FILE. It used to be found — whichever
+ * demo marker happened to have drifted — and the demo deliberately has none
+ * now. `buildSteppedSeries` publishes two reports with two ranges on one
+ * marker, so the numbers being measured are written down rather than inherited.
+ * The derivation underneath is unit-tested from fixtures too
+ * (apps/server/tests/referenceRangePeriods.test.ts); this file is the half that
+ * has to happen in a browser.
  *
  * Requires EXPOSE_DEV_OTP_CODE=true and the dev seed's demo and admin accounts.
  */
@@ -45,7 +56,7 @@ import { test, expect, type APIRequestContext, type BrowserContext, type Page } 
 const DEMO_EMAIL = process.env.SEED_DEMO_EMAIL ?? 'demo.showcase@aspireshield.dev';
 const DEMO_PASSWORD = process.env.SEED_DEMO_PASSWORD ?? 'DemoShowcase123!';
 
-/** No band may be narrower than this share of the plot area. */
+/** No period may be narrower than this share of the plot area. */
 const MIN_BAND_SHARE = 0.1;
 
 async function signIn(request: APIRequestContext) {
@@ -59,51 +70,55 @@ async function signIn(request: APIRequestContext) {
   expect(otp.ok()).toBeTruthy();
 }
 
-interface BandGeometry {
+interface ChartGeometry {
   plotWidth: number;
-  /** One entry per distinct x-extent, i.e. one per band period. */
-  periods: { x: number; width: number; bands: number }[];
+  /** One entry per distinct x-extent — i.e. one per reference-range period. */
+  periods: { x: number; width: number; rules: number }[];
   narrowest: number;
   stepRules: number;
-  /** Every dashed vertical rule: its x, and the y range it spans. */
+  /** Every dashed VERTICAL rule: its x, and the y range it spans. */
   steps: { x: number; y1: number; y2: number; width: number; opacity: number; dash: string }[];
-  /** The horizontal band-boundary hairlines, as x extents. */
-  hairlines: { x1: number; x2: number }[];
+  /** The horizontal boundary rules, as x extents plus whether they are dashed. */
+  boundaries: { x1: number; x2: number; dashed: boolean }[];
   /** The plot area itself, for "does the rule run its full height". */
   plot: { x: number; y: number; width: number; height: number };
-  /** The inline reference-bound labels — mono numerals drawn beside a boundary. */
-  boundLabels: { text: string; x: number }[];
+  /** The axis-side boundary labels: the value, its x, and which kind it is. */
+  boundLabels: { text: string; x: number; kind: string }[];
+  /** Anything FILLED. Must be empty — see property 5. */
+  filledRegions: number;
+  /** The trend line's own gradient: one stop per point, in that point's status colour. */
+  lineStops: string[];
+  /** The line's stroke width, which went to 5 when the bands went. */
+  lineWidth: number;
 }
 
-async function bandGeometry(page: Page): Promise<BandGeometry> {
+async function chartGeometry(page: Page): Promise<ChartGeometry> {
   return page.evaluate(() => {
     const svg = document.querySelector('.recharts-surface') as SVGSVGElement;
-    const areas = [...svg.querySelectorAll('.recharts-reference-area-rect')] as SVGRectElement[];
-    // The status bands are the tall ones; the boundary hairlines are drawn as
-    // very thin bands of the same kind and are excluded by height.
-    const bands = areas
-      .map((r) => ({
-        x: Math.round(Number(r.getAttribute('x'))),
-        width: Math.round(Number(r.getAttribute('width'))),
-        height: Math.round(Number(r.getAttribute('height'))),
-      }))
-      .filter((r) => r.height > 8);
+    const lines = [...svg.querySelectorAll('.recharts-reference-line line')] as SVGLineElement[];
+    const num = (el: SVGLineElement, a: string) => Number(el.getAttribute(a));
 
-    const byExtent = new Map<string, { x: number; width: number; bands: number }>();
-    for (const band of bands) {
-      const key = `${band.x}:${band.width}`;
-      const entry = byExtent.get(key) ?? { x: band.x, width: band.width, bands: 0 };
-      entry.bands += 1;
+    /**
+     * THE PERIODS COME OFF THE BOUNDARY RULES NOW, not off band rects.
+     *
+     * Every rule in a period is drawn to that period's own x1/x2 (see
+     * `bandSegments` in TrendChart), so grouping the horizontal rules by exact
+     * extent gives exactly what grouping the rects used to: one entry per
+     * period, and a rule that landed anywhere of its own shows up as an extra
+     * group with a partial count.
+     */
+    const horizontal = lines.filter((l) => Math.abs(num(l, 'y1') - num(l, 'y2')) < 0.5);
+    const byExtent = new Map<string, { x: number; width: number; rules: number }>();
+    for (const l of horizontal) {
+      const x = Math.round(Math.min(num(l, 'x1'), num(l, 'x2')));
+      const width = Math.round(Math.abs(num(l, 'x2') - num(l, 'x1')));
+      const key = `${x}:${width}`;
+      const entry = byExtent.get(key) ?? { x, width, rules: 0 };
+      entry.rules += 1;
       byExtent.set(key, entry);
     }
     const periods = [...byExtent.values()].sort((a, b) => a.x - b.x);
-    const plotWidth = periods.reduce((total, p) => total + p.width, 0);
 
-    const lines = [...svg.querySelectorAll('.recharts-reference-line line')] as SVGLineElement[];
-    const num = (el: SVGLineElement, a: string) => Number(el.getAttribute(a));
-    // Vertical and dashed: the step. Horizontal: a band boundary. The optimal
-    // band's own dashed edges are horizontal, so the orientation test separates
-    // them from the step without depending on the dash pattern.
     const steps = lines
       .filter((l) => Math.abs(num(l, 'x1') - num(l, 'x2')) < 0.5 && (l.getAttribute('stroke-dasharray') ?? '') !== '')
       .map((l) => ({
@@ -114,15 +129,15 @@ async function bandGeometry(page: Page): Promise<BandGeometry> {
         opacity: Number(l.getAttribute('stroke-opacity')),
         dash: l.getAttribute('stroke-dasharray') ?? '',
       }));
-    const hairlines = lines
-      .filter((l) => Math.abs(num(l, 'y1') - num(l, 'y2')) < 0.5)
-      .map((l) => ({
-        x1: Math.round(Math.min(num(l, 'x1'), num(l, 'x2'))),
-        x2: Math.round(Math.max(num(l, 'x1'), num(l, 'x2'))),
-      }));
+
+    const boundaries = horizontal.map((l) => ({
+      x1: Math.round(Math.min(num(l, 'x1'), num(l, 'x2'))),
+      x2: Math.round(Math.max(num(l, 'x1'), num(l, 'x2'))),
+      dashed: (l.getAttribute('stroke-dasharray') ?? '') !== '',
+    }));
 
     // Recharts does not expose the plot rect in the DOM, so it is taken from the
-    // x-axis ticks' own extent plus the axis line.
+    // x-axis line's own extent.
     const axis = svg.querySelector('.recharts-xAxis .recharts-cartesian-axis-line') as SVGLineElement | null;
     const plot = {
       x: axis ? Math.round(num(axis, 'x1')) : 0,
@@ -131,22 +146,54 @@ async function bandGeometry(page: Page): Promise<BandGeometry> {
       height: axis ? Math.round(num(axis, 'y1')) : 0,
     };
 
-    // The inline bound labels are the only mono <text> nodes outside the axes.
-    const boundLabels = ([...svg.querySelectorAll('text')] as SVGTextElement[])
-      .filter((t) => !t.closest('.recharts-cartesian-axis'))
-      .filter((t) => (t.getAttribute('font-family') ?? '').includes('mono'))
-      .map((t) => ({ text: t.textContent ?? '', x: Math.round(Number(t.getAttribute('x'))) }));
+    /**
+     * ANYTHING FILLED. `ReferenceArea` is how a band was drawn, `<rect>` is how
+     * the plot panel and the optimal narrowing were, and the count of all of
+     * them has to be zero. Counted rather than asserted-absent by selector so a
+     * failure says HOW MANY came back.
+     */
+    const filledRegions =
+      svg.querySelectorAll('.recharts-reference-area-rect').length +
+      [...svg.querySelectorAll('rect')]
+        // A rect inside <defs> or a <clipPath> is a DEFINITION and is never
+        // painted — Recharts emits exactly one, its plot clip.
+        .filter((r) => !r.closest('defs') && !r.closest('clipPath'))
+        .filter((r) => {
+          const fill = r.getAttribute('fill') ?? '';
+          // Recharts draws its own transparent hit-target rects; a fill of
+          // none or transparent is not a filled region.
+          return fill !== '' && fill !== 'none' && fill !== 'transparent';
+        }).length;
+
+    // The line's gradient — one stop per point, plus the two end stops and any
+    // boundary-crossing hinges.
+    const gradient = svg.querySelector('linearGradient[id^="status-line-"]');
+    const lineStops = gradient
+      ? [...gradient.querySelectorAll('stop')].map((st) => st.getAttribute('stop-color') ?? '')
+      : [];
+    const curve = svg.querySelector('.recharts-line-curve') as SVGPathElement | null;
+
+    const boundLabels = ([...svg.querySelectorAll('g[data-boundary-label]')] as SVGGElement[]).map((g) => {
+      const text = g.querySelector('text');
+      return {
+        text: text?.textContent ?? '',
+        x: Math.round(Number(text?.getAttribute('x') ?? 0)),
+        kind: g.getAttribute('data-boundary-label') ?? '',
+      };
+    });
 
     return {
-      plotWidth,
+      plotWidth: periods.reduce((total, p) => total + p.width, 0),
       periods,
-      narrowest: Math.min(...periods.map((p) => p.width)),
-      // The dashed vertical rules marking where the range changed.
+      narrowest: periods.length > 0 ? Math.min(...periods.map((p) => p.width)) : 0,
       stepRules: steps.length,
       steps,
-      hairlines,
+      boundaries,
       plot,
       boundLabels,
+      filledRegions,
+      lineStops,
+      lineWidth: curve ? Number(curve.getAttribute('stroke-width')) : 0,
     };
   });
 }
@@ -294,7 +341,7 @@ async function findTrends(ctx: { request: APIRequestContext }) {
   return { stable, changing };
 }
 
-test('a series on one reference range gets one full-width band set', async ({ browser }) => {
+test('a series on one reference range gets one full-width set of boundary rules', async ({ browser }) => {
   test.setTimeout(180_000);
   const ctx = await browser.newContext();
   await signIn(ctx.request);
@@ -309,12 +356,63 @@ test('a series on one reference range gets one full-width band set', async ({ br
     await page.getByText('Trend over time').waitFor({ timeout: 30_000 });
     await page.waitForTimeout(900);
 
-    const geometry = await bandGeometry(page);
-    expect(geometry.periods.length, `${marker.name}: one range means one band period`).toBe(1);
-    expect(geometry.periods[0].bands, `${marker.name}: the five status bands`).toBeGreaterThanOrEqual(3);
+    const geometry = await chartGeometry(page);
+    expect(geometry.periods.length, `${marker.name}: one range means one extent`).toBe(1);
+    // FOUR RULES: two reference bounds and two significantly-out thresholds.
+    // A marker whose thresholds fall outside the y domain draws fewer, so this
+    // is a floor rather than an equality — but both BOUNDS are always in view,
+    // because the domain is built to contain the reference range.
+    expect(geometry.periods[0].rules, `${marker.name}: the boundary rules`).toBeGreaterThanOrEqual(2);
     // Nothing to step over, so nothing says a range changed.
     expect(geometry.stepRules, `${marker.name}: no step rule on a stable range`).toBe(0);
     await expect(page.getByText('The lab’s reference range changed during this period')).toHaveCount(0);
+
+    // ── 5. NOTHING IS FILLED ───────────────────────────────────────────────
+    // The instruction is "no filled regions, no coloured background, no tinted
+    // areas of any kind". The five band rects, the optimal narrowing and the
+    // inset plot panel were all `<rect>`s with a fill, and this is the check
+    // that none of them has come back — which a screenshot review is
+    // particularly bad at, because a faint band looks like a rendering artefact.
+    expect(geometry.filledRegions, `${marker.name}: the chart draws ${geometry.filledRegions} filled regions`).toBe(0);
+
+    // ── 6. THE LINE CARRIES THE STATUS ─────────────────────────────────────
+    // With nothing behind it, the line is the only thing on the plot that says
+    // anything. A gradient with fewer than three stops is a flat line: two end
+    // stops and nothing between them.
+    expect(
+      geometry.lineStops.length,
+      `${marker.name}: the trend line's gradient has ${geometry.lineStops.length} stops`,
+    ).toBeGreaterThanOrEqual(3);
+    for (const stop of geometry.lineStops) {
+      // A BARE `var(--x)` in an SVG stop is not a colour: the browser drops it
+      // silently and the stroke renders black. That mistake is what made the
+      // whole status layer invisible once, and it is invisible in code review.
+      expect(stop, `${marker.name}: "${stop}" is not a resolved colour`).toMatch(/^(#|rgb)/);
+    }
+    expect(geometry.lineWidth, `${marker.name}: the line's weight`).toBe(5);
+
+    // ── 7. EVERY BOUNDARY IS LABELLED, AND THE TWO KINDS ARE TOLD APART ────
+    // The rules are now the only thing saying where the range is, so each
+    // carries its own value on the axis. Bounds and thresholds are
+    // distinguished by a solid lead rule against a dashed one — never by hue.
+    const kinds = new Set(geometry.boundLabels.map((l) => l.kind));
+    expect(kinds.has('bound'), `${marker.name}: the reference bounds are labelled`).toBe(true);
+    for (const label of geometry.boundLabels) {
+      // A converted range arrives with no rounding of its own and once printed
+      // 5.494444506110488 beside the plot.
+      expect(
+        label.text.length,
+        `${marker.name}: "${label.text}" is a raw float, not a reference bound`,
+      ).toBeLessThanOrEqual(7);
+    }
+    // Solid for a bound, dashed for a threshold — as drawn, not as intended.
+    const dashedCount = geometry.boundaries.filter((b) => b.dashed).length;
+    const solidCount = geometry.boundaries.filter((b) => !b.dashed).length;
+    expect(solidCount, `${marker.name}: the two reference bounds are drawn solid`).toBe(2);
+    expect(
+      dashedCount,
+      `${marker.name}: a threshold rule in view is drawn dashed (${dashedCount} of ${geometry.boundaries.length})`,
+    ).toBe(geometry.boundaries.length - 2);
   }
   await ctx.close();
 });
@@ -348,17 +446,20 @@ test('a series whose reference range changes steps, and says so', async ({ brows
   await page.getByText('Trend over time').waitFor({ timeout: 30_000 });
   await page.waitForTimeout(900);
 
-  const geometry = await bandGeometry(page);
+  const geometry = await chartGeometry(page);
 
   // Stepped: more than one period.
   expect(geometry.periods.length, `${marker.name}: a changed range is drawn as separate periods`).toBeGreaterThan(1);
 
-  // AND NONE OF THEM IS A SLIVER. This is the assertion the whole file is for.
+  // AND NONE OF THEM IS A SLIVER. This is the assertion the whole file is for,
+  // and it is unchanged by the bands' removal: the periods are still periods,
+  // and a 24px one is still the failure — it is now measured on the boundary
+  // rules, which are drawn to the same extents the rects were.
   for (const period of geometry.periods) {
     const share = period.width / geometry.plotWidth;
     expect(
       share,
-      `${marker.name}: a band period ${period.width}px wide on a ${geometry.plotWidth}px plot is a sliver`,
+      `${marker.name}: a period ${period.width}px wide on a ${geometry.plotWidth}px plot is a sliver`,
     ).toBeGreaterThan(MIN_BAND_SHARE);
   }
 
@@ -377,11 +478,11 @@ test('a series whose reference range changes steps, and says so', async ({ brows
   // rather than something anybody notices in a screenshot.
   // -------------------------------------------------------------------------
 
-  // 1. EVERY BAND STEPS TOGETHER. The periods are grouped by exact x-extent, so
-  //    one band edge landing anywhere of its own shows up as an extra period
-  //    with a partial band count. Every period carries the same number.
-  const bandCounts = [...new Set(geometry.periods.map((p) => p.bands))];
-  expect(bandCounts, `${marker.name}: the bands do not all share their period's extent`).toHaveLength(1);
+  // 1. EVERY RULE STEPS TOGETHER. The periods are grouped by exact x-extent, so
+  //    one rule landing anywhere of its own shows up as an extra period with a
+  //    partial count. Every period carries the same number.
+  const ruleCounts = [...new Set(geometry.periods.map((p) => p.rules))];
+  expect(ruleCounts, `${marker.name}: the rules do not all share their period's extent`).toHaveLength(1);
   expect(geometry.periods.length, `${marker.name}: one step rule per boundary between periods`).toBe(
     geometry.stepRules + 1,
   );
@@ -407,27 +508,27 @@ test('a series whose reference range changes steps, and says so', async ({ brows
     );
   }
 
-  // 4. THE HORIZONTAL HAIRLINES STAY IN THEIR OWN PERIOD and meet the step
-  //    cleanly. A boundary line spanning the whole plot would draw the old
-  //    range's edge across the new range's territory.
+  // 4. EVERY BOUNDARY RULE STAYS IN ITS OWN PERIOD and meets the step cleanly.
+  //    A rule spanning the whole plot would draw the old range's edge across
+  //    the new range's territory. There is no exception any more: the optimal
+  //    narrowing used to span the plot by design and has been removed with the
+  //    other filled regions, so EVERY horizontal rule must match a period.
   const extents = geometry.periods.map((p) => ({ x1: p.x, x2: p.x + p.width }));
-  for (const line of geometry.hairlines) {
+  for (const line of geometry.boundaries) {
     const fits = extents.some((e) => Math.abs(e.x1 - line.x1) <= 1 && Math.abs(e.x2 - line.x2) <= 1);
-    // The optimal band's dashed edges do span the plot, by design — they are an
-    // advisory band and not a per-period reference bound. They are excluded by
-    // matching the FULL extent rather than by their dash pattern.
-    const spansPlot = Math.abs(line.x2 - line.x1 - geometry.plot.width) <= 2;
-    expect(fits || spansPlot, `${marker.name}: a boundary hairline runs ${line.x1}–${line.x2}, which is no period`).toBe(
-      true,
-    );
+    expect(fits, `${marker.name}: a boundary rule runs ${line.x1}–${line.x2}, which is no period`).toBe(true);
   }
+
+  // 4b. AND NOTHING IS FILLED, on the stepped chart as on the stable one.
+  expect(geometry.filledRegions, `${marker.name}: the chart draws ${geometry.filledRegions} filled regions`).toBe(0);
 
   // 5. BOTH RANGES ARE LABELLED. Each period's bounds are printed at the right
   //    hand end of its own extent, so the reader can see what the range stepped
   //    FROM without going to the sentence. Two periods, two bounds each.
+  const boundOnly = geometry.boundLabels.filter((l) => l.kind === 'bound');
   expect(
-    geometry.boundLabels.length,
-    `${marker.name}: expected a bound label per period bound, got ${JSON.stringify(geometry.boundLabels)}`,
+    boundOnly.length,
+    `${marker.name}: expected a label per period bound, got ${JSON.stringify(geometry.boundLabels)}`,
   ).toBeGreaterThanOrEqual(geometry.periods.length * 2);
   // AND NONE OF THEM IS AN UNROUNDED FLOAT. A converted range arrives with no
   // rounding of its own and printed 5.494444506110488 beside the plot.

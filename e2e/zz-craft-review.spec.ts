@@ -158,7 +158,7 @@ test.describe('craft review', () => {
         const routes: [string, string, number[]?][] = [
           ['overview', '/overview', [0, 1, 2, 3]],
           ['by-marker', '/results', [0, 1, 2]],
-          ['by-report', '/results?view=by-report', [0, 1]],
+          ['by-test', '/results?view=by-test', [0, 1]],
           ['compare-empty', '/results?view=compare', [0, 1]],
           ['compare', `/results?view=compare&markers=${plottable.slice(0, 3).map((m) => m.markerId).join(',')}`, [0, 1, 2]],
           ['report', `/reports/${biggest.reportId}`, [0, 1, 2, 3]],

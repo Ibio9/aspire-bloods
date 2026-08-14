@@ -245,7 +245,7 @@ export function PatientDetailPage() {
               {profile.status === 'ACTIVE' && !profile.deactivatedAt && (
                 <>
                   <Button variant="secondary" onClick={() => setModal('reset2fa')}>
-                    Reset 2FA
+                    Reset two-factor authentication
                   </Button>
                   <Button variant="destructive" onClick={() => setModal('deactivate')}>
                     Deactivate account
@@ -374,9 +374,9 @@ export function PatientDetailPage() {
       <ConfirmModal
         open={modal === 'reset2fa'}
         onClose={() => setModal(null)}
-        title="Reset 2FA?"
+        title="Reset two-factor authentication?"
         variant="primary"
-        confirmLabel="Reset 2FA"
+        confirmLabel="Reset two-factor authentication"
         onConfirm={() =>
           runAction(async () => {
             await apiFetch(`/admin/patients/${id}/reset-2fa`, { method: 'POST' });

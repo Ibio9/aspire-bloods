@@ -16,30 +16,59 @@ import type { MarkerSort, ResultGrouping, ResultSort, StatusFilter } from '../..
  * report, underneath the report's own header. There is one bar now and it holds
  * all of it.
  */
-export type ResultsView = 'by-marker' | 'by-report' | 'compare';
+export type ResultsView = 'by-marker' | 'by-test' | 'compare';
 
 /**
  * BY MARKER IS FIRST, AND IT IS THE DEFAULT (Aug 2026).
  *
- * By report used to be both, on the reasoning that nearly every visit is
+ * By test used to be both, on the reasoning that nearly every visit is
  * somebody coming back to the panel they were just emailed about. That is true
  * of the visit AFTER a release and untrue of every visit since: the question
  * that keeps bringing people back is "how is my vitamin D doing", and nobody
- * remembers which panel vitamin D was on. By report is one press away and,
+ * remembers which panel vitamin D was on. By test is one press away and,
  * more to the point, every emailed link opens a report directly — /reports/:id
- * is its own route and pins the report view whatever this says.
+ * is its own route and pins that view whatever this says.
+ *
+ * ── IT WAS "BY REPORT" UNTIL Aug 2026 ──────────────────────────────────────
+ *
+ * A patient books a TEST and receives a report about it; "report" is the
+ * clinic's word for the artefact and "test" is the patient's word for the
+ * thing they had done. The tab is what a patient reads, so it is theirs.
  */
 export const RESULTS_VIEWS: { value: ResultsView; label: string; spoken: string }[] = [
   { value: 'by-marker', label: 'By marker', spoken: 'By marker, the default view' },
-  { value: 'by-report', label: 'By report', spoken: 'By report' },
+  { value: 'by-test', label: 'By test', spoken: 'By test' },
   { value: 'compare', label: 'Compare', spoken: 'Compare markers over time' },
 ];
 
 /** What /results shows with no ?view= on it. */
 export const DEFAULT_RESULTS_VIEW: ResultsView = 'by-marker';
 
+/**
+ * THE OLD URL TOKEN STILL RESOLVES, AND THAT IS THE WHOLE OF "DOES NOT BREAK
+ * LINKS".
+ *
+ * `?view=by-report` is in bookmarks and in at least one browser history, and
+ * `/my-results` has redirected to it since the three screens were folded into
+ * one. Renaming the value without this would have turned every one of those
+ * into "the default view" — not a 404, which is worse: a silent landing on the
+ * wrong arrangement with nothing saying why.
+ *
+ * Read-only. Nothing WRITES `by-report` any more, so the old token exists on
+ * the way in and never on the way out — follow a legacy link and the URL that
+ * ends up in the address bar is the current one.
+ */
+const LEGACY_VIEW_ALIASES: Record<string, ResultsView> = { 'by-report': 'by-test' };
+
 export function isResultsView(value: string | null): value is ResultsView {
-  return value === 'by-report' || value === 'by-marker' || value === 'compare';
+  return value === 'by-test' || value === 'by-marker' || value === 'compare';
+}
+
+/** A `?view=` value, current or legacy, as the view it names — or null. */
+export function resolveResultsView(value: string | null): ResultsView | null {
+  if (isResultsView(value)) return value;
+  if (!value) return null;
+  return LEGACY_VIEW_ALIASES[value] ?? null;
 }
 
 /** The three controls above the switch, as one object rather than three prop drills. */

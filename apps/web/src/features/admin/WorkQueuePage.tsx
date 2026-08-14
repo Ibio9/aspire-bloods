@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatDate } from '@aspire-bloods/shared';
-import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { apiFetch } from '../../lib/api';
 import { useAuth } from '../../lib/AuthContext';
 import type { QueueState } from '../../lib/reportStatus';
+import { ConsolePage } from './ConsolePage';
 
 /**
  * ===========================================================================
@@ -131,6 +132,135 @@ function formatDuration(ms: number | null): string {
  * quieter. The sort order is what actually carries urgency.
  */
 const OVERDUE_MS = 48 * 3_600_000;
+
+/**
+ * "3h ago". Moved here with the cards that used it when the console landing
+ * page was merged away (Aug 2026) — it is a relative REQUEST age, which is a
+ * different question from `formatDuration`'s "how long has this been in this
+ * state", and the two read differently on purpose.
+ */
+function timeAgo(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  const mins = Math.round(ms / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  ERASURE REQUESTS — MOVED HERE FROM THE OLD CONSOLE LANDING PAGE (Aug 2026)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// It sat on `AdminDashboard`, which has been merged into this screen. It is
+// not clinical and it is not a report, so it could have gone anywhere; it is
+// HERE because it is the same shape of thing as every other band on this page
+// — an outstanding decision with a clock running on it, that nothing else in
+// the console would ever surface. A queue is where a queue belongs.
+//
+// ADMIN only, and it renders nothing at all when there is nothing outstanding.
+
+interface ErasureRequest {
+  id: string;
+  status: string;
+  requestedAt: string;
+  purgeScheduledAt: string | null;
+  patientId: string;
+  patientName: string | null;
+  patientEmail: string;
+}
+
+const ERASURE_STATUS_LABEL: Record<string, string> = {
+  REQUESTED: 'Awaiting a decision',
+  SCHEDULED: 'Purge scheduled',
+  COMPLETED: 'Purged',
+  REJECTED: 'Declined',
+};
+
+/**
+ * Erasure requests, and the decision on them.
+ *
+ * This is a RELOCATION, not a new feature. A patient could raise an erasure
+ * request from their own account and an admin could raise one from a patient's
+ * profile, and the server has always had both the list and the approval — but
+ * nothing in the console ever called either. A request went in and stopped: no
+ * screen listed it, so a request raised by a patient could not be found at all
+ * without knowing whose it was. That is a legal obligation dead-ending in a
+ * table nobody could read.
+ *
+ * Scheduling sets a purge date rather than deleting anything. The job
+ * de-identifies the profile; clinical results are retained under the
+ * practice's records obligation. Both facts are said on the card, because an
+ * admin approving this needs to know what it does and does not remove.
+ */
+function ErasureRequestsCard() {
+  const [requests, setRequests] = useState<ErasureRequest[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [scheduling, setScheduling] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    apiFetch<ErasureRequest[]>('/admin/erasure-requests')
+      .then(setRequests)
+      .catch(() => setFailed(true));
+  }, []);
+
+  useEffect(load, [load]);
+
+  async function schedule(id: string) {
+    setScheduling(id);
+    try {
+      await apiFetch(`/admin/erasure-requests/${id}/schedule`, {
+        method: 'PATCH',
+        body: JSON.stringify({ purgeInDays: 30 }),
+      });
+      load();
+    } finally {
+      setScheduling(null);
+    }
+  }
+
+  if (failed || requests === null) return null;
+
+  // Outstanding decisions lead; anything already settled is history and lives
+  // in the audit log rather than on the screen an admin opens every morning.
+  const outstanding = requests.filter((r) => r.status === 'REQUESTED');
+  if (outstanding.length === 0) return null;
+
+  return (
+    <div className="mt-14">
+      <p className="eyebrow mb-4">Erasure requests</p>
+      <Card className="max-w-2xl">
+        <p className="text-sm leading-relaxed text-espresso/85">
+          Approving one schedules a purge in 30 days. It de-identifies the patient’s profile; clinical results are
+          kept under the practice’s records retention obligation. Nothing is deleted immediately and every step is
+          audited.
+        </p>
+        <ul className="mt-4 border-t border-taupe">
+          {outstanding.map((r) => (
+            <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-taupe py-3">
+              <div>
+                <Link
+                  to={`/admin/patients/${r.patientId}`}
+                  className="text-sm font-medium text-bronze-600 underline underline-offset-2"
+                >
+                  {r.patientName ?? r.patientEmail}
+                </Link>
+                <p className="tabular text-xs text-espresso/80">
+                  {ERASURE_STATUS_LABEL[r.status] ?? r.status} · requested {timeAgo(r.requestedAt)}
+                </p>
+              </div>
+              <Button variant="secondary" loading={scheduling === r.id} onClick={() => void schedule(r.id)}>
+                Schedule the purge
+              </Button>
+            </li>
+          ))}
+        </ul>
+      </Card>
+    </div>
+  );
+}
+
 
 /**
  * IS THERE A COPY OF THE DATABASE ANYWHERE ELSE.
@@ -351,6 +481,10 @@ function TurnaroundBand({ turnaround }: { turnaround: WorkQueue['turnaround'] })
   );
 }
 
+/** One line, at the top, saying what a clinician comes here to do. */
+const PURPOSE =
+  'Everything waiting on somebody, longest first: reports to review or release, deliveries that stopped on a question, and whether last night’s backup ran.';
+
 export function WorkQueuePage() {
   const { user } = useAuth();
   const [queue, setQueue] = useState<WorkQueue | null>(null);
@@ -366,21 +500,19 @@ export function WorkQueuePage() {
 
   if (error) {
     return (
-      <>
-        <TwoTierHeading eyebrow="Aspire Clinic · Clinician console" title="Work queue" />
+      <ConsolePage title="Work queue" purpose={PURPOSE}>
         <div className="mt-10">
           <ErrorState error={error} subject="the work queue" onRetry={load} />
         </div>
-      </>
+      </ConsolePage>
     );
   }
 
   return (
-    <>
-      <TwoTierHeading eyebrow="Aspire Clinic · Clinician console" title="Work queue" />
-      <p className="max-w-measure text-sm leading-relaxed text-espresso/85">
-        Everything open, oldest first{user?.displayName ? `, ${user.displayName}` : ''}. Every figure comes from the
-        reports themselves and from the audit log; nothing on this screen is tracked separately.
+    <ConsolePage title="Work queue" purpose={PURPOSE}>
+      <p className="mt-2 max-w-measure text-sm leading-relaxed text-espresso/85">
+        Every figure comes from the reports themselves and from the audit log{user?.displayName ? `, ${user.displayName}` : ''};
+        nothing on this screen is tracked separately.
       </p>
 
       {queue === null ? (
@@ -489,8 +621,13 @@ export function WorkQueuePage() {
           </div>
 
           <TurnaroundBand turnaround={queue.turnaround} />
+          {/* Last, and ADMIN only. It is an outstanding decision like every
+              other band here, and it is the one nobody is waiting on today —
+              a purge is scheduled 30 days out. Renders nothing when there is
+              nothing outstanding. */}
+          {user?.role === 'ADMIN' && <ErasureRequestsCard />}
         </>
       )}
-    </>
+    </ConsolePage>
   );
 }

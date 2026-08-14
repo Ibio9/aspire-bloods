@@ -146,7 +146,10 @@ export const RANGE_BAR_UNAVAILABLE: Record<RangeBarUndrawable, { long: string; s
    * components — rather than a scale correction, and it is on the list.
    */
   'reference-range-open-ended': {
-    long: 'This marker has no upper limit — any result at or above the lower bound is within range — so there is no scale with two ends to draw it on.',
+    // NO EM DASH. The house style has none in anything a reader sees, and this
+    // string is on the Overview beside a real result — `e2e/copy.spec.ts`
+    // catches it there. It had two.
+    long: 'This marker has no upper limit: any result at or above the lower bound is within range, so there is no scale with two ends to draw it on.',
     short: 'No upper limit to draw a scale against',
   },
 };

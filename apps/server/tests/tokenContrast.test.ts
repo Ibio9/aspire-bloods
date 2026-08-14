@@ -8,6 +8,7 @@ import {
   statusTint,
   hueTint,
   chart,
+  solveTokens,
   BAND_CONTRAST,
   BAND_RUNG,
   bandChromaCeiling,
@@ -426,19 +427,87 @@ describe.each(MODES)('%s theme', (mode) => {
     // As does everything drawn ON the plot: the line, the marks, the hairline,
     // the ink. Each of these was per-theme and each of them was per-theme
     // BECAUSE the ground was.
+    /**
+     * ── AND THE LIST GOT SHORTER, WHICH IS THE Aug 2026 CHANGE ────────────
+     *
+     * The bands were removed from the TREND CHART and the chart moved onto the
+     * card. So the things that are still theme-identical are exactly the things
+     * still drawn on `PLOT_SURFACE` — the five band fills a RANGE BAR paints,
+     * its own mark and that mark's ring — and everything drawn on the CARD went
+     * back to being per-theme, because the card is.
+     *
+     * `--c-chart-point-ring`, `--c-chart-axis-text`, `--c-chart-bound-label`,
+     * `--c-chart-bound`, `--c-chart-line` and every `--c-hue-*-mark` are in the
+     * per-theme test below instead. `--c-chart-plot-ink` / `-muted` are gone
+     * with the panel.
+     */
+    for (const token of ['--c-rangemark', '--c-rangemark-ring']) {
+      expect(tone('light', token), `${token} differs between themes`).toBe(tone('dark', token));
+    }
+  });
+
+  it('ships the solved colours as literals that still equal their own derivation', () => {
+    /**
+     * ═══ THE LITERALS AND THE SOLVER CANNOT DRIFT ═══════════════════════════
+     *
+     * `solveAgainst`, `solveTint` and `solveNeutral` are grid searches, roughly
+     * a quarter of a million evaluations between them. Run at module scope they
+     * cost **605ms, measured** — and tokens.ts is in the entry chunk, so that
+     * is 605ms of blocked first paint for every patient on every visit.
+     *
+     * So the file does what its own note on `okChroma` has always said: solve
+     * at authoring time, ship the numbers. `SOLVED` is what ships and module
+     * init is under 2ms.
+     *
+     * THAT TRADE IS ONLY SAFE WITH THIS TEST. A hardcoded hex is a value that
+     * has stopped being derived from anything, and the failure mode is silent:
+     * change `statusHue.green`, or `TINT_MIX.wash`, or a card surface, and
+     * every one of these should move and none of them would. So the search is
+     * re-run here and compared, hex for hex.
+     *
+     * It is slow (a second or so) and it is the only place that cost is paid.
+     */
+    const solved = solveTokens(mode);
+    for (const hue of BAND_HUES) {
+      expect(solved.line[hue], `${mode}: the ${hue} line literal is stale`).toBe(tone(mode, `--c-hue-${hue}-mark`));
+      expect(solved.wash[hue], `${mode}: the ${hue} wash literal is stale`).toBe(tone(mode, `--c-hue-${hue}-wash`));
+      expect(solved.track[hue], `${mode}: the ${hue} track literal is stale`).toBe(tone(mode, `--c-hue-${hue}-track`));
+    }
+    expect(solved.label.green, `${mode}: the in-range label literal is stale`).toBe(tone(mode, '--c-status-in-range'));
+    expect(solved.label.yellow, `${mode}: the above-range label literal is stale`).toBe(tone(mode, '--c-status-high'));
+    expect(solved.label.red, `${mode}: the significantly-out label literal is stale`).toBe(
+      tone(mode, '--c-status-significant-high'),
+    );
+    expect(solved.bound, `${mode}: the boundary hairline literal is stale`).toBe(tone(mode, '--c-chart-bound'));
+  });
+
+  it('solves everything drawn ON THE CARD per theme, because the card is', () => {
+    /**
+     * THE MIRROR OF THE TEST ABOVE, and it is the one that would have caught
+     * the failure this change could most easily have made.
+     *
+     * With the plot panel gone, the trend line, its point marks, the boundary
+     * hairline and every label on the axis are drawn straight onto the card —
+     * which is a near-white in light and a near-black in dark. A token left
+     * theme-identical here is a token solved for one of those two and wrong on
+     * the other, and the way it goes wrong is invisible in a screenshot of the
+     * theme it was solved for.
+     *
+     * Measured, on the value this replaced: `--c-chart-axis-text` was the
+     * static `PLOT_INK_MUTED` (#6d6861), which on the dark card is 1.94:1 — a
+     * tick ladder nobody can read.
+     */
     for (const token of [
-      '--c-chart-line',
-      '--c-chart-reference-edge',
+      // NOT `--c-chart-line`: that is the COMPARISON chart's line, which still
+      // crosses bands on `PLOT_SURFACE` and is therefore still one colour in
+      // both themes. See the test above.
       '--c-chart-point-ring',
-      '--c-chart-plot-ink',
-      '--c-chart-plot-ink-muted',
+      '--c-chart-bound',
       '--c-chart-bound-label',
       '--c-chart-axis-text',
-      '--c-rangemark',
-      '--c-rangemark-ring',
       ...BAND_HUES.map((h) => `--c-hue-${h}-mark`),
     ]) {
-      expect(tone('light', token), `${token} differs between themes`).toBe(tone('dark', token));
+      expect(tone('light', token), `${token} is the same in both themes`).not.toBe(tone('dark', token));
     }
   });
 
@@ -533,43 +602,39 @@ describe.each(MODES)('%s theme', (mode) => {
     }
   });
 
-  it('keeps the line ahead of the band it crosses, and says which dimension does it', () => {
-    // ── THE ORDERING, AND WHY IT CHANGED CARRIER FOR ONE HUE (Aug 2026) ────
-    //
-    // "The line is content, the bands are context" is asserted in two
-    // dimensions, and on a light plot the two no longer agree for gold.
-    //
-    // CONTRAST, WHICH IS THE PRIMARY CARRIER AND HOLDS FOR ALL FIVE. The line
-    // is dark on a pale ground — 7.2:1 off the plot against the loudest band's
-    // 2.25 — so the lead is 3.2×, against 2.13× in the old light theme and
-    // 1.83× in the old dark one. That is the widest this margin has ever been
-    // and it is the whole return on moving the ground.
-    //
-    // CHROMA, WHICH HOLDS FOR GREEN AND RED AND CANNOT HOLD FOR GOLD. A line
-    // has to be DARK to clear a pale band, and **a yellow at a low luminance
-    // is a brown in any colour space** — the identical gamut fact this file
-    // already records twice for the old near-black plot, arriving from the
-    // other side. Measured: the gold line reaches 0.0851 of OKLab chroma at the
-    // lightness that clears 3.2:1 on every band, against a gold band's 0.1194.
-    // Closing that gap needs the band's share down to about 0.46 of its
-    // palette ceiling, which would make the bands LESS colourful than they were
-    // on the dark plot — i.e. it would undo the change to satisfy a proxy for
-    // it.
-    //
-    // So the exception is a measurement rather than a fudge, it is named here
-    // rather than removed, and the two hues that CAN hold it still must.
+  it('keeps a band less colourful than the line of the same hue, where the gamut allows', () => {
+    /**
+     * ── WHAT THIS TEST USED TO BE, AND WHY IT HAD TO CHANGE (Aug 2026) ──────
+     *
+     * "The line is content, the bands are context", asserted in two dimensions:
+     * the line had to stand at least 3× as far off the PLOT as its own band,
+     * and be more chromatic than it.
+     *
+     * The first half no longer describes anything. The trend chart has no bands
+     * and no plot, so "the line's lead off the plot over its band" measures two
+     * things that are never on screen together — and it FAILED, at 2.68× and
+     * 1.68×, for a reason that is not a regression: the line is solved against
+     * the CARD now, so its distance from `PLOT_SURFACE` is an accident.
+     * Deleting it and keeping a green number would have been the wrong trade;
+     * the requirement it stood for is asserted directly instead, in
+     * "keeps the trend line clear of the CARD it is now drawn on".
+     *
+     * THE SECOND HALF SURVIVES AND IS STILL WORTH HAVING, because the two
+     * instruments still share a vocabulary: a range bar paints the five band
+     * fills and the trend line is drawn in the five line colours, and a reader
+     * seeing both on one marker page should not find the CONTEXT more colourful
+     * than the CONTENT.
+     *
+     * THE GOLD EXCEPTION IS UNCHANGED and is a gamut fact rather than a fudge.
+     * A yellow at a low luminance is a brown in any colour space, so the gold
+     * LINE cannot out-chroma the gold BAND while clearing contrast on the card.
+     * Named, with the two hinges either side of it, rather than removed.
+     */
     const CHROMA_EXEMPT = new Set(['yellow', 'olive', 'orange']);
     for (const hue of BAND_HUES) {
-      const bandHex = tone(mode, `--c-hue-${hue}-fill`);
-      const lineHex = tone(mode, `--c-hue-${hue}-mark`);
-      const plot = tone(mode, '--c-chart-plot-surface');
-      // The primary carrier, every hue, no exceptions: the line stands at least
-      // three times as far off the plot as the band does.
-      const lead = contrastRatio(lineHex, plot) / contrastRatio(bandHex, plot);
-      expect(lead, `the ${hue} line leads its band by only ${lead.toFixed(2)}x off the plot`).toBeGreaterThan(3);
       if (CHROMA_EXEMPT.has(hue)) continue;
-      const band = okChroma(bandHex);
-      const line = okChroma(lineHex);
+      const band = okChroma(tone(mode, `--c-hue-${hue}-fill`));
+      const line = okChroma(tone(mode, `--c-hue-${hue}-mark`));
       expect(
         band,
         `the ${hue} band is ${band.toFixed(4)} chromatic against a line of ${line.toFixed(4)}`,
@@ -663,56 +728,102 @@ describe.each(MODES)('%s theme', (mode) => {
     }
   });
 
-  it('keeps the trend line the most prominent thing on the plot', () => {
-    // The instruction the bands were made opaque under, made checkable: if
-    // stronger bands bury the line, brighten the LINE — never dull the bands
-    // back down. So the line has to clear every band it crosses, including the
-    // heaviest and including the optimal narrowing, and it has to beat the
-    // boundary hairline while doing it.
+  it('keeps the comparison line clear of every band it crosses', () => {
+    // `--c-chart-line` is the COMPARISON chart's line only — two or three
+    // markers on one normalised axis, which is the one chart that still draws
+    // bands. The single-marker trend chart draws none (Aug 2026) and its line
+    // is `--c-hue-*-mark`, checked against the card below.
     //
     // This is what caught the line at its old value: `bronze-700` measured
     // 2.87:1 on the opaque significantly-out band and `bronze-500` in dark
     // 2.42:1, both under AA-large. See LINE_LIFT.
     const line = tone(mode, '--c-chart-line');
-    const edge = tone(mode, '--c-chart-reference-edge');
     for (const band of [...BAND_HUES.map((hue) => tone(mode, `--c-hue-${hue}-fill`)), tone(mode, '--c-band-optimal')]) {
       const lineRatio = contrastRatio(line, band);
-      expect(lineRatio, `the trend line on ${band} is ${lineRatio.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+      expect(lineRatio, `the comparison line on ${band} is ${lineRatio.toFixed(2)}:1`).toBeGreaterThanOrEqual(
         WCAG_AA_LARGE_TEXT,
       );
-      const edgeRatio = contrastRatio(blend(edge, band, chart.referenceEdgeOpacity), band);
-      expect(lineRatio, `the boundary on ${band} out-reads the line`).toBeGreaterThan(edgeRatio);
     }
   });
 
-  it('keeps every status colour readable against EVERY band, not just its own', () => {
-    // ── THIS GOT STRICTER IN Aug 2026, AND THE REASON IS THE LINE ──────────
-    //
-    // It used to check a mark against the band of its OWN hue: a green point
-    // lands on the green band, so those two must not meet. That was the whole
-    // constraint for as long as these colours were only ever used on point
-    // marks, because a point sits where its own status put it.
-    //
-    // The TREND LINE is drawn in them now, gradiented along its length — so a
-    // GOLD segment crosses the GREEN band on its way up to an out-of-range
-    // result, and a green segment crosses the gold coming back down. Every one
-    // of the five has to clear every one of the five, plus the optimal
-    // narrowing, or the line disappears for part of its length.
-    //
-    // Measured against the OLD heavy bands the worst pair was the dark gold
-    // mark on the dark green band at **1.10:1**. That measurement is what
-    // forced the bands down to context weight rather than the other way round —
-    // see BAND_FILL and MARK_SHIFT in tokens.ts.
-    const grounds = [
-      ...BAND_HUES.map((hue) => tone(mode, `--c-hue-${hue}-fill`)),
-      tone(mode, '--c-band-optimal'),
-    ];
+  it('keeps the trend line clear of the CARD it is now drawn on, in both themes', () => {
+    /**
+     * ═══ THE ASSERTION THIS REPLACED, AND WHY IT NO LONGER DESCRIBES ANYTHING
+     *
+     * It measured every one of the five line/mark colours against every one of
+     * the five BAND FILLS, because the trend line used to be drawn over them:
+     * a gold segment crossed the green band on its way up, so all 25 pairs had
+     * to clear AA-large. That measurement is what forced the bands down to
+     * context weight in the first place — the worst pair was 1.10:1.
+     *
+     * THE BANDS ARE GONE FROM THE TREND CHART (Aug 2026). The line is drawn on
+     * the card, crosses nothing, and those 25 pairs are 25 facts about two
+     * things that are never on screen together. Keeping the old assertion would
+     * have been worse than deleting it: it would have gone on passing or
+     * failing about a relationship that does not exist, and it would have
+     * pinned the line's colour to a constraint that has been lifted — which is
+     * exactly what stopped it being a proper green in light mode.
+     *
+     * WHAT IS ASSERTED INSTEAD IS THE REQUIREMENT: "the line must clear the
+     * card surface at AA-large in each theme". Solved to 4.5 (see
+     * LINE_FILL_TARGET), floored here at 3.
+     */
+    const card = tone(mode, '--c-cream-50');
     for (const hue of BAND_HUES) {
-      for (const band of grounds) {
-        const ratio = contrastRatio(tone(mode, `--c-hue-${hue}-mark`), band);
-        expect(ratio, `${hue} mark on ${band} is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(WCAG_AA_LARGE_TEXT);
+      const ratio = contrastRatio(tone(mode, `--c-hue-${hue}-mark`), card);
+      expect(ratio, `the ${hue} line on the card is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(WCAG_AA_LARGE_TEXT);
+    }
+  });
+
+  it('keeps the five line colours far enough apart to be told apart', () => {
+    /**
+     * WITH NOTHING BEHIND IT, THE LINE IS THE WHOLE CHART — so "green reads as
+     * green and red reads as red" is now a statement about the five colours
+     * against EACH OTHER rather than against a ground.
+     *
+     * PERCEPTUAL DISTANCE, NOT CONTRAST. Two colours at the same luminance
+     * measure 1.00:1 and are obviously different colours; the pair this has to
+     * protect is green-against-gold, which is a hue difference almost entirely.
+     * The floor is the distance at which the three STATES are unmistakable on a
+     * 5px stroke, and the two hinges are excluded because they are deliberately
+     * midpoints of their neighbours — a hinge is meant to be close to both.
+     */
+    const states = ['green', 'yellow', 'red'] as const;
+    for (const [i, a] of states.entries()) {
+      for (const b of states.slice(i + 1)) {
+        const distance = deltaOk(tone(mode, `--c-hue-${a}-mark`), tone(mode, `--c-hue-${b}-mark`));
+        expect(distance, `${a} and ${b} lines are ${distance.toFixed(3)} apart`).toBeGreaterThan(0.09);
       }
     }
+  });
+
+  it('draws the boundary hairline so it is present without out-reading the line', () => {
+    /**
+     * THE MIDDLE RUNG, on the card now rather than on a band.
+     *
+     * With the bands gone these four rules are the ONLY thing saying where a
+     * patient's reference range is, so "visible" is a harder requirement than
+     * it was. And they still must not be the loudest thing on the plot: the
+     * reader's own result is.
+     *
+     * Both halves, measured against the card: the hairline stands off it, and
+     * every one of the five line colours stands further off it than the
+     * hairline does.
+     */
+    const card = tone(mode, '--c-cream-50');
+    const bound = tone(mode, '--c-chart-bound');
+    const boundRatio = contrastRatio(bound, card);
+    expect(boundRatio, `the boundary hairline on the card is ${boundRatio.toFixed(2)}:1`).toBeGreaterThan(1.8);
+    expect(boundRatio, `the boundary hairline on the card is ${boundRatio.toFixed(2)}:1`).toBeLessThan(3.5);
+    for (const hue of BAND_HUES) {
+      const lineRatio = contrastRatio(tone(mode, `--c-hue-${hue}-mark`), card);
+      expect(lineRatio, `the boundary out-reads the ${hue} line`).toBeGreaterThan(boundRatio);
+    }
+    // And the threshold rules are QUIETER than the reference bounds, which is
+    // half of how the two are told apart without colour (the other half is the
+    // dash). Composited at their drawn opacity over the card.
+    const drawnThreshold = contrastRatio(blend(bound, card, chart.thresholdOpacity), card);
+    expect(drawnThreshold, 'the threshold rule is not quieter than the reference bound').toBeLessThan(boundRatio);
   });
 
   it('keeps the range-bar mark readable on every segment it can stand on', () => {

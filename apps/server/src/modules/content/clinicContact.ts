@@ -43,7 +43,11 @@ export interface ClinicContact {
 export function getClinicContact(): ClinicContact {
   return {
     name: 'Aspire Clinic',
-    addressLines: ['27 Mortimer Street', 'London'],
+    // CORRECTED Aug 2026: it was 27 with no postcode. 29-35 Mortimer Street,
+    // London, W1T 3JG. The postcode is its own line rather than appended to
+    // "London", because every surface that renders this prints one item per
+    // line and a postcode is the line a reader copies on its own.
+    addressLines: ['29-35 Mortimer Street', 'London', 'W1T 3JG'],
     email: env.CLINIC_CONTACT_EMAIL,
     phone: env.CLINIC_PHONE || null,
     hours: env.CLINIC_HOURS,

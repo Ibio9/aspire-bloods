@@ -140,20 +140,17 @@ export function DocumentsPage() {
                     <p className="font-display text-xl leading-tight text-espresso">
                       {formatReportHeading(doc.panelName, doc.markerCount)}
                     </p>
-                    <p className="tabular mt-2 text-xs text-espresso/80">
-                      {/* The count is already in the heading when there is no
-                          panel to name — don't say it twice.
-                          The source label is empty for anything the clinic
-                          analysed itself (see lib/sourceLabel.ts), so the
-                          separator has to be conditional on it too or the line
-                          ends on a dangling middot. */}
-                      {[
-                        doc.panelName ? `${doc.markerCount} marker${doc.markerCount === 1 ? '' : 's'}` : null,
-                        doc.sourceLabel || null,
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </p>
+                    {/* The count only. "Analysed by Randox Health" was the
+                        second half of this line and is gone from every
+                        patient-facing surface (Aug 2026). With it removed the
+                        middot has nothing to join, so the line is one fact —
+                        and it is absent entirely where the heading already
+                        carries the count. */}
+                    {doc.panelName && (
+                      <p className="tabular mt-2 text-xs text-espresso/80">
+                        {doc.markerCount} marker{doc.markerCount === 1 ? '' : 's'}
+                      </p>
+                    )}
                   </div>
                   <Link
                     to={`/reports/${doc.reportId}`}
@@ -173,6 +170,21 @@ export function DocumentsPage() {
                     the laboratory's own PDF stays secondary because it is the
                     raw article, and the GP handover is quieter still because it
                     is for somebody else entirely. */}
+                {/* ── ALL THREE ON ONE LINE, AND THE PARAGRAPH IS GONE
+                    (Aug 2026) ────────────────────────────────────────────────
+                    The GP handover used to sit below the other two behind its
+                    own rule, with four lines of explanation under it — "one
+                    page, take it to your GP", which is what the button already
+                    says. The rule and the paragraph were both doing the job the
+                    LABEL does: "Summary for your doctor (PDF)" is unambiguous
+                    about whose document it is and what it is for.
+
+                    ONE ROW, and the hierarchy is carried by the button variants
+                    rather than by a divider. The Aspire summary is the document
+                    this page exists for and takes the primary fill; the
+                    laboratory's own PDF is the raw article; the handover is for
+                    somebody else entirely. `flex-wrap` so a phone stacks them
+                    rather than clipping the third. */}
                 <div className="mt-6 flex flex-wrap gap-3 border-t border-taupe pt-5">
                   <Button
                     loading={downloading?.reportId === doc.reportId && downloading.kind === 'summary-pdf-link'}
@@ -189,15 +201,6 @@ export function DocumentsPage() {
                   >
                     Original laboratory report (PDF)
                   </Button>
-                </div>
-
-                {/* THE ONE DOCUMENT HERE THAT IS NOT FOR THE PATIENT, and it
-                    says so in the label rather than only in the sentence
-                    underneath: a file called "summary" among two other
-                    summaries would be downloaded, opened, and read as more of
-                    the patient's own copy. It sits below the pair, separated by
-                    its own rule, because it belongs to a different errand. */}
-                <div className="mt-5 border-t border-taupe pt-5">
                   <Button
                     variant="secondary"
                     loading={downloading?.reportId === doc.reportId && downloading.kind === 'gp-handover-pdf'}
@@ -205,12 +208,6 @@ export function DocumentsPage() {
                   >
                     Summary for your doctor (PDF)
                   </Button>
-                  <p className="mt-3 max-w-measure text-xs leading-relaxed text-espresso/85">
-                    One page, written for a doctor rather than for you: your name and date of birth, the sample date,
-                    and every result outside the laboratory’s reference range with the range it was measured against.
-                    It carries no explanations and no advice. Take it to your GP if you would like to discuss anything
-                    on this report.
-                  </p>
                 </div>
               </Card>
               </Reveal>

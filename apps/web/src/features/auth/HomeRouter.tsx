@@ -17,7 +17,16 @@ import { lazyPage, page } from '../../lib/lazyPage';
  * a hole straight through it.
  */
 const AdminShell = lazyPage(() => import('../../components/nav/AdminShell'), 'AdminShell');
-const AdminDashboard = lazyPage(() => import('../admin/AdminDashboard'), 'AdminDashboard');
+/**
+ * THE WORK QUEUE IS THE LANDING SCREEN (Aug 2026).
+ *
+ * It was `AdminDashboard`, a screen whose whole job was to say what was
+ * waiting — which is what the work queue says, with the exception counts, the
+ * turnaround figures and the backup state above it and the reports sorted by
+ * how long each has waited. Two screens answering one question, and the one an
+ * admin landed on was the weaker of the two. See NAV_GROUPS in AdminShell.
+ */
+const WorkQueuePage = lazyPage(() => import('../admin/WorkQueuePage'), 'WorkQueuePage');
 const PatientOverview = lazyPage(() => import('../patient/PatientOverview'), 'PatientOverview');
 
 export function HomeRouter() {
@@ -25,7 +34,7 @@ export function HomeRouter() {
   if (user?.role === 'ADMIN' || user?.role === 'CLINICIAN') {
     return page(
       <AdminShell>
-        <AdminDashboard />
+        <WorkQueuePage />
       </AdminShell>,
     );
   }

@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { ErrorState } from '../../components/ui/ErrorState';
-import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Checkbox } from '../../components/ui/Checkbox';
 import { Button } from '../../components/ui/Button';
 import { Tabs } from '../../components/ui/Tabs';
+import { ConsolePage } from './ConsolePage';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { useToast } from '../../components/ui/Toast';
@@ -293,7 +293,7 @@ function MarkersTab() {
                   <div key={m.id} className="flex flex-wrap items-center gap-3 border-b border-taupe pb-2 last:border-b-0">
                     <span className="flex-1 text-sm text-espresso">{m.name}</span>
                     <Button variant="ghost" onClick={() => toggleMarkerActive(m)}>
-                      Reactivate
+                      Reactivate this marker
                     </Button>
                   </div>
                 ))}
@@ -530,12 +530,10 @@ function CopyBlocksTab() {
 // MarkerLibraryPage, which is the patient-facing explanation library.
 export function AdminMarkerLibraryPage() {
   return (
-    <>
-      <TwoTierHeading eyebrow="Aspire Clinic · Clinician console" title="Marker library" />
-      <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
-        Every analyte the clinic can report, and the wording a patient reads beside it. Explanation copy isn’t
-        visible to patients until it has been reviewed.
-      </p>
+      <ConsolePage
+        title="Marker library"
+        purpose="Every analyte the clinic can report, and the wording a patient reads beside it. Explanation copy is not visible to any patient until somebody here has reviewed it. The review queue below is where that happens."
+      >
 
       <div className="mt-10">
         <Tabs
@@ -549,6 +547,6 @@ export function AdminMarkerLibraryPage() {
           ]}
         />
       </div>
-    </>
+      </ConsolePage>
   );
 }

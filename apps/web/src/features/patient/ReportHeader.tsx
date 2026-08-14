@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatDate } from '@aspire-bloods/shared';
-import type { MarkerStatus } from '@aspire-bloods/shared';
+import type { StatusFilter } from '../../lib/markerCopy';
 import { Button } from '../../components/ui/Button';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { useToast } from '../../components/ui/Toast';
@@ -42,7 +42,7 @@ export function ReportHeader({
   data: ReportDetailData;
   /** The status filter currently applied, so the matching tile reads as selected. */
   activeStatus?: string;
-  onSelectStatus: (status: MarkerStatus | 'ALL') => void;
+  onSelectStatus: (status: StatusFilter) => void;
   /** A section index chip was pressed — the section may need to open something. */
   onReveal: (sectionId: string) => void;
 }) {
@@ -98,13 +98,14 @@ export function ReportHeader({
             Sample date <span className="numeric">{formatDate(report.sampleDate)}</span>
           </p>
           <h2 className="font-display opsz-section text-2xl font-medium leading-tight text-espresso">{report.title}</h2>
-          {/* Empty for anything the clinic analysed itself — see
-              lib/sourceLabel.ts. "Analysed in-house at Aspire Clinic" used to
-              sit here, one line under the title, saying something about the
-              practice's laboratory arrangements and nothing about the results
-              underneath it. Randox provenance still prints, because that is
-              the reason two values might not be comparable. */}
-          {report.sourceLabel && <p className="mt-2 text-sm text-espresso/80">{report.sourceLabel}</p>}
+          {/* ── "ANALYSED BY RANDOX HEALTH" IS GONE FROM EVERY PATIENT SURFACE
+              (Aug 2026). It said something about the practice's laboratory
+              arrangements and nothing about the results underneath it, and it
+              was the line directly between a report's title and how the report
+              went. The fact is not lost where it does work: the clinician
+              console still shows it on the same report, and the PDF footer
+              still carries provenance. `sourceLabel` stays on the DTO for
+              those. */}
         </div>
         <Link
           to="/results"

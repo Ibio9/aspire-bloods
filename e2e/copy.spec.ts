@@ -145,9 +145,14 @@ test('no em dashes and British spelling across the clinician console', async ({ 
   const reports = (await (await ctx.request.get('/api/reports')).json()) as { id: string }[];
 
   const routes = [
+    // `/` IS the work queue since Aug 2026 — the console landing page was
+    // merged into it. `/admin/queue` is kept in this list on purpose: it
+    // redirects, and a redirect that stopped redirecting would show up here as
+    // a 404's copy rather than as a missing route.
     '/',
     '/admin',
     '/admin/queue',
+    '/admin/analytics',
     '/admin/patients',
     '/admin/panels',
     '/admin/markers',

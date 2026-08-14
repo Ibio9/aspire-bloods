@@ -1,3 +1,4 @@
+import { splitMarkerName } from '@aspire-bloods/shared';
 import { test, expect, type APIRequestContext, type Browser, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -121,15 +122,25 @@ test.describe('card layout', () => {
         // ── THE MARKER PAGE, on an out-of-range marker so every card renders ─
         const marker = overview.attention[0];
         await page.goto(`/markers/${marker.markerId}`);
-        await expect(page.getByRole('heading', { name: marker.name })).toBeVisible({ timeout: 30_000 });
+        // The h1 is the ABBREVIATION where the name has one — see splitMarkerName.
+        await expect(
+          page.getByRole('heading', { name: splitMarkerName(marker.name).primary, exact: true }),
+        ).toBeVisible({ timeout: 30_000 });
         await settle(page);
         await page.screenshot({ path: path.join(OUT, `marker-${suffix}.png`) });
         await page.screenshot({ path: path.join(OUT, `marker-full-${suffix}.png`), fullPage: true });
         await shotOf(page, '.card-vellum', `card-explanation-${suffix}.png`);
 
         // The same page for the longest-named marker, where the h1 has to wrap.
+        //
+        // THE H1 IS THE ABBREVIATION where the name has one (Aug 2026) — see
+        // `splitMarkerName`. `Neutrophil Gelatinase Associated Lipocalin
+        // (NGAL)` is set as NGAL with the expansion beneath, so matching the
+        // heading against the whole catalogue name finds nothing.
         await page.goto(`/markers/${longest.markerId}`);
-        await expect(page.getByRole('heading', { name: longest.name })).toBeVisible({ timeout: 30_000 });
+        await expect(
+          page.getByRole('heading', { name: splitMarkerName(longest.name).primary, exact: true }),
+        ).toBeVisible({ timeout: 30_000 });
         await settle(page);
         await page.screenshot({ path: path.join(OUT, `marker-longest-name-${suffix}.png`) });
         console.log(`  ${suffix}: longest marker name "${longest.name}" (${longest.name.length} characters)`);

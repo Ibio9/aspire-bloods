@@ -1,4 +1,4 @@
-import { formatDate, type MarkerStatus } from '@aspire-bloods/shared';
+import { formatDate } from '@aspire-bloods/shared';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card } from '../../components/ui/Card';
 import { Skeleton } from '../../components/ui/Skeleton';
@@ -75,9 +75,14 @@ function comparatorFor(sort: MarkerSort): (a: MarkerRow, b: MarkerRow) => number
  *
  * "Signature · 3 February 2026 · 3 results" was a single string, and in a
  * 15rem column the browser broke it wherever it liked: about a third of the
- * time that was in the middle of the date. The card stacks them one per line
- * now, with the date always on its own, so it reads as a date rather than as
- * the middle of a sentence — see MarkerCardMeta.
+ * time that was in the middle of the date. The card sets them as a labelled
+ * package and a date on its own line — see MarkerCardMeta.
+ *
+ * `resultCount` is no longer passed (Aug 2026). "3 results" is a fact about
+ * the history and the history is one click away with a chart on it; on a card
+ * about the LATEST result it was a number nobody could act on. The field is
+ * still on `MarkerRow` because the sort by "most recently tested" reads the
+ * same payload — it is simply not printed.
  */
 function markerMeta(marker: MarkerRow) {
   return {
@@ -85,7 +90,6 @@ function markerMeta(marker: MarkerRow) {
     // the line entirely rather than printing an empty one.
     panelName: marker.panelName,
     sampleDate: formatDate(marker.sampleDate),
-    resultCount: marker.resultCount,
   };
 }
 
@@ -162,7 +166,7 @@ export function AllMarkersSummary({
 }: {
   markers: MarkerRow[];
   activeStatus?: string;
-  onSelectStatus?: (status: MarkerStatus | 'ALL') => void;
+  onSelectStatus?: (status: StatusFilter) => void;
 }) {
   return (
     <CountsStrip

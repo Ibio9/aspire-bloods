@@ -1,6 +1,14 @@
 import type { ReactNode } from 'react';
 import { countable, type MarkerStatus, type MarkerStatusInput } from '@aspire-bloods/shared';
-import { filterCountLabel, statusBarClass, statusLabel, statusTintClass } from '../../lib/markerCopy';
+import {
+  filterCountLabel,
+  statusBarClass,
+  statusLabel,
+  statusTintClass,
+  STRIP_FILTER,
+  STRIP_STATE,
+  type StatusFilter,
+} from '../../lib/markerCopy';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 
 /**
@@ -43,8 +51,27 @@ export interface SummaryMarker {
   categoryKeys?: string[];
 }
 
-/** The order the counts strip reads in: settled first, then out, then far out. */
-const STRIP_ORDER: MarkerStatus[] = ['IN_RANGE', 'HIGH', 'LOW', 'SIGNIFICANT_HIGH', 'SIGNIFICANT_LOW'];
+/**
+ * ── THREE SEGMENTS, NOT FIVE (Aug 2026) ────────────────────────────────────
+ *
+ * Below range · In range · Above range, in that order, which is the order of
+ * the scale itself rather than a ranking. The two significantly-out counts fold
+ * into their neighbours (`STRIP_STATE` in lib/markerCopy.ts, the one place that
+ * folding is written down).
+ *
+ * THE FIVE STATES ARE UNTOUCHED EVERYWHERE ELSE and that is the whole scope of
+ * this: the status word, the chevron, the range bar, the chart and the card
+ * tint still separate all five, and a result is still described as
+ * "Significantly above range" on its own card. This is a summary of a page, and
+ * five figures of which three are usually zero summarise worse than three that
+ * all say something.
+ *
+ * BOTH GOLD SEGMENTS ARE THE SAME COLOUR, by construction rather than by two
+ * records agreeing: `low` and `high` resolve to the same hue in tokens.ts, so
+ * `statusTintClass('LOW')` and `statusTintClass('HIGH')` paint one wash.
+ * Direction is the chevron and the word, which is what the shape layer is for.
+ */
+const STRIP_ORDER: ('LOW' | 'IN_RANGE' | 'HIGH')[] = ['LOW', 'IN_RANGE', 'HIGH'];
 
 /** The order a proportion bar stacks in, so every bar reads the same way left to right. */
 const BAR_ORDER: MarkerStatus[] = ['IN_RANGE', 'LOW', 'HIGH', 'SIGNIFICANT_LOW', 'SIGNIFICANT_HIGH'];
@@ -54,6 +81,13 @@ function countByStatus(markers: SummaryMarker[]): Record<MarkerStatus, number> {
     IN_RANGE: 0, HIGH: 0, LOW: 0, SIGNIFICANT_HIGH: 0, SIGNIFICANT_LOW: 0,
   };
   for (const m of countable(markers)) counts[m.status] += 1;
+  return counts;
+}
+
+/** The same tally, folded onto the strip's three states. */
+function countByStripState(markers: SummaryMarker[]): Record<'LOW' | 'IN_RANGE' | 'HIGH', number> {
+  const counts = { LOW: 0, IN_RANGE: 0, HIGH: 0 };
+  for (const m of countable(markers)) counts[STRIP_STATE[m.status]] += 1;
   return counts;
 }
 
@@ -104,15 +138,16 @@ export function CountsStrip({
   title?: string;
   /** The status filter currently applied, so the matching segment reads as selected. */
   activeStatus?: string;
-  onSelectStatus?: (status: MarkerStatus | 'ALL') => void;
+  onSelectStatus?: (status: StatusFilter) => void;
   /** An action belonging to the summary rather than to the page — the By marker view's download. */
   action?: ReactNode;
   className?: string;
 }) {
   if (countedTotal(markers) === 0) return null;
-  const counts = countByStatus(markers);
-  // A state nobody is in is not shown. Five segments where three of them say
-  // "0" is a worse summary than three that all say something.
+  const counts = countByStripState(markers);
+  // A state nobody is in is not shown — still true at three, and it is why a
+  // report with nothing out of range renders one green segment rather than one
+  // green and two zeros.
   const shown = STRIP_ORDER.filter((s) => counts[s] > 0);
 
   return (
@@ -124,7 +159,11 @@ export function CountsStrip({
           needing a radius of its own. */}
       <ul className="grid w-full max-w-3xl grid-cols-1 divide-y divide-taupe overflow-hidden rounded-card border border-taupe shadow-card sm:auto-cols-fr sm:grid-flow-col sm:divide-x sm:divide-y-0">
         {shown.map((status) => {
-          const selected = activeStatus === status;
+          // The segment selects the DIRECTIONAL filter, not the specific state
+          // — its number counts the significant one too, and a segment reading
+          // "4" that filtered to three would be the strip contradicting itself.
+          const filter = STRIP_FILTER[status];
+          const selected = activeStatus === filter;
           const Wrapper = onSelectStatus ? 'button' : 'div';
           return (
             <li key={status} className="flex">
@@ -132,7 +171,7 @@ export function CountsStrip({
                 {...(onSelectStatus
                   ? {
                       type: 'button' as const,
-                      onClick: () => onSelectStatus(selected ? 'ALL' : status),
+                      onClick: () => onSelectStatus(selected ? 'ALL' : filter),
                       'aria-pressed': selected,
                     }
                   : {})}

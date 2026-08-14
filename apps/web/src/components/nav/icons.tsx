@@ -144,6 +144,21 @@ export function AdminConsoleIcon(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
+/**
+ * Analytics. Three bars of unequal height on a baseline — the one glyph that
+ * means "counted over time" without borrowing a status hue or a trend arrow.
+ * Same 20×20 viewBox and 1.4 stroke as every other icon in this file, so it
+ * cannot arrive at its row a different weight from its neighbours.
+ */
+export function AnalyticsIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
+      <path d="M3 16.5h14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M6 16.5V11M10 16.5V4.5M14 16.5V8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function SearchIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" {...props}>

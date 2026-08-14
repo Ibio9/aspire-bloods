@@ -133,24 +133,46 @@ test('the old content path redirects rather than 404ing', async ({ page }) => {
   await expect(page).toHaveURL(/\/admin\/panels$/);
 });
 
-test('the console says what is waiting, and does not restate the sidebar', async ({ page }) => {
+test('the landing screen IS the work queue, and does not restate the sidebar', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await signInAsAdmin(page);
   await page.goto('/');
   await settle(page);
 
-  // What the console is for.
-  await expect(page.getByText(/Reports awaiting action/i)).toBeVisible();
-  await expect(page.getByText(/Results that could not be placed/i)).toBeVisible();
+  /**
+   * ── THE CONSOLE SCREEN WAS MERGED INTO THE WORK QUEUE (Aug 2026) ────────
+   *
+   * `/` used to render `AdminDashboard`, which answered "what is waiting for
+   * you" — the same question the work queue answers, better. Two screens, one
+   * question, and the one an admin landed on was the weaker of them.
+   *
+   * So this asserts the merge rather than the old screen: the landing page is
+   * the queue, and it carries the bands the console did NOT have.
+   */
+  await expect(page.getByRole('heading', { name: 'Work queue' })).toBeVisible();
+  // What the queue is for, said at the top in one line — every console screen
+  // does this now (see ConsolePage).
+  await expect(page.getByText(/Everything waiting on somebody, longest first/i)).toBeVisible();
+  // The three bands the merged-away console could not show.
+  await expect(page.getByText(/Off-platform backup/i)).toBeVisible();
+  await expect(page.getByText(/Where the open reports are/i)).toBeVisible();
+  await expect(page.getByText(/Arrival to release/i)).toBeVisible();
 
-  // And what it is not for. The grid of navigation cards duplicated the
-  // sidebar — incompletely, missing result linking and the ingestion log —
-  // so an admin had two maps of the same console that disagreed.
+  // And what it is not for. A grid of navigation cards duplicating the sidebar
+  // is what the old console had, incompletely; nothing may bring it back.
   const main = page.locator('main');
-  for (const label of ['Panels', 'Marker library', 'Audit log']) {
+  for (const label of ['Panels', 'Marker library', 'Audit log', 'Analytics']) {
     await expect(
       main.getByRole('link', { name: label, exact: true }),
       `"${label}" is a sidebar destination and must not be restated as a card in the page body`,
     ).toHaveCount(0);
   }
+});
+
+test('the old work-queue path redirects to the landing screen', async ({ page }) => {
+  // `/admin/queue` is in bookmarks and in the sidebar of every build so far.
+  await signInAsAdmin(page);
+  await page.goto('/admin/queue');
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole('heading', { name: 'Work queue' })).toBeVisible();
 });

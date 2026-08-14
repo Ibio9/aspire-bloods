@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatDate } from '@aspire-bloods/shared';
-import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -11,6 +10,11 @@ import { ConfirmModal } from '../../components/ui/ConfirmModal';
 import { Input } from '../../components/ui/Input';
 import { useToast } from '../../components/ui/Toast';
 import { apiFetch } from '../../lib/api';
+import { ConsolePage } from './ConsolePage';
+
+/** One line, at the top, saying what a clinician comes here to do. */
+const LINKING_PURPOSE =
+  'Results that arrived and could not be attached to a patient, with the reason each one stopped. In normal running this page is empty: linking is automatic, and what lands here is what it refused to guess at.';
 
 interface Agreement {
   dob: boolean;
@@ -400,8 +404,11 @@ function UnmatchedResultCard({ result, onChanged }: { result: UnmatchedResult; o
       </div>
 
       <div className="mt-6 flex justify-end border-t border-taupe pt-4">
+        {/* "Dismiss" on its own does not say what leaves the queue or what
+            happens to the result. The modal explains; the button should not
+            need it to. */}
         <Button variant="secondary" onClick={() => setDismissing(true)}>
-          Dismiss
+          Dismiss this result
         </Button>
       </div>
 
@@ -474,8 +481,10 @@ function RecentLinkRow({ link, onChanged }: { link: RecentLink; onChanged: () =>
             Open report
           </Link>
         )}
+        {/* Unlink from WHOM. This row is one result beside one patient, and
+            the pair is what the control acts on. */}
         <Button variant="secondary" onClick={() => setUnlinking(true)}>
-          Unlink
+          Unlink from this patient
         </Button>
       </div>
 
@@ -536,24 +545,21 @@ export function LinkingPage() {
 
   if (failed) {
     return (
-      <>
-        <TwoTierHeading eyebrow="Aspire Clinic · Clinician console" title="Result linking" />
+        <ConsolePage title="Result linking" purpose={LINKING_PURPOSE}>
         <Card className="mt-10 max-w-xl">
           <p className="font-display text-xl text-espresso">We couldn’t load the linking queue</p>
           <p className="mt-2 text-sm text-espresso/80">Please refresh the page.</p>
         </Card>
-      </>
+        </ConsolePage>
     );
   }
 
   return (
-    <>
-      <TwoTierHeading eyebrow="Aspire Clinic · Clinician console" title="Result linking" />
-      <p className="mt-5 max-w-3xl text-lg leading-relaxed text-espresso">
-        The exceptions. A result that arrives against an order we placed is attached to that patient on the order
-        reference, once the name and date of birth agree, and nobody types anything. What reaches this page is
-        everything that did not: an order we have no record of, an identity that disagreed, an account that does not
-        exist yet. In normal running it is empty.
+      <ConsolePage title="Result linking" purpose={LINKING_PURPOSE}>
+      <p className="mt-4 max-w-3xl text-sm leading-relaxed text-espresso/85">
+        A result that arrives against an order we placed is attached to that patient on the order reference, once the
+        name and date of birth agree, and nobody types anything. What reaches this page is everything that did not: an
+        order we have no record of, an identity that disagreed, an account that does not exist yet.
       </p>
       <p className="mt-3 max-w-3xl text-sm leading-relaxed text-espresso/85">
         Nothing here is matched for you. A name alone is never enough, the date of birth must agree, and you restate
@@ -672,6 +678,6 @@ export function LinkingPage() {
           )}
         </>
       )}
-    </>
+      </ConsolePage>
   );
 }

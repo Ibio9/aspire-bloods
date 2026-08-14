@@ -121,11 +121,11 @@ test('self-signup -> email verification -> 2FA -> empty portal', async ({ page, 
   // The old destination still lands somewhere real — it redirects into the
   // consolidated Results page rather than 404ing on a bookmark.
   await page.goto('/my-results');
-  // /my-results was the REPORT LIST, so it redirects to the by-report view
+  // /my-results was the REPORT LIST, so it redirects to the by-test view
   // rather than to the bare /results (which is By marker, the default —
   // see LegacyResultsRedirect and the note in CLAUDE.md). This assertion
   // had been written against the bare URL and was failing accordingly.
-  await expect(page).toHaveURL(/\/results\?view=by-report$/);
+  await expect(page).toHaveURL(/\/results\?view=by-test$/);
   await expect(page.getByText("Nothing here yet, and that’s exactly right")).toBeVisible();
   await expect(page.getByText('the clinic matches the result to you')).toBeVisible();
 });

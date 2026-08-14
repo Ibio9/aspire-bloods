@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Wordmark } from '../../components/Wordmark';
+import { CLINIC_ADDRESS } from '../../lib/clinicContact';
 
 interface AuthSplitLayoutProps {
   children: ReactNode;
@@ -86,7 +87,10 @@ export function AuthSplitLayout({ children, eyebrow, headline, supporting, wide 
         <p className="relative hidden shrink-0 pt-[var(--auth-step)] text-xs leading-relaxed text-oncolor/70 md:block">
           Aspire Clinic
           <br />
-          27 Mortimer Street, London
+          {/* From the shared constant, never typed out here. The address was
+              wrong on this panel for as long as it was a literal — one place
+              to correct it is the point of lib/clinicContact.ts. */}
+          {CLINIC_ADDRESS}
         </p>
       </div>
 

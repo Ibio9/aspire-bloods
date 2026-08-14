@@ -181,7 +181,19 @@ export async function generateGpHandoverPdf(reportId: string): Promise<Buffer> {
       ['Date of birth', dateOfBirth ?? 'Not on record', dateOfBirth !== null],
       ['Sample taken', formatDate(report.sampleDate), true],
       ['Report', reportTitle, false],
-      ['Laboratory', report.source.name, false],
+      /**
+       * ── NO LABORATORY ROW (Aug 2026) ────────────────────────────────────
+       *
+       * "Analysed by Randox Health" is removed from every surface in the
+       * product, and this document is one of them.
+       *
+       * ⚠ FLAGGED, because this is the one place removing it costs something.
+       * A reference interval is ASSAY-SPECIFIC — the sentence below still says
+       * so — and a GP reading a range without knowing whose analyser produced
+       * it has one less thing to weigh. Restoring it is this one line. Every
+       * other removal in this pass was a line that said nothing about the
+       * results beside it; this one did.
+       */
       ['Summary prepared', formatDate(new Date()), true],
     ];
     const colGap = 12;
@@ -207,7 +219,10 @@ export async function generateGpHandoverPdf(reportId: string): Promise<Buffer> {
     // the laboratory and states that a private result is not a diagnosis, and
     // stops there.
     use(doc, 'body', 9).fillColor(ESPRESSO).text(
-      `These are private laboratory results requested by the patient and analysed by ${report.source.name}. ` +
+      // "and analysed by <laboratory>" is removed with the Laboratory row
+      // above. What survives is the half that bears on how the figures should
+      // be read: the ranges belong to whoever ran the assay.
+      `These are private laboratory results requested by the patient. ` +
         `They are a measurement, not a diagnosis, and were not taken in the context of a clinical assessment. ` +
         `Reference ranges are the laboratory’s own and are assay-specific.`,
       left,
@@ -239,14 +254,33 @@ export async function generateGpHandoverPdf(reportId: string): Promise<Buffer> {
           { width, lineGap: 1.5 },
         );
     } else {
-      const colX = [56, 218, 288, 356, 430];
-      const colW2 = [158, 66, 64, 70, 109];
+      /**
+       * ── RANGE, THEN RESULT, THEN STATUS (Aug 2026) ────────────────────────
+       *
+       * It was MARKER · RESULT · UNIT · RANGE · STATUS. The order is now the
+       * one both documents use: the range a result was measured against, then
+       * the result, then what that combination came to. It reads as the
+       * comparison it is — "133–146, and this one is 128, so: below range" —
+       * rather than as a number followed some columns later by the thing it
+       * would have to be compared with.
+       *
+       * THE UNIT STAYS BESIDE THE RESULT rather than leading the three, because
+       * it is a property of the number and not a column anybody scans. The
+       * three columns the instruction names are in the order it names them.
+       *
+       * The x positions are recomputed rather than permuted: the widths differ
+       * per column (a range needs more room than a unit) and shuffling the
+       * labels over the old offsets would print each header over its
+       * neighbour's cells. Right edge unchanged at 539.
+       */
+      const colX = [56, 218, 292, 358, 424];
+      const colW2 = [158, 74, 66, 64, 115];
       const bottomLimit = doc.page.height - doc.page.margins.bottom - 96;
 
       function header() {
         const y = doc.y;
         use(doc, 'bodyBold', 7.5).fillColor(ESPRESSO);
-        for (const [i, label] of ['MARKER', 'RESULT', 'UNIT', 'RANGE', 'STATUS'].entries()) {
+        for (const [i, label] of ['MARKER', 'RANGE', 'RESULT', 'UNIT', 'STATUS'].entries()) {
           doc.text(label, colX[i], y, { width: colW2[i], characterSpacing: 0.8 });
         }
         const lineY = y + 12;
@@ -258,8 +292,10 @@ export async function generateGpHandoverPdf(reportId: string): Promise<Buffer> {
 
       // The three numeric columns take the mono face for the same reason they
       // do on screen and in the patient letter: read as a column, they have to
-      // line up.
-      const cellFont: FontRole[] = ['body', 'monoBold', 'mono', 'mono', 'body'];
+      // line up. `monoBold` follows the RESULT to its new position — it is the
+      // number a clinician is looking for and it stays the heaviest cell in the
+      // row wherever the row puts it.
+      const cellFont: FontRole[] = ['body', 'mono', 'monoBold', 'mono', 'body'];
 
       for (const { r, decoded } of rows) {
         const range =
@@ -268,9 +304,9 @@ export async function generateGpHandoverPdf(reportId: string): Promise<Buffer> {
             : '—';
         const cells = [
           r.marker.name,
+          range,
           decoded.valueText ?? (decoded.value !== null ? String(decoded.value) : '—'),
           r.unit || '—',
-          range,
           STATUS_TEXT[r.status!] ?? r.status!,
         ];
 

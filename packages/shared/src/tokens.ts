@@ -527,21 +527,162 @@ const TINT_MIX = {
  * the out-of-range band was lifted off the ladder to 4.45; that band is back on
  * the ladder and no direction-per-hue is needed by anything.
  */
-const MARK_FILL: Record<'green' | 'yellow' | 'red', BandFill> = {
-  // ONE RECORD, for the same reason BAND_FILL is: the line is drawn on the one
-  // light plot in both themes, so it is the same three colours in both.
-  //
-  // DARKER, NOT BRIGHTER — that is the whole difference a light ground makes.
-  // Every previous solve had to LIFT the line off a near-black plot, which runs
-  // it into a ceiling: past a certain lightness there is no chroma left and the
-  // line turns into a white one (#ffebdf is in this file's history). Downward
-  // there is no such wall. Solved for the smallest lightness clearing 3.2:1 on
-  // every band including the optimal narrowing, at the hue's full palette
-  // chroma ceiling.
-  green: { saturation: 0.99, lightness: 0.17 }, // #265600, 3.22:1 worst on a band, 7.24:1 off the plot, okC 0.1202
-  yellow: { saturation: 0.99, lightness: 0.1895 }, // #604800, 3.20:1 / 7.21:1, okC 0.0851
-  red: { saturation: 0.895, lightness: 0.307 }, // #941a08, 3.22:1 / 7.25:1, okC 0.1592
-};
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  THE BANDS ARE GONE FROM THE TREND CHART, AND THE LINE IS THE WHOLE CHART
+ *  (Aug 2026).
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Everything above this — `BAND_FILL`, `BAND_CHROMA_SHARE`, `bandChromaCeiling`,
+ * `PLOT_SURFACE`, `bandRampStops` in statusBands.ts — is still live and still
+ * correct. It now serves ONE instrument: the range bars. A bar has no line to
+ * carry colour along, so its five painted segments ARE the traffic light, and
+ * nothing about them changes.
+ *
+ * THE TREND CHART HAS NO FILLED REGIONS AT ALL. No band rects, no ramp
+ * gradients, no optimal narrowing drawn as a shape, no plot panel: the chart is
+ * a line, four boundary hairlines with their values on the axis, the points,
+ * the axis and the unit, drawn straight onto the card.
+ *
+ * ── WHAT THAT FREES, AND IT IS THE WHOLE ARGUMENT ──────────────────────────
+ *
+ * Every previous solve of the line's colour was a solve against the BANDS. The
+ * line had to clear five painted regions at AA-large, and each of those regions
+ * had a luminance fixed by its own rung of the ladder, so the line's lightness
+ * was decided by whichever band it happened to cross. That is what produced
+ * #ffebdf (a white line with a rumour of warmth) on the near-black plot, and
+ * #265600 / #604800 / #941a08 (three very dark browns) on the light one. Both
+ * are recorded above, and both were correct answers to a constraint that has
+ * just been deleted.
+ *
+ * With nothing behind it the line answers to ONE surface — the card — and it
+ * can sit at whatever lightness holds the most colour there.
+ *
+ * ── SOLVED, NOT PICKED, AND PER THEME AGAIN ────────────────────────────────
+ *
+ * The objective is one sentence: **the most colourful version of this brand hue
+ * that stands `LINE_FILL_TARGET`:1 off this theme's card**, bounded by
+ * `bandChromaCeiling` so a "more emphatic" green can never become a signal
+ * green. Where several (lightness, saturation) pairs reach the ceiling, the one
+ * closest to the target wins — see `CHROMA_TIE` for why that tie-break is
+ * bucketed rather than exact, and for what it produced when it was not.
+ *
+ * THE TARGET IS 4.5, WHICH IS NOT THE REQUIREMENT. A 5px line is a graphical
+ * object and AA-large (3:1) is what it must clear. It is solved to AA for TEXT
+ * instead, in both themes, because the line is now the only thing on the chart
+ * carrying status and "just legible" is the wrong bar for it. The requirement
+ * is the floor and this is where it sits; `tokenContrast.test.ts` asserts the
+ * floor.
+ *
+ * PER THEME, and that is a return rather than a regression: a light card wants
+ * a dark line and a near-black card wants a light one, and the single-record
+ * era above only existed because both themes drew on one light plot. There is
+ * no plot now.
+ *
+ * MEASURED — the five hues, contrast off the card:
+ *
+ *     light   #507e2c 4.69   #727719 4.68   #936f06 4.53   #aa5c1e 4.80   #c14836 4.82
+ *     dark    #73a14f 4.91   #999828 4.87   #bf8f00 5.06   #d27c2b 4.71   #e46956 4.57
+ *
+ * ── THE ONE HUE THAT CANNOT WIN, AND IT IS THE SAME ONE AS ALWAYS ──────────
+ *
+ * On the LIGHT card the line has to be dark to clear 4.5:1, and a dark yellow
+ * is a brown in any colour space. That fact is recorded three times in this
+ * file already, from three different grounds, and it arrives here for a fourth:
+ * light's gold lands at #936f06, which is a deep amber rather than the gold it
+ * is in dark. Green and red are unambiguous in both themes. Nothing is done
+ * about it, because the only lever is to stop clearing contrast.
+ */
+const LINE_FILL_TARGET = 4.5;
+
+/**
+ * The most chromatic rendering of `hue` that stands `target`:1 off `surface`,
+ * with its OKLab chroma bounded by `ceiling`.
+ *
+ * A grid search rather than an inversion, because there is no closed form: HSL
+ * saturation and lightness both move luminance AND chroma, and the boundary of
+ * the sRGB gamut is what limits the answer. ~10,000 evaluations per hue, run
+ * once at module load for three hues in two themes.
+ *
+ * Ties on chroma go to the SMALLEST ratio that still clears the target: past
+ * the target every further step is lightness spent walking the hue toward black
+ * or white, which costs colour and buys nothing anybody can see.
+ */
+/**
+ * HOW CLOSE TWO CHROMAS COUNT AS THE SAME, and this constant is the whole
+ * difference between a solve and a lottery.
+ *
+ * The first version of this took the single highest chroma and tie-broke on
+ * contrast at 1e-6, which is far below the noise a 0.02 saturation step
+ * produces — so the tie-break never fired once, and dark's green came back as
+ * **#c9faa3 at 12.52:1**: a pale mint that happened to score 0.12349 against a
+ * mid green's 0.12347. Two colours nobody could tell apart on the measure being
+ * optimised, and the wrong one chosen every time.
+ *
+ * 0.002 of OKLab chroma is about a fiftieth of the distance between the
+ * palette's green and its red — below the threshold of "these are different
+ * colours" and comfortably above the grid's own noise. Inside that band the
+ * CONTRAST tie-break decides, which is the answer that was wanted.
+ */
+const CHROMA_TIE = 0.002;
+
+function solveAgainst(hue: string, surfaces: string[], target: number, ceiling: number): string {
+  const candidates: { hex: string; chroma: number; ratio: number }[] = [];
+  for (let lightness = 0.04; lightness <= 0.96001; lightness += 0.005) {
+    for (let saturation = 0.2; saturation <= 1.00001; saturation += 0.02) {
+      const hex = reHsl(hue, Math.min(1, saturation), lightness);
+      // The WORST of the surfaces it can land on — a colour that clears the
+      // page and fails on its own wash has not cleared anything.
+      const ratio = surfaces.reduce((worst, s) => Math.min(worst, contrastRatio(hex, s)), Infinity);
+      if (ratio < target) continue;
+      const chroma = okChroma(hex);
+      if (chroma > ceiling) continue;
+      candidates.push({ hex, chroma, ratio });
+    }
+  }
+  // Unreachable for any real surface — a hue that cannot clear the target at
+  // ANY lightness does not exist — but a colour is required and a silent
+  // `undefined` in an SVG stroke renders black. See the warning on tintSet.
+  if (candidates.length === 0) return hue;
+  const mostChromatic = Math.max(...candidates.map((c) => c.chroma));
+  // TWO PASSES, not one comparison. Everything within CHROMA_TIE of the best is
+  // as colourful as the best; among those the smallest ratio that still clears
+  // the target wins, because past the target every further step is lightness
+  // spent walking the hue toward black or white.
+  return candidates
+    .filter((c) => c.chroma >= mostChromatic - CHROMA_TIE)
+    .reduce((best, c) => (c.ratio < best.ratio ? c : best)).hex;
+}
+
+/**
+ * A NEUTRAL AT A TARGET CONTRAST — the hue's OWN saturation, and the lightness
+ * that lands nearest the ratio asked for.
+ *
+ * A different objective from `solveAgainst` and a separate function for that
+ * reason. A boundary hairline is furniture: it is wanted at a specific weight
+ * against the card, and "as colourful as taupe will go" is not a question
+ * anybody asked of it. Solved with the max-chroma objective it came back
+ * **#140c01 at 18.89:1** — a near-black rule, three times the weight of the
+ * line it is meant to sit behind.
+ */
+function solveNeutral(hue: string, surface: string, target: number): string {
+  let best: { hex: string; miss: number } | null = null;
+  const saturation = ownSaturation(hue);
+  for (let lightness = 0.02; lightness <= 0.98001; lightness += 0.002) {
+    const hex = reHsl(hue, saturation, lightness);
+    const miss = Math.abs(contrastRatio(hex, surface) - target);
+    if (!best || miss < best.miss) best = { hex, miss };
+  }
+  return best?.hex ?? hue;
+}
+
+/**
+ * WHAT WAS HERE. `MARK_FILL` — three hand-solved (saturation, lightness) pairs
+ * producing #265600 / #604800 / #941a08, solved to clear five painted bands on
+ * a light plot. The bands are gone from the chart, the plot is gone with them,
+ * and the numbers were only ever true of that constraint. `solveAgainst` above
+ * replaces it and is solved per theme against the card.
+ */
 
 
 /**
@@ -1060,6 +1201,30 @@ const darkWhite = mix(darkPage, '#000000', 0.18);
  * the dark wash carries more hue (26% against light's 16%), so it is the
  * tighter of the two constraints.
  */
+/**
+ * ── AND THE DARK STATUS LABEL IS SOLVED AGAINST ITS OWN WASH (Aug 2026) ────
+ *
+ * `darkStatusHex` below was a hand-tuned mix per hue, solved against the wash
+ * as it then was. The washes have just been re-solved to match light's chroma
+ * (see `solveTint`), which moved every one of them — and the red label
+ * immediately measured **4.27:1 on its own wash**, under AA, on the card a
+ * patient reads when a result is significantly out.
+ *
+ * A number tuned against a surface that has since moved is a number that is
+ * wrong and does not say so. This takes the surfaces as arguments and solves,
+ * so the next time a wash changes the label follows it.
+ *
+ * THE OBJECTIVE IS THE SAME ONE AS EVERYWHERE ELSE IN THIS FILE: the most
+ * chromatic rendering of the brand hue that clears the floor on EVERY surface
+ * it can land on. Chroma is what makes a status colour recognisable as green or
+ * gold rather than as a warm grey, so it is what is maximised; contrast is the
+ * constraint, not the goal.
+ */
+// It IS `solveAgainst`, handed four surfaces instead of one and bounded by the
+// same `bandChromaCeiling`. Solved without that bound the dark green label came
+// back **#70ff00** — a highlighter, and precisely the "signal green" the
+// palette forbids. See the call site.
+
 function darkStatusHex(hue: StatusHue): string {
   // Re-derived a second time (Aug 2026) against the near-black base. The
   // surfaces went DOWN this round rather than up, so every one of these has
@@ -1135,6 +1300,91 @@ function darkStatusHex(hue: StatusHue): string {
 const PLOT_SURFACE = mix(brand.cream, brand.white, 0.35); // #edeae2
 
 /**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  DARK'S TRANSLUCENT TINTS ARE SOLVED TO MATCH LIGHT'S (Aug 2026).
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * THE COMPLAINT, and it was right: "a green card in dark should read as green
+ * with the same confidence a green card in light does; right now light is
+ * better and dark is muddy."
+ *
+ * ── WHY DARK WAS MUDDY, AND IT IS ONE LINE OF ARITHMETIC ───────────────────
+ *
+ * Every dark tint was `mix(card, themedHue(hue), weight)`, and `themedHue` in
+ * dark is `mix(statusHue, darkText, DARK_HUE_LIFT)` — the hue carried toward a
+ * warm near-white so it would be visible on a near-black page. **A mix toward a
+ * near-neutral DESATURATES.** So the input to the wash had already lost part of
+ * its colour before the wash diluted it again, and two desaturating steps in a
+ * row is what "muddy" is. Measured, OKLab chroma of the card wash:
+ *
+ *     light   green 0.0257   yellow 0.0325   red 0.0345
+ *     dark    green 0.0146   yellow 0.0212   red 0.0189
+ *
+ * Dark carried 57%, 65% and 55% of light's colour. It was not a slightly
+ * different green; it was a little over half a green.
+ *
+ * ── WHAT IS SOLVED, AND AGAINST WHAT ───────────────────────────────────────
+ *
+ * Light is the reference and dark is re-derived to two of its measurements at
+ * once — never reused directly, which is the trap a naive dark mode falls into
+ * and which this file has warned about since it was written:
+ *
+ *  1. THE SAME OKLab CHROMA. "Reads as green with the same confidence" is a
+ *     statement about colourfulness, and OKLab chroma is the measure of it that
+ *     does not lie (see `okChroma`). Matching the number is matching the claim.
+ *  2. THE SAME PRESENCE ON ITS OWN CARD. A tint's job is to separate a tinted
+ *     card from an untinted one, and that is a CONTRAST against the card it
+ *     replaces — 1.09:1 for a light wash. Matching the ratio rather than the
+ *     colour is what makes the two themes feel equally tinted on two surfaces
+ *     that are nothing like each other.
+ *
+ * Both, lexicographically: candidates within a tolerance of light's contrast
+ * first, then the one closest to light's chroma. The tolerance widens in steps
+ * so a hue that cannot hit the ratio exactly still gets the nearest answer
+ * rather than nothing.
+ *
+ * THE HUE ANGLE IS THE BRAND HUE'S OWN and is never touched, exactly as in
+ * every other solve in this file. Only saturation and lightness move.
+ *
+ * `DARK_HUE_LIFT` survives for `darkFill`, which is a different operation on a
+ * different kind of thing.
+ */
+function solveTint(hue: string, surface: string, targetContrast: number, targetChroma: number): string {
+  /**
+   * ── AND IT HAS TO BE ON THE RIGHT SIDE OF THE CARD ────────────────────
+   *
+   * A contrast ratio is SYMMETRIC: a wash 1.20:1 darker than the card matches
+   * the target exactly as well as one 1.20:1 lighter. Solved without this,
+   * dark's gold wash came back **#1e1702** and its red **#0c0201** — washes
+   * DARKER than a near-black card, which is a hole punched in the surface
+   * rather than a tint on it, and unreadable body copy sitting in it.
+   *
+   * A tint moves away from the card in the direction that theme's surfaces
+   * move: darker on a light card, lighter on a dark one. That is the same rule
+   * the surface scale itself runs on, applied to the one thing that had been
+   * getting it by accident.
+   */
+  const surfaceLuminance = relativeLuminance(surface);
+  const lighter = surfaceLuminance < 0.5;
+  for (const tolerance of [0.01, 0.02, 0.05, 0.12, 0.4]) {
+    let best: { hex: string; miss: number } | null = null;
+    for (let lightness = 0.02; lightness <= 0.98001; lightness += 0.004) {
+      for (let saturation = 0.05; saturation <= 1.00001; saturation += 0.02) {
+        const hex = reHsl(hue, Math.min(1, saturation), lightness);
+        const luminance = relativeLuminance(hex);
+        if (lighter ? luminance <= surfaceLuminance : luminance >= surfaceLuminance) continue;
+        if (Math.abs(contrastRatio(hex, surface) - targetContrast) > tolerance) continue;
+        const miss = Math.abs(okChroma(hex) - targetChroma);
+        if (!best || miss < best.miss) best = { hex, miss };
+      }
+    }
+    if (best) return best.hex;
+  }
+  // Unreachable: at tolerance 0.4 the whole lightness ladder is in range.
+  return hue;
+}
+
+/**
  * INK ON THE PLOT, and it is STATIC like `night` and `oncolor` are.
  *
  * The plot is light in both themes, so everything drawn on it in text —
@@ -1143,8 +1393,127 @@ const PLOT_SURFACE = mix(brand.cream, brand.white, 0.35); // #edeae2
  * here would be the bug: espresso resolves to a near-white cream in dark, and
  * a cream tick label on a #edeae2 plot measures 1.09:1.
  */
-const PLOT_INK = brand.espresso; // 9.04:1 on the plot
-const PLOT_INK_MUTED = mix(brand.espresso, PLOT_SURFACE, 0.25); // #6d6861, 4.59:1 — AA for a tick label
+// REMOVED with the plot panel (Aug 2026). `PLOT_INK` / `PLOT_INK_MUTED` were
+// the static espresso pair for text drawn on the light panel. Nothing is drawn
+// on a panel any more; the axis is on the card and follows the theme.
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  THE SOLVED VALUES ARE WRITTEN DOWN, NOT COMPUTED ON EVERY PAGE LOAD.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * `solveAgainst`, `solveTint` and `solveNeutral` are grid searches — roughly a
+ * quarter of a million contrast-and-chroma evaluations between them. Run at
+ * module scope they cost **605ms**, MEASURED, and this module is in the entry
+ * chunk: that is 605ms of blocked first paint for every patient on every visit,
+ * on a phone rather more.
+ *
+ * So the file goes back to its own long-standing rule, which is the first line
+ * of the note on `okChroma`: **solve at authoring time, ship the numbers.**
+ * `SOLVED` below is what ships. `solveTokens()` is exported so the search can
+ * be re-run, and `tokenContrast.test.ts` runs it and asserts these literals are
+ * exactly what it produces — so a hand-edited hex, or a change to `statusHue`
+ * or to a card surface that ought to move one of these, fails a test rather
+ * than silently shipping a stale colour.
+ *
+ * Module init after: 605ms → under 2ms.
+ */
+export interface SolvedTokens {
+  /** The trend line and its point marks. Solved against the CARD. */
+  line: Record<StatusHue, string>;
+  /** The card wash under a tinted result. Solved to light's chroma and presence. */
+  wash: Record<StatusHue, string>;
+  /** The summary-bar and chip fill. Same. */
+  track: Record<StatusHue, string>;
+  /** The status word, solved against its own wash, the page, the card and an input. */
+  label: Record<'green' | 'yellow' | 'red', string>;
+  /** The chart's boundary hairline, on the card. */
+  bound: string;
+}
+
+/**
+ * RE-RUN THE SEARCH. Slow by construction — authoring time and tests only.
+ *
+ * Everything a value depends on is a parameter of the theme, so this takes the
+ * mode and nothing else: change `statusHue`, `TINT_MIX.wash`, the card surface
+ * or `LINE_FILL_TARGET` and this returns different numbers, which is exactly
+ * what the test compares against.
+ */
+export function solveTokens(mode: 'light' | 'dark'): SolvedTokens {
+  const dark = mode === 'dark';
+  const card = dark ? darkScales.cream[50] : scales.cream[50];
+  const lightCard = scales.cream[50];
+  const matchLight = (hue: StatusHue, weight: number): string => {
+    const reference = mix(lightCard, statusHue[hue], weight);
+    return dark ? solveTint(statusHue[hue], card, contrastRatio(reference, lightCard), okChroma(reference)) : reference;
+  };
+  const hues = Object.keys(statusHue) as StatusHue[];
+  const byHue = (f: (h: StatusHue) => string) =>
+    Object.fromEntries(hues.map((h) => [h, f(h)])) as Record<StatusHue, string>;
+
+  const line = byHue((hue) =>
+    // The two hinges are MIDPOINTS of their neighbours, never solved
+    // independently — see the note in buildThemeTokens.
+    hue === 'olive' || hue === 'orange'
+      ? mix(
+          solveAgainst(statusHue[hue === 'olive' ? 'green' : 'yellow'], [card], LINE_FILL_TARGET, bandChromaCeiling(hue === 'olive' ? 'green' : 'yellow')),
+          solveAgainst(statusHue[hue === 'olive' ? 'yellow' : 'red'], [card], LINE_FILL_TARGET, bandChromaCeiling(hue === 'olive' ? 'yellow' : 'red')),
+          0.5,
+        )
+      : solveAgainst(statusHue[hue], [card], LINE_FILL_TARGET, bandChromaCeiling(hue as 'green' | 'yellow' | 'red')),
+  );
+  const wash = byHue((hue) => matchLight(hue, TINT_MIX.wash));
+  const label = Object.fromEntries(
+    (['green', 'yellow', 'red'] as const).map((hue) => [
+      hue,
+      dark
+        ? solveAgainst(
+            statusHue[hue],
+            [wash[hue], darkPage, darkScales.cream[50], darkWhite],
+            // The literal rather than `WCAG_AA_TEXT`, which is a `const`
+            // declared far below this — a temporal-dead-zone throw at module
+            // load, not a lint nit.
+            4.5,
+            bandChromaCeiling(hue),
+          )
+        : statusTextHex(hue),
+    ]),
+  ) as Record<'green' | 'yellow' | 'red', string>;
+
+  return {
+    line,
+    wash,
+    track: byHue((hue) => matchLight(hue, TINT_MIX.track)),
+    label,
+    bound: solveNeutral(brand.taupe, card, 2.6),
+  };
+}
+
+
+/**
+ * WHAT SHIPS. Produced by `solveTokens` above and pinned by
+ * `tokenContrast.test.ts`, which re-runs the search and asserts equality — so
+ * these cannot drift from their own derivation without a test failing.
+ *
+ * Do not hand-edit. Change the INPUT (a brand hue, `TINT_MIX.wash`, a card
+ * surface, `LINE_FILL_TARGET`) and regenerate.
+ */
+const SOLVED: Record<'light' | 'dark', SolvedTokens> = {
+  light: {
+    line: { green: '#507e2c', olive: '#727719', yellow: '#936f06', orange: '#aa5c1e', red: '#c14836' },
+    wash: { green: '#dbe4d2', olive: '#e6e6cf', yellow: '#f1e7cb', orange: '#f0dfcd', red: '#ecd3cf' },
+    track: { green: '#a0bb8b', olive: '#bfbf81', yellow: '#ddc376', orange: '#dcab7b', red: '#d18b81' },
+    label: { green: '#516838', yellow: '#735f2a', red: '#993a2b' },
+    bound: '#af9c80',
+  },
+  dark: {
+    line: { green: '#73a14f', olive: '#999828', yellow: '#bf8f00', orange: '#d27c2b', red: '#e46956' },
+    wash: { green: '#333b2d', olive: '#373725', yellow: '#3c341c', orange: '#433527', red: '#4c3936' },
+    track: { green: '#455e31', olive: '#535317', yellow: '#5f4700', orange: '#7a4b1d', red: '#97564c' },
+    label: { green: '#80ae5b', yellow: '#c39611', red: '#fe8472' },
+    bound: '#76644a',
+  },
+};
 
 function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
   const dark = mode === 'dark';
@@ -1367,45 +1736,56 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
   };
 
   /**
-   * THE LINE AND POINT COLOURS, solved the same way and hinged the same way —
-   * see MARK_FILL. Three states solved against every band; the two hinges the
-   * exact RGB midpoints of their neighbours, because a hinge is where the line
-   * crosses a boundary and has to be half of each.
+   * ═══ THE TREND LINE AND ITS POINT MARKS — SOLVED AGAINST THE CARD ═══════
+   *
+   * The chart has no bands and no plot panel any more (Aug 2026): the line is
+   * drawn straight onto the card, so the card is the only surface it has to
+   * clear and `tintTowards` IS the card. See `solveAgainst` and
+   * `LINE_FILL_TARGET` for the objective; the short version is "the most
+   * colourful this brand hue gets while still standing 3.2:1 off the card".
+   *
+   * NOT `themedHue`. The dark lift exists to make a hue visible as a WASH on a
+   * near-black surface; here the solver is already looking at that surface and
+   * pre-lifting the input would bound the answer for no reason.
+   *
+   * THE TWO HINGES ARE MIDPOINTS, unchanged in kind from every previous solve:
+   * olive is exactly half the green and the gold, orange half the gold and the
+   * red. A hinge is where the line crosses a boundary, so it has to be half of
+   * each on the same terms — and solving one independently is what once drew a
+   * chartreuse stripe through the middle of a blend.
    */
-  // `statusHue` and NOT `themedHue`. The dark lift exists to keep a hue visible
-  // against a near-black surface; the line is drawn on PLOT_SURFACE in both
-  // themes, so lifting it in dark would be solving for a ground that is not
-  // there and would put the two themes' trend lines at different colours on
-  // identical plots.
-  const markFill = (hue: 'green' | 'yellow' | 'red'): string => {
-    const { saturation, lightness } = MARK_FILL[hue];
-    return reLightness(statusHue[hue], lightness, saturation);
-  };
-  const MARK: Record<StatusHue, string> = {
-    green: markFill('green'),
-    yellow: markFill('yellow'),
-    red: markFill('red'),
-    olive: mix(markFill('green'), markFill('yellow'), 0.5),
-    orange: mix(markFill('yellow'), markFill('red'), 0.5),
-  };
+  const MARK: Record<StatusHue, string> = SOLVED[mode].line;
 
   // The five hues, per role. Emitted per HUE and not only per status because
   // the two HINGES are real tokens here — olive at a reference bound, orange at
   // a significantly-out threshold, each the midpoint of the gradient centred on
   // its own boundary — while neither is ever a status of its own.
+  /**
+   * ── LIGHT IS THE REFERENCE FOR EVERY TRANSLUCENT TINT (Aug 2026) ─────────
+   *
+   * The light wash and the light bar fill are computed FIRST, in both themes,
+   * and dark is then solved to their chroma and to their presence on their own
+   * card — see `solveTint`. That is the whole of "bring dark into line with
+   * light's, re-derived for the dark ground rather than reused directly": the
+   * numbers being matched are measurements of light, and the colour that
+   * matches them is solved against the dark card.
+   */
   for (const hue of Object.keys(statusHue) as StatusHue[]) {
     const h = themedHue(hue);
-    // The wash is the card's own background, so it is mixed FROM the card in
-    // both themes. Everything below it is a fill and, in dark, is mixed from
-    // neutral black instead — see darkFill.
-    out[`--c-hue-${hue}-wash`] = mix(tintTowards, h, dark ? TINT_MIX.washDark : TINT_MIX.wash);
+    // THE CARD WASH and THE BAR FILL are the two translucent tints a patient
+    // reads — the wash under a result card, and the fill of a summary bar or a
+    // chip. Both are matched to light rather than mixed from a pre-lifted hue.
+    out[`--c-hue-${hue}-wash`] = SOLVED[mode].wash[hue];
     out[`--c-hue-${hue}-band`] = dark ? darkFill(hue, 'band') : mix(tintTowards, h, TINT_MIX.band);
     // THE OPAQUE BAND FILL — the chart's bands and the range bars' track, one
     // colour, drawn at full opacity in both. It used to be `-plot`, a hue meant
     // to be composited at BAND_WEIGHT; see BAND_FILL for why an alpha was the
     // ceiling on how much colour a band could carry.
     out[`--c-hue-${hue}-fill`] = FILL[hue];
-    out[`--c-hue-${hue}-track`] = dark ? darkFill(hue, 'track') : mix(tintTowards, h, TINT_MIX.track);
+    // The summary bars and the breakdown chips. Matched to light for the same
+    // reason the wash is: a gold segment in a category bar was a different
+    // gold in the two themes, and dark's was the weaker one.
+    out[`--c-hue-${hue}-track`] = SOLVED[mode].track[hue];
     out[`--c-hue-${hue}-edge`] = dark ? darkFill(hue, 'edge') : mix(tintTowards, h, TINT_MIX.edge);
     // THE TREND LINE'S OWN COLOUR AT THIS HUE, and the point mark standing on
     // it. Solved against every band rather than mixed toward the text tone —
@@ -1414,7 +1794,18 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
   }
 
   for (const key of Object.keys(status) as StatusKey[]) {
-    out[`--c-status-${kebab(key)}`] = dark ? darkStatusHex(status[key].hue) : status[key].hex;
+    // SOLVED IN DARK, against the four surfaces a status word actually lands
+    // on — its own wash first, because that is the tightest of them and the one
+    // that moved. See `solveTokens`. Light stays as the authored
+    // `statusTextHex`, which measures 4.74:1 at its worst against the same four
+    // and did not move (light's washes are unchanged by the tint re-solve).
+    //
+    // Only the three STATES have a label. Olive and orange are hinges and are
+    // never a status, so `status[key].hue` is one of three by construction —
+    // stated in the type rather than left to a `Record` lookup returning
+    // undefined, which is how a bare `var()` reaches an element and renders it
+    // black. See the warning on tintSet.
+    out[`--c-status-${kebab(key)}`] = SOLVED[mode].label[status[key].hue as 'green' | 'yellow' | 'red'];
     // Aliases onto the hue this state resolves to. Kept as their own variables
     // so a component asks for "the significantly-high tint" rather than having
     // to know that significantly-high happens to be red.
@@ -1465,6 +1856,27 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
   );
   out['--c-chart-point'] = out['--c-chart-line'];
   /**
+   * ── THE BOUNDARY HAIRLINES, ON THE CARD (Aug 2026) ──────────────────────
+   *
+   * With the bands gone these four rules are the ONLY thing on the chart
+   * saying where the reference range is, so they matter more than they ever
+   * did — and they are drawn on the card rather than on a painted band, which
+   * means the old `--c-chart-reference-edge` (solved against the five fills,
+   * and still right for the range bar's ticks) is solved against the wrong
+   * surface for them.
+   *
+   * Solved here at **2.6:1 off the card**, in each theme. That window is the
+   * one this product has always held a boundary to: below about 1.6 it is a
+   * rumour, and past about 3.5 it starts competing with the reader's own line.
+   * 2.6 sits in the middle and is "thin, quiet, unmistakably there".
+   *
+   * Neutral by construction — it is derived from `taupe`, which is the
+   * palette's border family, and never from a status hue. It is the layer that
+   * has to survive the colour being taken away, so it cannot be made of
+   * colour.
+   */
+  out['--c-chart-bound'] = SOLVED[mode].bound;
+  /**
    * The ring around a plotted point, and it is THE CARD'S OWN SURFACE in both
    * themes rather than white in light and the card in dark.
    *
@@ -1477,9 +1889,11 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * choice.
    */
   // The ring that makes the line appear to pass BEHIND a point rather than to
-  // stop at it. It only works if the ring is the colour the plot would be with
-  // nothing drawn there — which is now one colour in both themes.
-  out['--c-chart-point-ring'] = PLOT_SURFACE;
+  // stop at it. It only works if the ring is the colour the ground would be
+  // with nothing drawn there — and since the chart has no plot panel any more,
+  // that ground is THE CARD, in each theme. It was `PLOT_SURFACE`, which on a
+  // dark card would now paint a pale halo round every point.
+  out['--c-chart-point-ring'] = tintTowards;
   /**
    * The hairline that bounds a band — AND IT WENT DARKER IN LIGHT (Aug 2026).
    *
@@ -1496,15 +1910,13 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * 2.57:1 starts to compete with the trend line — the boundary is furniture
    * and the reader's own result is not.
    */
-  // ONE NEUTRAL OVER ALL FIVE BANDS, and in dark it is solved rather than
-  // stepped: the out-of-range band is a real yellow now and the spread from the
-  // in-range band to it is far wider than a scale step was chosen against.
-  // 0.775 is the value that keeps the drawn hairline inside 1.6-3.5:1 on every
-  // band; there is no such value once the yellow band goes past okL 0.63, which
-  // is what fixes the yellow where it is. See BAND_FILL.
-  // ONE NEUTRAL, ONE THEME'S WORTH OF SOLVE. It is drawn on the bands and the
-  // bands are the same in both themes now, so there is nothing left for a
-  // per-theme value to answer.
+  // ── AND SINCE Aug 2026 THIS IS THE RANGE BAR'S, AND ONLY THE RANGE BAR'S.
+  // It is solved against the five painted band FILLS, which is exactly right
+  // for the two reference-bound ticks and the optimal edges on a bar and
+  // exactly wrong for the trend chart, whose boundary rules are now drawn on
+  // the card. Those take `--c-chart-bound` above, solved against the card in
+  // each theme. Two grounds, two tokens; one token drawn on two grounds is how
+  // a hairline ends up at 1.1:1 on one of them.
   //
   // SOLVED AT ITS DRAWN OPACITY, not as a bare token — the hairline is
   // composited at `chart.referenceEdgeOpacity` over the band, and the only
@@ -1533,63 +1945,61 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * `chart` below.
    */
   out['--c-band-optimal'] = bandFill('optimal');
-  // EVERYTHING THAT IS DRAWN ON THE PLOT IS NOW STATIC, and this is the block
-  // where forgetting that would show. A tick label is text on a #edeae2 panel
-  // in both themes; taking it from the theme's own scales put a near-white
-  // cream on it in dark, at 1.09:1.
-  out['--c-chart-axis-line'] = mix(brand.taupe, brand.espresso, 0.15);
-  out['--c-chart-axis-text'] = PLOT_INK_MUTED;
-  out['--c-chart-gridline'] = mix(PLOT_SURFACE, brand.taupe, 0.5);
-  out['--c-chart-cursor'] = mix(brand.taupe, brand.espresso, 0.35);
-  out['--c-chart-surface'] = dark ? darkScales.cream[50] : mix(brand.white, brand.cream, 0.35);
   /**
-   * The plot area, one step away from the card it sits on — DOWN in light and
-   * DOWN in dark, which is the same direction and not the same operation. In
-   * light the card is a warm off-white and a step down is the cream page tone.
-   * In dark the card is already near-black, and the trap recorded on
-   * `darkWhite` applies: there is no further down that measures. So dark takes
-   * a step toward the PAGE (which is darker than the card) rather than toward
-   * black, which is a real step of about 1.10:1 rather than the 1.02:1 that
-   * mixing toward black produces.
+   * ── AND EVERYTHING DRAWN ON THE CHART IS THEME-AWARE AGAIN (Aug 2026) ────
+   *
+   * These were STATIC, and the note here said so in capitals: the plot was a
+   * #edeae2 panel in both themes, so a tick label taken from the theme's own
+   * scales put a near-white cream on a near-white panel at 1.09:1.
+   *
+   * There is no panel. The axis, its ticks and the cursor are drawn on the
+   * CARD now, so the exact opposite is true — a static espresso tick label on
+   * a near-black dark card measures about 1.1:1, which is the identical
+   * failure with the themes swapped. They follow the theme.
+   */
+  out['--c-chart-axis-line'] = dark ? darkScales.taupe[500] : mix(brand.taupe, brand.espresso, 0.15);
+  out['--c-chart-axis-text'] = dark ? darkScales.espresso[600] : mix(brand.espresso, brand.cream, 0.25);
+  out['--c-chart-gridline'] = dark ? darkScales.taupe[400] : mix(brand.cream, brand.taupe, 0.5);
+  out['--c-chart-cursor'] = dark ? darkScales.taupe[700] : mix(brand.taupe, brand.espresso, 0.35);
+  // The card the chart is drawn on — what a point mark is filled with so the
+  // line passes behind it. One expression with `tintTowards`, which is the
+  // same card every wash is mixed from.
+  out['--c-chart-surface'] = tintTowards;
+  /**
+   * ── THE GROUND THE BAND LADDER IS SOLVED AGAINST (Aug 2026) ─────────────
+   *
+   * `PLOT_SURFACE` outlived the plot. It is no longer a panel anybody draws —
+   * the chart is on the card — but it is still the surface `BAND_CONTRAST`
+   * measures each of the five fills against, and it is still VISIBLE in one
+   * place: the ring around a range bar's mark, which is what makes the mark
+   * read as sitting on the track rather than in it.
+   *
+   * So the token stays, and its meaning has narrowed rather than gone. It is
+   * what `tokenContrast.test.ts` measures the ladder against, and if it ever
+   * moves the five fills are solved again.
    */
   out['--c-chart-plot-surface'] = PLOT_SURFACE;
   /**
-   * The plot's own frame, and in dark it is doing a different job.
+   * ── THE PLOT PANEL IS GONE, AND SO ARE ITS FOUR TOKENS (Aug 2026) ────────
    *
-   * In LIGHT the plot is a step down from the card and the frame is what gives
-   * that step an edge — `taupe-400`, unchanged.
+   * `--c-chart-plot-surface`, `-plot-frame`, `-plot-inset`, `-plot-ink` and
+   * `-plot-ink-muted` were the light inset panel the bands were drawn on: a
+   * warm off-white rectangle, a frame at two weights, a two-gradient inner
+   * shadow, and a static ink pair for everything printed inside it. With no
+   * bands there is nothing to give a ground to, and a bright rectangle on a
+   * near-black card with a line in it is a picture pasted into the page. The
+   * chart is drawn ON the card.
    *
-   * In DARK the plot is a light panel on a near-black card, so the frame is no
-   * longer separating two similar tones; it is stopping a bright rectangle from
-   * reading as a hole cut in the page. It takes a WARM MID-BROWN — the taupe
-   * scale's own 500 in light terms — which sits between the plot and the card
-   * and belongs to both. A frame lighter than the plot would outline it like a
-   * sticker; a frame as dark as the card would be the cut-out drawn in one more
-   * place.
+   * `PLOT_SURFACE` itself survives, because the RANGE BAR still paints its
+   * five segments and still needs a ground for its own mark's ring.
    */
-  out['--c-chart-plot-frame'] = dark ? scales.taupe[600] : scales.taupe[400];
   /**
-   * The soft inner shadow along the plot's top and left inside edges — the
-   * third of the three things that make it read as an INSET PANEL rather than
-   * as a bright rectangle floating on black (the others are the frame above and
-   * the card's own padding holding it clear of the card's border).
-   *
-   * Warm, from the shadow tone the rest of the product uses, and applied inside
-   * the plot rather than under it: a drop shadow would lift the panel toward
-   * the reader, which is the opposite of what an inset is.
+   * A reference bound on the axis: full ink against the muted ticks, so the
+   * difference between "where the scale happens to be marked" and "a clinical
+   * threshold" is carried by weight rather than by a hue. Theme-aware now,
+   * with everything else that moved off the panel and onto the card.
    */
-  out['--c-chart-plot-inset'] = mix(PLOT_SURFACE, brand.espresso, 0.28);
-  /** Text drawn ON the plot. Static — see PLOT_INK. */
-  out['--c-chart-plot-ink'] = PLOT_INK;
-  out['--c-chart-plot-ink-muted'] = PLOT_INK_MUTED;
-  /**
-   * A reference bound on the axis. Full text weight against the muted ticks —
-   * see chart.boundLabel for why the difference is weight rather than hue.
-   */
-  // A reference bound on the axis: full ink against the muted ticks, so the
-  // difference between "where the scale happens to be marked" and "a clinical
-  // threshold" is carried by weight rather than by a hue.
-  out['--c-chart-bound-label'] = PLOT_INK;
+  out['--c-chart-bound-label'] = dark ? darkScales.espresso[500] : brand.espresso;
 
   /**
    * THE RESULT MARK ON A RANGE BAR — the dot on the full bar and the pointer on
@@ -1993,50 +2403,64 @@ export const chart = {
    * the extra pixel is what makes "gold here, green there" legible as well as
    * true.
    */
-  lineWidth: 4,
+  /**
+   * 5, up from 4 (Aug 2026). The line is the entire chart now — there is
+   * nothing behind it and nothing beside it except four hairlines — and it is
+   * carrying a gradient along its own length, so a colour that changes across
+   * a 4px stroke is a colour nobody can read. Every pixel here is a pixel of
+   * legibility for the one thing on the plot that says anything.
+   */
+  lineWidth: 5,
   point: 'rgb(var(--c-chart-point))',
   /** Ring around every point so it stays legible against the band it lands on. */
   pointRing: 'rgb(var(--c-chart-point-ring))',
   /**
-   * The hairline that bounds a band. Neutral taupe rather than the band's own
-   * hue, on purpose: it is the thing that has to stay visible when the colour
-   * is taken away, so it cannot be made of colour.
+   * The hairline on a RANGE BAR — its two reference-bound ticks and the edges
+   * of an optimal narrowing. Neutral taupe rather than the band's own hue, on
+   * purpose: it is the thing that has to stay visible when the colour is taken
+   * away, so it cannot be made of colour.
+   *
+   * SOLVED AGAINST THE PAINTED BAND FILLS, which is why the trend chart no
+   * longer uses it: the chart's boundary rules are drawn on the card and take
+   * `bound` below.
    */
   referenceEdge: 'rgb(var(--c-chart-reference-edge))',
   /**
-   * How heavily each boundary is drawn. Both are hairlines now rather than the
-   * near-solid rules they were: with the bands softened to a wash, a 0.85-opacity
-   * line over them was the strongest thing in the plot, which put the chart's
-   * emphasis on the edge of the reference range rather than on the reader's own
-   * result. The reference bounds still take twice the weight of the severity
-   * thresholds, because that is the band the chart is actually about.
+   * ── THE CHART'S FOUR BOUNDARY RULES (Aug 2026) ─────────────────────────
+   *
+   * With the bands removed these are the ONLY thing telling a patient where
+   * their range is, so they matter more than they did and they are drawn at
+   * two weights that are distinguishable without colour:
+   *
+   *     REFERENCE BOUNDS       solid, full weight
+   *     SIGNIFICANTLY-OUT      dashed AND lighter
+   *
+   * Both, rather than one or the other, because either alone is a guess about
+   * what a given reader notices first.
+   *
+   * A DASHED HORIZONTAL IS NOT THE DASHED VERTICAL. The step rule — "the
+   * laboratory changed your reference range here" — is also dashed, and this
+   * file already carries a warning against two marks differing only in their
+   * dash pattern. That warning was about the CURSOR, which is vertical like
+   * the step rule and was made solid for exactly that reason. These run across
+   * the plot rather than down it, which is a difference no reader has to be
+   * taught, and they are labelled with their own values on the axis besides.
    */
+  bound: 'rgb(var(--c-chart-bound))',
+  boundWidth: 1,
+  boundOpacity: 1,
+  thresholdOpacity: 0.6,
+  thresholdDashArray: [4, 4],
   /**
-   * ── THE MIDDLE RUNG (Aug 2026) ────────────────────────────────────────
+   * How heavily a RANGE BAR draws its hairlines: the two reference-bound ticks
+   * at `referenceEdgeOpacity`, an optimal narrowing's own edges at
+   * `severityEdgeOpacity`. Composited over the painted band fills, which is
+   * what `--c-chart-reference-edge` is solved against.
    *
-   * The order of prominence on this plot is LINE, then the boundary hairlines,
-   * then the bands, and this number is the middle one. It is what says exactly
-   * where a patient's normal range ends — with the bands blending across a
-   * boundary rather than meeting at a step, it is the ONLY thing that says it
-   * precisely, and the only part of the whole scheme that survives the colour
-   * being taken away.
-   *
-   * THE FIGURE WENT DOWN AND THE PROMINENCE WENT UP, which is not a
-   * contradiction: what matters is the hairline against the BAND it is drawn
-   * on, not its alpha. Measured on dark's out-of-range band —
-   *
-   *     before   hairline 2.15:1 on a band standing 4.74:1 off the plot  → 0.45
-   *     after    hairline 2.47:1 on a band standing 1.47:1 off the plot  → 1.68
-   *
-   * — so the boundary went from being less than half as prominent as the region
-   * it bounds to being two thirds more prominent than it. Nearly four times the
-   * relative weight, from a smaller number.
-   *
-   * 0.55 IS A CEILING SET BY THE LINE, not a preference. Raised to 0.78 the
-   * hairline measured 5.34:1 on dark's in-range band against the line's 3.74,
-   * and the boundary became the loudest thing on the plot — the same inversion
-   * this whole change exists to undo, one layer up. `tokenContrast.test.ts`
-   * asserts the line out-reads the boundary on every band it crosses.
+   * These were the chart's as well until Aug 2026. The chart's boundary rules
+   * take `boundOpacity` / `thresholdOpacity` above, because they are drawn on
+   * the card and one opacity solved over a pale gold band means nothing over a
+   * near-black card.
    */
   referenceEdgeOpacity: 0.55,
   severityEdgeOpacity: 0.38,
@@ -2061,69 +2485,19 @@ export const chart = {
   stepOpacity: 0.7,
   stepWidth: 1,
   /**
-   * ── OPAQUE BANDS (Aug 2026) ──────────────────────────────────────────
+   * ── THE BANDS AND THE PLOT PANEL ARE GONE FROM THE CHART (Aug 2026) ──────
    *
-   * `bandEdgeFade`, `areaOpacity` and the band weights are all GONE, and the
-   * three removals are one decision. There is NO ALPHA ANYWHERE in a band now:
-   * the rect is opaque, every gradient stop is opaque, and nothing behind a
-   * band shows through it. A band that fades at its own edges has no edge, so
-   * where one region ended and the next began became a matter of opinion on a
-   * plot whose whole subject is a boundary; a band drawn at 15% of a colour can
-   * carry at most 15% of a colour, which is what "washed out" was; and an area
-   * fill under the line was a sixth region over five that already competed.
+   * `plotSurface`, `plotFrame`, `plotFrameOpacity`, `plotFrameOpacityDark`,
+   * `plotInset`, `plotInsetOpacity`, `plotInk` and `plotInkMuted` are removed
+   * with the inset panel they described. The chart draws on the card: the
+   * ticks take `axisText` and the bound labels take `boundLabel`, both of
+   * which follow the theme again.
    *
-   * A band is a solid rectangle in `--c-hue-*-fill`, handing over to its
-   * neighbour across a blend centred on the boundary between them — a gradient
-   * between two OPAQUE colours, never a ramp of opacity. The ladder that the
-   * weights used to carry is in the colours: see BAND_CONTRAST in statusBands.
+   * The BAND vocabulary itself — `--c-hue-*-fill`, `bandRampStops`,
+   * `BAND_CONTRAST`, `OPTIMAL_FILL` — is untouched and still serves the range
+   * bars, which have no line to carry colour along and whose five painted
+   * segments are the traffic light.
    */
-  /**
-   * ── THE PLOT AREA AS AN INSET PANEL ──────────────────────────────────
-   *
-   * A hairline frame and a surface fractionally away from the card, so the plot
-   * reads as a recessed panel the drawing sits inside rather than as ink
-   * floating on a card. It is the one box this chart is allowed: "no box" was
-   * the right rule when the bands were slabs tiling the whole area edge to
-   * edge, because a frame around a filled rectangle is a second outline round
-   * the first. With flat low-weight bands there is real ground showing, and
-   * ground needs an edge.
-   *
-   * No shadow and no inner border — one hairline, drawn once.
-   */
-  /**
-   * THE PLOT IS LIGHT IN BOTH THEMES (Aug 2026) — see PLOT_SURFACE. What
-   * follows are the three things that stop it reading as a hole punched in a
-   * dark card, and they are all here rather than in the component so that "it
-   * is an inset panel" is one decision.
-   */
-  plotSurface: 'rgb(var(--c-chart-plot-surface))',
-  plotFrame: 'rgb(var(--c-chart-plot-frame))',
-  /**
-   * FULL WEIGHT IN DARK, HALF IN LIGHT, and the asymmetry is the job the frame
-   * is doing. In light the plot is a step DOWN from the card and the frame only
-   * has to give that step an edge. In dark it is a light panel on a near-black
-   * card, and a half-strength hairline there is a bright rectangle with a faint
-   * suggestion of a border — which is the cut-out look, not an edge.
-   */
-  plotFrameOpacity: 0.5,
-  plotFrameOpacityDark: 1,
-  /**
-   * The inner shadow along the plot's top and left inside edges. An INSET
-   * shadow rather than a drop shadow: a drop shadow lifts a panel toward the
-   * reader and this one is meant to sit into the card. 6px, soft, at a low
-   * alpha — enough that the top edge is not a mathematical line, and not enough
-   * to darken the band that starts there.
-   */
-  plotInset: 'rgb(var(--c-chart-plot-inset))',
-  plotInsetOpacity: 0.5,
-  /**
-   * Text drawn ON the plot, in both themes. STATIC — the plot is light in dark
-   * mode, so anything taken from the theme's own text scale is a near-white on
-   * a near-white. `plotInk` is the full weight (a reference bound, the printed
-   * value beside the latest point) and `plotInkMuted` is the tick ladder.
-   */
-  plotInk: 'rgb(var(--c-chart-plot-ink))',
-  plotInkMuted: 'rgb(var(--c-chart-plot-ink-muted))',
   /**
    * A reference bound printed on the left axis, distinct from a tick value.
    *

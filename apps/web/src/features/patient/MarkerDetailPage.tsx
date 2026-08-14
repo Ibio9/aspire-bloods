@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   asMarkerStatus,
   formatDate,
-  formatReferenceRange,
+  splitMarkerName,
   type MarkerStatusInput,
   type OptimalRangeDTO,
 } from '@aspire-bloods/shared';
@@ -21,7 +21,6 @@ import { CopyButton } from '../../components/ui/CopyButton';
 import { ClinicContactLines } from '../../components/patient/ClinicContact';
 import { PreviousResults } from '../../components/patient/PreviousResults';
 import { apiFetch } from '../../lib/api';
-import { optimalRangeLabel, optimalStatusLabel } from '../../lib/markerCopy';
 import type { MarkerNavState } from './markerNavState';
 
 interface TrendPoint {
@@ -144,6 +143,8 @@ export function MarkerDetailPage() {
   // Narrowed once. Everything below that asks "was this result placed against
   // its range" asks this, rather than comparing the raw field against null.
   const latestStatus = asMarkerStatus(detail.latest.status);
+  // The abbreviation and its expansion, from the one derivation the cards use.
+  const name = splitMarkerName(detail.name);
 
   // Only present when arriving from a report's marker grid (see ReportView) — a direct/deep
   // link has no report context to page through, so the arrows simply don't render.
@@ -196,10 +197,18 @@ export function MarkerDetailPage() {
           competing with its own answer. See `.hero-value` for the other half. */}
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
         <div>
-          <p className="eyebrow mb-3">Marker detail</p>
+          {/* THE "MARKER DETAIL" STANDFIRST IS GONE (Aug 2026). It labelled the
+              page as being a page about a marker, directly under a breadcrumb
+              trail ending in the marker's own name and directly above the
+              marker's own name set at 38px. Three statements of the same fact,
+              of which this was the one carrying no information at all. */}
           {/* No `break-words`: a marker's name never breaks mid-word, here or
-              on a result card. At 38px the page simply gives it another line. */}
-          <h1 className="section-heading">{detail.name}</h1>
+              on a result card. At 38px the page simply gives it another line.
+              The ABBREVIATION leads where the name has one, exactly as on a
+              card, with the expansion beneath at the section-heading's quieter
+              sibling — one vocabulary for a marker's name across the product. */}
+          <h1 className="section-heading">{name.primary}</h1>
+          {name.expansion && <p className="mt-1.5 text-reading text-espresso/80">{name.expansion}</p>}
         </div>
         {navState && (siblingIndex >= 0) && (
           <div className="flex items-center gap-2">
@@ -282,49 +291,41 @@ export function MarkerDetailPage() {
               className="ml-1 self-center"
             />
           </p>
-          <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-            <StatusBadge status={latestStatus} />
-            {detail.latest.amendedAt && (
-              <span className="text-xs text-espresso/80">
-                Amended <span className="numeric">{formatDate(detail.latest.amendedAt)}</span>
-              </span>
-            )}
+          {/* ═══ THE STATUS IS THE SECOND THING ON THE PAGE (Aug 2026) ══════
+              It was a 14px label — the same one a card in a grid of forty gets
+              — sitting in a row of small print between the value and three more
+              lines of small print. On a page whose whole subject is one result,
+              "where does this sit" was the quietest sentence on the screen.
+
+              At `lead` it is the reading step with a 22px chevron, and the space
+              around it is doing as much as the size: 28px above and 28px below,
+              against the 12px it had, so it stands alone rather than heading a
+              stack. Still below the value and still smaller than the marker's
+              name, so the ladder is unchanged.
+
+              The amendment note is NOT in this row any more. It is a footnote
+              about the record, and beside a lead-sized status it read as part
+              of the finding. */}
+          <div className="mt-7">
+            <StatusBadge status={latestStatus} size="lead" />
           </div>
-          {/* Two ranges, always labelled by whose they are. The lab's is the
-              one the status above was decided by; the optimal band underneath
-              is advisory context and says so. Where a marker has no
-              established optimal, this second line simply isn't there - no
-              empty band, no placeholder. */}
-          {/* A qualitative result ("Not detected") has no numeric range behind
-              it, and this line rendered "Lab reference range 0-0 " for one —
-              a half-populated row stating something false. The report card and
-              the All-markers row already guarded this; the marker's own page,
-              which is where someone goes to read the range properly, did not. */}
-          {latestStatus !== null && detail.latest.referenceHigh > detail.latest.referenceLow && (
-            <p className="mt-3 text-sm text-espresso/80">
-              Lab reference range{' '}
-              {/* Formatted rather than interpolated: a range that arrived through
-                  a unit conversion has no rounding of its own, and printed raw it
-                  read "3.884960761896305–5.494444506110488 mmol/L". Same
-                  formatter the trend chart's tooltip, sentence and axis labels
-                  use, so one range reads the same everywhere on the page. */}
-              <span className="numeric">
-                {formatReferenceRange(detail.latest.referenceLow, detail.latest.referenceHigh, detail.latest.unit)}
-              </span>
+          {detail.latest.amendedAt && (
+            <p className="mt-2 text-xs text-espresso/80">
+              Amended <span className="numeric">{formatDate(detail.latest.amendedAt)}</span>
             </p>
           )}
-          {detail.optimal && (
-            <p className="tabular mt-1 text-sm text-espresso/80">
-              {optimalRangeLabel(detail.optimal)}
-              {optimalStatusLabel(detail.optimal) && (
-                <span> · {optimalStatusLabel(detail.optimal)!.toLowerCase()}</span>
-              )}
-            </p>
-          )}
-          {/* Empty for anything the clinic analysed itself — see
-              lib/sourceLabel.ts. Rendered unguarded, that put an empty
-              paragraph and its margin under every in-house result. */}
-          {detail.latest.sourceLabel && <p className="mt-1 text-sm text-espresso/80">{detail.latest.sourceLabel}</p>}
+          {/* ── THREE LINES CAME OFF HERE (Aug 2026) ────────────────────────
+              · "Lab reference range 3.9–5.1 mmol/L". The bar below draws that
+                range, marks both bounds and prints the scale it is drawn on.
+              · "Optimal below 5.0 mmol/L · outside optimal". Where the answer
+                is "outside", the card further down the page says so in a
+                sentence WITH its published source, which is the form that
+                belongs to advisory guidance. Where it is "within", nothing
+                needed saying at all.
+              · "Analysed by Randox Health". Gone from every patient surface —
+                see the same note in ReportHeader.
+              What is left between the value and the bar is the status, which
+              is what the page is for. */}
           {/* A textual result has no position on a numeric scale, and a result
               with no status was never placed on one — the bar would be a guess
               in both cases, so it is simply not drawn. */}
@@ -385,11 +386,21 @@ export function MarkerDetailPage() {
           // THE SECOND SURFACE REGISTER — see `.card-vellum` in globals.css.
           // The one class of content in the product that is prose rather than
           // data, on the one surface that is not the ordinary card.
-          <Card className="card-vellum" padding="roomy">
+          //
+          // ── THE CARD IS THE SIZE OF THE TEXT IN IT (Aug 2026) ──────────
+          // `padding="roomy"` is 48px on every side at sm+, on a card whose
+          // content is a label, a sentence and three short pairs. Between that
+          // and a 32px gap under the heading, roughly 130px of the card's
+          // height was air. `default` (28px / 36px) and a 20px gap under the
+          // heading; the four-level ladder inside it — 28px heading, 21px lead,
+          // 18px answers, 12px sub-labels — is UNTOUCHED, because that ladder
+          // took four attempts to get right and none of the complaints were
+          // about it. What changed is the space around it.
+          <Card className="card-vellum">
             {/* Heading, then the definition as the loudest thing in the card,
                 then quiet label-and-answer pairs. Four levels, one component,
                 shared with the library — see MarkerExplanation.tsx. */}
-            <p className="card-eyebrow mb-8">What this marker means</p>
+            <p className="card-eyebrow mb-5">What this marker means</p>
             <MarkerExplanationBody explanation={detail.explanation} />
           </Card>
         )}

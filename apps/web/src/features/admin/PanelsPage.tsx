@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { ErrorState } from '../../components/ui/ErrorState';
-import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
@@ -11,6 +10,11 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { useToast } from '../../components/ui/Toast';
 import { apiFetch, ApiError } from '../../lib/api';
 import { RandoxMappingSection } from './RandoxMappingSection';
+import { ConsolePage } from './ConsolePage';
+
+/** One line, at the top, saying what a clinician comes here to do. */
+const PANELS_PURPOSE =
+  'The test levels the clinic sells and which analytes are in each, and at the foot of the page which of Randox’s panels each one orders as. A report needs no panel: one without is titled by its marker count and date.';
 
 /**
  * Panel configuration, and only panel configuration.
@@ -220,8 +224,7 @@ export function PanelsPage() {
 
   if (!panels || !markers) {
     return (
-      <>
-        <TwoTierHeading eyebrow="Aspire Clinic · Clinician console" title="Panels" />
+        <ConsolePage title="Panels" purpose={PANELS_PURPOSE}>
         <div className="mt-10 flex flex-col gap-6" aria-busy="true" aria-label="Loading panels">
           {[0, 1].map((i) => (
             <Card key={i}>
@@ -231,7 +234,7 @@ export function PanelsPage() {
             </Card>
           ))}
         </div>
-      </>
+        </ConsolePage>
     );
   }
 
@@ -240,12 +243,7 @@ export function PanelsPage() {
   const archived = ordered.filter((p) => !p.isActive);
 
   return (
-    <>
-      <TwoTierHeading eyebrow="Aspire Clinic · Clinician console" title="Panels" />
-      <p className="mt-5 max-w-2xl text-lg leading-relaxed text-espresso">
-        The test levels the clinic offers, and what each contains. A panel is optional on a report: one with no
-        panel is titled by its marker count and date.
-      </p>
+      <ConsolePage title="Panels" purpose={PANELS_PURPOSE}>
 
       {active.length === 0 && (
         <div className="mt-8">
@@ -317,7 +315,7 @@ export function PanelsPage() {
                   </p>
                 </div>
                 <Button variant="secondary" onClick={() => togglePanelActive(panel)}>
-                  Reactivate
+                  Reactivate this panel
                 </Button>
               </Card>
             ))}
@@ -329,7 +327,7 @@ export function PanelsPage() {
           from the standalone catalogue screen — see RandoxMappingSection for
           why the rest of that screen is gone and this part could not be. */}
       <RandoxMappingSection ourPanels={(panels ?? []).map((p) => ({ key: p.key, name: p.name }))} />
-    </>
+      </ConsolePage>
   );
 }
 
@@ -500,8 +498,10 @@ function PanelCard({
                   defaultValue={pm.sortOrder}
                   onBlur={(e) => onReorder(pm.id, Number(e.target.value))}
                 />
+                {/* "Remove" alone, in a table of markers, on a page that also
+                    deactivates markers and panels: remove it from what? */}
                 <Button variant="ghost" onClick={() => onRemove(pm.id)}>
-                  Remove
+                  Remove from this panel
                 </Button>
               </div>
             ))}

@@ -172,10 +172,27 @@ export function optimalRangeLabel(optimal: OptimalRangeDTO | null | undefined): 
  * high result from a significantly high one. Both grains, in one control,
  * rather than a coarse filter that can't answer the second question.
  */
+/**
+ * ── TWO DIRECTIONAL GROUPS, ADDED FOR THE THREE-STATE COUNTS STRIP (Aug 2026)
+ *
+ * `BELOW_ANY` and `ABOVE_ANY` are what the at-a-glance strip's two gold
+ * segments select, because that is what those segments now COUNT: the strip
+ * folds significantly-below into below and significantly-above into above, and
+ * a segment reading "4" that filtered down to three markers would be the strip
+ * lying about its own number.
+ *
+ * They are NOT relabelled versions of `LOW` / `HIGH` and the labels say so.
+ * "Below range" (specific) is the state a result is IN; "Anything below range"
+ * is a direction and takes the significant one with it. Two options reading
+ * "Below range" in one picker, one of them silently broader, is exactly the
+ * ambiguity this product spends its effort avoiding.
+ */
 export const STATUS_FILTERS = [
   { value: 'ALL', label: 'All markers', group: 'broad' },
   { value: 'IN_RANGE', label: 'In the usual range', group: 'broad' },
   { value: 'ATTENTION', label: 'Outside the usual range', group: 'broad' },
+  { value: 'BELOW_ANY', label: 'Anything below range', group: 'broad' },
+  { value: 'ABOVE_ANY', label: 'Anything above range', group: 'broad' },
   { value: 'HIGH', label: 'Above range', group: 'specific' },
   { value: 'LOW', label: 'Below range', group: 'specific' },
   { value: 'SIGNIFICANT_HIGH', label: 'Significantly above range', group: 'specific' },
@@ -202,8 +219,44 @@ export function matchesStatusFilter(status: MarkerStatusInput, filter: StatusFil
   if (known === null) return false;
   if (filter === 'IN_RANGE') return known === 'IN_RANGE';
   if (filter === 'ATTENTION') return known !== 'IN_RANGE';
+  if (filter === 'BELOW_ANY') return known === 'LOW' || known === 'SIGNIFICANT_LOW';
+  if (filter === 'ABOVE_ANY') return known === 'HIGH' || known === 'SIGNIFICANT_HIGH';
   return known === filter;
 }
+
+/**
+ * The three states the AT-A-GLANCE STRIP counts in, and the one place that
+ * folding is defined.
+ *
+ * Significantly below counts as below and significantly above counts as above.
+ * The five states are untouched everywhere else — the status word, the chevron,
+ * the range bar, the card tint and every filter above still separate them, and
+ * a result is still described as "Significantly above range" on its own card.
+ * This is a summary of a page, and a summary of a page that shows five numbers
+ * where three of them are usually zero is a worse summary than three that all
+ * say something.
+ *
+ * Expressed as a fold onto a REPRESENTATIVE status rather than as three new
+ * keys, so the segment can go on rendering through StatusBadge (chevron down /
+ * level mark / chevron up) and `statusTintClass` (gold / green / gold) with no
+ * second vocabulary anywhere. The two gold segments are the same colour by
+ * construction — `low` and `high` resolve to the same hue — and are told apart
+ * by the chevron and the word, which is the shape layer doing its usual job.
+ */
+export const STRIP_STATE: Record<MarkerStatus, 'LOW' | 'IN_RANGE' | 'HIGH'> = {
+  SIGNIFICANT_LOW: 'LOW',
+  LOW: 'LOW',
+  IN_RANGE: 'IN_RANGE',
+  HIGH: 'HIGH',
+  SIGNIFICANT_HIGH: 'HIGH',
+};
+
+/** Which filter a strip segment selects — the DIRECTIONAL group, never the specific state. */
+export const STRIP_FILTER: Record<'LOW' | 'IN_RANGE' | 'HIGH', StatusFilter> = {
+  LOW: 'BELOW_ANY',
+  IN_RANGE: 'IN_RANGE',
+  HIGH: 'ABOVE_ANY',
+};
 
 /**
  * The count beside each option in the status filter, all seven in a single
@@ -219,6 +272,8 @@ export function statusFilterCounts(markers: { status: MarkerStatusInput }[]): Re
     ALL: markers.length,
     IN_RANGE: 0,
     ATTENTION: 0,
+    BELOW_ANY: 0,
+    ABOVE_ANY: 0,
     HIGH: 0,
     LOW: 0,
     SIGNIFICANT_HIGH: 0,
@@ -242,6 +297,10 @@ export function statusFilterCounts(markers: { status: MarkerStatusInput }[]): Re
       // SIGNIFICANT_LOW is itself a StatusFilter value.
       counts.ATTENTION += 1;
       counts[status] += 1;
+      // And toward its DIRECTION, which is what the at-a-glance strip counts —
+      // derived from the same fold the strip uses rather than from a second
+      // list of which states are "below", so the two cannot disagree.
+      counts[STRIP_STATE[status] === 'LOW' ? 'BELOW_ANY' : 'ABOVE_ANY'] += 1;
     }
   }
   return counts;

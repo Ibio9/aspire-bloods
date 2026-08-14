@@ -58,9 +58,9 @@ function ReleasedReportCard({ report }: { report: ReportSummary }) {
       }}
       onKeyDown={handleKeyDown}
       aria-label={`${title}, sample taken ${formatDate(report.sampleDate)}`}
-      className="block rounded-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
+      className="block h-full rounded-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
     >
-      <Card interactive>
+      <Card interactive className="h-full">
         <p className="eyebrow mb-2">{formatDate(report.sampleDate)}</p>
         <p className="font-display text-2xl leading-tight text-espresso">{title}</p>
         <p className="mt-6 text-sm text-espresso">
@@ -69,7 +69,9 @@ function ReleasedReportCard({ report }: { report: ReportSummary }) {
             ? `, ${report.attentionCount} need${report.attentionCount === 1 ? 's' : ''} attention`
             : ''}
         </p>
-        {report.sourceLabel && <p className="mt-2 text-xs text-espresso/80">{report.sourceLabel}</p>}
+        {/* No source label. "Analysed by Randox Health" is gone from every
+            patient surface (Aug 2026) — and it was also the one thing making
+            these cards different heights. */}
       </Card>
     </a>
   );
@@ -78,7 +80,7 @@ function ReleasedReportCard({ report }: { report: ReportSummary }) {
 /** Not released yet: says so plainly and looks inert, rather than looking clickable and doing nothing. */
 function PendingReportCard({ report }: { report: ReportSummary }) {
   return (
-    <Card inert>
+    <Card inert className="h-full">
       <p className="eyebrow mb-2">{formatDate(report.sampleDate)}</p>
       <p className="font-display text-2xl leading-tight text-espresso">
         {formatReportHeading(report.panelName, report.markerCount)}
@@ -99,7 +101,7 @@ function PendingReportCard({ report }: { report: ReportSummary }) {
 }
 
 /**
- * Every report, newest first — the "By report" view of the Results page and
+ * Every report, newest first — the "By test" view of the Results page and
  * the common case it opens on.
  *
  * Most visits are somebody coming back to the panel they were just emailed
@@ -165,13 +167,23 @@ export function ReportListView() {
     );
   }
 
-  // `items-start`, and no `h-full` on the cards. A grid stretches its items, so
-  // the one report carrying a source label was setting the height of every card
-  // beside it and the difference was drawn as empty card under a count line —
-  // the same hole "What's changed" and the attention list were each reshaped to
-  // close. A row of unequal things is allowed to be ragged along the bottom.
+  /**
+   * ── EQUALISED, AND THE REASON THE RAGGED VERSION EXISTED IS GONE (Aug 2026)
+   *
+   * This carried `items-start` and no `h-full`, deliberately: one report
+   * carrying a source label and its neighbours not was setting an unequal
+   * height, and stretching drew the difference as an empty strip of card under
+   * a count line. That was the right call about the wrong cause — the source
+   * label was the difference, and it has been removed from every patient
+   * surface (item 16). What is left on these cards is a date, a title and one
+   * count line, which is the same shape on every one of them.
+   *
+   * So the grid stretches again and every card in a row is the same height and
+   * the same width. The remaining variation is a two-line title against a
+   * one-line title, which is a few pixels rather than a hole.
+   */
   return (
-    <div className="grid grid-cols-1 items-start gap-7 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3">
       {reports.map((r, i) => (
         <Reveal key={r.reportId} delay={staggerDelay(i)}>
           {r.patientStatus === 'RELEASED' ? <ReleasedReportCard report={r} /> : <PendingReportCard report={r} />}

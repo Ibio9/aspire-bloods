@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import type { MarkerStatus } from '@aspire-bloods/shared';
 import { Breadcrumbs } from '../../components/nav/Breadcrumbs';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import type { StatusFilter } from '../../lib/markerCopy';
@@ -11,7 +10,7 @@ import {
   EMPTY_FILTERS,
   RESULTS_VIEWS,
   filtersApplied,
-  isResultsView,
+  resolveResultsView,
   type ArrangementScope,
   type ResultsArrangement,
   type ResultsFilters,
@@ -119,12 +118,14 @@ export function ResultsPage() {
   const report = useReportDetail(reportId);
 
   const paramView = searchParams.get('view');
-  // An open report is a report view by definition, whatever the URL says.
-  const view: ResultsView = reportId ? 'by-report' : isResultsView(paramView) ? paramView : DEFAULT_RESULTS_VIEW;
+  // An open report is the By test view by definition, whatever the URL says.
+  // `resolveResultsView` rather than `isResultsView`, so `?view=by-report` out
+  // of a bookmark still lands on the view it named.
+  const view: ResultsView = reportId ? 'by-test' : (resolveResultsView(paramView) ?? DEFAULT_RESULTS_VIEW);
 
   const setView = useCallback(
     (next: ResultsView) => {
-      // Already where we are. Pressing "By report" inside an open report is
+      // Already where we are. Pressing "By test" inside an open report is
       // pressing the selected tab, and a selected tab does nothing.
       if (next === view) return;
       const params = new URLSearchParams(searchParams);
@@ -173,10 +174,10 @@ export function ResultsPage() {
   }, []);
   const clearFilters = useCallback(() => setFilters(EMPTY_FILTERS), []);
   const onStatusFilter = useCallback(
-    (status: MarkerStatus | 'ALL') =>
+    (status: StatusFilter) =>
       // The counts strip's tiles toggle: pressing the one already selected
       // clears it, exactly as they did on the report screen.
-      setFilters((f) => ({ ...f, statusFilter: f.statusFilter === status ? 'ALL' : (status as StatusFilter) })),
+      setFilters((f) => ({ ...f, statusFilter: f.statusFilter === status ? 'ALL' : status })),
     [],
   );
   const onCategoriesAvailable = useCallback((categories: { key: string; name: string }[]) => {
@@ -281,7 +282,7 @@ export function ResultsPage() {
       />
 
       <div id={PANEL_ID} role="tabpanel" aria-labelledby={`segment-${view}`} className="motion-safe:animate-fadeIn mt-10">
-        {view === 'by-report' &&
+        {view === 'by-test' &&
           (reportId ? (
             <ReportDetailView
               // Remounts on a change of report, so nothing of the previous

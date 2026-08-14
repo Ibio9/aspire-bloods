@@ -51,7 +51,7 @@ const AuditLogPage = lazyPage(() => import('./features/admin/AuditLogPage'), 'Au
 const IngestionLogPage = lazyPage(() => import('./features/admin/IngestionLogPage'), 'IngestionLogPage');
 const PanelsPage = lazyPage(() => import('./features/admin/PanelsPage'), 'PanelsPage');
 const AdminMarkerLibraryPage = lazyPage(() => import('./features/admin/AdminMarkerLibraryPage'), 'AdminMarkerLibraryPage');
-const WorkQueuePage = lazyPage(() => import('./features/admin/WorkQueuePage'), 'WorkQueuePage');
+const AdminAnalyticsPage = lazyPage(() => import('./features/admin/AnalyticsPage'), 'AnalyticsPage');
 
 const PatientOverview = lazyPage(() => import('./features/patient/PatientOverview'), 'PatientOverview');
 const ResultsPage = lazyPage(() => import('./features/patient/ResultsPage'), 'ResultsPage');
@@ -187,7 +187,7 @@ export default function App() {
                 {/* The three destinations this replaced. Redirects rather than
                     removals: they are in bookmarks and in browser histories,
                     and /trends carries its ?markers= selection across. */}
-                <Route path="/my-results" element={page(<LegacyResultsRedirect view="by-report" />)} />
+                <Route path="/my-results" element={page(<LegacyResultsRedirect view="by-test" />)} />
                 <Route path="/markers" element={page(<LegacyResultsRedirect view="by-marker" />)} />
                 <Route path="/trends" element={page(<LegacyResultsRedirect view="compare" />)} />
                 <Route path="/library" element={page(<MarkerLibraryPage />)} />
@@ -217,7 +217,12 @@ export default function App() {
                 }
               >
                 <Route path="/admin" element={page(<AdminReportsPage />)} />
-                <Route path="/admin/queue" element={page(<WorkQueuePage />)} />
+                {/* The work queue IS the console now — it is what "/" renders
+                    (see HomeRouter). This path is in bookmarks and in the
+                    sidebar of every build so far, so it redirects rather than
+                    404ing, exactly as /admin/content does. */}
+                <Route path="/admin/queue" element={<Navigate to="/" replace />} />
+                <Route path="/admin/analytics" element={page(<AdminAnalyticsPage />)} />
                 <Route path="/admin/reports/:id" element={page(<AdminReportDetailPage />)} />
                 <Route path="/admin/patients" element={page(<PatientsListPage />)} />
                 <Route path="/admin/patients/:id" element={page(<PatientDetailPage />)} />

@@ -79,22 +79,42 @@ test.describe('traffic-light status', () => {
       await page.goto(`/reports/${reportId}`);
       await page.waitForSelector('text=This report at a glance');
 
-      // The counts strip carries one tile per state present, each with the
-      // state's own wash — so it is the one place all five are on screen
-      // together and can be compared against each other.
-      // Scoped to the strip itself: the category summary bars below it are the
-      // same shape of button and would otherwise be swept in, and those are
-      // deliberately untinted (the tint is inside them, on the bar segments).
-      const tiles = page.locator('p.eyebrow:has-text("This report at a glance") + ul li button');
-      const count = await tiles.count();
-      expect(count, 'expected the counts strip to show several states').toBeGreaterThanOrEqual(4);
+      /**
+       * ── MEASURED ON THE RESULT CARDS, NOT ON THE COUNTS STRIP (Aug 2026) ──
+       *
+       * This used to read the strip, on the reasoning that it is the one place
+       * all five states appear together and can be compared. That stopped
+       * being true: the strip folds to THREE segments now — below range, in
+       * range, above range — with significantly-out counted into its neighbour.
+       *
+       * The five states themselves are untouched, and the cards are where they
+       * live. So the washes are read off the marker cards, which is also the
+       * surface a patient actually reads a status on: `Card`'s `tint` prop is
+       * what `statusTintClass` paints, and it is the thing this spec exists to
+       * stop turning into beige.
+       *
+       * Each card carries its status in words, so the label and the wash are
+       * read off the SAME element and cannot be matched up wrongly.
+       */
+      const washes = await page.evaluate(() => {
+        const out: { label: string; bg: string }[] = [];
+        for (const card of [...document.querySelectorAll('.card')]) {
+          const status = [...card.querySelectorAll('span')]
+            .map((s) => (s.textContent ?? '').trim())
+            .find((t) =>
+              ['In range', 'Above range', 'Below range', 'Significantly above range', 'Significantly below range'].includes(
+                t,
+              ),
+            );
+          if (!status) continue;
+          out.push({ label: status, bg: getComputedStyle(card).backgroundColor });
+        }
+        return out;
+      });
+      expect(washes.length, 'expected tinted result cards on the report').toBeGreaterThan(0);
 
       const seen = new Map<string, string>();
-      for (let i = 0; i < count; i += 1) {
-        const tile = tiles.nth(i);
-        const label = (await tile.innerText()).replace(/\s+/g, ' ').trim();
-        const bg = await tile.evaluate((el) => getComputedStyle(el).backgroundColor);
-
+      for (const { label, bg } of washes) {
         // The failure mode this whole spec exists for: a wash that is
         // indistinguishable from the untinted card it replaces.
         expect(chroma(bg), `${theme}: "${label}" wash ${bg} has no colour in it`).toBeGreaterThanOrEqual(4);
@@ -120,12 +140,47 @@ test.describe('traffic-light status', () => {
       }
       // All three are actually on screen — a report showing only in-range
       // results would pass every check above while proving nothing.
-      expect(new Set([...seen.keys()].map((l) => (l.includes('Significantly') ? 'red' : l.includes('In range') ? 'green' : 'yellow'))).size).toBe(3);
+      expect(
+        new Set(
+          [...seen.keys()].map((l) => (l.includes('Significantly') ? 'red' : l.includes('In range') ? 'green' : 'yellow')),
+        ).size,
+      ).toBe(3);
+
+      /**
+       * ── AND THE STRIP ITSELF IS THREE, WHICH IS THE NEW FACT ──────────────
+       *
+       * Below range · In range · Above range, and the two gold segments are
+       * THE SAME COLOUR — direction is the chevron and the word. A segment
+       * nobody is in is not shown, so this is a ceiling rather than an
+       * equality: what may never happen is a fourth.
+       */
+      const segments = page.locator('p.eyebrow:has-text("This report at a glance") + ul li button');
+      const segmentCount = await segments.count();
+      expect(segmentCount, `${theme}: the at-a-glance strip has ${segmentCount} segments`).toBeLessThanOrEqual(3);
+      expect(segmentCount, `${theme}: the strip shows nothing at all`).toBeGreaterThan(0);
+      const segmentLabels: string[] = [];
+      const segmentWashes = new Map<string, string>();
+      for (let i = 0; i < segmentCount; i += 1) {
+        const label = (await segments.nth(i).innerText()).replace(/\s+/g, ' ').trim();
+        segmentLabels.push(label);
+        segmentWashes.set(label, await segments.nth(i).evaluate((el) => getComputedStyle(el).backgroundColor));
+      }
+      for (const label of segmentLabels) {
+        expect(
+          label.includes('Significantly'),
+          `${theme}: the strip segment "${label}" names a significantly-out state; the strip folds those in`,
+        ).toBe(false);
+      }
+      const above = [...segmentWashes.entries()].find(([l]) => l.includes('Above range'))?.[1];
+      const below = [...segmentWashes.entries()].find(([l]) => l.includes('Below range'))?.[1];
+      if (above && below) {
+        expect(above, `${theme}: the two gold segments are different colours`).toBe(below);
+      }
 
       await ctx.close();
     });
 
-    test(`the trend chart draws bands derived from the result’s own range in ${theme} mode`, async ({ browser }) => {
+    test(`the trend chart carries status on the LINE, with no filled regions, in ${theme} mode`, async ({ browser }) => {
       const ctx = await browser.newContext();
       await loginAsDemoPatient(ctx.request);
       const page = await ctx.newPage();
@@ -139,7 +194,7 @@ test.describe('traffic-light status', () => {
         referenceLow: number;
         referenceHigh: number;
       }[];
-      // A marker with real history, so there is a line as well as bands.
+      // A marker with real history, so there is a line to carry anything.
       const withHistory = markers.filter((m) => (m.resultType ?? 'MEASURED') === 'MEASURED' && m.resultCount >= 2);
       expect(withHistory.length, 'no marker has more than one result — run the demo seed').toBeGreaterThan(0);
       const marker = withHistory[0];
@@ -148,211 +203,119 @@ test.describe('traffic-light status', () => {
       await setTheme(page, theme);
       await page.goto(`/markers/${marker.markerId}`);
       await page.waitForSelector('text=Trend over time');
-
-      // ─────────────────────────────────────────────────────────────────
-      // FIVE BANDS, AND NOT ONE PIXEL OF TRANSLUCENCY IN ANY OF THEM
-      // (rewritten again, Aug 2026).
-      //
-      // The history is worth keeping because the check has followed the
-      // implementation three times: the weight lived in gradient stops, then on
-      // the element when the bands went flat, then in the stops again when the
-      // bands ramped in hue and weight together — and now there is no weight at
-      // all. A band is an OPAQUE fill; the ladder moved into the colours (see
-      // BAND_CONTRAST), because a band drawn at 15% of a colour can carry at
-      // most 15% of a colour, which is what "washed out" was.
-      //
-      // THE PROPERTY BEING PROTECTED IS THE SAME ONE, INVERTED. Recharts'
-      // ReferenceArea defaults fillOpacity to 0.5, so a band whose opacity is
-      // not stated is drawn at half strength over the plot. When that happened
-      // every band landed in the same beige and the whole chart read as grey —
-      // while the key, the boundary lines and the tokens themselves were all
-      // perfectly correct. Nothing short of reading the painted opacity sees
-      // it. So: the element and every stop inside it must be at exactly 1, and
-      // the five stop COLOURS must be the five fill tokens and nothing else.
-      // ─────────────────────────────────────────────────────────────────
-      // The same selector e2e/chart-bands.spec.ts measures band geometry
-      // through, so the two specs cannot disagree about what a band is.
       await page.waitForTimeout(900);
-      const bandPaint = await page.evaluate(() => {
-        const rects = [...document.querySelectorAll('.recharts-reference-area-rect')];
-        return rects
-          // The status bands are the tall ones. Anything short is a boundary
-          // artefact rather than a band.
-          .filter((r) => Number(r.getAttribute('height')) > 8)
-          .map((r) => {
-            const el = r as SVGElement;
-            const fill = getComputedStyle(el).fill;
-            const id = /url\(["']?#([^"')]+)/.exec(fill)?.[1] ?? null;
-            const gradient = id ? document.getElementById(id) : null;
-            return {
-              fillOpacity: Number(getComputedStyle(el).fillOpacity),
-              gradientId: id,
-              stops: gradient
-                ? [...gradient.querySelectorAll('stop')].map((s) => ({
-                    opacity: Number(getComputedStyle(s).stopOpacity),
-                    colour: getComputedStyle(s).stopColor,
-                  }))
-                : [],
-            };
-          });
+
+      /**
+       * ═══ WHAT THIS TEST USED TO BE, AND WHY IT HAD TO BE REWRITTEN ═══════
+       *
+       * It measured the five band rects: that each was painted at exactly
+       * fill-opacity 1, that every gradient stop inside them was one of the
+       * five `--c-hue-*-fill` tokens, and that both hinges were named by the
+       * bands either side of them. That check had followed the implementation
+       * three times and each version caught something real — most recently
+       * Recharts' `ReferenceArea` defaulting `fillOpacity` to 0.5, which drew
+       * every band at half strength and turned the whole plot beige while the
+       * key, the boundary lines and the tokens were all perfectly correct.
+       *
+       * THE BANDS ARE GONE (Aug 2026). Every one of those assertions is now a
+       * fact about something that is not drawn, so the file would go on passing
+       * while measuring nothing. The property they protected — "the status
+       * layer is actually painted, in the actual token colours, and has not
+       * silently flattened to one beige" — is protected here on the thing that
+       * carries it now: the LINE.
+       *
+       * Three claims, and the first is the one a screenshot review cannot make.
+       */
+
+      // ── 1. NOTHING IS FILLED ────────────────────────────────────────────
+      // "No filled regions, no coloured background, no tinted areas of any
+      // kind." A faint band is indistinguishable from a rendering artefact by
+      // eye, which is exactly why this is a count and not a look.
+      const filled = await page.evaluate(() => {
+        const svg = document.querySelector('.recharts-surface');
+        if (!svg) return -1;
+        const areas = svg.querySelectorAll('.recharts-reference-area-rect').length;
+        const rects = [...svg.querySelectorAll('rect')]
+          // A rect inside <defs> or a <clipPath> is a DEFINITION and is never
+          // painted. Recharts emits exactly one — its plot clip — with no fill
+          // attribute at all, which computes to black and would otherwise be
+          // counted as a filled region every time. That is a real trap rather
+          // than a nuisance: excluded by WHERE it sits rather than by its size,
+          // because a band rect and a clip rect are the same size by design.
+          .filter((r) => !r.closest('defs') && !r.closest('clipPath'))
+          .filter((r) => {
+            const fill = getComputedStyle(r as SVGElement).fill;
+            return fill !== 'none' && fill !== 'rgba(0, 0, 0, 0)';
+          }).length;
+        return areas + rects;
       });
-      expect(bandPaint.length, `${theme}: no status bands were painted at all`).toBeGreaterThanOrEqual(5);
+      expect(filled, `${theme}: the trend chart paints ${filled} filled regions; it must paint none`).toBe(0);
 
-      for (const band of bandPaint) {
-        // 0.5 here is the library's default showing through, which is the
-        // failure this test was written for; anything under 1 at all is the
-        // translucency the opaque redesign removed.
-        expect(
-          band.fillOpacity,
-          `${theme}: a band's own fill-opacity is ${band.fillOpacity}; a band is opaque and this must be exactly 1`,
-        ).toBeCloseTo(1, 5);
-        expect(band.gradientId, `${theme}: a band is not painted with a gradient at all`).not.toBeNull();
-        expect(band.stops.length, `${theme}: gradient ${band.gradientId} has no stops`).toBeGreaterThanOrEqual(2);
-        for (const stop of band.stops) {
-          expect(
-            stop.opacity,
-            `${theme}: a band stop is painted at ${stop.opacity}; every stop in a band is opaque`,
-          ).toBeCloseTo(1, 5);
-        }
-      }
-
-      // EVERY STOP IS ONE OF THE FIVE FILL TOKENS, AND NOTHING ELSE. This is
-      // the check the stop-opacity ladder used to be: the ramp is at the
-      // BOUNDARY rather than across the band, so a band is flat in its own
-      // colour and hands over to its neighbour in the hinge colour between
-      // them — which means the whole plot is painted in three band colours and
-      // the two hinges, and nothing in between. Read off the document's own
-      // custom properties rather than transcribed, so a re-solve of BAND_FILL
-      // does not have to be copied into a spec file to keep it passing.
-      const ladder = await page.evaluate(() => {
-        const styles = getComputedStyle(document.documentElement);
-        return ['green', 'olive', 'yellow', 'orange', 'red'].map((h) => ({
+      // ── 2. THE LINE IS PAINTED IN THE STATUS TOKENS, AND NOTHING ELSE ────
+      // Read off the document's own custom properties rather than transcribed,
+      // so a re-solve of the line colours does not have to be copied into a
+      // spec file to keep it passing. The five are the three states plus the
+      // two hinges the line crosses a boundary in.
+      const ladder = await page.evaluate(() =>
+        ['green', 'olive', 'yellow', 'orange', 'red'].map((h) => ({
           hue: h,
-          channels: styles.getPropertyValue(`--c-hue-${h}-fill`).trim(),
-        }));
-      });
+          channels: getComputedStyle(document.documentElement).getPropertyValue(`--c-hue-${h}-mark`).trim(),
+        })),
+      );
       const asRgb = (channels: string) => `rgb(${channels.split(/\s+/).join(', ')})`;
       const ALLOWED = new Map(ladder.map((l) => [asRgb(l.channels), l.hue]));
-      for (const band of bandPaint) {
-        for (const stop of band.stops) {
-          expect(
-            ALLOWED.has(stop.colour),
-            `${theme}: a band stop is painted ${stop.colour}, which is not one of the five band fills ` +
-              `(${[...ALLOWED.keys()].join(', ')}).`,
-          ).toBe(true);
-        }
-      }
 
-      // THE LADDER IS ON SCREEN, not merely in the token file: a chart that
-      // painted every band in one colour could not pass this.
-      const allStops = bandPaint.flatMap((b) => b.stops.map((s) => s.colour));
-      expect(new Set(allStops).size, `${theme}: every band stop is the same colour`).toBeGreaterThanOrEqual(3);
-
-      // AND THE HANDOVER IS SHARED. The two bands either side of a boundary
-      // both carry a stop in the hinge colour, which is what makes the fill
-      // continuous across a boundary drawn as two separate shapes. A ramp that
-      // finished in one colour and restarted in another would put a visible
-      // step in the middle of the transition — the exact thing moving the
-      // gradient to the boundary was meant to remove.
-      for (const hinge of ['olive', 'orange']) {
-        const colour = asRgb(ladder.find((l) => l.hue === hinge)!.channels);
-        const carrying = bandPaint.filter((b) => b.stops.some((s) => s.colour === colour));
-        expect(
-          carrying.length,
-          `${theme}: the ${hinge} hinge is carried by ${carrying.length} band(s); both sides must name it`,
-        ).toBeGreaterThanOrEqual(2);
-      }
-
-      // ONE GRADIENT PER DRAWN BAND, not one per status: the stops are placed
-      // by value and mapped onto each rect's own clamped extent, so two bands
-      // sharing a definition would mean one of them had the wrong geometry.
-      expect(new Set(bandPaint.map((b) => b.gradientId)).size).toBe(bandPaint.length);
-
-      // The band tokens themselves still carry real colour in this theme. A
-      // band drawn on its own rung is worth nothing if the value behind it has
-      // been flattened to the surface colour. `fill` is what the chart and both
-      // range bars paint; `band` is the pre-mixed role the normalised
-      // comparison chart still uses, and both have to hold.
-      const hues = await page.evaluate(() => {
-        const styles = getComputedStyle(document.documentElement);
-        return ['green', 'olive', 'yellow', 'orange', 'red'].flatMap((h) =>
-          ['band', 'fill'].map((role) => ({
-            hue: `${h}-${role}`,
-            channels: styles.getPropertyValue(`--c-hue-${h}-${role}`).trim(),
-          })),
-        );
-      });
-      for (const { hue, channels } of hues) {
-        const [r, g, b] = channels.split(/\s+/).map(Number);
-        expect(Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b), `${theme}: --c-hue-${hue} is "${channels}"`).toBe(true);
-        expect(
-          Math.max(r, g, b) - Math.min(r, g, b),
-          `${theme}: the ${hue} token has no colour in it (${channels})`,
-        ).toBeGreaterThanOrEqual(8);
-      }
-
-      // Copy and rendering agree. The chart says in words when its points are
-      // NOT joined — in the key, beside the marks it is about — and a page
-      // carrying that entry while a trend line is drawn is the chart lying
-      // about its own data. (The old positive form of this sentence, a
-      // paragraph above every healthy chart explaining the absence of a
-      // problem, is gone; only the two cases worth stating are stated.)
-      const text = await page.locator('body').innerText();
-      const saysUnjoined = text.includes("aren’t comparable for this marker");
-      const saysFirst = text.includes('first result for this marker');
-      const saysJoined = !saysUnjoined && !saysFirst;
       const line = await page.evaluate(() => {
-        const curve = document.querySelector('path.recharts-line-curve') as SVGPathElement | null;
-        if (!curve) return { drawn: false, length: 0 };
-        const stroke = getComputedStyle(curve).stroke;
-        return { drawn: stroke !== 'none' && stroke !== '' && curve.getTotalLength() > 1, length: curve.getTotalLength() };
-      });
-      expect(line.drawn, `${theme}: copy says the results are joined into a line, and none is drawn`).toBe(saysJoined);
-
-      // ─────────────────────────────────────────────────────────────────
-      // THE NON-COLOUR CARRIER, WHICH MOVED (Aug 2026).
-      //
-      // The key used to name every BAND in words and this asserted it. The
-      // band entries are gone: every reference bound is now printed on the
-      // left axis in figures, level with its own hairline, which is a more
-      // specific answer to "where does my range start" than a sentence beside
-      // a coloured swatch and one a greyscale reader gets in full.
-      //
-      // So the claim being protected is the same and the evidence for it is
-      // different: the bounds are on the axis as NUMBERS, and every point
-      // state is still named in WORDS in the key. What must never happen is a
-      // band with neither.
-      // ─────────────────────────────────────────────────────────────────
-      const axisBounds = await page.evaluate(() => {
         const svg = document.querySelector('.recharts-surface');
-        if (!svg) return [];
-        return ([...svg.querySelectorAll('text')] as SVGTextElement[])
-          .filter((t) => !t.closest('.recharts-cartesian-axis'))
-          .filter((t) => (t.getAttribute('font-family') ?? '').includes('mono'))
-          .map((t) => t.textContent ?? '');
+        const curve = svg?.querySelector('.recharts-line-curve') as SVGPathElement | null;
+        const stroke = curve ? getComputedStyle(curve).stroke : '';
+        const id = /url\(["']?#([^"')]+)/.exec(stroke)?.[1] ?? null;
+        const gradient = id ? document.getElementById(id) : null;
+        return {
+          width: curve ? Number(getComputedStyle(curve).strokeWidth.replace('px', '')) : 0,
+          gradientId: id,
+          stops: gradient ? [...gradient.querySelectorAll('stop')].map((st) => getComputedStyle(st).stopColor) : [],
+        };
       });
-      const numericBounds = axisBounds.filter((t) => t.trim() !== '' && Number.isFinite(Number(t)));
-      expect(
-        numericBounds.length,
-        `${theme}: the reference bounds are not printed anywhere on the axis (${JSON.stringify(axisBounds)})`,
-      ).toBeGreaterThanOrEqual(2);
-      // And none of them is a raw float. A converted range arrives with no
-      // rounding of its own and once printed 5.494444506110488 beside the plot.
-      for (const label of numericBounds) {
-        expect(label.length, `${theme}: "${label}" is a raw float, not a reference bound`).toBeLessThanOrEqual(7);
+
+      // A flat stroke is the failure: the line has to be a gradient, or the
+      // status is not on it at all.
+      expect(line.gradientId, `${theme}: the trend line is not painted with a gradient`).not.toBeNull();
+      expect(line.stops.length, `${theme}: the line's gradient has ${line.stops.length} stops`).toBeGreaterThanOrEqual(3);
+      for (const stop of line.stops) {
+        expect(
+          ALLOWED.has(stop),
+          `${theme}: the line carries ${stop}, which is not one of the five status colours ` +
+            `(${[...ALLOWED.keys()].join(', ')}).`,
+        ).toBe(true);
       }
+      // THICKER THAN IT WAS. The line is the whole chart now and is carrying a
+      // colour that changes along its length; at 4px that change is unreadable.
+      expect(line.width, `${theme}: the trend line is ${line.width}px`).toBeGreaterThanOrEqual(5);
 
-      // And the point states, in words, in the key. At least one, because a
-      // series that is entirely in range has exactly one state to name.
-      const keyWords = await page
-        .getByText(/^(In range|Above range|Below range|Significantly above range|Significantly below range)$/)
-        .count();
-      expect(keyWords, `${theme}: no point state is named in words`).toBeGreaterThan(0);
-
-      // Nothing evaluative anywhere on the page.
-      const body = (await page.locator('body').innerText()).toLowerCase();
-      for (const word of ['danger', 'concerning', 'unhealthy', 'bad result']) {
-        expect(body.includes(word), `the marker page says "${word}"`).toBe(false);
+      // ── 3. THE FOUR BOUNDARY RULES ARE THERE, AT TWO WEIGHTS ────────────
+      // With nothing filled, these are the only thing saying where the range
+      // is — and a reference bound has to be tellable from a significantly-out
+      // threshold WITHOUT colour, which is the dash.
+      const rules = await page.evaluate(() => {
+        const svg = document.querySelector('.recharts-surface');
+        const lines = [...(svg?.querySelectorAll('.recharts-reference-line line') ?? [])] as SVGLineElement[];
+        return lines
+          .filter((l) => Math.abs(Number(l.getAttribute('y1')) - Number(l.getAttribute('y2'))) < 0.5)
+          .map((l) => ({
+            dashed: (l.getAttribute('stroke-dasharray') ?? '') !== '',
+            stroke: getComputedStyle(l).stroke,
+          }));
+      });
+      expect(rules.filter((r) => !r.dashed).length, `${theme}: the two reference bounds are solid`).toBe(2);
+      // Neutral, never a status hue: the boundary is furniture and the reader's
+      // own result is not. Every rule is the same colour as every other.
+      expect(new Set(rules.map((r) => r.stroke)).size, `${theme}: the boundary rules are not one colour`).toBe(1);
+      for (const rule of rules) {
+        expect(
+          ALLOWED.has(rule.stroke),
+          `${theme}: a boundary rule is painted ${rule.stroke}, which is a status colour`,
+        ).toBe(false);
       }
 
       await ctx.close();

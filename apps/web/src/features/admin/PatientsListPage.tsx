@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatDate } from '@aspire-bloods/shared';
-import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
+import { ConsolePage } from './ConsolePage';
 import { Input } from '../../components/ui/Input';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -75,8 +75,10 @@ export function PatientsListPage() {
   }
 
   return (
-    <>
-      <TwoTierHeading eyebrow="Aspire Clinic · Clinician console" title="Patients" />
+      <ConsolePage
+        title="Patients"
+        purpose="Everyone registered with the practice. Open one to see their reports, their consents and every staff action taken on their record."
+      >
 
       {/* Not `optional`. Every search field in existence is optional, and
           "Search (optional)" is a label telling somebody they are permitted not
@@ -187,6 +189,6 @@ export function PatientsListPage() {
           </Table>
         </div>
       )}
-    </>
+      </ConsolePage>
   );
 }

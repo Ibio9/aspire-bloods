@@ -1,3 +1,4 @@
+import { splitMarkerName } from '@aspire-bloods/shared';
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 
 /**
@@ -209,7 +210,23 @@ test.describe('marker names', () => {
     const markers = (await (await ctx.request.get('/api/patient/markers')).json()) as { markerId: string; name: string }[];
     const longest = [...markers].sort((a, b) => b.name.length - a.name.length)[0];
     await page.goto(`/markers/${longest.markerId}`);
-    await expect(page.getByRole('heading', { name: longest.name })).toBeVisible({ timeout: 30_000 });
+    /**
+     * ── THE H1 IS THE ABBREVIATION NOW, WHERE THERE IS ONE (Aug 2026) ──────
+     *
+     * `Neutrophil Gelatinase Associated Lipocalin (NGAL)` is set as **NGAL**
+     * with the expansion beneath it (see `splitMarkerName` in shared), so
+     * matching the heading against the whole catalogue name finds nothing.
+     *
+     * Both halves are asserted rather than just the new one: the abbreviation
+     * IS the heading, and the expansion is still on the page. A test that only
+     * checked the short line would pass on a page that had silently dropped
+     * what the letters stand for.
+     */
+    const heading = splitMarkerName(longest.name);
+    await expect(page.getByRole('heading', { name: heading.primary, exact: true })).toBeVisible({ timeout: 30_000 });
+    if (heading.expansion) {
+      await expect(page.getByText(heading.expansion, { exact: true }).first()).toBeVisible();
+    }
     await page.waitForTimeout(800);
     console.log(`\n  marker page title: "${longest.name}" (${longest.name.length} characters) at 390px`);
 

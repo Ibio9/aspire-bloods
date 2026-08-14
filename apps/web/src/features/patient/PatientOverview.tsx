@@ -651,11 +651,11 @@ export function PatientOverview() {
                 <p className="font-display opsz-section text-xl leading-tight text-espresso">
                   {formatReportHeading(data.latest.panelName, data.latest.markerCount)}
                 </p>
-                {/* Empty for anything the clinic analysed itself — see
-                    lib/sourceLabel.ts. */}
-                {data.latest.sourceLabel && (
-                  <p className="mt-2 text-xs text-espresso/80">{data.latest.sourceLabel}</p>
-                )}
+                {/* NO SOURCE LINE. "Analysed by Randox Health" is gone from every
+                    patient-facing surface (Aug 2026) — it said something about
+                    the practice's laboratory arrangements and nothing about the
+                    results under it. `sourceLabel` stays on the DTO for the
+                    clinician console, which still shows it. */}
               </div>
               <LinkButton to={`/reports/${data.latest.reportId}`} variant="primary">
                 View the full panel <ArrowRightIcon />

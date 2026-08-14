@@ -76,7 +76,7 @@ test('the sign-in screen says whose portal this is and routes to registration', 
   // entity name is not what a patient calls this place.
   // \s* not \s+: the two lines are separated by a <br>, which contributes
   // nothing at all to textContent.
-  await expect(page.getByText(/Aspire Clinic\s*27 Mortimer Street, London/)).toBeVisible();
+  await expect(page.getByText(/Aspire Clinic\s*29-35 Mortimer Street, London, W1T 3JG/)).toBeVisible();
 
   // The route to /signup that used to not exist anywhere in the product.
   const createAccount = page.getByRole('link', { name: 'Create an account' });

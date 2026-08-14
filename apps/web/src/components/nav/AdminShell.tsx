@@ -8,7 +8,7 @@ import { useAuth } from '../../lib/AuthContext';
 import { Wordmark } from '../Wordmark';
 import { useDialogFocus } from '../../lib/useDialogFocus';
 import {
-  AdminConsoleIcon,
+  AnalyticsIcon,
   ReportsIcon,
   PatientsIcon,
   PanelsIcon,
@@ -28,42 +28,116 @@ const COLLAPSE_KEY = 'aspire_admin_sidebar_collapsed';
 interface NavItem {
   to: string;
   label: string;
-  /** One line under the label, where the label alone is genuinely ambiguous.
+  /**
+   * ── A HINT THAT IS CUT OFF IS WORSE THAN NO HINT ─────────────────────────
+   *
+   * The hint carries `truncate`, and at 272px with the icon and the padding it
+   * has about 33 characters. "Every report: review, release, cor…" and
+   * "What arrived from Randox, and w…" both ran past it — a sublabel whose
+   * whole job is to remove ambiguity, removed mid-word.
+   *
+   * The LABEL is never truncated (see the patient sidebar's own note: a
+   * navigation label that has been cut off is a destination whose name you
+   * cannot read). The hint is, because it is subordinate — so the hints are
+   * written to fit instead. Measured off the rendered panel, not guessed.
+   *
+   * One line under the label, where the label alone is genuinely ambiguous.
    * "Ingestion log" and "Audit log" are not self-explanatory names, and the
-   * sublabel is what tells them apart. "Patients" needs no such help. */
+   * sublabel is what tells them apart.
+   */
   hint?: string;
   icon: (props: React.SVGProps<SVGSVGElement>) => JSX.Element;
   adminOnly?: boolean;
 }
 
-const NAV_ITEMS: NavItem[] = [
-  // The console is where an admin lands after signing in, and it is the only
-  // screen that answers "what is waiting for me" — but it had no entry here at
-  // all. Getting back to it meant clicking the wordmark, which is a
-  // convention rather than a signposted destination, carries no active state,
-  // and whose accessible name doesn't mention the console. The patient
-  // sidebar's first item is Overview for exactly the same reason.
-  { to: '/', label: 'Console', hint: 'What is waiting for you', icon: AdminConsoleIcon },
-  // Sits second, directly under the console, because it is the screen this
-  // console is FOR now that there is one gate: what is waiting, what is stuck,
-  // and the exception queue at the top of it.
-  { to: '/admin/queue', label: 'Work queue', hint: 'Oldest first, with the exceptions', icon: QueueIcon },
-  // "Verify" is gone from this label. It named a pipeline stage that no longer
-  // exists, and a label claiming a check nobody performs is the removed stage
-  // surviving as a word.
-  { to: '/admin', label: 'Reports & entry', hint: 'Upload, review, release', icon: ReportsIcon },
-  { to: '/admin/patients', label: 'Patients', icon: PatientsIcon },
-  // Sits directly under Patients: it's the same subject (who is who) at the
-  // moment it matters most, not a reporting screen.
-  { to: '/admin/linking', label: 'Result linking', hint: 'Match a result to a patient', icon: LinkingIcon, adminOnly: true },
-  { to: '/admin/panels', label: 'Panels', hint: 'Test levels and their contents', icon: PanelsIcon },
-  { to: '/admin/markers', label: 'Marker library', hint: 'Analytes and explanation copy', icon: MarkerLibraryIcon },
-  { to: '/admin/audit-log', label: 'Audit log', hint: 'Every action and view, by whom', icon: AuditIcon, adminOnly: true },
-  { to: '/admin/ingestion-log', label: 'Ingestion log', hint: 'Results arriving from Randox', icon: IngestionIcon, adminOnly: true },
+interface NavGroup {
+  /** What this band of the navigation is FOR. Read once, at a glance. */
+  heading: string;
+  items: NavItem[];
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  TWO BANDS, AND THAT IS WHAT "SHORT ENOUGH TO READ AT A GLANCE" MEANS HERE.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * It was a flat list of nine, in which "Work queue", "Reports & entry",
+ * "Panels", "Marker library", "Audit log" and "Ingestion log" were all peers —
+ * so the three screens a clinician opens every day sat in a list with six they
+ * open a few times a year, and nothing said which was which. Nine peers is not
+ * a navigation, it is an index.
+ *
+ * EVERY DAY / RECORDS & SETUP. The split is by how often a clinician has the
+ * question, not by what the screens are made of, because "how often" is what a
+ * reader is actually filtering on when they look at a sidebar.
+ *
+ * ── WHAT WAS REMOVED (Aug 2026) ────────────────────────────────────────────
+ *
+ * "CONSOLE" IS GONE, AND IT WAS THE LANDING PAGE. It answered "what is waiting
+ * for you" — which is, word for word, what the work queue answers, and the work
+ * queue answers it better: sorted by how long each report has waited, with the
+ * exception counts, the turnaround figures and the backup state above it. Two
+ * screens, one question, and the one an admin landed on was the weaker of them.
+ *
+ * `/` now renders the WORK QUEUE, so the daily screen is also the landing
+ * screen and there is one fewer press between signing in and the list. The
+ * three things the old console had that the queue did not are re-homed rather
+ * than dropped: erasure requests onto the queue (a decision with a clock on
+ * it), the demo-seed diagnostic onto the ingestion log (the other "what has
+ * this deployment actually done" screen). "Recently viewed" is dropped
+ * outright — it duplicated ⌘K, which is faster and is on every screen.
+ */
+const NAV_GROUPS: NavGroup[] = [
+  {
+    heading: 'Every day',
+    items: [
+      // FIRST, AND IT IS THE LANDING PAGE. "The work queue stays and stays
+      // first — it is the screen a clinician opens every day."
+      { to: '/', label: 'Work queue', hint: 'What is waiting, oldest first', icon: QueueIcon },
+      // "Verify" is gone from this label. It named a pipeline stage that no
+      // longer exists, and a label claiming a check nobody performs is the
+      // removed stage surviving as a word.
+      { to: '/admin', label: 'Reports', hint: 'Review, release, correct', icon: ReportsIcon },
+      { to: '/admin/patients', label: 'Patients', hint: 'Find a patient and their history', icon: PatientsIcon },
+    ],
+  },
+  {
+    heading: 'Records & setup',
+    items: [
+      { to: '/admin/analytics', label: 'Analytics', hint: 'Volume, turnaround, what sells', icon: AnalyticsIcon },
+      // Sits near Patients in kind (who is who) but is a records action, not a
+      // daily one: automatic linking means this is normally empty.
+      { to: '/admin/linking', label: 'Result linking', hint: 'Results nobody could place', icon: LinkingIcon, adminOnly: true },
+      { to: '/admin/panels', label: 'Panels', hint: 'Which tests the clinic sells', icon: PanelsIcon },
+      { to: '/admin/markers', label: 'Marker library', hint: 'Analytes and patient copy', icon: MarkerLibraryIcon },
+      { to: '/admin/ingestion-log', label: 'Ingestion log', hint: 'What arrived, and what did not', icon: IngestionIcon, adminOnly: true },
+      { to: '/admin/audit-log', label: 'Audit log', hint: 'Every action and view, by whom', icon: AuditIcon, adminOnly: true },
+    ],
+  },
 ];
+
+/**
+ * ── A DETAIL PAGE KEEPS ITS SECTION LIT (Aug 2026) ─────────────────────────
+ *
+ * `/admin/reports/:id` and `/admin/patients/:id` are the two screens a
+ * clinician spends the most time on, and on both of them NOTHING in the
+ * sidebar was active: `/admin` carries `end` (it has to — it is a prefix of
+ * every other console route) and `/admin/patients` does not match an id below
+ * it. So the one moment somebody most needs to know where they are was the one
+ * moment the navigation stopped answering.
+ *
+ * A prefix list per item rather than loosening `end`, which would light
+ * "Reports" on every console screen there is.
+ */
+const ALSO_ACTIVE_ON: Record<string, string[]> = {
+  '/admin': ['/admin/reports/'],
+  '/admin/patients': ['/admin/patients/'],
+};
 
 function SidebarLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed: boolean; onNavigate?: () => void }) {
   const Icon = item.icon;
+  const { pathname } = useLocation();
+  const withinSection = (ALSO_ACTIVE_ON[item.to] ?? []).some((prefix) => pathname.startsWith(prefix));
   return (
     <NavLink
       to={item.to}
@@ -74,10 +148,16 @@ function SidebarLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed
       className={({ isActive }) =>
         `group relative flex items-start gap-3 rounded-input px-3 py-1.5 transition-colors duration-150 ease-out ${
           collapsed ? 'justify-center' : ''
-        } ${isActive ? 'bg-bronze-50 text-bronze-700' : 'text-espresso/85 hover:bg-cream-200 hover:text-espresso'}`
+        } ${
+          isActive || withinSection
+            ? 'bg-bronze-50 text-bronze-700'
+            : 'text-espresso/85 hover:bg-cream-200 hover:text-espresso'
+        }`
       }
     >
-      {({ isActive }) => (
+      {({ isActive: exact }) => {
+        const isActive = exact || withinSection;
+        return (
         <>
           {/* Active state is marked by this bar AND the weight/background/colour shift above —
               never colour alone (brief). */}
@@ -103,7 +183,8 @@ function SidebarLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed
             </span>
           )}
         </>
-      )}
+        );
+      }}
     </NavLink>
   );
 }
@@ -132,7 +213,12 @@ function SidebarContents({
   onToggleCollapse?: () => void;
 }) {
   const { user } = useAuth();
-  const items = NAV_ITEMS.filter((item) => !item.adminOnly || user?.role === 'ADMIN');
+  // A band whose every item is admin-only disappears entirely for a clinician
+  // rather than leaving its heading over nothing.
+  const groups = NAV_GROUPS.map((g) => ({
+    ...g,
+    items: g.items.filter((item) => !item.adminOnly || user?.role === 'ADMIN'),
+  })).filter((g) => g.items.length > 0);
 
   return (
     // Only this column ever scrolls, and only on a window genuinely shorter
@@ -158,8 +244,26 @@ function SidebarContents({
         aria-label="Clinician console navigation"
         className={`mt-4 flex flex-1 flex-col gap-0.5 pb-1 ${collapsed ? 'px-2' : 'px-3'}`}
       >
-        {items.map((item) => (
-          <SidebarLink key={item.to} item={item} collapsed={collapsed} onNavigate={onNavigate} />
+        {groups.map((group, i) => (
+          // A REAL `<section>` with a REAL accessible name, not a styled
+          // paragraph over a list: the grouping is the navigation's structure
+          // and a screen reader has to get it too.
+          <section key={group.heading} aria-label={group.heading} className={i > 0 ? 'mt-5' : ''}>
+            {/* COLLAPSED, THE HEADING BECOMES A RULE. Six characters of tracked
+                uppercase do not fit a 76px rail, and truncating a band heading
+                to "EVER…" is worse than a divider that says the same thing
+                structurally. The `aria-label` above carries it either way. */}
+            {collapsed ? (
+              <span aria-hidden="true" className="mx-2 mb-2 block border-t border-taupe" />
+            ) : (
+              <p className="eyebrow mb-1.5 px-3 text-espresso/80">{group.heading}</p>
+            )}
+            <div className="flex flex-col gap-0.5">
+              {group.items.map((item) => (
+                <SidebarLink key={item.to} item={item} collapsed={collapsed} onNavigate={onNavigate} />
+              ))}
+            </div>
+          </section>
         ))}
       </nav>
 

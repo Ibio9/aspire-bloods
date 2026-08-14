@@ -230,7 +230,9 @@ export const LOCATIONS: BookingLocation[] = [
     id: 'aspire-mortimer-street',
     kind: 'ASPIRE_CLINIC',
     name: 'Aspire Clinic, Mortimer Street',
-    addressLines: ['27 Mortimer Street', 'London', 'W1T 3JE'],
+    // Corrected Aug 2026 with the rest of the product — the practice is at
+    // 29-35 and the postcode is W1T 3JG, not 3JE.
+    addressLines: ['29-35 Mortimer Street', 'London', 'W1T 3JG'],
     travelNote: 'Two minutes from Goodge Street, five from Oxford Circus. No parking on site.',
     openingSummary: 'Monday to Friday, 7:30am–5:30pm · Saturday mornings',
     facts: [

@@ -59,9 +59,9 @@ test.describe('Results', () => {
         `${viewport.at}: the marker list must carry range bars`,
       ).toBeGreaterThan(0);
 
-      // By report: the report list.
-      await segment(page, 'By report').click();
-      await expect(page).toHaveURL(/view=by-report/);
+      // By test: the report list.
+      await segment(page, 'By test').click();
+      await expect(page).toHaveURL(/view=by-test/);
       const reportLinks = page.locator('a[href^="/reports/"]');
       await expect(reportLinks.first()).toBeVisible({ timeout: 10_000 });
 
@@ -102,7 +102,7 @@ test.describe('Results', () => {
     // Roving tabindex: one stop for the whole strip, arrows between the three.
     await segment(page, 'By marker').focus();
     await page.keyboard.press('ArrowRight');
-    await expect(segment(page, 'By report')).toHaveAttribute('aria-selected', 'true');
+    await expect(segment(page, 'By test')).toHaveAttribute('aria-selected', 'true');
     await page.keyboard.press('ArrowRight');
     await expect(segment(page, 'Compare')).toHaveAttribute('aria-selected', 'true');
     await page.keyboard.press('End');
@@ -119,8 +119,8 @@ test.describe('Results', () => {
     const page = await ctx.newPage();
 
     await page.goto('/my-results');
-    await expect(page).toHaveURL(/\/results\?view=by-report$/);
-    await expect(segment(page, 'By report')).toHaveAttribute('aria-selected', 'true');
+    await expect(page).toHaveURL(/\/results\?view=by-test$/);
+    await expect(segment(page, 'By test')).toHaveAttribute('aria-selected', 'true');
 
     // By marker is the default now, so its URL is the bare one.
     await page.goto('/markers');
@@ -186,7 +186,7 @@ test.describe('Results', () => {
     const page = await ctx.newPage();
     await page.setViewportSize({ width: 1280, height: 900 });
 
-    await page.goto('/results?view=by-report');
+    await page.goto('/results?view=by-test');
     const first = page.locator('a[href^="/reports/"]').first();
     await expect(first).toBeVisible({ timeout: 10_000 });
     const href = await first.getAttribute('href');
@@ -203,7 +203,7 @@ test.describe('Results', () => {
     await page.getByRole('button', { name: /^Filters/ }).click();
     await expect(page.getByLabel('Group by')).toContainText('Ungrouped');
     // Still inside Results rather than off on a page of its own.
-    await expect(segment(page, 'By report')).toHaveAttribute('aria-selected', 'true');
+    await expect(segment(page, 'By test')).toHaveAttribute('aria-selected', 'true');
 
     // Marker detail is emphatically NOT folded into the list: it stays its own
     // route, with the explanation and the full trend chart on it.
@@ -524,7 +524,7 @@ test.describe('Results', () => {
     const page = await ctx.newPage();
     await page.setViewportSize({ width: 1280, height: 1000 });
 
-    await page.goto('/results?view=by-report');
+    await page.goto('/results?view=by-test');
     const firstReport = page.locator('a[href^="/reports/"]').first();
     await expect(firstReport).toBeVisible({ timeout: 10_000 });
     const href = await firstReport.getAttribute('href');

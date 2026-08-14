@@ -161,6 +161,22 @@ the throw happens inside the stream flush, so it is an UNCAUGHT EXCEPTION that
 kills the Node process rather than failing one request. The long note at the
 top of modules/export/pdfSummary.ts has the detail.
 
+**BOTH PDFs PUT THE COLUMNS IN THE ORDER range · result · status (Aug 2026),**
+in every table in both documents. It was `RESULT · UNIT · RANGE · STATUS`; it now
+reads as the comparison it is — "133–146, and this one is 128, so: below range" —
+rather than a number followed some columns later by the thing it would have to be
+compared with. The UNIT stays beside the RESULT, because it is a property of that
+number rather than a column anybody scans. The x offsets are recomputed rather
+than permuted: the widths differ per column and moving the labels over the old
+offsets prints each header over its neighbour's cells.
+
+**AND BOTH TABLES NOW GO THROUGH `formatReferenceRange`,** which they did not —
+they interpolated `${low}–${high}`, so an eGFR printed **"60–999"** in a document
+a patient keeps and a converted range printed as
+"3.884960761896305–5.494444506110488". That is the one thing CLAUDE.md says
+every reference range reaching a screen or a PDF must not be, and the claim that
+the fix was "complete by construction" was false for these two.
+
 **Every PDF goes through `renderPdf()` (lib/pdfRender.ts) and every download
 route answers through `streamPdf`/`pdfFailure` (lib/pdfResponse.ts).** Those
 close the three failure modes that are closeable — the builder throwing, the
@@ -272,6 +288,17 @@ chevron and the word, never by colour, which is why high and low share a hue and
 both significants share one.
 
 **Where it appears, and it must appear in all of them:**
+0. **THE AT-A-GLANCE COUNTS STRIP IS THREE SEGMENTS, NOT FIVE (Aug 2026).**
+   Below range · In range · Above range, in that order. Significantly below
+   counts as below and significantly above as above — `STRIP_STATE` in
+   lib/markerCopy.ts is the one place that folding is written down. **The five
+   states are untouched everywhere else**: the status word, the chevron, the
+   range bar, the chart and the card tint still separate all five, and a result
+   is still described as "Significantly above range" on its own card. Both gold
+   segments are the SAME colour by construction (`low` and `high` resolve to one
+   hue); direction is the chevron and the word. A segment selects the
+   DIRECTIONAL filter (`BELOW_ANY` / `ABOVE_ANY`), never the specific state, or
+   a segment reading 4 would filter to 3.
 1. Result cards and rows — soft background wash (`bg-tint-*`).
 2. The range bar — flat green across the reference range, flat gold outside it,
    flat red beyond the thresholds, with a BLEND CENTRED ON each of the four
@@ -380,7 +407,65 @@ both significants share one.
    SVG triangle rather than a CSS border trick precisely so it can take the same
    ring. `tokenContrast.test.ts` holds it at AA-large on every segment it can
    stand on, the optimal narrowing included.
-3. **Trend charts — AND THE PLOT AREA IS LIGHT IN BOTH THEMES (Aug 2026).**
+3. **Trend charts — THE BANDS ARE GONE AND THE LINE IS THE WHOLE CHART
+   (Aug 2026). EVERYTHING BELOW THIS PARAGRAPH IS HISTORY.**
+
+   The single-marker trend chart draws NO FILLED REGIONS of any kind: no status
+   bands, no ramp gradients, no optimal narrowing, no inset plot panel. What it
+   draws, and this is the list: the LINE on the card, carrying status along its
+   own length; FOUR BOUNDARY RULES (the two reference bounds solid, the two
+   significantly-out thresholds dashed and lighter) each labelled with its value
+   on the axis; the POINTS; and the axis with the unit above it.
+
+   **WHY, IN ONE SENTENCE.** The bands were re-solved four times and every solve
+   hit the same wall: they had to be legible enough to say where the range is
+   and quiet enough that the reader's own result out-read them, and every gain
+   on one was a loss on the other. The LINE paid for all of it — its colour was
+   solved to clear five painted regions, which is what produced a near-white
+   line on the dark plot and three near-black browns on the light one. With
+   nothing behind it the line answers to ONE surface, the card, and can be as
+   colourful as the palette allows. Measured: light's green went #265600 →
+   #507e2c and its red #941a08 → #c14836; dark's went from a pale cream line to
+   #73a14f / #bf8f00 / #e46956.
+
+   **THE RANGE BARS ARE UNTOUCHED and keep their five painted segments.** A bar
+   is a different instrument: one value against a scale, with no line to carry
+   the colour. `bandRampStops`, `BAND_CONTRAST`, `BAND_FILL`, `OPTIMAL_FILL` and
+   `--c-hue-*-fill` all still exist and all still serve it, solved against
+   `PLOT_SURFACE` exactly as before. So does the normalised COMPARISON chart,
+   which is why `chart.line` and `LINE_LIFT` survive.
+
+   **THE LINE TRAVELS THROUGH EVERY REGION IT PASSES, not only the boundaries.**
+   A stop at each crossing in that boundary's hinge colour, AND a stop at the
+   midpoint of each stretch between crossings in that region's own colour.
+   Measured on AFP (125–375): 429 down to 65 crosses the whole reference range,
+   and with crossing-stops alone it read gold → olive → olive → gold and never
+   once green. `--c-hue-*-mark` is the line and the point marks, solved per
+   theme against the CARD at 4.5:1 (`LINE_FILL_TARGET`).
+
+   **A KEY MAY NOT NAME A MARK THE CHART DID NOT DRAW.** The threshold entry is
+   shown only when a threshold is actually inside the y domain, which on most
+   in-range markers it is not.
+
+   **THE SOLVED COLOURS SHIP AS LITERALS** (`SOLVED` in tokens.ts) and
+   `solveTokens()` re-derives them. Run at module scope the grid searches cost
+   **605ms, measured**, and tokens.ts is in the entry chunk — 605ms of blocked
+   first paint for every patient. `tokenContrast.test.ts` re-runs the solve and
+   asserts the literals equal it, so they cannot drift.
+
+   `e2e/chart-bands.spec.ts` and `e2e/status-colour.spec.ts` measure the NEW
+   evidence: zero filled regions, the line's gradient stops in the token
+   colours, the line's weight, the two rule weights, and the period geometry
+   read off the boundary rules rather than off band rects.
+
+   ---
+
+   **WHAT FOLLOWS IS THE BAND ERA, KEPT BECAUSE THE RANGE BARS STILL RUN ON IT
+   and because the reasoning is worth having. Where it says "the chart", read
+   "the range bar" — except the plot panel, the optimal region and the band
+   rects, which no chart draws any more.**
+
+   **AND THE PLOT AREA WAS LIGHT IN BOTH THEMES (Aug 2026).**
 
    **THE GROUND MOVED, WHICH IS WHY THE COLOURS FINALLY WORK.** The band
    colours had been re-solved four times and every solve hit the same wall from
@@ -659,7 +744,12 @@ route-console.spec.ts). See DEPLOYMENT.md → Feature flags for the full note.
   `drawClinicContact` renders the same four lines in the PDF. They come from
   `getClinicContact()`; do NOT paste them onto the end of a copy block again,
   which is how the out-of-range card ended up saying "Aspire Clinic, Aspire
-  Group of Companies, 27 Mortimer Street, London".
+  Group of Companies, 27 Mortimer Street, London". **THE ADDRESS IS 29-35
+  MORTIMER STREET, LONDON, W1T 3JG (corrected Aug 2026)** — it was 27 with no
+  postcode. One constant each side (`CLINIC_ADDRESS` in web/lib/clinicContact.ts,
+  `addressLines` in server/modules/content/clinicContact.ts); the auth panel used
+  to type it out and now reads the constant, which is why it was wrong there
+  longest.
 - Source labels: `Analysed by Randox Health` where the result genuinely came
   from Randox. In-house results carry NO source line at all (sourceLabel is
   empty for `aspire_inhouse`), so every render site guards it.
@@ -1529,6 +1619,118 @@ is MEASURED from the first rendered row rather than hardcoded; a hardcoded pitch
 drifts the moment somebody changes a padding token. **The framing copy is
 untouched**: IgG indicates exposure, not intolerance, and no food carries a tint.
 
+# Console analytics (Aug 2026)
+
+`/admin/analytics`. Five questions in the order a practice asks them: how many
+patients, how much is coming through, how long it takes, what comes back out of
+range, and what is being ordered. One window control at the top applied to
+everything, so two figures on the screen are always comparable — which is the
+whole reason they are on one screen.
+
+**THREE RULES, and they are constraints rather than descriptions.**
+
+1. **NOTHING NEW IS TRACKED.** Every figure comes from columns the pipeline
+   already writes — `Report.receivedDate` / `releasedAt` / `status` / `voidedAt`,
+   `ReportResult.status`, `Panel`, `User`. No event table, no counter, no
+   analytics column. The same constraint the work queue runs on.
+2. **AGGREGATE ONLY, AND SMALL CELLS ARE SUPPRESSED.** No row names a patient or
+   carries a value. `SUPPRESS_BELOW` is 5, the published-health-statistics
+   convention: a per-marker count of 1 or 2 crossed with a week is a pointer at
+   an individual. The TOTALS are exact and only the breakdown is suppressed, and
+   **the suppressed rows are stated in the table rather than dropped** — a table
+   that quietly omits its own tail reads as complete and is not.
+3. **IT COUNTS RELEASED REPORTS** and excludes voided ones. A report a clinician
+   has not released is not yet a fact about the practice's output.
+
+**NO CHARTS, deliberately.** On a practice this size a weekly volume series is
+six or eight points, and a chart of eight points is a picture of noise with a
+trend implied over it. Figures and tables; a table is what somebody reads a row
+out of into an email.
+
+**EVERY NUMBER SAYS WHAT IT MEANS.** "42" under "Reports" is a number nobody can
+check — released or received, in what window, voided included or not — so each
+block carries a sentence and each figure carries its own definition.
+
+**CSV IS A RENDERING OF THE SAME OBJECT**, from one service call, so the
+spreadsheet cannot disagree with the screen. Sections separated by a blank line
+and a new header row (every spreadsheet reads that as separate tables); every
+cell quoted; a UTF-8 BOM so Excel does not open "Anti-Müllerian Hormone" as
+mojibake; CRLF.
+
+**IT IS STILL AUDITED, and separately from the page view.** "Every admin view of
+patient data is audited" is a rule about the ACT of looking, not the shape of
+what comes back: a screen saying which markers most often come back out of range
+is derived entirely from patients' results. `ANALYTICS_VIEWED` and
+`ANALYTICS_EXPORTED` are distinct actions — a download leaves the building and a
+page view does not, and an audit log where reading one patient's file and
+reading a rate per thousand look identical cannot answer the question it exists
+for.
+
+**COVERAGE COUNTS MEASURED MARKERS ON BOTH SIDES.** Without that filter it
+reported 437 ever-reported against 171 in the catalogue — the 207 food
+sensitivities and the genetic panel on one side only — with "never reported"
+clamped to 0 to stop it printing a negative. Two populations under one heading,
+and the clamp hiding it.
+
+# The clinician console: nine screens, two bands, one landing page (Aug 2026)
+
+**THE ROUTE LIST, AFTER.** `/` (work queue) · `/admin` (reports) ·
+`/admin/reports/:id` · `/admin/analytics` · `/admin/patients` ·
+`/admin/patients/:id` · `/admin/linking` · `/admin/panels` · `/admin/markers` ·
+`/admin/ingestion-log` · `/admin/audit-log`, plus two redirects
+(`/admin/queue` → `/`, `/admin/content` → `/admin/panels`).
+
+**WHAT WAS REMOVED: THE CONSOLE LANDING SCREEN.** `AdminDashboard` answered
+"what is waiting for you", which is word for word what the work queue answers
+and answers better — sorted by how long each report has waited, with the
+exception counts, the turnaround figures and the backup state above it. Two
+screens, one question, and the one an admin landed on was the weaker. `/` renders
+the WORK QUEUE now, so the daily screen is the landing screen. Its three unique
+pieces were re-homed rather than dropped: **erasure requests** onto the queue (an
+outstanding decision with a clock on it, which is what every other band there
+is), the **demo-seed diagnostic** onto the ingestion log (the other "what has
+this deployment actually done" screen), and **"Recently viewed" deleted** — it
+duplicated ⌘K, which is faster and is on every screen.
+
+**THE NAVIGATION IS TWO BANDS.** *Every day* (Work queue, Reports, Patients) and
+*Records & setup* (Analytics, Result linking, Panels, Marker library, Ingestion
+log, Audit log). Nine peers is an index, not a navigation: the three screens a
+clinician opens every day sat in a flat list with six they open a few times a
+year and nothing said which was which. The split is by HOW OFTEN, because that
+is what a reader filters on. Collapsed, a band heading becomes a rule — six
+characters of tracked uppercase do not fit a 76px rail — and the `aria-label` on
+the `<section>` carries it either way. A band whose every item is admin-only
+disappears entirely for a clinician rather than leaving a heading over nothing.
+
+**EVERY SCREEN SAYS WHAT IT IS FOR, IN ONE LINE, AT THE TOP.** `ConsolePage`,
+and `purpose` is a REQUIRED prop — seven of the nine screens had a noun and a
+table and nothing else, so the only way to find out what a screen was for was to
+read the table and infer it. A good purpose line names the DECISION the screen
+supports, not its contents.
+
+**A DETAIL PAGE KEEPS ITS SECTION LIT.** `/admin/reports/:id` and
+`/admin/patients/:id` are where a clinician spends the most time and NOTHING in
+the sidebar was active on either. `ALSO_ACTIVE_ON` is a prefix list per item,
+rather than loosening `end` on `/admin`, which would light Reports everywhere.
+
+**THE AMBIGUOUS CONTROLS THAT WERE FOUND, and the worst was two buttons in one
+row.** "Publish" and "Release to patient" sat side by side on a reviewed report,
+both filled, and nothing said which was which — they are not the same act, since
+Publish is the ADMIN shortcut PAST the clinician gate. It is now HIDDEN once a
+report has been reviewed (there is nothing left to skip) and where it does appear
+it reads **"Release without clinician review"**. Also: "Approve" →
+**"Mark as reviewed"** (it does not release, and "approve" reads as though it
+does); "Parse PDF" → **"Read results from the PDF"** ("parse" is what the code
+calls it); "Filter" → "Apply these filters"; "Remove" → "Remove from this panel";
+"Dismiss" → "Dismiss this result"; "Unlink" → "Unlink from this patient";
+"Reactivate" → "Reactivate this marker/panel"; "Reset 2FA" → "Reset two-factor
+authentication"; "Upload"/"Save entry" → "Upload this PDF"/"Save this report".
+Destructive actions already used the `destructive` variant and still do.
+
+**A HINT THAT IS CUT OFF IS WORSE THAN NO HINT.** The sidebar sublabel carries
+`truncate` and has about 33 characters at 272px; four of the new ones ran past
+it. The hints are written to fit. The LABEL is still never truncated.
+
 # The clinician work queue (Aug 2026)
 
 `/admin/queue`. What is waiting and what is stuck: the buckets with a count and
@@ -1832,7 +2034,83 @@ or without the bug. It was measuring the harness.
   nav item, with Sign out as a SIBLING and never a child: a button inside an
   anchor is invalid markup and gives one control two behaviours.
 
+# What a result card carries, and what came off it (Aug 2026)
+
+A marker card is: the NAME, the range bar, the value with its unit, the status
+chevron and word, then the package and the date. Nothing else.
+
+**FIVE LINES WERE REMOVED**, and each for its own reason rather than to save
+space: the LAB REFERENCE RANGE (the bar above it draws that range, ticks both
+bounds and prints the scale, and the line was the widest thing on the card, so
+it was setting the 15rem grid floor); the OPTIMAL BAND'S FIGURES (a card needs
+the answer, not the interval — it reads **"Outside optimal"** and nothing more,
+and nothing at all when the answer is "within"); the RESULT COUNT ("3 results"
+is a fact about the history and the history is one click away with a chart on
+it); the CATALOGUE GLOSS (a definition clamped to two lines is a definition
+truncated mid-sentence — the `note` prop is gone, not merely unused); and
+"ANALYSED BY RANDOX HEALTH". **"Amended 3 February 2026" STAYS** and is the one
+that was not cut: it says this number changed after the patient saw it.
+
+**THE PACKAGE IS LABELLED AND THE DATE IS ITS OWN LINE.** "Package: Signature"
+then the date. "Signature" alone is a word with no job in the sentence.
+
+**THE ABBREVIATION LEADS, THE EXPANSION IS THE QUIET SECOND LINE.**
+`hs-CRP` over `High-Sensitivity C-Reactive Protein`, never
+`hs-CRP (High-Sensitivity C-Reactive Protein)` wrapping across four lines of
+eyebrow. `splitMarkerName` (packages/shared) is the one derivation, used by the
+card and by the marker page's own h1, and **it refuses far more often than it
+splits**: 32 of 254 parenthesised names in the live database. It reads BOTH
+orders, because the product has both — the catalogue writes
+`Mean Cell Haemoglobin (MCH)` and the database mostly writes
+`ALT (Alanine Aminotransferase)`, and the first implementation handled only the
+catalogue's, so `ALT (ALANINE AMINOTRANSFERASE)` shipped unchanged on a card two
+along from one that split correctly. Four tests, all four required: one token,
+at least two capitals, the same first letter case-insensitively, and shorter
+than what it stands for. **Do not invent abbreviations** — every one of the 207
+foods keeps `(IgG)`, all nine urinalysis pads keep `(urine)` (which is
+load-bearing: it is what stops a dipstick glucose merging into a plasma one),
+and `Lipoprotein (a)` keeps its `(a)`.
+
+**"ANALYSED BY RANDOX HEALTH" IS GONE FROM EVERY SURFACE (Aug 2026).** It said
+something about the practice's laboratory arrangements and nothing about the
+results beside it. Removed from: the marker page, the report header, the By test
+cards, the Overview's latest-panel card, the Documents list, the chart tooltip,
+and BOTH PDFs — including the GP handover's `Laboratory` row and the "analysed
+by" clause in its one non-clinical sentence. ⚠ **The handover is the one place
+that costs something**: a reference interval is assay-specific and a GP reading
+one has less to weigh without knowing whose analyser produced it. Restoring it
+is one line, flagged in gpHandover.ts. `sourceLabel` stays on the DTOs — the
+clinician console still shows it.
+
 # The marker page: two cards, 40/60, then everything else (Aug 2026)
+
+**THE STATUS IS THE SECOND THING ON THE PAGE (Aug 2026).** It was a 14px label —
+the same one a card in a grid of forty gets — in a row of small print between the
+value and three more lines of small print, on a page whose whole subject is one
+result. `StatusBadge size="lead"` is the reading step with a 22px chevron, with
+28px above and below it against the 12px it had; the space is doing as much as
+the size. Still below the value and still smaller than the marker's name, so the
+ladder is unchanged. The amendment note left that row: beside a lead-sized status
+a footnote about the record read as part of the finding.
+
+**FOUR THINGS CAME OFF THE PAGE.** The "Marker detail" standfirst (it labelled
+the page as a page about a marker, under a breadcrumb ending in the marker's name
+and above the marker's name at 38px — three statements of one fact, of which it
+was the one carrying nothing); the lab reference range line (the bar draws it);
+the optimal figures line (the card further down says it in a sentence WITH its
+published source, which is the form advisory guidance belongs in); and "Analysed
+by Randox Health".
+
+**THE CHART IS 28rem AT lg, UP FROM 22.** That budget was given back by the left
+card losing three lines and the header losing the standfirst. Measured at
+1440 × 900: the pair is 380×625 + 584×625 and ends at **790 of 900** with the
+page header above it. 30rem ends at 876, which fits and leaves no room for a
+longer marker name. **`e2e/marker-pair-fit.spec.ts` measures it in both themes**
+— that file is NEW, because TrendChart's comment had cited a spec for this figure
+through three different heights and the file it named did not exist. A number
+protected by a comment pointing at nothing reads as covered and is worse than an
+uncovered number that admits it.
+
 
 **LATEST RESULT and TREND OVER TIME are one row of two cards**, with PREVIOUS
 RESULTS inside the left card beneath the range bar, and then the explanation and
@@ -1888,6 +2166,18 @@ setting the height of every card beside it and that space was drawn as empty
 card rather than as nothing at all. A row of unequal things is allowed to be
 ragged along the bottom. `e2e/marker-name-wrapping.spec.ts` measures the slack
 below each card's last element and holds it at its own bottom padding.
+
+# The explanation card is the size of the text in it (Aug 2026)
+
+`padding="roomy"` is 48px on every side at sm+, on a card whose content is a
+label, a sentence and three short label/answer pairs — that plus a 32px gap
+under the heading was roughly 130px of air. It takes the ORDINARY card padding
+(28px / 36px), a 20px gap under the heading, and 24px between blocks instead of
+28. **The four-level ladder inside it is UNTOUCHED** — 28px heading, 21px lead,
+18px answers, 12px sub-labels — because that ladder took four attempts to get
+right and none of the complaints were about it. What changed is the space
+around it. The block ratio (four to one between blocks and within a pair) is
+what does the grouping and is unchanged; only the absolute figures moved.
 
 # Vellum: the second surface register (Aug 2026)
 
@@ -1993,10 +2283,14 @@ hit-tested.
 
 # Rules
 - Never colour alone for status — text label + icon shape carry it first
-- **By marker is the first Results tab and the default view.** By report is one
-  press away, and every emailed link opens /reports/:id, which pins the report
-  view regardless. The default view is the one with NO `?view=` parameter, so
-  /results and /results?view=by-marker are one URL.
+- **By marker is the first Results tab and the default view.** **By test** (it
+  was "By report" until Aug 2026 — a patient books a TEST and receives a report
+  about it, and the tab is what a patient reads) is one press away, and every
+  emailed link opens /reports/:id, which pins that view regardless. The default
+  view is the one with NO `?view=` parameter, so /results and
+  /results?view=by-marker are one URL. `?view=by-report` still RESOLVES — it is
+  in bookmarks, and `LEGACY_VIEW_ALIASES` maps it on the way in and never on the
+  way out, so a legacy link ends up on the current URL.
 - The results control bar's filters panel is opened and closed by the READER
   only — one boolean, closed on load, toggled by the disclosure, closed by
   Escape, an outside click and a change of view. Nothing derived from scroll
@@ -2249,6 +2543,12 @@ hit-tested.
   `walkthroughSeen === false` and not `!walkthroughSeen`, so an older payload's
   `undefined` means SEEN — a returning patient shown an introduction because a
   deploy was mid-flight is the one failure this screen cannot have.
+- **THE DOCUMENTS PAGE IS THREE BUTTONS ON ONE LINE (Aug 2026).** The GP
+  handover used to sit below the other two behind its own rule with four lines of
+  explanation under it — "one page, take it to your GP", which is what the button
+  already says. Both the rule and the paragraph were doing the LABEL's job:
+  "Summary for your doctor (PDF)" is unambiguous about whose document it is.
+  Hierarchy is the button variants, not a divider.
 - **THE GP HANDOVER PDF CARRIES NOTHING INTERPRETIVE.** One page, on the
   Documents page, clearly labelled as being for a doctor: name, date of birth,
   sample date, and every marker outside its reference range with the range and
