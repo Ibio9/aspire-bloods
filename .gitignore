@@ -19,3 +19,5 @@ apps/server/scratch/
 test-results/
 playwright-report/
 screenshots/
+apps/server/src/modules/randox/specs/sandbox-responses/06-getPanels.json
+apps/server/src/modules/randox/specs/sandbox-responses/08-getTests.json
