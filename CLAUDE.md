@@ -11,10 +11,110 @@ Deploy: Vercel (web) + Railway (api, db)
 Live: blood.aspireshield.com · api.blood.aspireshield.com
 
 # Design
-bronze #8a5e45 · espresso #423c36 · cream #e3dfd3 · taupe #c9bca9
+accent #5A6472 · ink #14161A · surface #E7E9ED · border #C7CBD3
+(the token keys are still named `bronze` / `espresso` / `cream` / `taupe`)
+
+⚠ **THE PALETTE IS NEUTRAL AND COOL. IT WAS WARM UNTIL Aug 2026, AND MOST OF
+THIS FILE STILL DESCRIBES THE WARM ONE.** Where a note below says brown, bronze,
+cream, taupe, espresso, gold or "warm", read it as the ROLE it names — the
+reasoning is almost always still correct and only the hue has moved. The
+retheme is written up under "The palette went neutral" below; that section wins
+over any colour claim anywhere else in this file.
 Match the Aspire Rota sign-in for craft level. No default browser styling anywhere —
 no native selects, no Chrome autofill blue, no native focus rings.
 Reference theaspireclinic.com for register: dark, atmospheric, spacious, restrained.
+
+## The palette went neutral, and it is four hexes (Aug 2026)
+
+**Raheel rejected the warm theme.** The brief was explicit: a clean black/dark
+theme, no brown, no amber, no tan, cool whites and greys, one clean accent,
+status colours untouched.
+
+**IT IS DONE IN `brand` AND ALMOST NOWHERE ELSE, WHICH IS THE WHOLE POINT.**
+Nothing in this codebase writes a colour except tokens.ts. Every surface, tint,
+border, shadow, chart fill and status wash is a `mix()` of four hexes resolved
+through a custom property — so re-theming two apps was those four, plus the
+handful of places that had named a warm hue explicitly. **There was no sweep
+through components, because there was nothing in the components to sweep**: a
+grep for hardcoded hex across `apps/web/src` returns seven, all inside one
+comment recording measured values.
+
+    accent    #5A6472   was bronze  #8a5e45
+    ink       #14161A   was espresso #423c36
+    surface   #E7E9ED   was cream   #e3dfd3
+    border    #C7CBD3   was taupe   #c9bca9
+
+**THE KEYS DID NOT CHANGE AND THAT IS DELIBERATE.** `text-espresso`,
+`bg-cream-50`, `border-taupe`, `scales.bronze[700]` appear several hundred times
+across two apps, in Tailwind's colour map, in specs that read class names and in
+the PDF builders. Renaming them is a mechanical sweep with no visual result and
+a large surface for a mistake, on a change whose entire risk is visual. They are
+ROLE NAMES with historical spellings, which is what they always were; `role` in
+tokens.ts exports the same four under the names they actually mean.
+
+**THE FIVE THINGS THAT WERE NOT DERIVED, AND THEREFORE WOULD HAVE SURVIVED:**
+
+1. **`--c-glow`** — an explicit gold (`mix(bronze, '#f0bd6a', …)`), the one place
+   in tokens.ts that named a hue rather than deriving one. A gold corner glow
+   over a clean black interface is not a leftover, it is the most visible warm
+   thing on the screen. It is a cool white-blue now.
+2. **The second accent** — `plum` renamed to `slate` (#6B4260 → #3F4B63). A
+   muted plum was "the bridge back to bronze"; there is no bronze to bridge to.
+3. **`index.html`'s two `theme-color` metas** — literal copies of the old page
+   colours, driving the browser's own address bar on mobile. A `<meta>` cannot
+   read a custom property, so they stay literals and are flagged as such.
+4. **Both PDF builders** — `pdfSummary.ts` and `gpHandover.ts` each held their
+   own copies of the brand hexes, and were the only things left printing warm
+   brown, in a document a patient hands to a doctor. They import `brand` now.
+5. **`nightLift`** — *where the brown actually came from*, and it took the blame
+   for years. Every raised dark surface is `mix(nightBase, nightLift, t)`, so the
+   lift decides the HUE of every card and panel; it pointed at taupe, so the more
+   a surface was lifted the browner it got. That is why "raising the surfaces
+   until a card separated turned the whole viewport brown" was true, and why the
+   fix at the time was to darken the PAGE rather than to fix the direction.
+
+**THE STATUS COLOURS ARE UNTOUCHED, AND ONE TOKEN IS PINNED TO KEEP THEM SO.**
+`statusHue` is unchanged and asserted as literals. `PLOT_SURFACE` — the gauge
+track, the ground the five band fills are SOLVED against — is now a **literal
+neutral grey at the old value's exact relative luminance (0.8238)**. WCAG
+contrast depends on luminance and not hue, so every ratio in `BAND_CONTRAST`,
+`BAND_FILL`, `MARK_FILL`, the optimal narrowing and the boundary hairline is
+arithmetically unchanged and the five fills are the same five hexes. The track
+simply stopped being brown. ⚠ Do not re-derive it from `brand.cream`; that
+coupling is what would silently re-solve the clinical palette.
+
+`SOLVED` (washes, labels, lines) DID move, because those are solved against the
+card, the page and an input, and all three changed. Light's green line came out
+byte-identical; dark's moved one step. Nothing was picked by eye —
+`tokenContrast.test.ts` re-runs `solveTokens()` and asserts the literals equal it.
+
+**FOUR NUMBERS HAD TO BE RE-SOLVED, AND EACH FAILED LOUDLY FIRST:**
+
+- **`nightBase` 0.74 → 0.45.** The old figure was right for a warm brown ink at
+  26% luminance. The ink is already near-black, so 0.74 landed on #050506 — past
+  where a page is a colour, with no room under it for the sidebar to recess into.
+- **`cream` #F3F4F6 → #E7E9ED.** The first pass used a near-white and **the whole
+  light ladder collapsed**: a card is the surface taken 90% to white, so a page
+  starting at 96% white left page→card at 1.05:1 against 1.30. Every light
+  surface lives in the gap between this and white, so this value IS that gap.
+- **`glassColour` (light) 0.35 → 0.5 toward the surface.** A WHITE specular on a
+  96%-white pane has nowhere to go — measured, it lifted by 0.4% where the
+  material's own test asks for 2%.
+- **`darkBronze` 0.42 → 0.58, and the chart hairline 0.317 → 0.37.** The accent is
+  measured against the KEY LIGHT'S CORE, and a cool white-blue glow is a far
+  brighter ground than the gold it replaced (2.76:1, under the 3:1 floor). The
+  hairline is squeezed from both sides — >1.6:1 drawn at 55% over every band, and
+  >1.3:1 as a rule on the dark key swatches — so it was swept at 0.01 across
+  0.30–0.50 rather than nudged. The window is 0.35–0.39.
+
+**AND THE SUITE CAUGHT A REAL FAULT THE RETHEME INTRODUCED.** With the key light
+gone cool, the light theme's two ambient sources measured **4° apart in hue** —
+one light with a wide falloff, which is precisely the failure the second source
+exists to avoid. The fill is teal in both themes now. Two assertions had to be
+rewritten rather than fixed, because their PREMISE was the warm palette: "the
+brand accent is blue-lowest" (it is a slate now, and the rule narrowed to the
+status hues, where it belongs) and "the key light is warm" (both are cool; what
+is measured is that they are 20°+ apart).
 
 ## Typography — three roles, two superfamilies (changed Aug 2026)
 **Jost and Inter are retired. Do not bring either back.**
@@ -1127,8 +1227,10 @@ in packages/shared/src/tokens.ts; tailwind.config.ts injects them via addBase.
 - `onaccent` is theme-aware and is the text on a FILLED accent (bronze button,
   selected option). It is white in light and near-black in dark — a light label on
   dark mode's lightened bronze measures under 2:1.
-- Dark surfaces are warm near-black browns derived from espresso. No pure black,
-  no cool grey.
+- ~~Dark surfaces are warm near-black browns derived from espresso. No pure
+  black, no cool grey.~~ **REVERSED Aug 2026.** Dark surfaces are neutral
+  near-blacks derived from the ink, lifted toward a cool grey. See the retheme
+  section below.
 - Text opacity ladder is 100 / 90 / 85 / 80 and stops there. `/70` and below fail
   AA in light mode; anything fainter is for placeholders, disabled controls and
   decorative icons only. apps/server/tests/tokenContrast.test.ts enforces all of it.

@@ -165,7 +165,7 @@ export default {
         // BADGE. Those are status surfaces; a decorative hue beside them reads
         // as a state.
         teal: scaleVars('teal'),
-        plum: scaleVars('plum'),
+        slate: scaleVars('slate'),
         white: v('--c-white'),
         // Frozen light values — see staticTokens. `night` is the atmospheric
         // dark panel in both themes; `oncolor` is the light text on it and on

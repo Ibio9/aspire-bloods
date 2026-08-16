@@ -1452,16 +1452,45 @@ describe('the accent family', () => {
     return b < r && b < g;
   };
 
-  it('gives every status hue and the brand accent the warm channel shape', () => {
-    for (const [name, hex] of Object.entries({ ...statusHue, bronze: brand.bronze })) {
+  /**
+   * ⚠ THE BRAND ACCENT CAME OUT OF THIS LIST (Aug 2026), and the rule is
+   * stronger for it.
+   *
+   * It used to read "every status hue AND bronze", because the whole palette was
+   * warm and the accents were defined as the cool things in it. The palette is
+   * neutral and cool throughout now — `brand.bronze` is a slate — so including
+   * it would be asserting that the brand accent is warm, which is the thing that
+   * was just deliberately undone.
+   *
+   * What is left is the claim that actually protects a reader: an accent must
+   * never be mistakable for a STATE. The status hues are still all blue-lowest —
+   * they are untouched, and they are the only colours in the product that mean
+   * something clinical — and neither accent is. Losing bronze from the list
+   * narrows the rule to exactly the surface it was written for.
+   */
+  it('gives every status hue the warm channel shape', () => {
+    for (const [name, hex] of Object.entries(statusHue)) {
       expect(blueStrictlyLowest(hex), `${name} ${hex} is not blue-lowest, so the separation rule has no basis`).toBe(
         true,
       );
     }
   });
 
+  it('leaves the status hues untouched by the retheme', () => {
+    // The brief that neutralised the chrome said to keep the status colours as
+    // they are. Pinned as literals, so a future palette change cannot quietly
+    // take the clinical layer with it.
+    expect(statusHue).toEqual({
+      green: '#5E8C3A',
+      olive: '#939328',
+      yellow: '#C79A16',
+      orange: '#C4711F',
+      red: '#B23A28',
+    });
+  });
+
   it('gives neither accent that shape, at any step, in either theme', () => {
-    for (const family of ['teal', 'plum'] as const) {
+    for (const family of ['teal', 'slate'] as const) {
       for (const scale of [accentScales[family], darkAccentScales[family]]) {
         for (const [step, hex] of Object.entries(scale)) {
           expect(
@@ -1650,16 +1679,36 @@ describe.each(MODES)('%s ambient sources', (mode) => {
     expect(r, `a card at the worst point in ${mode} is ${r.toFixed(2)}:1 off the page`).toBeGreaterThan(1.05);
   });
 
+  /**
+   * ⚠ THIS USED TO ASSERT THE KEY LIGHT WAS WARM (Aug 2026).
+   *
+   * That was the right check while the product was: a gold key against a teal
+   * fill is unmistakably two lamps. Both lights are cool now — the gold was the
+   * last warm thing left after the retheme and the most visible — so "one is
+   * warm" is no longer the thing that separates them.
+   *
+   * What always mattered is that they are DISTINGUISHABLE, so that is what is
+   * measured: a real hue angle between them. Two cool lights 34° apart still
+   * read as two sources; two lights of one colour are one wide light, which is
+   * exactly the failure the original pair of viewport-sized radials had.
+   */
   it('is a second source rather than more of the first', () => {
-    // A second light the colour of the first is a wider first light, which is
-    // exactly the failure the original pair of viewport-sized radials had.
     const chan = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-    const [r1, g1, b1] = chan(tone(mode, '--c-glow'));
-    const [r2, g2, b2] = chan(tone(mode, '--c-glow-2'));
-    expect(tone(mode, '--c-glow-2')).not.toBe(tone(mode, '--c-glow'));
-    // The key is warm (blue lowest); the fill is not. Two lamps, not one.
-    expect(b1 < r1 && b1 < g1, 'the key light is not warm').toBe(true);
-    expect(b2 < r2 && b2 < g2, 'the fill light has the same channel shape as the key').toBe(false);
+    const hueOf = (hex: string) => {
+      const [r, g, b] = chan(hex).map((v) => v / 255);
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      const d = max - min;
+      if (d === 0) return 0;
+      const h = max === r ? ((g - b) / d + (g < b ? 6 : 0)) / 6 : max === g ? ((b - r) / d + 2) / 6 : ((r - g) / d + 4) / 6;
+      return h * 360;
+    };
+    const key = tone(mode, '--c-glow');
+    const fill = tone(mode, '--c-glow-2');
+    expect(fill).not.toBe(key);
+    const apart = Math.abs(hueOf(key) - hueOf(fill));
+    const separation = Math.min(apart, 360 - apart);
+    expect(separation, `the two sources are ${separation.toFixed(0)}° apart in ${mode}`).toBeGreaterThan(20);
   });
 
   it('is a fill rather than a second key', () => {
@@ -1703,7 +1752,7 @@ describe.each(MODES)('%s ambient sources', (mode) => {
    *
    * LIGHT had no glow at all, so there is no prior source to compare with and a
    * comparative test there would be measuring one new thing against another.
-   * (It also fails, by a hair and in the harmless direction: plum is a much
+   * (It also fails, by a hair and in the harmless direction: slate is a much
    * darker hue than the gold, so at 0.075 it costs marginally more contrast than
    * the key does at 0.10 — which is a fact about the two hues, not about one of
    * them being too strong.) What is asserted instead is a BUDGET: between them

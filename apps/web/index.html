@@ -8,8 +8,14 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#e3dfd3" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#25221e" media="(prefers-color-scheme: dark)" />
+    <!-- The browser's own chrome — the address bar on mobile, the window frame
+         on some desktops. These are the two PAGE colours and they were the last
+         warm brown left outside the token file after the retheme (Aug 2026):
+         literal copies of the old cream and a mid-brown that was never even the
+         page. Kept as literals because a <meta> tag cannot read a custom
+         property; if `brand.cream` or `nightBase` moves, these move with it. -->
+    <meta name="theme-color" content="#E7E9ED" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b0c0e" media="(prefers-color-scheme: dark)" />
     <!-- The two faces the first paint needs: Fraunces for the page title,
          IBM Plex Sans for everything else on screen. Preloaded against fixed
          paths (see public/assets/fonts/README.md) because the alternative is

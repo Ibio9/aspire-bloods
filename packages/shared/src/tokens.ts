@@ -5,15 +5,90 @@
  */
 
 // ---------------------------------------------------------------------------
-// Brand palette (exact, from Aspire Clinic brand guidelines — do not alter)
+// THE PALETTE — NEUTRAL AND COOL SINCE Aug 2026. IT USED TO BE WARM.
 // ---------------------------------------------------------------------------
 
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  FOUR TONES, AND THEY ARE NEUTRAL NOW — THE PRODUCT WAS BROWN (Aug 2026)
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * This block used to read "exact, from Aspire Clinic brand guidelines — do not
+ * alter" and hold bronze #8a5e45, espresso #423c36, cream #e3dfd3, taupe
+ * #c9bca9. Every surface, every border, every shadow and both themes' entire
+ * dark scale were derived from those four, so the whole interface was warm by
+ * construction — which was the intent and is exactly what was rejected. The
+ * instruction is Raheel's and it is explicit: a clean black/dark theme, no
+ * brown, no amber, no tan.
+ *
+ * ── IT IS DONE HERE AND ALMOST NOWHERE ELSE, WHICH IS THE POINT ────────────
+ *
+ * Nothing in this codebase writes a colour except this file. Every surface, tint,
+ * border, shadow, chart fill and status wash is a `mix()` of these four, resolved
+ * through a CSS custom property, so re-theming the product is four hexes and the
+ * handful of places that named a warm hue explicitly (the glows, the second
+ * accent family, the two PDF builders). There was no sweep through components,
+ * because there was nothing in the components to sweep.
+ *
+ * ── WHAT EACH ONE BECAME, AND WHY THAT VALUE ──────────────────────────────
+ *
+ *   accent    #5A6472  A cool slate. It is the one filled colour in the product
+ *                      — buttons, the focus ring, active nav, links — and it has
+ *                      to carry WHITE TEXT at AA in light mode, which is what
+ *                      sets its darkness: 5.72:1, where a lighter slate would
+ *                      have repeated the mistake cream-on-bronze made at 4.18.
+ *   ink       #14161A  Text in light, and the seed of every dark surface. A
+ *                      hair cool rather than a true neutral (b > g > r by two
+ *                      levels): a dead-neutral near-black reads as flat grey
+ *                      next to white, and a trace of blue is what makes it read
+ *                      as BLACK rather than as dark grey.
+ *   surface   #E7E9ED  The light page. Cool light grey, not cream.
+ *                      ⚠ NOT a near-white. The first pass used #F3F4F6 and the
+ *                      whole LIGHT LADDER collapsed: a card is `cream-50`, which
+ *                      is the surface taken 90% to white, so a page that starts
+ *                      at 96% white leaves a page→card separation of 1.05:1
+ *                      against the 1.30:1 it had. Every surface in light mode —
+ *                      card, panel, pane, vellum — lives in the gap between this
+ *                      and white, so this value IS that gap.
+ *   border    #C7CBD3  The hairline. Cool grey, not taupe.
+ *
+ * ── THE NAMES DID NOT CHANGE, AND THAT IS DELIBERATE ──────────────────────
+ *
+ * `bronze` / `espresso` / `cream` / `taupe` are the KEYS of the whole token
+ * system: `text-espresso`, `bg-cream-50`, `border-taupe` and `scales.bronze[700]`
+ * appear several hundred times across two apps, plus in Tailwind's colour map, in
+ * every spec that reads a class name, and in the PDF builders. Renaming them is a
+ * mechanical sweep with no visual result and a large surface for a mistake, on a
+ * change whose entire risk is visual.
+ *
+ * So they are ROLE NAMES that happen to have historical spellings — `bronze` is
+ * "the accent", `espresso` is "the ink", `cream` is "the surface", `taupe` is
+ * "the border" — which is what they always actually were. The aliases below say
+ * so in the type system for anything written from here on.
+ */
 export const brand = {
-  bronze: '#8a5e45',
-  espresso: '#423c36',
-  cream: '#e3dfd3',
-  taupe: '#c9bca9',
+  /** THE ACCENT. Buttons, focus, active nav, links. Was a warm bronze. */
+  bronze: '#5A6472',
+  /** THE INK. Body text in light, and the seed of every dark surface. Was a warm espresso. */
+  espresso: '#14161A',
+  /** THE SURFACE. The light page and the base of every light card. Was cream. */
+  cream: '#E7E9ED',
+  /** THE BORDER. Every hairline. Was taupe. */
+  taupe: '#C7CBD3',
   white: '#ffffff',
+} as const;
+
+/**
+ * The four by what they ARE, for anything written after the retheme. Same
+ * values, same objects — this is a second set of names and never a second set
+ * of colours.
+ */
+export const role = {
+  accent: brand.bronze,
+  ink: brand.espresso,
+  surface: brand.cream,
+  border: brand.taupe,
+  white: brand.white,
 } as const;
 
 /**
@@ -38,8 +113,8 @@ export const brand = {
  *     EVERY STATUS HUE HAS BLUE AS ITS LOWEST CHANNEL.
  *     NEITHER ACCENT DOES.
  *
- *   green  #5E8C3A  94 140  58   ·  teal  #2F6F6B   47 111 107   B is not lowest
- *   olive  #939328 147 147  40   ·  plum  #6B4260  107  66  96   B is not lowest
+ *   green  #5E8C3A  94 140  58   ·  teal   #2A6C74   42 108 116   B is not lowest
+ *   olive  #939328 147 147  40   ·  slate  #3F4B63   63  75  99   B is not lowest
  *   yellow #C79A16 199 154  22
  *   orange #C4711F 196 113  31
  *   red    #B23A28 178  58  40
@@ -52,18 +127,25 @@ export const brand = {
  *
  * ── WHAT WAS PICKED ────────────────────────────────────────────────────────
  *
- *   teal  #2F6F6B  ~176°  Bronze's near-complement, 157° away from it and 86°
- *                         from the nearest status hue. Low chroma and a shade
- *                         green-leaning rather than blue-leaning, which is what
- *                         lets it sit WITH warm brown instead of against it —
- *                         teal and bronze is the oxidised-copper pairing, which
- *                         is why it reads as belonging rather than as an
- *                         addition. It is the cool counter-light in dark.
- *   plum  #6B4260  ~313°  The bridge back. Red-dominant like bronze, so a plum
- *                         glow and a bronze glow read as two lamps in one room
- *                         rather than as two brands; blue second, so it can
- *                         never be the status red, which has blue lowest by a
- *                         long way. It is the warm counter-light in light.
+ *   teal   #2A6C74  ~188°  Unchanged in role, nudged bluer with the retheme.
+ *                          86° from the nearest status hue. It was picked as a
+ *                          COOL counter-light against a warm palette, and a
+ *                          palette that is cool throughout has not made it wrong
+ *                          — it has made it the only chromatic thing on the
+ *                          page, which is what an accent is. THE COUNTER-LIGHT
+ *                          IN BOTH THEMES now (see `--c-glow-2`).
+ *   slate  #3F4B63  ~222°  WAS `plum` (#6B4260). A muted plum was chosen as "the
+ *                          bridge back" to bronze — red-dominant, so a plum glow
+ *                          and a bronze glow read as two lamps in one room.
+ *                          There is no bronze to bridge back to, and a magenta
+ *                          wash in the corner of a clean black interface is the
+ *                          single most obviously WARM thing that would have
+ *                          survived the retheme.
+ *                          It is THE QUIET ONE: the pane tint in light, and the
+ *                          family anything needing a second neutral-cool hue
+ *                          reaches for. It is deliberately NOT the counter-light
+ *                          — being 4° from the key light made the two one light
+ *                          rather than two, which the contrast suite caught.
  *
  * ── AND BURNT AMBER WAS REJECTED, WHICH IS THE USEFUL HALF ─────────────────
  *
@@ -84,8 +166,8 @@ export const brand = {
  * reads as a state.
  */
 export const accent = {
-  teal: '#2F6F6B',
-  plum: '#6B4260',
+  teal: '#2A6C74',
+  slate: '#3F4B63',
 } as const;
 
 export type AccentHue = keyof typeof accent;
@@ -289,7 +371,7 @@ export const scales = {
  */
 export const accentScales = {
   teal: buildScale(accent.teal),
-  plum: buildScale(accent.plum),
+  slate: buildScale(accent.slate),
 } as const;
 
 /**
@@ -1208,8 +1290,36 @@ const LINE_LIFT: LineLift = { lightness: 0.31, saturation: 'own' }; // #694835, 
  * warm light — in that order, so the interface still works with the glow turned
  * off entirely.
  */
-const nightBase = mix(brand.espresso, '#000000', 0.74);
-/** The lift direction for dark surfaces — toward a warm mid-brown, never toward grey. */
+/**
+ * ── 0.74 → 0.45, AND THE ARITHMETIC CHANGED UNDER IT (Aug 2026) ────────────
+ *
+ * The old figure is the right number for a DIFFERENT ink. It was espresso — a
+ * warm brown at 26% luminance — and 74% of the way to black was what it took to
+ * stop a whole viewport of it reading brown. The ink is #14161A now, which is
+ * already near-black, so the same 0.74 would land on #050506: past the point
+ * where a page stops being a colour and becomes an absence, and with no room
+ * left below it for the sidebar to recess into.
+ *
+ * 0.45 gives **#0B0C0E** — the near-black the brief asks for, a hair cool
+ * (b > g > r), and with enough space beneath it that a panel can still go darker
+ * and a card can still lift without either becoming grey.
+ */
+const nightBase = mix(brand.espresso, '#000000', 0.45);
+/**
+ * The lift direction for dark surfaces — toward a NEUTRAL mid-grey now.
+ *
+ * This is where the brown actually came from, and it is worth being precise
+ * because the page colour got the blame for years. Every raised surface in dark
+ * is `mix(nightBase, nightLift, t)`, so the lift decides the HUE of every card,
+ * every panel and every hover state. It used to point at taupe, so the further a
+ * surface was lifted the browner it got — which is why "raising the surfaces
+ * until a card separated on its own turned the whole viewport brown" was true,
+ * and why the fix at the time was to darken the page instead of to fix the
+ * direction it was being lifted in.
+ *
+ * The inputs are neutral now, so this resolves to a plain cool grey and a lifted
+ * card is a lighter version of the page rather than a browner one.
+ */
 const nightLift = mix(brand.espresso, brand.taupe, 0.55);
 
 /** Surface family in dark: lower step = more raised. */
@@ -1250,7 +1360,14 @@ const darkPage = nightBase;
 /** Text: a warm light cream, never pure white — white body text on a warm dark surface glares. */
 const darkText = mix(brand.cream, brand.white, 0.45);
 /** Accent: bronze lifted far enough to clear AA against the dark page. */
-const darkBronze = mix(brand.bronze, brand.cream, 0.42);
+/**
+  * 0.42 → 0.58 with the retheme. The accent is measured against the KEY LIGHT'S
+  * CORE as well as the page, and the cool white-blue glow is a far brighter
+  * ground than the gold it replaced: at 0.42 the accent came out #959CA4 and
+  * measured 2.76:1 there, under the 3:1 floor for large text and UI. A lighter
+  * accent on near-black is the register this theme wants in any case.
+  */
+const darkBronze = mix(brand.bronze, brand.cream, 0.58);
 /** Borders: a warm mid-brown that shows against every dark surface without becoming a line of light. */
 const darkTaupe = mix(brand.taupe, nightBase, 0.66);
 
@@ -1274,11 +1391,11 @@ export const darkScales = {
  * hairline and step 300 one that can carry a glow.
  */
 const darkTeal = mix(accent.teal, darkText, 0.36);
-const darkPlum = mix(accent.plum, darkText, 0.36);
+const darkSlate = mix(accent.slate, darkText, 0.36);
 
 export const darkAccentScales = {
   teal: buildDarkContrastScale(darkTeal, darkPage),
-  plum: buildDarkContrastScale(darkPlum, darkPage),
+  slate: buildDarkContrastScale(darkSlate, darkPage),
 } as const;
 
 /**
@@ -1405,7 +1522,29 @@ function darkStatusHex(hue: StatusHue): string {
  * light theme's chart ground does not move at all, so this change is "dark
  * mode's plot becomes light mode's plot" and nothing else.
  */
-const PLOT_SURFACE = mix(brand.cream, brand.white, 0.35); // #edeae2
+/**
+ * ── NEUTRAL, AND AT THE OLD ONE'S EXACT LUMINANCE (Aug 2026) ───────────────
+ *
+ * This is the ground the five status band fills are SOLVED against — the gauge's
+ * track, and the surface `BAND_CONTRAST`'s whole ladder is measured on. The
+ * brief says keep the status colours as-is, and this is the one token where that
+ * instruction has teeth: change this surface and every clinical colour in the
+ * product has to be re-solved against it.
+ *
+ * It was `mix(cream, white, 0.35)` = #edeae2, a warm off-white, and deriving it
+ * from the new neutral surface would have moved it. So it is pinned instead, at
+ * a NEUTRAL GREY OF THE SAME RELATIVE LUMINANCE (0.8238) as the value it
+ * replaces — which is the whole trick: WCAG contrast depends on luminance and
+ * not on hue, so every ratio in `BAND_CONTRAST`, `BAND_FILL`, `MARK_FILL`, the
+ * optimal narrowing and the boundary hairline is arithmetically unchanged. The
+ * five fills are the same five hexes they were before the retheme. The track
+ * they sit on simply stopped being brown.
+ *
+ * ⚠ IT IS A LITERAL ON PURPOSE. Deriving it from `brand.cream` is what would
+ * make a future change to the page colour silently re-solve the clinical
+ * palette, which is exactly the coupling this note exists to break.
+ */
+const PLOT_SURFACE = '#ebebeb';
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -1607,19 +1746,41 @@ export function solveTokens(mode: 'light' | 'dark'): SolvedTokens {
  * surface, `LINE_FILL_TARGET`) and regenerate.
  */
 const SOLVED: Record<'light' | 'dark', SolvedTokens> = {
+  /**
+   * ── RE-SOLVED FOR THE NEUTRAL SURFACES (Aug 2026), NOT RE-CHOSEN ──────────
+   *
+   * Every value here is the output of `solveTokens()`, which is re-run by
+   * `tokenContrast.test.ts` and asserted equal to these literals — so this block
+   * cannot drift from its own derivation, and it moved because the SURFACES
+   * moved and for no other reason.
+   *
+   * The brief says keep the status colours as-is, and this is what that means in
+   * practice: `statusHue` is untouched, so the five HUES are the five hues. What
+   * a solve produces is the lightness and saturation at which each hue clears
+   * its contrast floor ON A GIVEN GROUND, and the grounds all changed — a wash
+   * is mixed from the card, a label is solved against the page, the card, an
+   * input and its own wash, and a line against the card. Light's green line came
+   * out byte-identical (#507e2c); dark's moved one step (#73a14f → #6b9948)
+   * because the card it is measured on went from a warm #2a2723 to a neutral
+   * #1f2124. Nothing here was picked by eye.
+   *
+   * The gauge's five BAND FILLS are not in this block and did not move at all —
+   * they are solved against `PLOT_SURFACE`, which was deliberately pinned at the
+   * old value's exact luminance for precisely this reason. See the note there.
+   */
   light: {
-    line: { green: '#507e2c', olive: '#727719', yellow: '#936f06', orange: '#aa5c1e', red: '#c14836' },
-    wash: { green: '#dbe4d2', olive: '#e6e6cf', yellow: '#f1e7cb', orange: '#f0dfcd', red: '#ecd3cf' },
-    track: { green: '#a0bb8b', olive: '#bfbf81', yellow: '#ddc376', orange: '#dcab7b', red: '#d18b81' },
-    label: { green: '#516838', yellow: '#735f2a', red: '#993a2b' },
-    bound: '#af9c80',
+    line: { green: '#507e2c', olive: '#72771a', yellow: '#947008', orange: '#ab5c1f', red: '#c14836' },
+    wash: { green: '#dce5d4', olive: '#e7e7d0', yellow: '#f2e8cc', orange: '#f1e0ce', red: '#edd4d0' },
+    track: { green: '#a1bb8c', olive: '#c0c081', yellow: '#dec477', orange: '#dcac7c', red: '#d28c81' },
+    label: { green: '#3d572c', yellow: '#564719', red: '#8f3225' },
+    bound: '#98a0ae',
   },
   dark: {
-    line: { green: '#73a14f', olive: '#999828', yellow: '#bf8f00', orange: '#d27c2b', red: '#e46956' },
-    wash: { green: '#333b2d', olive: '#373725', yellow: '#3c341c', orange: '#433527', red: '#4c3936' },
-    track: { green: '#455e31', olive: '#535317', yellow: '#5f4700', orange: '#7a4b1d', red: '#97564c' },
-    label: { green: '#80ae5b', yellow: '#c39611', red: '#fe8472' },
-    bound: '#76644a',
+    line: { green: '#6b9948', olive: '#959424', yellow: '#bf8f00', orange: '#d07a29', red: '#e06452' },
+    wash: { green: '#2e3628', olive: '#333321', yellow: '#372f18', orange: '#3f3123', red: '#483431' },
+    track: { green: '#435931', olive: '#4f4f0f', yellow: '#594300', orange: '#74471a', red: '#905248' },
+    label: { green: '#80ae5b', yellow: '#bf8f00', red: '#fa7d6b' },
+    bound: '#5a6272',
   },
 };
 
@@ -1698,7 +1859,7 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * branches on the theme to reach one. See `accent` at the top of this file for
    * what they are and for the channel rule that keeps them off the status hues.
    */
-  for (const family of ['teal', 'plum'] as const) {
+  for (const family of ['teal', 'slate'] as const) {
     const scale = dark ? darkAccentScales[family] : accentScales[family];
     out[`--c-${family}`] = scale[500];
     for (const step of [50, 100, 200, 300, 400, 500, 600, 700, 800, 900]) {
@@ -1739,14 +1900,54 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * That is what `stillLit` in tokenContrast.test.ts holds, and it binds before
    * the "stays below a card" rule does.
    */
-  const glassColour = dark ? darkScales.cream[50] : mix(brand.white, brand.cream, 0.35);
+  /**
+   * ── LIGHT MOVED OFF NEAR-WHITE SO THE SPECULAR HAS ROOM (Aug 2026) ──────
+   * 0.35 of the way from white toward the surface put this at 96% white, and a
+   * WHITE highlight on a 96%-white pane has nowhere to go: measured, the sheen
+   * lifted it by 0.4% where the material's own test asks for 2%. That is not a
+   * number to relax — it is a surface with no headroom above it. 0.5 keeps the
+   * pane above the page and below a card and leaves the highlight somewhere to
+   * land.
+   */
+  const glassColour = dark ? darkScales.cream[50] : mix(brand.white, brand.cream, 0.5);
   // The two ambient sources, resolved here because three tokens further down
   // are derived from them (`--c-glass-edge`, `--c-sheen`, and the glows
   // themselves) and a colour computed twice is a colour that can differ from
   // itself. See the long note on `--c-glow` / `--c-glow-2` below for what they
   // are and why each goes the other way per theme.
-  const glowPrimary = dark ? mix(brand.bronze, '#f0bd6a', 0.72) : mix(brand.bronze, '#f0bd6a', 0.3);
-  const glowSecondary = dark ? mix(accent.teal, '#7fd8d0', 0.62) : accent.plum;
+  /**
+   * ── THE KEY LIGHT IS COOL NOW, AND IT WAS THE LAST GOLD IN THE PRODUCT ────
+   *
+   * It was `mix(bronze, '#f0bd6a', …)` — an explicit warm gold, the one place in
+   * this file that named a hue rather than deriving one, and therefore the one
+   * thing that would have survived a retheme of the four brand tones untouched.
+   * A gold corner glow over a clean black interface is not a leftover, it is the
+   * single most visible warm thing on the screen.
+   *
+   * It is a cool white-blue in dark: light with a trace of blue in it reads as
+   * DAYLIGHT, where a dead-white glow reads as a blown highlight and a warm one
+   * reads as a lamp. In light it has to DARKEN the page to register at all (a
+   * pale anything over #F3F4F6 measures nothing), so it is the same hue taken
+   * down — the identical inversion the trend chart's spark halo makes, and for
+   * the identical reason.
+   */
+  const glowPrimary = dark ? '#C4D4E8' : '#8894A6';
+  /**
+   * ── THE FILL IS TEAL IN BOTH THEMES NOW (Aug 2026) ───────────────────────
+   *
+   * It was the slate accent in light, and the contrast suite caught what that
+   * actually produced once the key had gone cool with the retheme: a cool
+   * blue-grey key beside a blue-slate fill measured **4° apart in hue**. Two
+   * lights 4° apart are one light with a wide falloff, which is exactly the
+   * failure the original pair of viewport-sized radials had and exactly what a
+   * second source exists to avoid.
+   *
+   * Teal is 30° off the key and is already the fill in dark, so both themes are
+   * lit the same way now: a blue-white key and a green-blue fill. The reason
+   * light used to differ was that a cool hue over CREAM desaturates rather than
+   * tints — that was a fact about cream, and there is no cream any more.
+   */
+  const glowSecondary = dark ? mix(accent.teal, '#7fd8d0', 0.62) : accent.teal;
   /**
    * ── AND IN DARK IT IS NEAR-BLACK AGAIN, NOT THE CARD TONE (Aug 2026) ────
    *
@@ -1776,7 +1977,7 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * above. `tokenContrast.test.ts` asserts the material is shared and no longer
    * asserts the colour is.
    */
-  out['--c-panel'] = dark ? mix(nightBase, '#000000', 0.6) : glassColour;
+  out['--c-panel'] = dark ? mix(nightBase, '#000000', 0.72) : glassColour;
   // The alpha itself is PANEL_WASH_ALPHA below rather than a variable here,
   // because it is an opacity and not a colour: everything in this map is a hex
   // that themeCssVars turns into channels.
@@ -1829,7 +2030,7 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * ── THE PAGE-SURFACE PANE'S OWN TINT ───────────────────────────────────
    *
    * The same glass, carrying a trace of the theme's SECOND ACCENT — teal in
-   * dark, plum in light, matching the counter-light each theme is lit by, so a
+   * dark, slate in light, matching the counter-light each theme is lit by, so a
    * pane looks like glass in a room with two lamps in it rather than like a
    * fifth surface colour.
    *
@@ -1840,9 +2041,17 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * tokenContrast.test.ts against a surface whose colour is part of the
    * measurement. A new surface takes a new colour; nothing already solved moves.
    */
+  /**
+   * ⚠ THE LIGHT SIDE TINTS TOWARD A LIGHT STEP, NOT THE BASE. Mixing a
+   * near-white pane 8% toward `slate[500]` darkened it back down ONTO the page —
+   * measured at 1.000:1, a pane indistinguishable from the surface behind it.
+   * The tint is meant to be a cast, not a shade, so on a light ground it comes
+   * from a light step of the same hue. Dark keeps the base: there, mixing toward
+   * the accent lifts, which is the direction that surface wants anyway.
+   */
   out['--c-glass-panel'] = mix(
     glassColour,
-    dark ? darkAccentScales.teal[500] : accentScales.plum[500],
+    dark ? darkAccentScales.teal[500] : accentScales.slate[200],
     GLASS_ACCENT_TINT,
   );
 
@@ -2126,7 +2335,21 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
   //
   // Deliberately not espresso, which starts to compete with the trend line — a
   // boundary is furniture and the reader's own result is not.
-  out['--c-chart-reference-edge'] = reLightness(brand.taupe, 0.317, ownSaturation(brand.taupe)); // #63543e
+  /**
+   * 0.317 → 0.37 with the retheme, and it is squeezed from BOTH sides — which
+   * is why it was solved rather than nudged. The hairline is drawn at 55% over a
+   * band, and it has to be strong enough to mark the boundary there (>1.6:1 on
+   * every fill) and light enough to be visible as a rule on the DARK key
+   * swatches (>1.3:1). Those pull in opposite directions, and the neutral border
+   * tone it is derived from moved both.
+   *
+   * Swept at 0.01 across 0.30–0.50: below 0.35 the dark green swatch fails
+   * (1.15:1 at the old figure — a boundary you cannot see on the one surface
+   * where a boundary must survive greyscale), and at 0.40 and above the yellow
+   * band's boundary drops under 1.6. The window is 0.35–0.39 and this sits in
+   * the middle of it: boundary 1.675–1.968, swatch 1.403.
+   */
+  out['--c-chart-reference-edge'] = reLightness(brand.taupe, 0.37, ownSaturation(brand.taupe));
   /**
    * THE OPTIMAL NARROWING, AS AN OPAQUE FILL of its own (Aug 2026).
    *
@@ -2314,10 +2537,10 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * WHY THE HUE DIFFERS BETWEEN THE THEMES, and it is the same argument as the
    * primary's. In dark the counter-light is TEAL: a cool fill against a warm key
    * is what separates two sources, and on near-black there is room for a
-   * genuinely cool colour. In light it is PLUM, and teal is refused there — a
+   * genuinely cool colour. In light it is SLATE, and teal is refused there — a
    * cool hue at a visible alpha over cream does not tint it, it DESATURATES it,
    * and a grey-green cast across half a medical results page is worse than no
-   * second source at all. Plum is red-dominant, so it warms the corner it sits
+   * second source at all. Slate is red-dominant, so it warms the corner it sits
    * in exactly as the brief asked, while being 294° from the primary and
    * nowhere near a status hue.
    */
@@ -2380,7 +2603,7 @@ export const themeTokens = {
  * were only ever coupled because the fill was the thing being asked to look
  * like a panel.
  */
-export const PANEL_WASH_ALPHA = { light: 0.75, dark: 0.68 } as const;
+export const PANEL_WASH_ALPHA = { light: 0.86, dark: 0.68 } as const;
 
 /**
  * THE GLASS MATERIAL, in three numbers, shared by every surface that uses it.
@@ -2601,7 +2824,7 @@ export const GLOW = {
    */
   primary: { light: 0.1, dark: 0.36 },
   /**
-   * The cool fill, bottom left. Teal in dark, plum in light — see `--c-glow-2`.
+   * The cool fill, bottom left. Teal in dark, slate in light — see `--c-glow-2`.
    *
    * DARK IS HIGHER THAN IT LOOKS BECAUSE IT IS FURTHER AWAY. The fill is
    * anchored at 20% 98% rather than at the literal corner (see globals.css: the
@@ -2613,7 +2836,7 @@ export const GLOW = {
    * that core, against the 3:1 floor.
    *
    * LIGHT IS BOUNDED BY SOMETHING ELSE ENTIRELY, and it is the tighter of the
-   * two constraints in this whole record: plum is a far darker hue than the
+   * two constraints in this whole record: slate is a far darker hue than the
    * key's gold, so it costs more contrast per unit of alpha, and light mode's
    * two sources both DARKEN cream where dark mode's add light to near-black.
    * 0.095 is as strong as it goes with the page still inside the 15% contrast

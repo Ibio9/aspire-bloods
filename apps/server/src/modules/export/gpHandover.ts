@@ -2,7 +2,7 @@ import { prisma } from '../../db/client.js';
 import { renderPdf } from '../../lib/pdfRender.js';
 import { decryptField } from '../../lib/crypto.js';
 import { decodeResultValue } from '../../lib/resultValue.js';
-import { formatDate, formatReferenceRange, formatReportTitle, hasResultValue } from '@aspire-bloods/shared';
+import { brand, formatDate, formatReferenceRange, formatReportTitle, hasResultValue } from '@aspire-bloods/shared';
 import { getClinicContact } from '../content/clinicContact.js';
 
 /**
@@ -63,8 +63,13 @@ import { getClinicContact } from '../content/clinicContact.js';
  * therefore as a 500.
  */
 
-const ESPRESSO = '#423c36';
-const TAUPE = '#c9bca9';
+/**
+ * FROM THE TOKENS, NOT TYPED OUT — see the same note in pdfSummary.ts. These two
+ * literals were the last warm brown left in the product after the retheme, in
+ * the one document that leaves the building.
+ */
+const ESPRESSO = brand.espresso;
+const TAUPE = brand.taupe;
 
 const FONTS = {
   display: 'Times-Roman',

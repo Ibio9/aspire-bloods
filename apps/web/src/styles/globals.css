@@ -118,8 +118,8 @@
         from there to the opposite corner is more than 1.7 radii, so the light
         is long gone before it arrives — which is what "a source" means and
         what a viewport-sized radial can never do.
-     2. A BRIGHT CENTRE. `--glow-1` is 0.40 at the core in dark, against 0.15
-        before. On #110F0D that is a visible point of light rather than a
+     2. A BRIGHT CENTRE. `--glow-1` is 0.36 at the core in dark. On the
+        near-black page (#0b0c0e) that is a visible point of light rather than a
         suggestion of one.
      3. A STEEP, MANY-STOPPED FALLOFF. The alpha roughly halves every 12% of
         the radius, which is what makes it read as light rather than as paint.
@@ -134,7 +134,7 @@
      to differ in hue, or the pair reads as one wash that happens to be wide,
      which is exactly the failure the original two radials had. So there is a
      warm KEY at the top right and a cooler, quieter FILL at the bottom left:
-     teal in dark, plum in light. See `--c-glow-2` in tokens.ts for why the hue
+     teal in dark, slate in light. See `--c-glow-2` in tokens.ts for why the hue
      changes between the themes and why teal is refused on cream.
 
      AND LIGHT MODE PAINTS BOTH. It was flat cream with nothing happening in
@@ -1620,8 +1620,8 @@
     background: #ffffff !important;
   }
 
-  /* The ambient glow is a fixed radial the size of the viewport. On paper it is
-     a gold smear across the first page and nothing at all on the rest. */
+  /* The ambient glows are fixed radials the size of the viewport. On paper they
+     are a smear across the first page and nothing at all on the rest. */
   body::before {
     display: none !important;
   }

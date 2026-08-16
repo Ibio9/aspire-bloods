@@ -8,13 +8,27 @@ import {
   formatReportTitle,
   hasResultValue,
   NO_STATUS_LABEL,
+  brand,
 } from '@aspire-bloods/shared';
 import { getClinicContact } from '../content/clinicContact.js';
 import { listAllMarkersForPatient } from '../patients/portalService.js';
 
-const BRONZE = '#8a5e45';
-const ESPRESSO = '#423c36';
-const TAUPE = '#c9bca9';
+/**
+ * ── FROM THE TOKENS, NOT TYPED OUT (Aug 2026) ──────────────────────────────
+ *
+ * These were three literal hexes, copied from the brand palette at some point
+ * and thereafter unable to hear about a change to it. The retheme found them:
+ * every surface on both screens went neutral and cool, and these two PDF
+ * builders were the only things left in the product still printing warm brown —
+ * silently, in a document a patient keeps and hands to a doctor.
+ *
+ * The names are kept because they read as roles at the call sites below
+ * (`ESPRESSO` is the ink, `TAUPE` is the rule), which is what they always were.
+ * What is fixed is where the value comes from.
+ */
+const BRONZE = brand.bronze;
+const ESPRESSO = brand.espresso;
+const TAUPE = brand.taupe;
 
 /**
  * THE THREE ROLES THE SCREEN USES, in the three faces a PDF can guarantee.
