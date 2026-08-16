@@ -186,17 +186,20 @@ for (const theme of ['light', 'dark'] as const) {
 }
 
 /**
- * ── THE BOUNDARY: 165 RESULT CARDS ARE NOT 165 PANES ───────────────────────
+ * ── THE BOUNDARY, AND IT NARROWED TO ONE CLAUSE (Aug 2026) ─────────────────
  *
- * The rule is that a surface is a PANE if it is one of a handful of containers
- * a screen is built out of, and stays an ordinary CARD if it is one of many
- * instances of one repeating object or if it carries a STATUS COLOUR. Both
- * clauses catch the marker result card, and the second is the one that matters:
- * a status tint is a statement about somebody's blood, and a translucent sheet
- * with a moving highlight over it makes the one surface in the product whose
- * colour means something the least legible of the lot.
+ * It used to be two: a surface is a PANE if it is one of a handful of containers
+ * a screen is built from, and an ordinary CARD if it is one of many instances of
+ * a repeating object OR if it carries a status colour. Glass is the DEFAULT now,
+ * so the first clause is gone and what is left is the one that was doing the
+ * work: a status tint is a statement about somebody's blood, and a translucent
+ * sheet with a moving highlight over it makes the one surface in the product
+ * whose colour means something the least legible of the lot.
+ *
+ * A narrower rule and a better one — it names the reason rather than the count,
+ * and `Card` enforces it rather than forty call sites remembering it.
  */
-test('a marker result card is never a pane, however many of them there are', async ({ browser }) => {
+test('a card carrying a status tint is never a pane', async ({ browser }) => {
   test.setTimeout(120_000);
   const ctx = await context(browser, 'dark');
   const page = await ctx.newPage();
@@ -206,22 +209,34 @@ test('a marker result card is never a pane, however many of them there are', asy
 
   const counts = await page.evaluate(() => {
     const cards = [...document.querySelectorAll<HTMLElement>('a[href^="/markers/"] .card')];
+    // A tint is applied as `bg-tint-*`, and it is the one thing that must never
+    // sit under a translucent sheet — see Card.tsx, which refuses the pair.
+    const tinted = cards.filter((c) => [...c.classList].some((n) => n.startsWith('bg-tint-')));
+    const isPane = (c: HTMLElement) => {
+      const f = getComputedStyle(c).backdropFilter;
+      return c.classList.contains('glass-panel') || (Boolean(f) && f !== 'none');
+    };
     return {
       cards: cards.length,
-      panes: cards.filter((c) => c.classList.contains('glass-panel')).length,
-      filtered: cards.filter((c) => {
-        const f = getComputedStyle(c).backdropFilter;
-        return f && f !== 'none';
-      }).length,
+      tinted: tinted.length,
+      tintedPanes: tinted.filter(isPane).length,
+      untintedPanes: cards.filter((c) => !tinted.includes(c)).filter(isPane).length,
     };
   });
 
   // eslint-disable-next-line no-console
-  console.log(`\n  ${counts.cards} marker result cards, ${counts.panes} of them panes`);
+  console.log(
+    `\n  ${counts.cards} marker result cards: ${counts.tinted} tinted (${counts.tintedPanes} of them panes), ` +
+      `${counts.untintedPanes} untinted panes`,
+  );
 
   expect(counts.cards, 'the marker list drew no cards').toBeGreaterThan(20);
-  expect(counts.panes, 'marker result cards became panes').toBe(0);
-  expect(counts.filtered, 'marker result cards picked up a backdrop filter').toBe(0);
+  expect(counts.tinted, 'no card on the marker list carried a status tint at all').toBeGreaterThan(10);
+  // ⚠ THE WHOLE RULE. Glass is the default surface now, so what is asserted is
+  // not "result cards are opaque" — most of them are, because most of them carry
+  // a status — but the thing that actually matters: a clinical colour is never
+  // read through a translucent sheet with a moving highlight on it.
+  expect(counts.tintedPanes, 'a status-tinted card became a pane').toBe(0);
 
   await ctx.close();
 });

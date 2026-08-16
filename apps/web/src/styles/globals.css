@@ -158,16 +158,29 @@
      near its head, which is why `GLOW.secondary` in dark is 0.26 rather than
      the 0.20 it was at the corner. Both numbers are on the record there.
 
-     ── THE TWO SOURCES DO NOT OVERLAP, AND THAT IS LOAD-BEARING ───────────
+     ── THEY ARE BIGGER NOW, AND THAT CHANGED HOW THEY ARE CHECKED ─────────
 
+     88% × 80%, from 62% × 58%. Same anchors, same colours, same peaks, same
+     ramp — each source simply reaches further across the viewport before it
+     falls to nothing, which is what "larger and softer" is: the alpha at any
+     given fraction of the radius is unchanged and the radius is longer, so
+     every stop lands further out and the falloff per pixel is gentler.
+
+     THE VIGNETTE GREW WITH THE LIGHT IT IS ANCHORED TO (125% → 150%). It is
+     sized against the key source rather than against the viewport; left where
+     it was, it would have started its descent INSIDE the light instead of
+     outside it, and the two would have cancelled across the middle of the page.
+
+     ⚠ AND THE TWO SOURCES NOW OVERLAP, WHICH THEY DELIBERATELY DID NOT.
      Their centres are 76% of the viewport apart horizontally and 97%
-     vertically, which against radii of 62% × 58% is about 2.07 radii — so at
-     every point on the page at least one of them has already reached zero, and
-     there is no pixel carrying both at strength. That is what makes "check the
-     contrast at each corner" the right measurement rather than an optimistic
-     one, and `tokenContrast.test.ts` asserts the separation as well as the
-     ratios so the claim cannot quietly stop being true if a position moves —
-     which is exactly what nearly happened when this one did.
+     vertically; against radii of 88% × 80% that is about 1.49 radii, so there
+     are points carrying some of both. The old separation was what justified
+     measuring the contrast one corner at a time, and that justification is
+     gone — so the measurement changed rather than the claim being quietly
+     dropped. `tokenContrast.test.ts` SAMPLES THE VIEWPORT ON A GRID, composites
+     both ramps at every point, and asserts every text token clears its floor at
+     the worst point it finds. That is a stronger check than the corners were,
+     and it is the one that survives somebody making these bigger again.
 
      Every tail ends at the hue at ZERO ALPHA and NOT at `transparent`.
      `transparent` is rgba(0,0,0,0), so a browser interpolating toward it takes
@@ -190,7 +203,7 @@
     pointer-events: none;
     background-image:
       radial-gradient(
-        62% 58% at 96% 1%,
+        88% 80% at 96% 1%,
         rgb(var(--c-glow) / var(--glow-1)) 0%,
         rgb(var(--c-glow) / calc(var(--glow-1) * 0.7)) 9%,
         rgb(var(--c-glow) / calc(var(--glow-1) * 0.4125)) 19%,
@@ -202,7 +215,7 @@
         rgb(var(--c-glow) / 0) 100%
       ),
       radial-gradient(
-        62% 58% at 20% 98%,
+        88% 80% at 20% 98%,
         rgb(var(--c-glow-2) / var(--glow-2)) 0%,
         rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.7)) 9%,
         rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.4125)) 19%,
@@ -259,7 +272,7 @@
   .dark body::before {
     background-image:
       radial-gradient(
-        62% 58% at 96% 1%,
+        88% 80% at 96% 1%,
         rgb(var(--c-glow) / var(--glow-1)) 0%,
         rgb(var(--c-glow) / calc(var(--glow-1) * 0.7)) 9%,
         rgb(var(--c-glow) / calc(var(--glow-1) * 0.4125)) 19%,
@@ -271,7 +284,7 @@
         rgb(var(--c-glow) / 0) 100%
       ),
       radial-gradient(
-        62% 58% at 20% 98%,
+        88% 80% at 20% 98%,
         rgb(var(--c-glow-2) / var(--glow-2)) 0%,
         rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.7)) 9%,
         rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.4125)) 19%,
@@ -285,7 +298,7 @@
       /* The vignette, under both lights. Ends at the shadow tone at zero alpha
          rather than at `transparent`, for the same reason the glows do. */
         radial-gradient(
-          125% 115% at 96% 1%,
+          150% 140% at 96% 1%,
           rgb(var(--c-shadow) / 0) 0%,
           rgb(var(--c-shadow) / 0) 45%,
           rgb(var(--c-shadow) / 0.03) 65%,
@@ -988,14 +1001,14 @@
      the Results section containers, the at-a-glance strip, the Documents
      cards, the explanation card, the contact card.
 
-     ⚠ AND NOT ON A MARKER RESULT CARD. A Signature report draws 165 of them,
-     and 165 panes each carrying its own specular streak is not a material, it
-     is a texture — the streaks would tile across the grid and read as a
-     rendering artefact. Worse, a result card's background is already carrying
-     a STATUS TINT, which is a clinical statement, and putting a translucent
-     sheet with a moving highlight over it makes the one surface in the product
-     whose colour means something the least legible of the lot. Result cards,
-     the trend chart and both range gauges keep their opaque treatment.
+     ⚠ AND NEVER UNDER A STATUS TINT. That tint is a clinical statement about
+     the result on the card, and a translucent sheet with a moving highlight
+     over it makes the one surface in the product whose colour means something
+     the least legible of the lot. `Card` refuses the two together outright
+     rather than leaving it to a call site to remember, which is also what makes
+     glass safe as the DEFAULT (Aug 2026): on a real report almost every
+     measured card carries a status, so almost every one of them stays opaque
+     without anybody deciding it card by card.
 
      WHAT MAKES IT GLASS, and none of it is the blur — see GLASS.sheen in
      tokens.ts for the measurement and the physics. The blur stays because some
@@ -1190,25 +1203,27 @@
      would otherwise cover the pane with an opaque cream and take both ambient
      glows with it.
 
-     ⚠ WHICH SURFACES TAKE IT IS A BOUNDARY, NOT A PREFERENCE (Aug 2026). A
-     surface is a PANE if it is one of a handful of containers a screen is built
-     out of. It stays an ordinary CARD if it is one of many instances of one
-     repeating object, or if it carries a STATUS COLOUR:
+     ⚠ IT IS THE DEFAULT NOW, AND THE EXCEPTIONS ARE NAMED (Aug 2026). It was
+     opt-in, against a hand-maintained list of "page-level structural surfaces"
+     — which meant most of the product stayed flat while a handful of screens
+     had a material, and a list of exceptions kept in step across forty call
+     sites is forty chances to forget. The surface family IS glass; what is
+     opaque is stated:
 
-       glass   the at-a-glance strip · the Results section containers · the
-               Documents cards · the marker explanation card (on vellum) · the
-               out-of-range contact card · the Overview's latest-panel card and
-               its Go-deeper tiles.
-       card    every marker result card (165 on a Signature report, each with a
-               status tint under it) · the Overview's attention cards and its
-               What's-changed cards · the auth card · the mobile drawer.
+       card    anything carrying a STATUS TINT (refused in Card.tsx, not by
+               convention) · the auth card, which is deliberately the heaviest
+               surface in the product and is a raw element rather than a Card ·
+               the mobile drawer, which is a layer over scrimmed content.
 
-     AND THE MARKER PAGE'S OWN TWO CARDS STAY CARDS, which is the one entry that
-     is a correctness constraint rather than a judgement. The trend chart's five
-     line colours are SOLVED at 4.5:1 against `--c-cream-50` (`LINE_FILL_TARGET`
-     in tokens.ts) and the range gauge's five band fills against the same. Making
-     that card a translucent pane changes the ground those palettes were measured
-     on, silently, and the palette in question is the clinical one. */
+     THE ONE THING TO WATCH, and it is measurable rather than a matter of taste:
+     the trend chart's five line colours are SOLVED at 4.5:1 against
+     `--c-cream-50` (`LINE_FILL_TARGET` in tokens.ts) and both gauges' band
+     fills against `PLOT_SURFACE`. A pane is not the card tone, so the chart's
+     ground moved when the marker page's cards became panes — measured after the
+     change, the lines gained contrast in both themes (the pane is DARKER than a
+     card in light and darker than a card in dark), so the solve still holds with
+     room. If a pane's alpha is ever raised toward opaque, re-measure that before
+     anything else. */
   .card-glass {
     background-color: rgb(var(--glass-surface) / var(--glass-panel-wash));
   }

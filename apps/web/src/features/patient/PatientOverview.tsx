@@ -599,7 +599,7 @@ export function PatientOverview() {
                           status={item.status}
                           severityThreshold={item.severityThreshold}
                           unit={item.unit}
-                          maxWidth={220}
+                          maxWidth={260}
                         >
                           <p className="numeric tabular flex flex-wrap items-baseline justify-center gap-x-1.5 text-2xl font-semibold leading-none text-espresso">
                             {item.value} <span className="text-xs font-normal text-espresso/80">{item.unit}</span>

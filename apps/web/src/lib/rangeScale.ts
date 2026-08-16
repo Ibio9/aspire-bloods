@@ -1,108 +1,123 @@
-import { isOpenUpperBound, severityThresholdFor } from '@aspire-bloods/shared';
+import { isOpenUpperBound, severityThresholdFor, statusBands, type MarkerStatus } from '@aspire-bloods/shared';
 
 /**
  * =============================================================================
- *  THE SCALE A RANGE BAR IS DRAWN ON — AND IT IS NOT THE REFERENCE RANGE.
+ *  WHERE A RESULT SITS ON THE GAUGE — AND THE RING IS NO LONGER A NUMBER LINE.
  * =============================================================================
  *
- * A range bar answers one question: WHERE DOES THIS RESULT SIT. Everything in
- * here exists because it was answering it wrongly, in three ways, on real
- * patient data:
+ * ── WHAT THIS REPLACED, AND WHY THE OLD ANSWER WAS RIGHT AND STILL WRONG ────
  *
- *   · A value of 122 against a reference range of 0–41 drew a bar labelled
- *     "0" and "41" with the mark hard against the right-hand end. Read
- *     literally — and it is read literally — that says "just at the top of the
- *     range". The result is three times the upper limit.
- *   · A value of 65 against 125–375 drew a bar labelled "125" and "375" with
- *     the mark INSIDE it, near the left. The value is below the entire printed
- *     scale and was drawn as though it were within it.
- *   · A value of 3.4 against 3.8–5.8 drew the CARD bar — which printed no
- *     figures of its own at all, so the only numbers anywhere near it were the
- *     card's own "Lab reference range 3.8–5.8" two lines below. A bar with no
- *     axis does not read as a bar with no axis; it reads as a bar whose axis is
- *     whatever numbers are nearest to it. See MiniRangeBar.
+ * Until Aug 2026 this module derived a NUMERIC SCALE: given a result and its
+ * range, produce the domain the instrument is drawn on, guarantee it contains
+ * both the value and the reference range, round its ends to a ladder somebody
+ * would have chosen, and hand back the labels for those ends so the picture and
+ * its axis could never disagree. Every one of those guarantees was earned by a
+ * real failure — a value of 122 against 0–41 drawn hard against the end of a bar
+ * labelled "41", a value of 65 against 125–375 drawn INSIDE it — and the module
+ * was correct.
  *
- * The bug was never the geometry: the domain already stretched to hold the
- * value. It was that THE NUMBERS UNDER THE ENDS OF THE BAR WERE THE REFERENCE
- * BOUNDS rather than the scale that had actually been drawn — or, on the card,
- * that there were no numbers under the ends and the nearest ones stood in. So
- * the reader was given a correct picture with a false axis on it, which is
- * worse than either on its own: a bar that is obviously wrong gets ignored, and
- * a bar that is quietly wrong gets believed.
+ * It was correct about a bar. Bent round a ring it produced a NEW failure that a
+ * straight bar never had, because a ring is read as a shape rather than as an
+ * axis: THE GREEN MOVED. A value above its range pushed the scale upward, so the
+ * in-range arc slid toward the start of the ring; a value below it slid the
+ * green toward the end. Two cards side by side on the same grid, both correct,
+ * showed the reference zone in two different places — so the one thing a reader
+ * can take in without reading any numbers, the SHAPE, meant something different
+ * on every card. On a grid of 165 that is not a scale, it is noise.
  *
- * So this module has one job and every caller shares it: given a result and its
- * range, produce THE SCALE THAT IS DRAWN, and let the labels come from that.
- * The labels come from HERE and not from the components (`minLabel`/`maxLabel`),
- * so a bar cannot print a number that describes a scale other than its own —
- * that is structural now rather than a rule two components have to remember.
+ * ── THE RING IS FIXED, SYMMETRIC, AND IDENTICAL ON EVERY GAUGE ─────────────
  *
- * Four rules, and they are the ones the bar can't be right without:
+ * Five slices, in the reading order the arc already had, with equal angular
+ * space either side of centre:
  *
- *  1. THE SCALE ALWAYS CONTAINS THE VALUE, with headroom. Never clamped to an
- *     end — a mark pinned to the edge of a bar is a mark that has stopped
- *     carrying information, and it is indistinguishable from a mark that
- *     legitimately sits at the edge.
- *  2. THE SCALE ALWAYS CONTAINS THE REFERENCE RANGE, so a reader can see both
- *     where the range is and how far past it they are, in one picture.
- *  3. THE PRINTED ENDS ARE THE SCALE, exactly — `Number(minLabel) === min`.
- *  4. WHEN NONE OF THAT CAN BE DRAWN HONESTLY, NOTHING IS DRAWN. A reference
- *     range rendered as a two-pixel sliver at one end is a bar that says "your
- *     range is somewhere over there", which is not a scale; and a result with
- *     no range, no width to its range or no numeric value has no position to
- *     draw at all. The caller says it in words instead — see `undrawable`,
- *     which names WHICH of those happened so the sentence can be true. It used
- *     to be one boolean and one sentence about being far outside the range,
- *     which was simply false for the other three.
+ *     0%        15%          34%        66%          85%      100%
+ *     ├──red────┼────gold────┼───green───┼────gold────┼───red───┤
+ *     significantly    below    IN RANGE    above    significantly
+ *        below                                            above
  *
- * `min` and `max` are ALWAYS finite and `max` is ALWAYS greater than `min`,
- * including in every refusal case, so no arithmetic downstream of this can put
- * a NaN into a style attribute.
+ * Green always central, gold always flanking it, red always at both ends. This
+ * never changes with the value, so the colour under the mark always agrees with
+ * the status word beside it, and two gauges on one screen are the same picture
+ * with the mark in two places.
+ *
+ * ── WHAT IT COSTS, STATED PLAINLY ──────────────────────────────────────────
+ *
+ * DISTANCE INSIDE THE OUTER BANDS IS NO LONGER TO SCALE. The two red slices are
+ * open-ended in value and finite in angle, so they are compressed: a result at
+ * twice its threshold and one at ten times both sit in the right-hand red, the
+ * second further round but not five times further. The mark is still ORDERED
+ * (more extreme is always further out) and is still NEVER CLAMPED — see
+ * `saturate` below, which approaches the end of the arc and never reaches it —
+ * but "how far out am I" is answered by the figure in the middle of the gauge
+ * and by the status word, not by the geometry.
+ *
+ * That is the trade, and it is the right way round for this instrument: a
+ * patient reading a card wants "is this inside the range" first and "by how
+ * much" second, and the first question is now answered by a shape that means
+ * the same thing everywhere.
+ *
+ * ── AND ONE REFUSAL WENT AWAY WITH THE SCALE ───────────────────────────────
+ *
+ * `reference-range-too-small` is gone. It existed because a value twenty times
+ * the width of its own range squeezed the reference band into a sliver of a
+ * numeric axis, and a band you cannot see is not a scale. A fixed ring has no
+ * such failure mode: the green is 32% of the arc whatever the value does. The
+ * other four refusals stand, because each is about the RANGE rather than about
+ * the drawing.
  */
 
 /**
- * The smallest share of the drawn scale the reference range may occupy before
- * the bar stops being a picture of anything.
+ * The four boundaries, as fractions of the arc from its start. Symmetric about
+ * 0.5 by construction rather than by three numbers that happen to add up.
  *
- * 5% of a 300px bar is 15px — narrow, and still a region with two visible
- * edges and a hairline at each. Below that the two bounds collapse onto one
- * another and the band is a line. It takes a value about twenty times the
- * width of its own range to reach this, so it is a genuine backstop rather
- * than a path anything ordinary goes down.
+ * ⚠ THE OUTER SLICES ARE NARROWER THAN THE INNER ONES ON PURPOSE. Green takes
+ * the most because it is the answer most results have and the one a reader has
+ * to be able to see a mark sitting comfortably inside. The reds take the least
+ * because they are unbounded in value: giving them more angle would spread a
+ * compressed axis over more of the ring, which buys nothing and costs the bands
+ * that are actually to scale.
  */
-export const MIN_REFERENCE_FRACTION = 0.05;
+const GREEN_SHARE = 0.32;
+const GOLD_SHARE = 0.19;
+/** Whatever is left, halved. Written as a derivation so the five always sum to 1. */
+const RED_SHARE = (1 - GREEN_SHARE - 2 * GOLD_SHARE) / 2;
 
-/**
- * How far from either end the mark is kept, as a share of the drawn scale.
- *
- * The mark is 14px across and overhangs the track by half of it, so a value at
- * 100% is drawn half outside the bar — which is exactly what "pinned to the
- * end" looked like. Six per cent of a 300px bar is 18px: enough for the mark
- * to be visibly inside the scale rather than falling off it.
- *
- * It holds at the top end without exception. At the BOTTOM it yields to the
- * zero floor below, and only there: a quantity that cannot be negative has a
- * hard floor at zero, a value sitting on that floor is genuinely at the end of
- * its own scale, and inventing a negative end to hold a mark off the edge would
- * print a number no laboratory could report.
- */
-export const MARK_HEADROOM = 0.06;
+/** Where green meets gold, and gold meets red, on each side. Fractions of the arc. */
+export const GAUGE_BOUNDARIES = {
+  /** Gold → red on the low side. The significantly-below threshold. */
+  lowThreshold: RED_SHARE,
+  /** Gold → green on the low side. The lower reference bound. */
+  low: RED_SHARE + GOLD_SHARE,
+  /** Green → gold on the high side. The upper reference bound. */
+  high: RED_SHARE + GOLD_SHARE + GREEN_SHARE,
+  /** Gold → red on the high side. The significantly-above threshold. */
+  highThreshold: 1 - RED_SHARE,
+} as const;
 
-/** Why a bar cannot be drawn. Each has its own sentence — see RANGE_BAR_UNAVAILABLE. */
+/** The five slices, low to high, as [from, to] fractions of the arc. */
+export const GAUGE_SLICES: Record<MarkerStatus, [number, number]> = {
+  SIGNIFICANT_LOW: [0, GAUGE_BOUNDARIES.lowThreshold],
+  LOW: [GAUGE_BOUNDARIES.lowThreshold, GAUGE_BOUNDARIES.low],
+  IN_RANGE: [GAUGE_BOUNDARIES.low, GAUGE_BOUNDARIES.high],
+  HIGH: [GAUGE_BOUNDARIES.high, GAUGE_BOUNDARIES.highThreshold],
+  SIGNIFICANT_HIGH: [GAUGE_BOUNDARIES.highThreshold, 1],
+};
+
+/** Why a gauge cannot be drawn. Each has its own sentence — see GAUGE_UNAVAILABLE. */
 export type RangeBarUndrawable =
   | 'no-reference-range'
   | 'range-has-no-width'
   | 'value-not-numeric'
-  | 'reference-range-too-small'
   | 'reference-range-open-ended';
 
 /**
  * What is said INSTEAD of drawing, per reason.
  *
- * Here rather than in the components because there are two bars and adding a
- * reason without adding its sentence should be a type error, not a bar that
- * says something false about a case nobody thought of. `long` leads the full
- * bar's replacement sentence, which then prints whatever figures exist; `short`
- * is the one line the card has room for.
+ * Here rather than in the component because adding a reason without adding its
+ * sentence should be a type error, not a gauge that says something false about a
+ * case nobody thought of. `long` leads the full gauge's replacement sentence,
+ * which then prints whatever figures exist; `short` is the one line a card has
+ * room for.
  */
 export const RANGE_BAR_UNAVAILABLE: Record<RangeBarUndrawable, { long: string; short: string }> = {
   'no-reference-range': {
@@ -117,176 +132,119 @@ export const RANGE_BAR_UNAVAILABLE: Record<RangeBarUndrawable, { long: string; s
     long: 'This result has no numeric value, so there is nothing to place on a scale.',
     short: 'No numeric value to place on a scale',
   },
-  'reference-range-too-small': {
-    long: 'This result is too far outside the reference range to draw on a scale that shows both.',
-    short: 'Too far outside the range to draw to scale',
-  },
   /**
-   * ── A RANGE WITH NO TOP CANNOT BE DRAWN AS A BAR, AND WAS BEING (Aug 2026) ──
+   * ── A RANGE WITH NO TOP HAS NO UPPER HALF TO DRAW ────────────────────────
    *
    * Four markers have no clinical upper bound — eGFR, HDL, the Omega-3 Index,
    * progesterone — and the catalogue writes `OPEN_UPPER_BOUND` (999) for the
    * ceiling because a reference range in this schema is two numbers.
    *
-   * Rule 2 above then does exactly what it says: the scale is built to contain
-   * the reference range, so a 60–999 range produces a scale of roughly 0 to
-   * 2000. MEASURED, on a perfectly healthy eGFR of 97: the mark lands at 5% of
-   * the bar, hard against the left-hand end of a green band running to 999. A
-   * patient reads that as "only just inside my range". It is an excellent
-   * result.
+   * The fixed ring does not save this one, and it is worth being clear why the
+   * others were saved and this was not. The others were failures of the SCALE:
+   * a numeric axis stretched or squeezed by a value, which a fixed geometry
+   * simply does not have. This is a failure of the RANGE. A gauge whose right
+   * half means "above 999" is drawing a threshold no laboratory set and no
+   * clinician would recognise, and a perfectly healthy eGFR of 97 would sit in
+   * the left-hand red — which is the same wrong picture as before, arrived at
+   * from the other direction.
    *
-   * That is the same failure this whole module was written to end — a correct
-   * picture with a false axis — surviving in the one input nobody had put
-   * through it, because 999 is a perfectly ordinary number to the arithmetic.
-   *
-   * NOTHING IS DRAWN, which is rule 4, and the sentence says the true thing
-   * instead. NOT "fixed" by drawing an open-ended bar from the lower bound
-   * rightwards: that is the right rendering and it is a design change — a band
-   * with no right-hand edge, no upper hairline and no upper label, across two
-   * components — rather than a scale correction, and it is on the list.
+   * Drawing an OPEN-ENDED gauge instead — green from the lower bound running off
+   * the end of the arc, no upper hairline, no upper label — is the right
+   * rendering and is a design change rather than a placement correction. It is
+   * on the list for Richard (docs/audits/randox-band-mapping.md).
    */
   'reference-range-open-ended': {
     // NO EM DASH. The house style has none in anything a reader sees, and this
     // string is on the Overview beside a real result — `e2e/copy.spec.ts`
-    // catches it there. It had two.
+    // catches it there.
     long: 'This marker has no upper limit: any result at or above the lower bound is within range, so there is no scale with two ends to draw it on.',
     short: 'No upper limit to draw a scale against',
   },
 };
 
-interface RangeBarGeometry {
-  /** The left-hand end of the drawn scale, in the result's own units. This IS the number printed under it. */
-  min: number;
-  /** The right-hand end, likewise. */
-  max: number;
-  /** `min` as it is printed. `Number(minLabel) === min`, exactly — the label cannot describe another scale. */
-  minLabel: string;
-  /** `max` as it is printed. `Number(maxLabel) === max`, exactly. */
-  maxLabel: string;
-  /** Where a value falls along the drawn scale, 0–100. Total: the scale contains everything it was built from. */
-  pct: (value: number) => number;
-  /** What share of the drawn scale the reference range occupies, 0–1. */
-  referenceFraction: number;
-}
-
-/**
- * A UNION rather than a struct with a boolean, so a component cannot reach the
- * drawing path without having gone past the refusal.
- *
- * The drawable arm carries the three numbers the scale was built from, already
- * narrowed. That is not a convenience: a component that re-reads its own `low`
- * prop to place a bound tick is a component whose bar and whose axis are two
- * derivations of the same fact, which is how they drift.
- */
-export type RangeBarScale =
-  | (RangeBarGeometry & {
-      outOfScale: false;
-      undrawable: null;
-      low: number;
-      high: number;
-      value: number;
-    })
-  | (RangeBarGeometry & {
-      /**
-       * Nothing may be drawn. The caller must say where the result sits in
-       * WORDS rather than drawing it wrongly — `undrawable` says which words.
-       */
-      outOfScale: true;
-      undrawable: RangeBarUndrawable;
-    });
-
-export interface RangeBarScaleInput {
+export interface GaugePlacementInput {
   /**
-   * Nullable, and every one of these is a case that reaches a bar in practice:
+   * Nullable, and every one of these is a case that reaches a gauge in practice:
    * a qualitative result with no numeric value, a marker with a one-sided lab
-   * range, an older payload with a bound missing. They used to be typed as
-   * plain numbers, which did not stop any of them arriving — it only stopped
-   * this function from being written to survive them, and `NaN - undefined`
-   * propagates all the way to a `left: NaN%`.
+   * range, an older payload with a bound missing. Typing them as plain numbers
+   * never stopped any of them arriving — it only stopped this function from
+   * being written to survive them, and `NaN - undefined` propagates all the way
+   * to a `rotate(NaN deg)`.
    */
   low: number | null | undefined;
   high: number | null | undefined;
   value: number | null | undefined;
-  /** Where significantly-out begins, in the result's own units. Shapes the resting shoulder. */
+  /** Where significantly-out begins, in the result's own units. */
   severityThreshold?: number | null;
 }
 
-/**
- * The smallest step from the 1 / 2 / 2.5 / 5 ladder at this span's own order of
- * magnitude, aiming for about ten of them across the bar.
- *
- * The same ladder the trend chart's y-axis uses, and for the same reason: the
- * number printed under the end of a bar has to be one a person would have
- * chosen. Left raw, the scale for a value of 122 against 0–41 ends at 129.79 —
- * an artefact of the headroom arithmetic showing through, and a reader who sees
- * one correctly stops trusting the numbers beside it.
- */
-function niceStep(span: number): number {
-  if (!Number.isFinite(span) || span <= 0) return 1;
-  const rough = span / 10;
-  const magnitude = 10 ** Math.floor(Math.log10(rough));
-  const normalised = rough / magnitude;
-  const step = normalised <= 1 ? 1 : normalised <= 2 ? 2 : normalised <= 2.5 ? 2.5 : normalised <= 5 ? 5 : 10;
-  return step * magnitude;
-}
-
-/**
- * How many decimals a step of this size needs to print exactly, so
- * 2.0000000000000004 never reaches an axis.
- *
- * One more than the step itself needs, which is what absorbs the float noise,
- * and capped at 12 rather than the 6 it used to be: a double carries noise from
- * about the sixteenth significant digit, so 12 still cleans it, and 6 silently
- * collapsed the whole scale of a marker whose range is narrower than 1e-6 — the
- * ends rounded to the same number and the bar fell back to raw arithmetic.
- */
-function decimalsFor(step: number): number {
-  if (!Number.isFinite(step) || step <= 0) return 0;
-  return Math.max(0, Math.min(12, Math.ceil(-Math.log10(step)) + 1));
-}
-
-/**
- * A scale end at the printed precision, rounded OUTWARD.
- *
- * Outward is the whole point: rounding a scale end toward the middle would move
- * it inside the value or the reference range it was built to contain, which is
- * the one thing a scale end may never do. Rounding away can only ever add
- * headroom.
- */
-function roundOut(value: number, decimals: number, direction: 'down' | 'up'): number {
-  if (!Number.isFinite(value)) return value;
-  const factor = 10 ** decimals;
-  const scaled = value * factor;
-  if (!Number.isFinite(scaled)) return value;
-  const stepped = direction === 'down' ? Math.floor(scaled) : Math.ceil(scaled);
-  return Number((stepped / factor).toFixed(decimals));
-}
-
-/** A refusal, with geometry that is still finite so nothing downstream can divide by it. */
-function undrawable(reason: RangeBarUndrawable): RangeBarScale {
-  return {
-    min: 0,
-    max: 1,
-    minLabel: '0',
-    maxLabel: '1',
-    // Inert rather than linear: there is no scale here, and a caller that
-    // ignored `outOfScale` should get a harmless number rather than a position
-    // on a domain that does not exist.
-    pct: () => 0,
-    referenceFraction: 0,
-    outOfScale: true,
-    undrawable: reason,
-  };
-}
+export type GaugePlacement =
+  | {
+      drawable: true;
+      /** Where the mark sits, 0–1 along the arc. Never 0 and never 1 — see `saturate`. */
+      at: number;
+      /** Which slice it landed in. Always the status the value computes to. */
+      status: MarkerStatus;
+      low: number;
+      high: number;
+      value: number;
+      /** Where significantly-out begins, as a distance from each bound. */
+      threshold: number;
+    }
+  | {
+      drawable: false;
+      /** The caller says where the result sits in WORDS instead — this says which words. */
+      undrawable: RangeBarUndrawable;
+    };
 
 function finiteOrNull(value: number | null | undefined): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
-export function rangeBarScale({ low, high, value, severityThreshold = null }: RangeBarScaleInput): RangeBarScale {
-  // Narrowed once, at the boundary. Everything below is arithmetic on three
-  // real numbers, which is the only way this stays readable — and null, absent,
-  // NaN and Infinity are the same fact here: not a number this can draw with.
+/**
+ * AN UNBOUNDED BAND INTO A FINITE SLICE, WITHOUT EVER REACHING THE END.
+ *
+ * `t` is how far past the threshold the value is, in multiples of the threshold
+ * itself. `t / (1 + t)` is 0 at the threshold, 0.5 at one threshold beyond it,
+ * and approaches 1 without arriving — so the mark is strictly ordered, strictly
+ * inside the arc, and NEVER CLAMPED. That last one is the rule this whole module
+ * has always been built around: a mark pinned to the end of an instrument has
+ * stopped carrying information and is indistinguishable from one that legitimately
+ * sits there.
+ *
+ * The compression is the cost of a fixed geometry and is documented at the top.
+ */
+function saturate(t: number): number {
+  if (!Number.isFinite(t) || t <= 0) return 0;
+  return t / (1 + t);
+}
+
+/**
+ * Which of the five bands a value falls in, from `statusBands` — the ONE
+ * derivation of that geometry in this product, shared with the trend chart and
+ * with the server's own status computation (`severityThresholdFor` is the same
+ * number on both sides).
+ *
+ * It is asked here rather than the caller's `status` prop being trusted, and
+ * that is the whole reason "the colour under the mark agrees with the label" is
+ * true by construction: a gauge handed a status that disagreed with its own
+ * value would otherwise draw the mark in one band and tint the card in another,
+ * which is the exact class of bug the fixed ring was introduced to end.
+ *
+ * The bands run low to high with open ends, so the containing one is the last
+ * whose `from` the value has passed.
+ */
+function bandContaining(low: number, high: number, threshold: number | null | undefined, value: number): MarkerStatus | null {
+  const bands = statusBands(low, high, threshold);
+  const found = [...bands].reverse().find((b) => value >= (b.from ?? Number.NEGATIVE_INFINITY));
+  return found ? found.status : null;
+}
+
+/**
+ * Where the mark goes, and it is derived from WHICH BAND the value is in and
+ * where inside that band — never from a numeric axis across the whole ring.
+ */
+export function gaugePlacement({ low, high, value, severityThreshold = null }: GaugePlacementInput): GaugePlacement {
   const lowN = finiteOrNull(low);
   const highN = finiteOrNull(high);
   const valueN = finiteOrNull(value);
@@ -294,90 +252,52 @@ export function rangeBarScale({ low, high, value, severityThreshold = null }: Ra
   // A one-sided range is refused rather than completed. A lab range of
   // "under 5.0" has no lower end to draw from, and inventing one — zero, say —
   // is this product asserting a bound the laboratory did not give.
-  if (lowN === null || highN === null) return undrawable('no-reference-range');
+  if (lowN === null || highN === null) return { drawable: false, undrawable: 'no-reference-range' };
   // A range with no width is not a range, and `deriveStatus` refuses one long
-  // before it reaches a bar. Refused here too rather than divided by, because
-  // the caller has to say which of the two things happened.
-  if (!(highN > lowN)) return undrawable('range-has-no-width');
-  // An open-topped range, which the catalogue writes as OPEN_UPPER_BOUND. Its
-  // own reason and its own sentence — see RANGE_BAR_UNAVAILABLE, which has the
-  // measurement. Checked BEFORE the value, so an open-topped marker gives the
-  // same answer whether or not the result parsed.
-  if (isOpenUpperBound(highN)) return undrawable('reference-range-open-ended');
-  if (valueN === null) return undrawable('value-not-numeric');
+  // before it reaches a gauge. Refused here too rather than divided by.
+  if (!(highN > lowN)) return { drawable: false, undrawable: 'range-has-no-width' };
+  // Checked BEFORE the value, so an open-topped marker gives the same answer
+  // whether or not the result parsed.
+  if (isOpenUpperBound(highN)) return { drawable: false, undrawable: 'reference-range-open-ended' };
+  if (valueN === null) return { drawable: false, undrawable: 'value-not-numeric' };
 
-  const width = highN - lowN;
   const threshold = severityThresholdFor(lowN, highN, severityThreshold);
+  const status = bandContaining(lowN, highN, severityThreshold, valueN);
+  // The bands are exhaustive over the reals once the range has width, so this is
+  // unreachable — and it is here rather than as a cast because an unreachable
+  // branch that returns a sentence is a rendering, and an unreachable cast that
+  // is wrong is `GAUGE_SLICES[null]` and a NaN in a transform.
+  if (status === null) return { drawable: false, undrawable: 'value-not-numeric' };
 
-  // THE RESTING SCALE: what is drawn when everything is inside the range. Wide
-  // enough to show a real shoulder either side — otherwise the bar is a green
-  // block with nowhere for the transition to happen — and capped, because a
-  // marker whose severity threshold dwarfs its range (ferritin's is 270 against
-  // a 180-wide band) would otherwise squeeze the reference range into a fifth
-  // of the bar, which inverts what the bar is for.
-  const pad = Math.min(Math.max(width * 0.4, threshold * 0.6), width * 0.9);
+  const [from, to] = GAUGE_SLICES[status];
+  const span = to - from;
 
-  let lo = lowN - pad;
-  let hi = highN + pad;
-
-  // RULE 1. The value goes in, with headroom, and it is solved rather than
-  // nudged: the margin is a share of the FINAL span, and adding a fixed slice
-  // to an end changes the span it was a share of.
-  if (valueN < lo + (hi - lo) * MARK_HEADROOM) {
-    lo = (valueN - MARK_HEADROOM * hi) / (1 - MARK_HEADROOM);
-  }
-  if (valueN > hi - (hi - lo) * MARK_HEADROOM) {
-    hi = (valueN - MARK_HEADROOM * lo) / (1 - MARK_HEADROOM);
-  }
-
-  // Same rule as the trend chart: no scale below zero for a quantity that
-  // cannot be negative. Applied before the rounding so the printed end is 0
-  // rather than a step below it. This is the one place the headroom above
-  // yields — see MARK_HEADROOM.
-  const nonNegative = Math.min(lowN, valueN) >= 0;
-  if (nonNegative) lo = Math.max(0, lo);
-
-  // Round OUTWARD to a number somebody would have chosen. Outward only, so the
-  // rounding can add headroom and can never take any away.
-  const step = niceStep(hi - lo);
-  const decimals = decimalsFor(step);
-  let min = roundOut(Math.min(Math.floor(lo / step) * step, lo), decimals, 'down');
-  let max = roundOut(Math.max(Math.ceil(hi / step) * step, hi), decimals, 'up');
-  // Belt and braces against a float rounding that lands the wrong side of its
-  // own input. Every downstream guarantee — the range inside the scale, the
-  // value inside the scale, the mark off the edge — is stated in terms of
-  // `lo`/`hi`, so an end that has drifted inside one of them is corrected back
-  // to the raw number rather than left to be almost right.
-  if (min > lo) min = lo;
-  if (max < hi) max = hi;
-  if (nonNegative) min = Math.max(0, min);
-
-  if (!Number.isFinite(min) || !Number.isFinite(max) || !(max > min)) {
-    // Reachable only from a value so large the arithmetic overflows, which is
-    // the same fact as being too far outside the range to draw with it.
-    return undrawable('reference-range-too-small');
-  }
-
-  const span = max - min;
-  const referenceFraction = Math.max(0, Math.min(highN, max) - Math.max(lowN, min)) / span;
-  if (referenceFraction < MIN_REFERENCE_FRACTION) return undrawable('reference-range-too-small');
-
-  return {
-    min,
-    max,
-    low: lowN,
-    high: highN,
-    value: valueN,
-    // THE LABELS ARE THE SCALE. Derived here, from the final numbers, and
-    // handed to the component — which has no formatter of its own to disagree
-    // with. `String` of a double round-trips exactly through `Number`, so
-    // "the printed end labels bound the drawn scale" is not a rule anybody
-    // has to keep, it is the same two numbers written down.
-    minLabel: String(min),
-    maxLabel: String(max),
-    pct: (v: number) => ((v - min) / span) * 100,
-    referenceFraction,
-    outOfScale: false,
-    undrawable: null,
+  /**
+   * How far through its own band the value is, 0 at the band's lower edge and 1
+   * at its upper. The two OPEN-ENDED bands saturate instead of dividing, which
+   * is the only difference between the five.
+   */
+  const within = (): number => {
+    switch (status) {
+      case 'IN_RANGE':
+        return (valueN - lowN) / (highN - lowN);
+      case 'HIGH':
+        return (valueN - highN) / threshold;
+      case 'LOW':
+        // Drawn low-to-high like every other band: the lower edge of the LOW
+        // slice is `low - threshold`, so a value just under `low` is at the TOP
+        // of it, next to the green.
+        return 1 - (lowN - valueN) / threshold;
+      case 'SIGNIFICANT_HIGH':
+        return saturate((valueN - (highN + threshold)) / threshold);
+      case 'SIGNIFICANT_LOW':
+        return 1 - saturate((lowN - threshold - valueN) / threshold);
+    }
   };
+
+  // Clamped only against float noise at a band's own edges — `within` is already
+  // inside [0, 1] for every value the status says belongs to this band, and a
+  // value sitting exactly ON a boundary is drawn exactly on it either way.
+  const t = Math.min(1, Math.max(0, within()));
+  return { drawable: true, at: from + t * span, status, low: lowN, high: highN, value: valueN, threshold };
 }

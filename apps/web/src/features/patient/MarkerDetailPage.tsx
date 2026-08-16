@@ -364,7 +364,20 @@ export function MarkerDetailPage() {
           <PreviousResults trend={detail.trend} className="mt-7" />
         </Card>
 
-        <Card className="lg:col-span-5">
+        {/* ⚠ OPAQUE, AND IT IS THE ONE MEASURED EXCEPTION TO GLASS BEING THE
+              DEFAULT (Aug 2026). The trend line's five status colours are SOLVED
+              at `LINE_FILL_TARGET` (4.5:1) against `--c-cream-50` — the CARD —
+              and a pane is not that colour. Measured on the light theme with the
+              pane's alpha at 0.46: the lines fall from 4.53–4.82:1 on a card to
+              3.73:1 on a pane, and to 3.44:1 on a pane under the key light. That
+              is the clinical palette failing its own solve because a decorative
+              surface moved out from under it, silently and in the direction
+              nobody would look.
+              `tokenContrast.test.ts` pins the measurement, so if the palette is
+              ever re-solved such that a pane clears the target, that test fails
+              and this exception can be deleted with evidence rather than by
+              taste. */}
+          <Card surface="card" className="lg:col-span-5">
           <p className="eyebrow mb-4">Trend over time</p>
           <TrendChart
             data={detail.trend}

@@ -5,31 +5,41 @@ import { test, expect, type APIRequestContext, type Browser, type Page } from '@
  *  THE ARC GAUGE, MEASURED OFF THE RENDERED PAGE.
  * ===========================================================================
  *
- * This replaces the geometry the range bar's own specs used to assert. It is
- * NOT a rename: a bar's claims were about `left:` percentages along a track,
- * and an arc's are about angles round a circle, so every one of them had to be
- * re-derived. What did not change is WHICH claims are worth making, and they
- * are the three the whole scale module exists for:
+ * The instrument has been rebuilt twice and this file has been rewritten with
+ * it both times, because each rebuild changed WHICH CLAIM is worth measuring —
+ * not merely how to reach it. Worth stating in order, because the current
+ * assertions only make sense against what they replaced:
  *
- *  1. THE PRINTED FIGURES ARE THE SCALE THAT WAS DRAWN. Not the reference
- *     bounds — that is the bug this instrument was rebuilt around. A result
- *     three times its upper limit is drawn three times out, on a longer scale,
- *     with the figures in the gap saying so.
- *  2. THE MARK IS NEVER CLAMPED. There is no end to pin it to.
- *  3. THE BOUNDARY IS MARKED WITH SOMETHING THAT IS NOT A COLOUR. Two radial
- *     hairlines, so the reference range is locatable in greyscale and on paper.
+ *   THE BAR   drew a numeric scale and printed its ends, and the claims were
+ *             "the printed ends ARE the scale" and "the mark is at the value's
+ *             position on them".
+ *   THE ARC   bent that round. Same claims, read in angles instead of
+ *             percentages — and it introduced a failure a straight bar cannot
+ *             have: THE GREEN MOVED. An above-range value pushed the in-range
+ *             region toward the start of the ring and a below-range value
+ *             pushed it toward the end, so two cards side by side on one grid
+ *             showed the reference zone in two different places. On a ring the
+ *             SHAPE is what a reader takes in before any number, and it meant
+ *             something different on every card.
+ *   NOW       the ring is FIXED and symmetric. Green central, gold flanking,
+ *             red at both ends, the four boundaries at four constant angles.
+ *             So the claims are:
  *
- * Plus the two that are new because the shape is:
- *
- *  4. IT IS AN ARC AND NOT A RING — 270° of paint and a 90° gap at the bottom.
- *     A full circle says the scale wraps, and a value between two bounds does
- *     not wrap.
- *  5. IT IS SQUARE AND FLUID at every viewport, and it never paints outside
- *     its own box.
+ *               1. THE RING IS THE SAME PICTURE ON EVERY GAUGE ON THE PAGE.
+ *                  Asserted across every gauge a real report renders, as an
+ *                  identity rather than a resemblance.
+ *               2. THE MARK IS IN THE SLICE ITS OWN STATUS NAMES, so the colour
+ *                  under it always agrees with the word beside it.
+ *               3. IT IS NEVER AT EITHER END. The two outer bands are unbounded
+ *                  in value and finite in angle; a mark pinned to the end has
+ *                  stopped carrying information.
+ *               4. THE FOUR BOUNDARIES ARE MARKED without colour, at the four
+ *                  fixed angles.
+ *               5. IT IS SQUARE AND FLUID and never paints outside its own box.
  *
  * ── WHY THE MEASUREMENTS COME OFF THE PAINT ────────────────────────────────
  *
- * The mark's angle is read from its computed `transform` matrix rather than
+ * The mark's angle is read from its computed `transform` MATRIX rather than
  * from the inline style, and the ring's stops from `background-image` as the
  * browser resolved it. A component test can only say what the component
  * intended; this says what Chromium drew.
@@ -43,6 +53,31 @@ const DEMO_PASSWORD = process.env.SEED_DEMO_PASSWORD ?? 'DemoShowcase123!';
 /** The arc's own geometry, restated so a change to it fails here rather than on screen. */
 const ARC_START_DEG = 135;
 const ARC_SWEEP_DEG = 270;
+
+/**
+ * The four fixed boundaries, as fractions along the arc — the same derivation
+ * `lib/rangeScale.ts` exports, restated rather than imported so that a change
+ * there has to be made deliberately in two places. A spec that imports the
+ * number it is checking is checking that a constant equals itself.
+ */
+const GREEN_SHARE = 0.32;
+const GOLD_SHARE = 0.19;
+const RED_SHARE = (1 - GREEN_SHARE - 2 * GOLD_SHARE) / 2;
+const BOUNDARY = {
+  lowThreshold: RED_SHARE,
+  low: RED_SHARE + GOLD_SHARE,
+  high: RED_SHARE + GOLD_SHARE + GREEN_SHARE,
+  highThreshold: 1 - RED_SHARE,
+};
+
+/** Which slice each status word owns, keyed by the phrase the gauge puts in its own label. */
+const SLICE: Record<string, [number, number]> = {
+  'significantly below range': [0, BOUNDARY.lowThreshold],
+  'below range': [BOUNDARY.lowThreshold, BOUNDARY.low],
+  'in range': [BOUNDARY.low, BOUNDARY.high],
+  'above range': [BOUNDARY.high, BOUNDARY.highThreshold],
+  'significantly above range': [BOUNDARY.highThreshold, 1],
+};
 
 const SIZES = [
   { width: 1440, height: 900, at: 'desktop' },
@@ -93,61 +128,64 @@ async function aMarkerWithAGauge(page: Page, request: APIRequestContext): Promis
 }
 
 /**
- * Everything about the gauge that can only be read off the rendered element.
+ * Everything about every gauge on the page that can only be read off the render.
  *
- * The mark's ANGLE comes out of the computed transform matrix — `atan2(b, a)`
- * of `matrix(a, b, c, d, e, f)` is the rotation the browser applied — which is
- * the one form of it that survives a transform somebody adds to an ancestor.
+ * The mark's ANGLE comes out of the computed transform matrix — `atan2(b, a)` of
+ * `matrix(a, b, c, d, e, f)` is the rotation the browser applied — which is the
+ * one form of it that survives a transform somebody later adds to an ancestor.
  */
-async function readGauge(page: Page) {
+async function readGauges(page: Page) {
   return page.evaluate(
     ({ start, sweep }) => {
-      const root = document.querySelector('.arc-gauge') as HTMLElement | null;
-      if (!root) return null;
-      const box = root.getBoundingClientRect();
-      const ring = root.querySelector('.arc-gauge__ring') as HTMLElement;
-      const ringStyle = getComputedStyle(ring);
+      return [...document.querySelectorAll<HTMLElement>('.arc-gauge')].map((root) => {
+        const box = root.getBoundingClientRect();
+        const ring = root.querySelector('.arc-gauge__ring') as HTMLElement;
 
-      // The rotated wrapper is the only element in here carrying a rotation.
-      const rotated = [...root.querySelectorAll<HTMLElement>('div')].find((d) => {
-        const t = getComputedStyle(d).transform;
-        return t && t !== 'none' && t.startsWith('matrix');
-      });
-      let markPct: number | null = null;
-      let markBox: DOMRect | null = null;
-      if (rotated) {
-        const m = getComputedStyle(rotated).transform.match(/matrix\(([^)]+)\)/);
-        if (m) {
-          const [a, b] = m[1].split(',').map(Number);
-          // The wrapper is rotated by (screenAngle + 90): the mark rides at its
-          // twelve o'clock, which is −90° in screen degrees.
-          let deg = (Math.atan2(b, a) * 180) / Math.PI - 90;
-          while (deg < start) deg += 360;
-          markPct = ((deg - start) / sweep) * 100;
+        const rotated = [...root.querySelectorAll<HTMLElement>('div')].find((d) => {
+          const t = getComputedStyle(d).transform;
+          return t && t !== 'none' && t.startsWith('matrix');
+        });
+        let markAt: number | null = null;
+        let markBox: { top: number; left: number; right: number; bottom: number } | null = null;
+        if (rotated) {
+          const m = getComputedStyle(rotated).transform.match(/matrix\(([^)]+)\)/);
+          if (m) {
+            const [a, b] = m[1].split(',').map(Number);
+            // The wrapper is rotated by (screenAngle + 90): the mark rides at
+            // its twelve o'clock, which is −90° in screen degrees.
+            let deg = (Math.atan2(b, a) * 180) / Math.PI - 90;
+            while (deg < start) deg += 360;
+            markAt = (deg - start) / sweep;
+          }
+          const dot = rotated.firstElementChild as HTMLElement | null;
+          if (dot) {
+            const r = dot.getBoundingClientRect();
+            markBox = { top: r.top, left: r.left, right: r.right, bottom: r.bottom };
+          }
         }
-        const dot = rotated.firstElementChild as HTMLElement | null;
-        if (dot) markBox = dot.getBoundingClientRect();
-      }
 
-      const ticks = [...root.querySelectorAll('line')].length;
-      const figures = [...root.querySelectorAll(':scope > span.numeric')].map((s) => ({
-        text: (s.textContent ?? '').trim(),
-        muted: getComputedStyle(s as HTMLElement).color,
-        box: (() => {
-          const r = (s as HTMLElement).getBoundingClientRect();
-          return { top: r.top, bottom: r.bottom, left: r.left, right: r.right };
-        })(),
-      }));
+        // Every hairline, as a fraction along the arc, recovered from its outer
+        // endpoint against the centre of the 0–100 user space.
+        const hairlines = [...root.querySelectorAll('line')]
+          .map((l) => {
+            const x = Number(l.getAttribute('x2')) - 50;
+            const y = Number(l.getAttribute('y2')) - 50;
+            let deg = (Math.atan2(y, x) * 180) / Math.PI;
+            if (deg < start) deg += 360;
+            return (deg - start) / sweep;
+          })
+          .sort((a, b) => a - b);
 
-      return {
-        box: { width: box.width, height: box.height, top: box.top, left: box.left, right: box.right, bottom: box.bottom },
-        gradient: ringStyle.backgroundImage,
-        markPct,
-        markBox: markBox ? { top: markBox.top, left: markBox.left, right: markBox.right, bottom: markBox.bottom } : null,
-        ticks,
-        figures,
-        label: root.getAttribute('aria-label'),
-      };
+        return {
+          box: { width: box.width, height: box.height, left: box.left, right: box.right, top: box.top, bottom: box.bottom },
+          gradient: getComputedStyle(ring).backgroundImage,
+          markAt,
+          markBox,
+          hairlines,
+          figures: [...root.querySelectorAll(':scope > span.numeric')].map((s) => (s.textContent ?? '').trim()),
+          label: root.getAttribute('aria-label') ?? '',
+        };
+      });
     },
     { start: ARC_START_DEG, sweep: ARC_SWEEP_DEG },
   );
@@ -155,84 +193,82 @@ async function readGauge(page: Page) {
 
 for (const theme of ['light', 'dark'] as const) {
   for (const size of SIZES) {
-    test(`the arc gauge is an arc, to scale, at ${size.at} in ${theme}`, async ({ browser }) => {
+    test(`the arc gauge is a fixed, symmetric arc at ${size.at} in ${theme}`, async ({ browser }) => {
       test.setTimeout(180_000);
       const ctx = await context(browser, theme, size);
       const page = await ctx.newPage();
       await aMarkerWithAGauge(page, ctx.request);
 
-      const g = await readGauge(page);
-      expect(g, 'no arc gauge rendered on the marker page').not.toBeNull();
+      const [g] = await readGauges(page);
+      expect(g, 'no arc gauge rendered on the marker page').toBeTruthy();
 
       // eslint-disable-next-line no-console
       console.log(
-        `\n  ${theme} ${size.at}: ${Math.round(g!.box.width)}x${Math.round(g!.box.height)}, ` +
-          `mark at ${g!.markPct?.toFixed(1)}%, ${g!.ticks} ticks, figures [${g!.figures.map((f) => f.text).join(', ')}]`,
+        `\n  ${theme} ${size.at}: ${Math.round(g.box.width)}x${Math.round(g.box.height)}, ` +
+          `mark at ${((g.markAt ?? 0) * 100).toFixed(1)}%, ${g.hairlines.length} hairlines, figures [${g.figures.join(', ')}]`,
       );
 
       // 5. SQUARE AND FLUID. A gauge that is not square is a gauge whose arc is
       //    an ellipse, and an ellipse has no constant radius for a mark to ride.
-      expect(Math.abs(g!.box.width - g!.box.height), 'the gauge is not square').toBeLessThan(2);
-      expect(g!.box.width, 'the gauge collapsed').toBeGreaterThan(80);
+      expect(Math.abs(g.box.width - g.box.height), 'the gauge is not square').toBeLessThan(2);
+      expect(g.box.width, 'the gauge collapsed').toBeGreaterThan(80);
 
-      // 4. AN ARC, NOT A RING. Three quarters of a turn painted, a quarter empty,
-      //    and it starts at the lower left so low is the first thing on it.
-      expect(g!.gradient, 'the ring is not a conic gradient').toContain('conic-gradient');
-      expect(g!.gradient).toContain('from 225deg');
-      const stops = [...g!.gradient.matchAll(/\s([\d.]+)%/g)].map((m) => Number(m[1]));
+      // AN ARC, NOT A RING. Three quarters of a turn painted, a quarter empty,
+      // starting at the lower left so low is the first thing on it.
+      expect(g.gradient, 'the ring is not a conic gradient').toContain('conic-gradient');
+      expect(g.gradient).toContain('from 225deg');
+      const stops = [...g.gradient.matchAll(/\s([\d.]+)%/g)].map((m) => Number(m[1]));
       expect(Math.max(...stops.filter((s) => s < 100)), 'the arc paints past its own gap').toBeLessThanOrEqual(75.001);
-      expect(g!.gradient, 'the gap is not a hard stop, so the arc fades into it').toMatch(
+      expect(g.gradient, 'the gap is not a hard stop, so the arc fades into it').toMatch(
         /75(\.\d+)?%,\s*(rgba\(0,\s*0,\s*0,\s*0\)|transparent)\s*75(\.\d+)?%/,
       );
 
-      // 3. THE BOUNDARY IS MARKED WITHOUT COLOUR. Two reference bounds, two
-      //    radial hairlines. The optimal narrowing adds more, so this is a floor.
-      expect(g!.ticks, 'the reference bounds are not marked').toBeGreaterThanOrEqual(2);
+      // 4. THE FOUR BOUNDARIES, MARKED WITHOUT COLOUR, AT FOUR FIXED ANGLES.
+      //    The optimal narrowing can add more, so the four are checked as a
+      //    subset rather than as the whole list.
+      for (const [name, at] of Object.entries(BOUNDARY)) {
+        expect(
+          g.hairlines.some((h) => Math.abs(h - at) < 0.005),
+          `no hairline at the ${name} boundary (${(at * 100).toFixed(1)}%); found ${g.hairlines
+            .map((h) => (h * 100).toFixed(1))
+            .join(', ')}`,
+        ).toBe(true);
+      }
 
-      // 1 & 2. THE FIGURES ARE THE SCALE, AND THE MARK IS ON IT. The accessible
-      //    label carries the value and the range in words; the printed figures
-      //    have to CONTAIN that range rather than being it.
-      const label = g!.label ?? '';
-      const range = label.match(/reference range ([\d.]+)[–-]([\d.]+)/);
-      const value = label.match(/Result ([\d.]+)/);
-      expect(range, `the gauge did not state its range in words: ${label}`).not.toBeNull();
-      expect(value, `the gauge did not state its value in words: ${label}`).not.toBeNull();
+      // 2. THE MARK IS IN THE SLICE ITS OWN STATUS NAMES. The gauge states its
+      //    status in words in its own accessible label, so this compares the
+      //    thing a screen reader is told with the thing an eye is shown.
+      const status = (g.label.match(/status:\s*(.+)$/i)?.[1] ?? '').trim().toLowerCase();
+      const slice = SLICE[status];
+      expect(slice, `the gauge reported an unrecognised status: "${status}"`).toBeTruthy();
+      expect(g.markAt, 'the mark did not render').not.toBeNull();
+      expect(
+        g.markAt!,
+        `"${status}" drawn at ${(g.markAt! * 100).toFixed(1)}%, outside its slice ${(slice[0] * 100).toFixed(0)}–${(
+          slice[1] * 100
+        ).toFixed(0)}%`,
+      ).toBeGreaterThanOrEqual(slice[0] - 0.005);
+      expect(g.markAt!).toBeLessThanOrEqual(slice[1] + 0.005);
 
-      const figures = g!.figures.map((f) => Number(f.text)).filter((n) => Number.isFinite(n));
-      expect(figures.length, 'the gauge printed no figures at all').toBeGreaterThanOrEqual(2);
-      const lo = Number(range![1]);
-      const hi = Number(range![2]);
-      const v = Number(value![1]);
-      expect(Math.min(...figures), 'the printed scale does not reach below the reference range').toBeLessThanOrEqual(lo);
-      expect(Math.max(...figures), 'the printed scale does not reach above the reference range').toBeGreaterThanOrEqual(hi);
-      expect(Math.min(...figures), 'the printed scale does not contain the value').toBeLessThanOrEqual(v);
-      expect(Math.max(...figures), 'the printed scale does not contain the value').toBeGreaterThanOrEqual(v);
+      // 3. AND NEVER AT EITHER END.
+      expect(g.markAt!, 'the mark reached the start of the arc').toBeGreaterThan(0);
+      expect(g.markAt!, 'the mark reached the end of the arc').toBeLessThan(1);
 
-      // AND THE MARK SITS AT THE VALUE'S POSITION ON THE SCALE IT PRINTED.
-      // Read off the paint, so this is the browser's answer and not the
-      // component's. Slack of one percent for sub-pixel rounding in the matrix.
-      const ends = [Math.min(...figures), Math.max(...figures)];
-      const expected = ((v - ends[0]) / (ends[1] - ends[0])) * 100;
-      expect(g!.markPct, 'the mark is not on the scale the gauge printed').not.toBeNull();
-      expect(Math.abs(g!.markPct! - expected), `mark at ${g!.markPct?.toFixed(2)}% against ${expected.toFixed(2)}%`).toBeLessThan(1.5);
-      // NOT CLAMPED. The scale is built to contain the value with headroom, so a
-      // mark pinned to either end is a scale that stopped containing its own value.
-      expect(g!.markPct!).toBeGreaterThan(0.5);
-      expect(g!.markPct!).toBeLessThan(99.5);
+      // TWO FIGURES, AND THEY ARE THE TWO REFERENCE BOUNDS. The ends of the arc
+      // mean "significantly below" and "significantly above" — states rather
+      // than quantities — so a figure at each end would label a position that no
+      // longer corresponds to it.
+      const range = g.label.match(/reference range ([\d.]+)[–-]([\d.]+)/);
+      expect(range, `the gauge did not state its range in words: ${g.label}`).not.toBeNull();
+      expect(g.figures.map(Number).sort((a, b) => a - b)).toEqual([Number(range![1]), Number(range![2])]);
 
-      // AND IT NEVER PAINTS OUTSIDE ITS OWN BOX. The mark overhangs the ring by
-      // half its width, which is exactly what the gutter round the ring is for.
-      expect(g!.markBox, 'the mark did not render').not.toBeNull();
-      expect(g!.markBox!.left).toBeGreaterThanOrEqual(g!.box.left - 1);
-      expect(g!.markBox!.right).toBeLessThanOrEqual(g!.box.right + 1);
-      expect(g!.markBox!.top).toBeGreaterThanOrEqual(g!.box.top - 1);
-      expect(g!.markBox!.bottom).toBeLessThanOrEqual(g!.box.bottom + 1);
-
-      // THE FIGURES SIT IN THE GAP, which is the argument for the gap being at
-      // the bottom: the place the scale stops is the place its ends are printed.
-      // The two scale ends are the lowest things in the box.
-      const lowest = Math.max(...g!.figures.map((f) => f.box.bottom));
-      expect(lowest, 'no figure is drawn in the arc’s own gap').toBeGreaterThan(g!.box.top + g!.box.height * 0.7);
+      // IT NEVER PAINTS OUTSIDE ITS OWN BOX. The mark overhangs the ring by half
+      // its width, which is exactly what the gutter round the ring is for.
+      expect(g.markBox, 'the mark did not render').not.toBeNull();
+      expect(g.markBox!.left).toBeGreaterThanOrEqual(g.box.left - 1);
+      expect(g.markBox!.right).toBeLessThanOrEqual(g.box.right + 1);
+      expect(g.markBox!.top).toBeGreaterThanOrEqual(g.box.top - 1);
+      expect(g.markBox!.bottom).toBeLessThanOrEqual(g.box.bottom + 1);
 
       await ctx.close();
     });
@@ -240,47 +276,62 @@ for (const theme of ['light', 'dark'] as const) {
 }
 
 /**
- * ── THE CARD GAUGE DROPS THE BOUND LABELS AND KEEPS THE TICKS ──────────────
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  1. THE SAME PICTURE ON EVERY CARD — over a real report, not a fixture.
+ * ═══════════════════════════════════════════════════════════════════════════
  *
- * The one judgement call in the redraw, and it is the same call the card BAR
- * made: at the width a marker card gives it, four figures round an arc collide,
- * and of the two pairs the SCALE ENDS are the ones that cannot be recovered
- * from anything else on the card — the card states its reference range in words
- * two lines below, and nothing else states the scale.
+ * This is the assertion the rebuild exists for, and it is the one that has to be
+ * made against a WHOLE PAGE rather than a component: the failure it replaces was
+ * invisible on any single gauge and unmissable on a grid of them.
  *
- * So the bounds keep their hairlines (the boundary is still marked, still at the
- * middle of its own blend, still locatable in greyscale) and lose their numbers.
- * Asserted rather than left to a comment, because "we dropped this deliberately"
- * and "this went missing" look identical on a screenshot.
+ * Every gauge the marker list renders, in one pass: identical rings, mark in the
+ * band its own label names, never at an end, and no figures at all on a card.
  */
 for (const size of SIZES) {
-  test(`a result card's gauge keeps its ticks and drops its bound labels at ${size.at}`, async ({ browser }) => {
-    test.setTimeout(120_000);
+  test(`every gauge on the marker list paints the same ring at ${size.at}`, async ({ browser }) => {
+    test.setTimeout(180_000);
     const ctx = await context(browser, 'dark', size);
     const page = await ctx.newPage();
-    await page.goto('/results');
+    await page.goto('/results?view=by-marker');
     await page.locator('a[href^="/markers/"]').first().waitFor({ timeout: 30_000 });
-    await page.waitForTimeout(600);
+    await page.waitForTimeout(900);
 
-    const cards = await page.evaluate(() => {
-      const out: { figures: string[]; ticks: number; width: number }[] = [];
-      for (const g of document.querySelectorAll<HTMLElement>('.arc-gauge')) {
-        out.push({
-          figures: [...g.querySelectorAll(':scope > span.numeric')].map((s) => (s.textContent ?? '').trim()),
-          ticks: g.querySelectorAll('line').length,
-          width: Math.round(g.getBoundingClientRect().width),
-        });
-      }
-      return out;
-    });
+    const gauges = await readGauges(page);
+    expect(gauges.length, 'the marker list drew no gauges').toBeGreaterThan(20);
 
-    expect(cards.length, 'the marker list drew no gauges').toBeGreaterThan(0);
+    const statuses = new Set(gauges.map((g) => (g.label.match(/status:\s*(.+)$/i)?.[1] ?? '').trim().toLowerCase()));
     // eslint-disable-next-line no-console
-    console.log(`\n  ${size.at}: ${cards.length} card gauges, first is ${cards[0].width}px with ${cards[0].figures.length} figures`);
+    console.log(
+      `\n  ${size.at}: ${gauges.length} gauges across ${statuses.size} distinct states ` +
+        `(${[...statuses].join(', ')}), first is ${Math.round(gauges[0].box.width)}px`,
+    );
+    // The check is only worth anything if the page actually contains gauges in
+    // different states — a grid of 40 in-range results would pass a broken build.
+    expect(statuses.size, 'every gauge on the page is in the same state, so this proves nothing').toBeGreaterThan(2);
 
-    for (const c of cards.slice(0, 12)) {
-      expect(c.figures.length, `a card gauge printed ${c.figures.length} figures rather than its two scale ends`).toBe(2);
-      expect(c.ticks, 'a card gauge lost its reference-bound hairlines').toBeGreaterThanOrEqual(2);
+    // ⚠ IDENTICAL, not similar. A ring that is a function of its value is the
+    // bug this replaced; anything weaker than string equality would pass a
+    // version that had crept part of the way back toward it.
+    for (const g of gauges) {
+      expect(g.gradient, 'two gauges on one page painted different rings').toBe(gauges[0].gradient);
+    }
+
+    for (const g of gauges) {
+      const status = (g.label.match(/status:\s*(.+)$/i)?.[1] ?? '').trim().toLowerCase();
+      const slice = SLICE[status];
+      if (!slice) continue; // a card with no status draws no gauge; skip rather than fail
+      expect(g.markAt, `"${status}" at ${((g.markAt ?? 0) * 100).toFixed(1)}% is outside its own slice`).toBeGreaterThanOrEqual(
+        slice[0] - 0.005,
+      );
+      expect(g.markAt!).toBeLessThanOrEqual(slice[1] + 0.005);
+      expect(g.markAt!).toBeGreaterThan(0);
+      expect(g.markAt!).toBeLessThan(1);
+
+      // NO FIGURES ON A CARD. It states its reference range in words two lines
+      // below, and two figures round a 176px arc sit closer to the value in the
+      // middle than to the hairlines they would be naming. The HAIRLINES stay.
+      expect(g.figures, `a card gauge printed ${g.figures.length} figures`).toEqual([]);
+      expect(g.hairlines.length, 'a card gauge lost its boundary hairlines').toBeGreaterThanOrEqual(4);
     }
 
     await ctx.close();

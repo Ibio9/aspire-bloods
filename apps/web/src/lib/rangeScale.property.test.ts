@@ -1,31 +1,39 @@
 import { describe, expect, it } from 'vitest';
-import { severityThresholdFor, statusBands } from '@aspire-bloods/shared';
+import { severityThresholdFor, statusBands, type MarkerStatus } from '@aspire-bloods/shared';
 import {
-  MARK_HEADROOM,
-  MIN_REFERENCE_FRACTION,
+  GAUGE_BOUNDARIES,
+  GAUGE_SLICES,
+  gaugePlacement,
   RANGE_BAR_UNAVAILABLE,
-  rangeBarScale,
-  type RangeBarScaleInput,
+  type GaugePlacementInput,
   type RangeBarUndrawable,
 } from './rangeScale';
 
 /**
  * =============================================================================
- *  ONE INVARIANT, OVER EVERY INPUT THAT CAN REACH A RANGE BAR.
+ *  ONE INVARIANT, OVER EVERY INPUT THAT CAN REACH A RESULT GAUGE.
  * =============================================================================
  *
- * `rangeScale.test.ts` beside this pins the three live failures by their own
- * numbers, which is the right way to hold a bug that actually happened. This
- * file asks the other question: is the thing TRUE IN GENERAL, or was it only
- * made true for the three cases somebody had in front of them.
+ * `rangeScale.test.ts` beside this pins the named cases by their own numbers,
+ * which is the right way to hold a bug that actually happened. This file asks
+ * the other question: is the thing TRUE IN GENERAL, or was it only made true
+ * for the handful of cases somebody had in front of them.
  *
- * The invariant, and every assertion below is one half of a sentence of it:
+ * ── THE INVARIANT CHANGED WITH THE INSTRUMENT (Aug 2026) ──────────────────
  *
- *   THE DRAWN POSITION OF THE MARK CORRESPONDS TO THE VALUE ON THE SCALE THAT
- *   IS ACTUALLY PRINTED. Nothing is clamped, nothing is drawn inside a region
- *   it is not inside, and no printed label describes a scale different from the
- *   one being drawn. Where that cannot be done, nothing is drawn and the fact
- *   is said in words.
+ * It used to be "the drawn position of the mark corresponds to the value on the
+ * scale that is actually printed", because the ring was a number line. The ring
+ * is FIXED and symmetric now — green always central, gold always flanking it,
+ * red always at both ends — so the sentence is:
+ *
+ *   THE MARK ALWAYS LANDS INSIDE THE SLICE ITS OWN STATUS NAMES, is ordered
+ *   within it, and never reaches either end of the arc. The colour under the
+ *   mark therefore always agrees with the word beside it. Where nothing can be
+ *   drawn, nothing is drawn and the fact is said in words.
+ *
+ * That is a STRONGER claim than the old one for the thing a reader actually
+ * does with this instrument, and a weaker one about distance — see the note at
+ * the top of rangeScale.ts, which records what the fixed geometry costs.
  *
  * The cases are GENERATED and DETERMINISTIC — an enumerated spread of the
  * shapes a reference range comes in, crossed with the positions a value can
@@ -40,7 +48,7 @@ import {
 // The generator
 // ---------------------------------------------------------------------------
 
-interface Case extends RangeBarScaleInput {
+interface Case extends GaugePlacementInput {
   /** What this case is, printed on any failure. */
   what: string;
 }
@@ -183,300 +191,265 @@ function generatedCases(): Case[] {
   return cases;
 }
 
+
 // ---------------------------------------------------------------------------
 // The invariant
 // ---------------------------------------------------------------------------
 
 /**
- * The band a value genuinely falls in, from the SAME derivation the bar draws
- * its segments from. The last band whose lower edge the value has reached —
- * which is exactly how the five regions tile the line.
+ * The band a value genuinely falls in, from the SAME derivation the ring is
+ * built from and the server computes a status with. The last band whose lower
+ * edge the value has reached — which is exactly how the five regions tile the
+ * line.
+ *
+ * Re-derived here rather than read off the placement, so this is checking the
+ * answer against the question instead of against itself.
  */
-function bandContaining(low: number, high: number, threshold: number | null | undefined, value: number) {
+function bandContaining(low: number, high: number, threshold: number | null | undefined, value: number): MarkerStatus {
   const bands = statusBands(low, high, threshold);
-  return [...bands].reverse().find((b) => value >= (b.from ?? Number.NEGATIVE_INFINITY))!;
+  return [...bands].reverse().find((b) => value >= (b.from ?? Number.NEGATIVE_INFINITY))!.status;
 }
 
 function assertInvariant(c: Case) {
-  const s = rangeBarScale(c);
+  const p = gaugePlacement(c);
   const where = c.what;
 
-  // TRUE OF EVERY CASE, drawable or not: the geometry handed back is finite and
-  // has a width. Nothing downstream of this can put a NaN into a style
-  // attribute or divide by a zero-width span, even if a caller forgets the
-  // guard entirely.
-  expect(Number.isFinite(s.min), where).toBe(true);
-  expect(Number.isFinite(s.max), where).toBe(true);
-  expect(s.max, where).toBeGreaterThan(s.min);
-  expect(Number.isFinite(s.pct(s.min)), where).toBe(true);
-  // Exactly one of the two arms, always.
-  expect(s.outOfScale, where).toBe(s.undrawable !== null);
+  const lowOk = typeof c.low === 'number' && Number.isFinite(c.low);
+  const highOk = typeof c.high === 'number' && Number.isFinite(c.high);
+  const rangeOk = lowOk && highOk && (c.high as number) > (c.low as number);
+  const valueOk = typeof c.value === 'number' && Number.isFinite(c.value);
 
-  if (s.outOfScale) {
-    // SAID IN WORDS RATHER THAN DRAWN. The reason has a sentence and a card
-    // line, both of them real copy — that is the whole of what the caller has
-    // to render, so an unnamed reason would be a bar that silently vanishes.
-    const copy = RANGE_BAR_UNAVAILABLE[s.undrawable];
-    expect(copy, where).toBeDefined();
-    expect(copy.long.trim().length, where).toBeGreaterThan(20);
-    expect(copy.long.endsWith('.'), where).toBe(true);
-    expect(copy.short.trim().length, where).toBeGreaterThan(10);
+  if (!p.drawable) {
+    // A refusal always names a reason that has a sentence, and never invents one.
+    expect(RANGE_BAR_UNAVAILABLE[p.undrawable], `${where}: refused with a reason that has no words`).toBeDefined();
+    // And it only ever refuses for a reason that is actually true of the input.
+    if (p.undrawable === 'no-reference-range') expect(lowOk && highOk, where).toBe(false);
+    if (p.undrawable === 'range-has-no-width') expect(rangeOk, where).toBe(false);
+    if (p.undrawable === 'value-not-numeric') expect(valueOk, where).toBe(false);
     return;
   }
 
-  const { min, max, low, high, value, pct } = s;
-  const span = max - min;
+  // Anything drawable had a two-sided range with width and a real value. Both
+  // directions, because only one of them is the dangerous one.
+  expect(rangeOk && valueOk, `${where}: drawn from an input that cannot be drawn`).toBe(true);
 
-  // ── THE PRINTED LABELS ARE THE DRAWN SCALE ───────────────────────────────
-  // Not "close to", not "formatted from" — the same two numbers. This is the
-  // failure the whole module exists to have stopped making, so it is asserted
-  // as an identity rather than to a tolerance.
-  expect(Number(s.minLabel), where).toBe(min);
-  expect(Number(s.maxLabel), where).toBe(max);
+  const threshold = severityThresholdFor(p.low, p.high, c.severityThreshold);
+  const band = bandContaining(p.low, p.high, c.severityThreshold, p.value);
 
-  // ── THE PRINTED ENDS BOUND EVERYTHING THE BAR CONTAINS ───────────────────
-  expect(Number(s.minLabel), where).toBeLessThanOrEqual(low);
-  expect(Number(s.maxLabel), where).toBeGreaterThanOrEqual(high);
-  expect(Number(s.minLabel), where).toBeLessThanOrEqual(value);
-  expect(Number(s.maxLabel), where).toBeGreaterThanOrEqual(value);
+  // ── 1. THE MARK IS IN THE SLICE ITS OWN STATUS NAMES. ────────────────────
+  // The whole point of the fixed ring: the colour under the mark and the word
+  // beside it come from one derivation and cannot disagree.
+  expect(p.status, `${where}: placed in ${p.status} where the bands say ${band}`).toBe(band);
+  const [from, to] = GAUGE_SLICES[band];
+  expect(p.at, `${where}: at ${p.at}, outside the ${band} slice ${from}-${to}`).toBeGreaterThanOrEqual(from - 1e-9);
+  expect(p.at, `${where}: at ${p.at}, outside the ${band} slice ${from}-${to}`).toBeLessThanOrEqual(to + 1e-9);
 
-  // ── THE MARK'S DRAWN FRACTION IS THE VALUE'S TRUE POSITION ON THAT SCALE ──
-  // Recomputed from the PRINTED labels rather than from the internal numbers,
-  // because "the axis the reader can see" is the only scale that counts.
-  const fromLabels = (v: number) => ((v - Number(s.minLabel)) / (Number(s.maxLabel) - Number(s.minLabel))) * 100;
-  for (const v of [min, max, value, low, high, (min + max) / 2]) {
-    expect(pct(v), `${where} @ ${v}`).toBe(fromLabels(v));
-  }
-  expect(pct(min), where).toBe(0);
-  expect(pct(max), where).toBe(100);
+  // ── 2. IT IS NEVER AT EITHER END OF THE ARC. ─────────────────────────────
+  // A mark pinned to the end of an instrument has stopped carrying information
+  // and is indistinguishable from one that legitimately sits there. The two
+  // outer bands are unbounded in value and finite in angle, so this is the rule
+  // the saturating map exists to keep.
+  expect(p.at, `${where}: the mark reached the start of the arc`).toBeGreaterThan(0);
+  expect(p.at, `${where}: the mark reached the end of the arc`).toBeLessThan(1);
 
-  // ── NOTHING IS CLAMPED ───────────────────────────────────────────────────
-  // The mark is inside the bar because the SCALE was built to contain it, not
-  // because a Math.min put it there. Strictly inside wherever the value is
-  // strictly inside, which is the difference between a mark at the end and a
-  // mark that has run out of bar.
-  const at = pct(value);
-  expect(at, where).toBeGreaterThanOrEqual(0);
-  expect(at, where).toBeLessThanOrEqual(100);
-  if (value > min) expect(at, where).toBeGreaterThan(0);
-  if (value < max) expect(at, where).toBeLessThan(100);
+  // ── 3. THE FOUR BOUNDARIES ARE WHERE THE FOUR HAIRLINES ARE. ─────────────
+  // A value exactly on a reference bound is drawn exactly on the green/gold
+  // seam; one exactly on a threshold, exactly on the gold/red seam. That is what
+  // makes the hairlines honest — they are drawn at fixed angles, so a value
+  // sitting on a bound has to land ON the hairline rather than near it.
+  if (p.value === p.low) expect(p.at, where).toBeCloseTo(GAUGE_BOUNDARIES.low, 9);
+  if (p.value === p.high) expect(p.at, where).toBeCloseTo(GAUGE_BOUNDARIES.high, 9);
+  if (p.value === p.low - threshold) expect(p.at, where).toBeCloseTo(GAUGE_BOUNDARIES.lowThreshold, 9);
+  if (p.value === p.high + threshold) expect(p.at, where).toBeCloseTo(GAUGE_BOUNDARIES.highThreshold, 9);
 
-  // ── AND IT CLEARS THE EDGE ───────────────────────────────────────────────
-  // MARK_HEADROOM is 6%; the assertion allows 4.5 because rounding the ends
-  // outward to the 1/2/2.5/5 ladder can widen the span under the mark by up to
-  // a step. The exception at the bottom is the zero floor and only that: a
-  // quantity that cannot be negative has a hard end at zero, a value sitting on
-  // it is genuinely at the end of its own scale, and inventing a negative end
-  // to hold the mark off the edge would print a number no laboratory reports.
-  expect(at, where).toBeLessThan(100 - (MARK_HEADROOM * 100 - 1.5));
-  if (min !== 0) expect(at, where).toBeGreaterThan(MARK_HEADROOM * 100 - 1.5);
-
-  // ── THE REFERENCE RANGE IS INSIDE THE SCALE, AND IS A REGION ─────────────
-  expect(min, where).toBeLessThanOrEqual(low);
-  expect(max, where).toBeGreaterThanOrEqual(high);
-  expect(s.referenceFraction, where).toBeGreaterThanOrEqual(MIN_REFERENCE_FRACTION);
-  // The fraction is the region actually drawn, not a second opinion about it.
-  expect(s.referenceFraction, where).toBeCloseTo((pct(Math.min(high, max)) - pct(Math.max(low, min))) / 100, 10);
-  expect(pct(high), where).toBeGreaterThan(pct(low));
-
-  // ── NOTHING IS DRAWN INSIDE A REGION IT IS NOT INSIDE ────────────────────
-  // The reported bug, stated as a property: a value below the range must be
-  // drawn to the LEFT of where the range begins, and one above it to the right.
-  if (value < low) expect(at, where).toBeLessThan(pct(low));
-  if (value > high) expect(at, where).toBeGreaterThan(pct(high));
-  if (value >= low && value <= high) {
-    expect(at, where).toBeGreaterThanOrEqual(pct(low));
-    expect(at, where).toBeLessThanOrEqual(pct(high));
-  }
-
-  // The same thing against all five status regions rather than just the middle
-  // one, from the derivation the bar's own segments come from: the mark lands
-  // inside the segment whose colour and whose word describe it.
-  const band = bandContaining(low, high, c.severityThreshold, value);
-  const bandFrom = band.from === null ? min : Math.max(min, band.from);
-  const bandTo = band.to === null ? max : Math.min(max, band.to);
-  expect(at, `${where} → ${band.status}`).toBeGreaterThanOrEqual(pct(bandFrom) - 1e-9);
-  expect(at, `${where} → ${band.status}`).toBeLessThanOrEqual(pct(bandTo) + 1e-9);
-
-  // Sanity on the fixture itself: the span used above is the one pct divides by.
-  expect(span, where).toBeGreaterThan(0);
+  // ── 4. IT IS FINITE. ─────────────────────────────────────────────────────
+  // Nothing downstream can put a NaN into a `rotate()`, which renders as the
+  // mark silently vanishing rather than as an error anybody sees.
+  expect(Number.isFinite(p.at), `${where}: the mark position is not a finite number`).toBe(true);
 }
 
-// ---------------------------------------------------------------------------
-// The tests
-// ---------------------------------------------------------------------------
-
-describe('rangeBarScale — the invariant, over a generated spread of inputs', () => {
+describe('gaugePlacement — the invariant, over a generated spread of inputs', () => {
   const cases = generatedCases();
 
   it('generates a wide spread rather than a handful of cases', () => {
-    // Guards the generator, not the scale: a loop that silently produced four
-    // cases would pass every assertion below and prove nothing.
-    expect(cases.length).toBeGreaterThan(4500);
-    const drawn = cases.filter((c) => !rangeBarScale(c).outOfScale);
-    // Both arms have to be genuinely exercised — all-drawable would mean the
-    // refusals are untested, all-refused would mean the geometry is.
-    expect(drawn.length).toBeGreaterThan(1000);
-    expect(cases.length - drawn.length).toBeGreaterThan(100);
+    expect(cases.length).toBeGreaterThan(4000);
   });
 
   it('holds for every generated case', () => {
     for (const c of cases) assertInvariant(c);
   });
 
+  /**
+   * ── 5. IT IS MONOTONIC, WHICH IS THE HALF THE SLICES DO NOT COVER ────────
+   *
+   * "In the right slice" would still be satisfied by a mark that jumped about
+   * inside it. A reader comparing two results of the same marker has to be able
+   * to trust that the further-out one is drawn further out — across a band
+   * boundary, and inside the two compressed outer bands where distance is no
+   * longer to scale but ORDER still is.
+   */
+  it('never draws a larger value closer to the start than a smaller one', () => {
+    for (const [low, high] of DRAWABLE_RANGES) {
+      const width = high - low;
+      for (const severityThreshold of [null, width * 0.1, width * 6]) {
+        const values = Array.from({ length: 200 }, (_, i) => low - width * 5 + (i / 199) * width * 11);
+        let previous = -Infinity;
+        for (const value of values) {
+          const p = gaugePlacement({ low, high, value, severityThreshold });
+          if (!p.drawable) continue;
+          expect(
+            p.at,
+            `${value} against ${low}-${high} (threshold ${severityThreshold}) went backwards: ${p.at} after ${previous}`,
+          ).toBeGreaterThanOrEqual(previous - 1e-12);
+          previous = p.at;
+        }
+      }
+    }
+  });
+
+  /**
+   * ── 6. AND THE RING IS THE SAME PICTURE ON EVERY CARD ────────────────────
+   *
+   * The reason the instrument was rebuilt. The four boundaries are constants, so
+   * no input can move them — asserted directly rather than inferred from the
+   * generated cases, because "no case moved it" is a weaker claim than "it is
+   * not a function of the input at all".
+   */
+  it('puts green in the centre with equal space either side, whatever the value', () => {
+    const b = GAUGE_BOUNDARIES;
+    expect(b.lowThreshold + b.highThreshold, 'the two thresholds are not symmetric about the centre').toBeCloseTo(1, 9);
+    expect(b.low + b.high, 'the two reference bounds are not symmetric about the centre').toBeCloseTo(1, 9);
+    const order = [b.lowThreshold, b.low, b.high, b.highThreshold];
+    expect([...order].sort((x, y) => x - y), 'the boundaries are out of order').toEqual(order);
+    const slices = Object.values(GAUGE_SLICES).map(([from, to]) => to - from);
+    expect(
+      slices.reduce((a, x) => a + x, 0),
+      'the five slices do not fill the arc',
+    ).toBeCloseTo(1, 9);
+    expect(GAUGE_SLICES.IN_RANGE[0] < 0.5 && GAUGE_SLICES.IN_RANGE[1] > 0.5, 'green is not the central slice').toBe(
+      true,
+    );
+    expect(GAUGE_SLICES.SIGNIFICANT_LOW[0], 'red does not start the arc').toBe(0);
+    expect(GAUGE_SLICES.SIGNIFICANT_HIGH[1], 'red does not end the arc').toBe(1);
+  });
+
   it('holds for every value that cannot be placed, against a range that is fine', () => {
-    for (const range of DRAWABLE_RANGES) {
+    for (const [low, high] of DRAWABLE_RANGES) {
       for (const v of REFUSED_VALUES) {
-        const c: Case = { what: `value ${v.what} against ${range[0]}–${range[1]}`, low: range[0], high: range[1], value: v.value as number };
-        assertInvariant(c);
-        expect(rangeBarScale(c).undrawable, c.what).toBe('value-not-numeric');
+        const p = gaugePlacement({ low, high, value: v.value as number });
+        expect(p.drawable, `value ${v.what} against ${low}-${high} was drawn`).toBe(false);
+        if (!p.drawable) expect(p.undrawable).toBe('value-not-numeric');
       }
     }
   });
 
   it('holds for every range that cannot be drawn, and names the right reason', () => {
     for (const r of REFUSED_RANGES) {
-      for (const value of [3.4, 0, -1, 5.8]) {
-        const c: Case = { what: `${r.what}, value ${value}`, low: r.low as number, high: r.high as number, value };
-        assertInvariant(c);
-        expect(rangeBarScale(c).undrawable, c.what).toBe(r.reason);
-      }
+      const p = gaugePlacement({ low: r.low as number, high: r.high as number, value: 3.4 });
+      expect(p.drawable, `${r.what} was drawn`).toBe(false);
+      if (!p.drawable) expect(p.undrawable, r.what).toBe(r.reason);
     }
   });
 
-  it('refuses a value it cannot draw beside a range it cannot draw, without inventing either', () => {
+  /**
+   * THE RANGE IS REFUSED FIRST. A result with neither a usable range nor a
+   * usable value must not be reported as a value problem — the range is the
+   * thing that is wrong, and a sentence about a missing number would send
+   * somebody looking in the wrong place.
+   */
+  it('refuses a value it cannot place beside a range it cannot draw, without inventing either', () => {
     for (const r of REFUSED_RANGES) {
       for (const v of REFUSED_VALUES) {
-        const c: Case = { what: `${r.what} with a ${v.what} value`, low: r.low as number, high: r.high as number, value: v.value as number };
-        assertInvariant(c);
-        expect(rangeBarScale(c).outOfScale, c.what).toBe(true);
+        const p = gaugePlacement({ low: r.low as number, high: r.high as number, value: v.value as number });
+        expect(p.drawable).toBe(false);
+        if (!p.drawable) expect(p.undrawable, `${r.what} with a value that is ${v.what}`).toBe(r.reason);
       }
     }
   });
 });
 
 describe('the cases the brief names, one at a time', () => {
-  /** The scale, for a case that must be drawable. Fails loudly rather than returning a union. */
-  function drawn(input: RangeBarScaleInput) {
-    const s = rangeBarScale(input);
-    if (s.outOfScale) throw new Error(`expected a drawable scale, got ${s.undrawable}`);
-    return s;
-  }
+  const place = (low: number, high: number, value: number, severityThreshold: number | null = null) => {
+    const p = gaugePlacement({ low, high, value, severityThreshold });
+    expect(p.drawable).toBe(true);
+    return p as Extract<typeof p, { drawable: true }>;
+  };
 
-  it('a value far below the lower bound is drawn left of the range, on a scale that says so', () => {
-    const s = drawn({ low: 125, high: 375, value: 12 });
-    expect(s.pct(12)).toBeLessThan(s.pct(125));
-    expect(Number(s.minLabel)).toBeLessThan(12);
-    expect(s.minLabel).not.toBe('125');
+  /**
+   * ⚠ THE FAILURE THIS WAS REBUILT FOR. Two results, one above its range and one
+   * below, on the same grid. On the value-mapped ring the green slid toward the
+   * start of the arc for the first and toward the end for the second, so the
+   * shape meant something different on every card. Here it cannot move.
+   */
+  it('draws the green in the same place for an above-range and a below-range result', () => {
+    const above = place(0, 41, 122);
+    const below = place(125, 375, 65);
+    expect(above.status).toBe('SIGNIFICANT_HIGH');
+    // ⚠ LOW, not SIGNIFICANT_LOW, and it is worth being explicit: the default
+    // severity threshold is 1.5× the range's own WIDTH, so for a 250-wide range
+    // significantly-low does not begin until −250. The two reported cases are
+    // not symmetric in severity, only in direction.
+    expect(below.status).toBe('LOW');
+    // The whole claim: the two marks land on opposite sides of the ring, and the
+    // ring itself is the same on both cards — the green has not moved, because
+    // it cannot.
+    expect(above.at).toBeGreaterThan(GAUGE_BOUNDARIES.highThreshold);
+    expect(below.at).toBeLessThan(GAUGE_BOUNDARIES.low);
+    expect(below.at).toBeGreaterThan(GAUGE_BOUNDARIES.lowThreshold);
   });
 
-  it('a value far above the upper bound is drawn right of the range, on a scale that says so', () => {
-    const s = drawn({ low: 0, high: 41, value: 122 });
-    expect(s.pct(122)).toBeGreaterThan(s.pct(41));
-    expect(Number(s.maxLabel)).toBeGreaterThan(122);
-    expect(s.maxLabel).not.toBe('41');
+  it('draws an in-range result inside the central green', () => {
+    const p = place(3.8, 5.8, 4.8);
+    expect(p.status).toBe('IN_RANGE');
+    expect(p.at).toBeCloseTo(0.5, 9);
   });
 
-  it('a value exactly on a bound is drawn exactly on that bound', () => {
-    const s = drawn({ low: 3.8, high: 5.8, value: 3.8 });
-    expect(s.pct(3.8)).toBe(s.pct(s.low));
-    const t = drawn({ low: 3.8, high: 5.8, value: 5.8 });
-    expect(t.pct(5.8)).toBe(t.pct(t.high));
+  it('draws a value exactly on a bound exactly on that bound’s hairline', () => {
+    expect(place(3.8, 5.8, 3.8).at).toBeCloseTo(GAUGE_BOUNDARIES.low, 9);
+    expect(place(3.8, 5.8, 5.8).at).toBeCloseTo(GAUGE_BOUNDARIES.high, 9);
   });
 
-  it('one step inside a bound is inside, one step outside is outside', () => {
-    for (const step of [0.2, 0.002, 0.000002]) {
-      const below = drawn({ low: 3.8, high: 5.8, value: 3.8 - step });
-      expect(below.pct(3.8 - step), `step ${step}`).toBeLessThan(below.pct(3.8));
-      const inside = drawn({ low: 3.8, high: 5.8, value: 3.8 + step });
-      expect(inside.pct(3.8 + step), `step ${step}`).toBeGreaterThan(inside.pct(3.8));
-      const above = drawn({ low: 3.8, high: 5.8, value: 5.8 + step });
-      expect(above.pct(5.8 + step), `step ${step}`).toBeGreaterThan(above.pct(5.8));
-    }
+  it('draws one step outside a bound outside it, and one step inside, inside', () => {
+    expect(place(3.8, 5.8, 5.8001).at).toBeGreaterThan(GAUGE_BOUNDARIES.high);
+    expect(place(3.8, 5.8, 5.7999).at).toBeLessThan(GAUGE_BOUNDARIES.high);
+    expect(place(3.8, 5.8, 3.7999).at).toBeLessThan(GAUGE_BOUNDARIES.low);
+    expect(place(3.8, 5.8, 3.8001).at).toBeGreaterThan(GAUGE_BOUNDARIES.low);
   });
 
-  it('a range with a floor at zero keeps the scale at zero rather than inventing a negative end', () => {
-    const s = drawn({ low: 0, high: 41, value: 3 });
-    expect(s.min).toBe(0);
-    expect(s.minLabel).toBe('0');
+  /**
+   * THE COMPRESSED TAIL, PINNED AS WHAT IT IS. Ten times the threshold is drawn
+   * further out than twice it and closer to the end of the arc than either — and
+   * none of them reaches it. This is the cost of the fixed geometry, asserted so
+   * nobody mistakes it for a bug later and "fixes" it by clamping.
+   */
+  it('orders the unbounded tail without ever reaching the end of the arc', () => {
+    const near = place(0, 10, 20);
+    const far = place(0, 10, 200);
+    const absurd = place(0, 10, 2e9);
+    expect(near.at).toBeLessThan(far.at);
+    expect(far.at).toBeLessThan(absurd.at);
+    expect(absurd.at).toBeLessThan(1);
+    expect(absurd.status).toBe('SIGNIFICANT_HIGH');
   });
 
-  it('a value of exactly zero is drawn at zero, not clamped away from it', () => {
-    const s = drawn({ low: 3.8, high: 5.8, value: 0 });
-    expect(s.pct(0)).toBe(((0 - s.min) / (s.max - s.min)) * 100);
-    expect(s.pct(0)).toBeLessThan(s.pct(3.8));
+  it('mirrors the low side exactly', () => {
+    // A range symmetric about zero, and a value the same distance either side of
+    // it, drawn the same distance either side of the centre. The whole claim of
+    // the word "symmetric", in one assertion.
+    const up = place(-10, 10, 25);
+    const down = place(-10, 10, -25);
+    expect(up.at + down.at).toBeCloseTo(1, 9);
   });
 
-  it('a very narrow range still resolves to a scale with real width', () => {
-    const s = drawn({ low: 1, high: 1.0001, value: 1.00005 });
-    expect(s.max).toBeGreaterThan(s.min);
-    expect(s.referenceFraction).toBeGreaterThanOrEqual(MIN_REFERENCE_FRACTION);
-    expect(s.pct(1.00005)).toBeGreaterThan(s.pct(1));
-    expect(s.pct(1.00005)).toBeLessThan(s.pct(1.0001));
+  it('refuses an open-topped range rather than drawing it against a sentinel', () => {
+    const p = gaugePlacement({ low: 60, high: 999, value: 97 });
+    expect(p.drawable).toBe(false);
+    if (!p.drawable) expect(p.undrawable).toBe('reference-range-open-ended');
   });
 
-  it('a range spanning orders of magnitude is drawn on one scale', () => {
-    const s = drawn({ low: 1, high: 1_000_000, value: 500_000 });
-    expect(s.min).toBeLessThanOrEqual(1);
-    expect(s.max).toBeGreaterThanOrEqual(1_000_000);
-    expect(s.pct(500_000)).toBeGreaterThan(s.pct(1));
-    expect(s.pct(500_000)).toBeLessThan(s.pct(1_000_000));
-  });
-
-  it('a one-sided range is refused rather than completed with a bound nobody gave', () => {
-    expect(rangeBarScale({ low: null, high: 5.8, value: 3.4 }).undrawable).toBe('no-reference-range');
-    expect(rangeBarScale({ low: 3.8, high: null, value: 3.4 }).undrawable).toBe('no-reference-range');
-  });
-
-  it('a negative value on a range spanning zero is drawn below the range', () => {
-    const s = drawn({ low: -2, high: 2, value: -6 });
-    expect(s.min).toBeLessThan(-6);
-    expect(s.pct(-6)).toBeLessThan(s.pct(-2));
-  });
-
-  it('non-integer values and bounds print ends somebody would have chosen', () => {
-    const s = drawn({ low: 12.345, high: 67.891, value: 81.4 });
-    // Not 88.3624..., which is the headroom arithmetic showing through.
-    expect(s.maxLabel).toBe(String(Number(s.maxLabel)));
-    expect(s.maxLabel.replace('-', '').replace('.', '').replace(/0+$/, '').length).toBeLessThanOrEqual(4);
-  });
-
-  it('lower equal to upper is not a range, and says so rather than drawing one', () => {
-    const s = rangeBarScale({ low: 5, high: 5, value: 9 });
-    expect(s.outOfScale).toBe(true);
-    expect(s.undrawable).toBe('range-has-no-width');
-    expect(RANGE_BAR_UNAVAILABLE['range-has-no-width'].long).toContain('same lower and upper bound');
-  });
-
-  it('a value with no bounds at all is refused, and the refusal is about the bounds', () => {
-    const s = rangeBarScale({ low: null, high: null, value: 3.4 });
-    expect(s.undrawable).toBe('no-reference-range');
-  });
-
-  it('a bar too far out to draw honestly says so instead of drawing a sliver', () => {
-    const s = rangeBarScale({ low: 0, high: 41, value: 3000 });
-    expect(s.undrawable).toBe('reference-range-too-small');
-  });
-
-  it('the severity threshold shifts the shoulders without ever moving the mark off its value', () => {
-    // A marker whose threshold dwarfs its range (ferritin's is 270 against a
-    // 180-wide band) is the case the resting pad is capped for.
-    for (const threshold of [1, 30, 270, 5000]) {
-      const s = drawn({ low: 30, high: 400, value: 512, severityThreshold: threshold });
-      expect(s.pct(512), `threshold ${threshold}`).toBe(((512 - s.min) / (s.max - s.min)) * 100);
-      expect(s.pct(512), `threshold ${threshold}`).toBeGreaterThan(s.pct(400));
-    }
-  });
-
-  it('exposes the same threshold the bands are drawn from, so the segments and the scale agree', () => {
-    // Not a property of the scale so much as of the pair: if these two ever
-    // disagreed, the mark would land in a segment of the wrong colour.
-    const t = severityThresholdFor(30, 400, null);
-    const s = drawn({ low: 30, high: 400, value: 1200 });
-    // 1200 is past 400 + t (555), so it is significantly high and must be
-    // drawn past where that segment begins — not merely past the range.
-    expect(1200).toBeGreaterThan(400 + t);
-    expect(s.pct(1200)).toBeGreaterThan(s.pct(400 + t));
-    expect(s.pct(1200)).toBeGreaterThan(s.pct(400));
+  it('uses the same threshold the bands are drawn from, so the seams and the states agree', () => {
+    const p = place(3.9, 5.1, 6.0, 0.4);
+    expect(p.threshold).toBe(0.4);
+    expect(p.status).toBe('SIGNIFICANT_HIGH');
   });
 });

@@ -1,22 +1,21 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import {
-  bandRampStops,
   formatOptimalRange,
   formatReferenceBound,
   formatReferenceRange,
   chart as chartTokens,
+  hueTint,
   OPTIMAL_FILL,
-  severityThresholdFor,
-  statusBands,
-  TRANSITION_SHARE,
   type MarkerStatusInput,
   type OptimalRangeDTO,
 } from '@aspire-bloods/shared';
 import { statusLabel } from '../../lib/markerCopy';
 import {
+  GAUGE_BOUNDARIES,
+  GAUGE_SLICES,
+  gaugePlacement,
   RANGE_BAR_UNAVAILABLE,
-  rangeBarScale,
-  type RangeBarScale as Scale,
+  type GaugePlacement,
   type RangeBarUndrawable,
 } from '../../lib/rangeScale';
 
@@ -26,11 +25,20 @@ import {
  * =============================================================================
  *
  * This replaces the horizontal range bar on the marker detail page, on a result
- * card, on the Overview's attention list and in the first-sign-in walkthrough.
- * It is the same instrument bent round: the same scale (`lib/rangeScale.ts`),
- * the same five states, the same `bandRampStops` derivation, the same boundary
- * treatment, the same never-clamped mark, the same refusals in words. What
- * changed is the shape it is drawn in and where the number goes.
+ * card, on the Overview's attention list and in the first-sign-in walkthrough:
+ * the same five states, the same five fills, the same two hinge colours, the
+ * same boundary-centred blends, the same never-clamped mark, the same refusals
+ * in words.
+ *
+ * ── AND THE RING IS FIXED, NOT MAPPED TO THE VALUE (Aug 2026) ──────────────
+ *
+ * Green always occupies the central slice, gold always flanks it, red always
+ * sits at both ends, and none of that moves with the result. `lib/rangeScale.ts`
+ * holds the geometry and the reasoning; the short version is that a ring is read
+ * as a SHAPE rather than as an axis, so a green that slid toward the start of
+ * the arc for one card and toward the end for the next made the one thing a
+ * reader takes in without reading any numbers mean something different on every
+ * card in the grid.
  *
  * ── AN ARC, NOT A RING, AND THAT IS THE WHOLE FIRST DECISION ────────────────
  *
@@ -44,20 +52,19 @@ import {
  * gap at the bottom: low at the start, high at the end, the same left-to-right
  * reading order the bar had, carried round the top.
  *
- * ── THE RAMP IS ONE CONIC GRADIENT, WHICH IS THE ARC'S OWN LINEAR ──────────
+ * ── THE RAMP IS ONE CONIC GRADIENT, AND IT IS A CONSTANT ──────────────────
  *
- * The bar drew its five regions as a single `linear-gradient` and the note on
- * it is worth repeating because the reason survives the change of shape: one
- * gradient means two neighbouring regions CANNOT disagree by a rounding at the
- * seam and leave a hairline of card showing through, and it means a boundary
- * genuinely sits at the MIDDLE of its own blend rather than at the edge of one.
+ * The bar drew its five regions as a single `linear-gradient` and the reason
+ * survives the change of shape: one gradient means two neighbouring regions
+ * CANNOT disagree by a rounding at the seam and leave a hairline of card showing
+ * through, and a boundary genuinely sits at the MIDDLE of its own blend rather
+ * than at the edge of one. A `conic-gradient` is the same statement in polar
+ * coordinates.
  *
- * A `conic-gradient` is the same statement in polar coordinates — it
- * interpolates around an angle exactly as a linear one interpolates along an
- * axis — so `bandRampStops` maps onto it directly: a stop at `pct` along the
- * scale is a stop at `pct × 0.75` of the circle, because the arc is three
- * quarters of one. Nothing is resampled, nothing is approximated into segments,
- * and the bar and the gauge are provably the same colours at the same places.
+ * Since the geometry stopped depending on the value, the gradient stopped
+ * depending on it too — `RING_GRADIENT` is computed once at module scope. That
+ * is not a performance note. It is the change itself, stated as code: a gradient
+ * that cannot take an argument cannot vary between two cards on one grid.
  *
  * The ring is then cut out of that gradient with a radial MASK rather than
  * drawn as a stroked shape, which is what lets the whole thing be one element
@@ -71,7 +78,7 @@ import {
  * the moment a card got narrower than the number somebody typed. The box is
  * `width: 100%` with `aspect-ratio: 1` under a `max-width`, and every radius,
  * inset and label position below is a fraction of it — so the same component is
- * a 240px instrument on a marker page and a 128px one on a card without a
+ * a 300px instrument on a marker page and a 176px one on a card without a
  * second set of measurements to keep in step.
  */
 
@@ -117,8 +124,6 @@ function polar(deg: number, radius: number): { x: number; y: number } {
   return { x: GEO.c + radius * Math.cos(rad), y: GEO.c + radius * Math.sin(rad) };
 }
 
-const clampPct = (v: number) => Math.min(100, Math.max(0, v));
-
 interface ArcGaugeProps {
   /**
    * All three are nullable because the wire is: a qualitative result carries no
@@ -146,7 +151,19 @@ interface ArcGaugeProps {
    * the ring — see the padding on the centre well below.
    */
   children?: ReactNode;
-  /** How wide the gauge may grow. It is fluid below this and square at every width. */
+  /**
+   * How wide the gauge may grow. It is fluid below this and square at every
+   * width, so this is a ceiling rather than a size.
+   *
+   * ── IT WENT UP, AND THE TEXT DID NOT COME DOWN (Aug 2026) ────────────────
+   * The value was overflowing its own ring — "24.6 mIU/L" at the card size was
+   * wrapping its unit onto a second line inside a 148px circle, and the marker
+   * page's 52px hero was filling the interior corner to corner. The instrument
+   * grew round the number rather than the number shrinking to fit it: 240 → 300
+   * on a marker page, 148 → 176 on a card. The value is the thing being read
+   * and the ring is the thing describing it, so when the two disagree about
+   * space it is the ring that gives.
+   */
   maxWidth?: number;
   /**
    * Whether the two reference bounds print their VALUES beside their ticks.
@@ -174,20 +191,19 @@ interface ArcGaugeProps {
 }
 
 /**
- * ── WHAT THE ARC INHERITS FROM THE BAR, UNCHANGED ──────────────────────────
+ * ── WHAT SURVIVES, AND WHAT IT COST ────────────────────────────────────────
  *
- * THE SCALE IS NOT THE REFERENCE RANGE. `rangeBarScale` builds a scale that
- * always contains the value with headroom and always contains the reference
- * range, rounds its ends outward to a ladder somebody would have chosen, and
- * hands back the labels for those ends so nothing here can print a number
- * describing a different scale. A result three times its upper limit is drawn
- * three times out, at its true position on a longer scale, and the two figures
- * in the gap say so. That rule was hard won — see the three live failures
- * recorded at the top of lib/rangeScale.ts — and bending it round a circle
- * changes nothing about it.
+ * THE MARK IS STILL NEVER CLAMPED, and on a fixed ring that takes work rather
+ * than falling out of the geometry: the two outer bands are unbounded in value
+ * and finite in angle, so the placement saturates toward the end of the arc and
+ * never arrives. A mark pinned to the end of an instrument has stopped carrying
+ * information and is indistinguishable from one that legitimately sits there.
  *
- * THE MARK IS NEVER CLAMPED. There is no end to pin it to: the scale is built to
- * contain it.
+ * WHAT IT COST is that distance inside those two outer bands is no longer to
+ * scale — ORDER is preserved, magnitude is compressed. "How far out am I" is
+ * answered by the figure in the middle of the gauge and by the status word
+ * rather than by the geometry. The trade is argued at the top of
+ * lib/rangeScale.ts and pinned by its property test.
  *
  * THE MARK IS NOT A STATUS COLOUR. It is `rangemark` — its job is POSITION, and
  * it rides on a ring made of the status colours, so a mark drawn in its own
@@ -206,13 +222,13 @@ export function ArcGauge({
   optimal = null,
   unit = null,
   children,
-  maxWidth = 240,
+  maxWidth = 300,
   boundLabels = true,
   markPx = 14,
   sweepOnMount = true,
   className = '',
 }: ArcGaugeProps) {
-  const scale = rangeBarScale({ low, high, value, severityThreshold });
+  const placement = gaugePlacement({ low, high, value, severityThreshold });
 
   /**
    * The mark sweeps ALONG THE ARC to its true position once, on mount — a
@@ -239,34 +255,43 @@ export function ArcGauge({
     accessibleLabel(value, low, high, status) +
     (optimalBand ? `. Optimal range ${optimalBand}, ${optimal!.within ? 'within optimal' : 'outside optimal'}` : '');
 
-  if (scale.outOfScale) {
+  if (!placement.drawable) {
     return (
-      <UnavailableGauge reason={scale.undrawable} value={value} low={low} high={high} unit={unit} label={label}>
+      <UnavailableGauge reason={placement.undrawable} value={value} low={low} high={high} unit={unit} label={label}>
         {children}
       </UnavailableGauge>
     );
   }
 
-  const { pct, low: lowN, high: highN, value: valueN } = scale;
-  const boundPct = [clampPct(pct(lowN)), clampPct(pct(highN))];
-  // NOT CLAMPED — see the note above.
-  const markPct = pct(valueN);
-  const restingPct = (boundPct[0] + boundPct[1]) / 2;
-  const markDeg = arcAngle(!sweepOnMount || settled ? markPct : restingPct);
-
-  const ring = ringGradient(scale, lowN, highN, severityThreshold);
+  const { low: lowN, high: highN } = placement;
+  const markPct = placement.at * 100;
+  /**
+   * WHERE THE SWEEP STARTS: the middle of the green, which is the middle of the
+   * ring. It used to be the midpoint of the two reference bounds, which on a
+   * value-mapped ring was a different place on every card; on a fixed ring it is
+   * the same place on every card, which is what makes a grid of them settle
+   * together rather than each from its own starting point.
+   */
+  const markDeg = arcAngle(!sweepOnMount || settled ? markPct : 50);
 
   /**
    * The optimal region as the part of the reference range that is ALSO optimal —
    * a narrowing of in-range drawn as a deepening of the same green, never a
    * second texture. A one-sided band ("below 33") takes the reference bound as
    * its open end, which is what makes it a narrowing rather than a second
-   * opinion. Same reasoning, same token and same intersection as the bar's.
+   * opinion.
+   *
+   * It maps through the IN_RANGE slice rather than through a numeric axis, which
+   * is the same change the mark made: optimal is a narrowing of in-range by
+   * definition, so it belongs inside the green and now cannot be drawn anywhere
+   * else however the value moves.
    */
+  const inRange = GAUGE_SLICES.IN_RANGE;
+  const intoGreen = (v: number) => (inRange[0] + ((v - lowN) / (highN - lowN)) * (inRange[1] - inRange[0])) * 100;
   const optimalFrom = optimal ? Math.max(lowN, optimal.low ?? lowN) : 0;
   const optimalTo = optimal ? Math.min(highN, optimal.high ?? highN) : 0;
-  const optimalA = optimal ? clampPct(pct(optimalFrom)) : 0;
-  const optimalB = optimal ? clampPct(pct(optimalTo)) : 0;
+  const optimalA = optimal ? intoGreen(optimalFrom) : 0;
+  const optimalB = optimal ? intoGreen(optimalTo) : 0;
   const hasOptimal = Boolean(optimal) && optimalB > optimalA;
   // Only an edge that is not already a reference bound gets a hairline: the
   // bound has one of its own, and two rules on one pixel is a heavier line
@@ -275,7 +300,7 @@ export function ArcGauge({
     ? [...(optimalFrom > lowN ? [optimalA] : []), ...(optimalTo < highN ? [optimalB] : [])]
     : [];
 
-  const axis = axisLabels(scale, boundLabels);
+  const axis = axisLabels(placement, boundLabels);
 
   return (
     <div
@@ -292,7 +317,7 @@ export function ArcGauge({
         aria-hidden="true"
         style={{
           inset: `${GEO.c - GEO.outer}%`,
-          background: ring,
+          background: RING_GRADIENT,
           // Feathered by a hair at both edges — a hard stop in a mask is an
           // aliased circle, and this is a curve at every size.
           WebkitMaskImage: RING_MASK,
@@ -316,13 +341,40 @@ export function ArcGauge({
         {optimalEdges.map((at, i) => (
           <line key={`optimal-edge-${i}`} {...radialLine(at)} stroke={chartTokens.referenceEdge} strokeOpacity={chartTokens.referenceEdgeOpacity} strokeWidth={1} vectorEffect="non-scaling-stroke" />
         ))}
-        {/* THE TWO BOUNDARIES THE WHOLE GAUGE TURNS ON, MARKED. Without these
-            the only thing saying where the reference range ends is the colour
-            change, which is exactly what must never be true here. Static ink
-            and not `espresso`, which resolves to a near-white cream in dark and
-            is invisible on a pale green segment. */}
-        {boundPct.map((at, i) => (
-          <line key={`bound-${i}`} {...radialLine(at)} stroke={chartTokens.referenceEdge} strokeOpacity={0.75} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+        {/* THE FOUR BOUNDARIES, MARKED — and they are at fixed angles now, so
+            these hairlines are in the same place on every gauge in the product.
+            Without them the only thing saying where the reference range ends is
+            the colour change, which is exactly what must never be true here.
+
+            TWO WEIGHTS, AND THE DIFFERENCE IS PROVENANCE. The reference bounds
+            are what a LABORATORY stated and are drawn solid; the two
+            significantly-out thresholds are DERIVED here (a multiple of the
+            range's own width, unless the marker sets one) and are drawn at the
+            lighter weight the trend chart already gives them. Drawing a number
+            we computed at the same weight as a number a laboratory reported
+            would be this product lending its own arithmetic the lab's authority.
+
+            Static ink and not `espresso`, which resolves to a near-white cream
+            in dark and is invisible on a pale green segment. */}
+        {[GAUGE_BOUNDARIES.lowThreshold, GAUGE_BOUNDARIES.highThreshold].map((at, i) => (
+          <line
+            key={`threshold-${i}`}
+            {...radialLine(at * 100)}
+            stroke={chartTokens.referenceEdge}
+            strokeOpacity={chartTokens.referenceEdgeOpacity}
+            strokeWidth={1}
+            vectorEffect="non-scaling-stroke"
+          />
+        ))}
+        {[GAUGE_BOUNDARIES.low, GAUGE_BOUNDARIES.high].map((at, i) => (
+          <line
+            key={`bound-${i}`}
+            {...radialLine(at * 100)}
+            stroke={chartTokens.referenceEdge}
+            strokeOpacity={0.75}
+            strokeWidth={1}
+            vectorEffect="non-scaling-stroke"
+          />
         ))}
       </svg>
 
@@ -351,7 +403,13 @@ export function ArcGauge({
 
       {/* THE CENTRE WELL. Padded to roughly the inner circle's inscribed square,
           so a long value wraps inside the ring instead of running under it. */}
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-center" style={{ padding: '24%' }}>
+      {/* THE CENTRE WELL. 22% each side leaves 56% of the box for content, a
+          little wider than the inner circle's inscribed square (47%) — which is
+          deliberate rather than sloppy: a line of text is a horizontal band
+          across the middle, where the circle is at its widest, and the corners
+          of the box the band would overflow are whitespace. Tightening it to
+          the inscribed square costs real room and buys nothing a reader sees. */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-center" style={{ padding: '22%' }}>
         {children}
       </div>
 
@@ -385,15 +443,15 @@ export function ArcGauge({
  * second one.
  *
  * Three differences and no others: it is smaller, its mark is smaller with it,
- * and IT DOES NOT PRINT THE REFERENCE BOUNDS' VALUES. That last one is the only
- * judgement call in here and it is the same call the card bar made — at the
- * width a marker card gives it, four figures round an arc collide, and of the
- * two pairs the SCALE ENDS are the ones that cannot be recovered from anything
- * else on the card. The card prints its reference range in words two lines
- * below; nothing prints the scale but this.
+ * and IT PRINTS NO FIGURES AT ALL. At the width a marker card gives it, two
+ * figures round a 176px arc sit closer to the value in the middle than they do
+ * to the hairlines they name — and unlike the SCALE ENDS the old version
+ * printed, the reference bounds ARE recoverable from the card: it states its
+ * range in words, in figures, two lines below.
  *
- * The bounds keep their TICKS, so the boundary is still marked, still at the
- * middle of its own blend, and still locatable with the colour taken away.
+ * The four boundaries keep their HAIRLINES, so each is still marked, still at
+ * the middle of its own blend, still at the same fixed angle as on every other
+ * gauge in the product, and still locatable with the colour taken away.
  */
 export function MiniArcGauge({
   value,
@@ -403,19 +461,19 @@ export function MiniArcGauge({
   severityThreshold = null,
   children,
 }: Omit<ArcGaugeProps, 'optimal' | 'unit' | 'maxWidth' | 'boundLabels' | 'markPx' | 'sweepOnMount' | 'className'>) {
-  const scale = rangeBarScale({ low, high, value, severityThreshold });
+  const placement = gaugePlacement({ low, high, value, severityThreshold });
   const label = accessibleLabel(value, low, high, status);
 
-  // Said rather than drawn — the same rule as the full gauge, and the same five
+  // Said rather than drawn — the same rule as the full gauge, and the same four
   // reasons. The card's short sentence rather than the long one, and the value
   // still printed above it: a card that drops both the picture and the number
   // is a card with a hole in it.
-  if (scale.outOfScale) {
+  if (!placement.drawable) {
     return (
       <div role="img" aria-label={label}>
         {children}
         <p className={`text-xs leading-snug text-espresso/85 ${children ? 'mt-2' : ''}`}>
-          {RANGE_BAR_UNAVAILABLE[scale.undrawable].short}
+          {RANGE_BAR_UNAVAILABLE[placement.undrawable].short}
         </p>
       </div>
     );
@@ -428,7 +486,7 @@ export function MiniArcGauge({
       high={high}
       status={status}
       severityThreshold={severityThreshold}
-      maxWidth={148}
+      maxWidth={176}
       boundLabels={false}
       markPx={10}
       sweepOnMount={false}
@@ -525,62 +583,46 @@ function accessibleLabel(
 }
 
 /**
- * THE FOUR FIGURES, AND WHICH OF THEM SURVIVE A COLLISION.
+ * THE FIGURES ROUND THE ARC — AND THERE ARE TWO OF THEM NOW, NOT FOUR.
  *
- * The ends say how far the arc reaches — the SCALE, which exists only because
- * the value needed room. The two inner ones are the reference bounds, which are
- * a clinical threshold and the reason anybody is looking.
+ * ── WHAT WAS DROPPED, AND WHY IT WAS RIGHT TO DROP IT (Aug 2026) ──────────
  *
- * WHERE THEY COLLIDE, THE ONE THAT SURVIVES IS THE ONE STILL TRUE OF THE END —
- * the identical rule the bar's axis ran on, and it is not a matter of taste:
+ * The gauge used to print FOUR: the two reference bounds, and the two ends of
+ * the numeric scale it was drawn on. The ends were load-bearing then — the ring
+ * WAS a number line, and "the printed ends are the scale" was the contract that
+ * stopped a value three times its upper limit being drawn against a label
+ * reading "41".
  *
- *  · IDENTICAL TEXT — drop the scale end. A marker whose range starts at zero
- *    on a scale that also starts at zero has two labels reading "0" in the same
- *    place, so dropping one loses nothing. The bound label IS the end.
- *  · DIFFERENT TEXT — drop the BOUND'S NUMBER and keep its tick. A reference
- *    range of 1–1,000,000 draws a scale from 0, which puts the bound "1" at
- *    0.00005% of the arc: dropping the end would leave "1" standing at the foot
- *    of an arc that starts at 0, which is the original bug in miniature. The end
- *    has to be printed, because "the printed ends are the scale" is the whole
- *    contract.
+ * The ring is not a number line any more. Its two ends mean "significantly
+ * below" and "significantly above", which are STATES rather than quantities, and
+ * printing a figure at each end would be labelling a position that no longer
+ * corresponds to it — the exact class of falsehood the four labels existed to
+ * prevent, arrived at from the other side. They are gone.
+ *
+ * ── AND THE TWO THRESHOLDS ARE MARKED BUT NOT NUMBERED ────────────────────
+ *
+ * Where gold meets red is a real boundary and gets a hairline, but the value at
+ * it is DERIVED here — a multiple of the range's own width, unless the marker
+ * carries an explicit one — and printing it beside two figures a laboratory
+ * actually stated would give this product's arithmetic the laboratory's
+ * authority. The state is named in words by the status label instead, which is
+ * what it is.
+ *
+ * So: the two reference bounds, at the two fixed angles where green meets gold.
+ * Same place on every gauge in the product, which is the whole point of the ring
+ * being fixed — and with fixed positions there is no collision case left to
+ * referee, so the rule that used to decide which of two colliding labels
+ * survived has gone with the labels it was about.
  */
 function axisLabels(
-  scale: Extract<Scale, { outOfScale: false }>,
+  placement: Extract<GaugePlacement, { drawable: true }>,
   boundLabels: boolean,
 ): { key: string; at: number; text: string; kind: 'end' | 'bound' }[] {
-  /**
-   * How close two labels may be, as a percentage of the scale, before they are
-   * treated as one. The bar used 14 against a ~200px track; an arc of the same
-   * diameter has roughly π/2 times the run for the same percentage, so the same
-   * figure is comfortably generous here — which is the harmless direction.
-   */
-  const COLLIDE = 14;
-  const bounds = [
-    { at: clampPct(scale.pct(scale.low)), text: formatReferenceBound(scale.low) },
-    { at: clampPct(scale.pct(scale.high)), text: formatReferenceBound(scale.high) },
+  if (!boundLabels) return [];
+  return [
+    { key: 'bound-low', at: GAUGE_BOUNDARIES.low * 100, text: formatReferenceBound(placement.low), kind: 'bound' },
+    { key: 'bound-high', at: GAUGE_BOUNDARIES.high * 100, text: formatReferenceBound(placement.high), kind: 'bound' },
   ];
-  const ends = [
-    { at: 0, text: scale.minLabel },
-    { at: 100, text: scale.maxLabel },
-  ];
-  const collides = (a: { at: number }, b: { at: number }) => Math.abs(a.at - b.at) < COLLIDE;
-
-  const out: { key: string; at: number; text: string; kind: 'end' | 'bound' }[] = [];
-  ends.forEach((end, i) => {
-    // A bound that is not being printed cannot stand in for an end, so the
-    // suppression only applies when the bound labels are actually drawn.
-    if (boundLabels && bounds.some((b) => collides(b, end) && b.text === end.text)) return;
-    out.push({ key: `end-${i}`, at: end.at, text: end.text, kind: 'end' });
-  });
-  if (boundLabels) {
-    bounds.forEach((b, i) => {
-      if (ends.some((end) => collides(b, end) && b.text !== end.text)) return;
-      // Indexed, not keyed by text: two bounds can print the same string, and
-      // two children under one key is a rendering fault rather than a duplicate.
-      out.push({ key: `bound-${i}`, at: b.at, text: b.text, kind: 'bound' });
-    });
-  }
-  return out;
 }
 
 /**
@@ -615,63 +657,83 @@ function arcPath(fromPct: number, toPct: number, radius: number): string {
 }
 
 /**
- * THE WHOLE RING, AS ONE CONIC GRADIENT — the arc's half of the language the
- * bar spoke in a straight line.
+ * THE WHOLE RING, AS ONE CONIC GRADIENT — AND IT IS A CONSTANT.
  *
  * Five flat regions with a blend centred on each of the four boundaries between
- * them, from the one derivation the range bar and the trend chart's own history
- * share (`bandRampStops`). Stops are placed by VALUE and converted through the
- * scale's own `pct`, so the colour at a point on the arc and the figure printed
- * at that point cannot describe two different scales.
+ * them, in the same five fills and the same two hinge colours the trend chart's
+ * own history and both PDFs use. Three things follow from building it as ONE
+ * gradient, and each was a bug the per-segment version could have:
  *
- * A scale percentage becomes a share of the CIRCLE by multiplying by
- * `ARC_SHARE`, and the 90° gap is the remainder, written as a HARD STOP: two
- * stops at the same position do not interpolate, so the arc ends at its own
- * colour and the gap is empty rather than fading through a grey shoulder.
+ *  · THE BOUNDARY IS AT THE MIDDLE OF ITS BLEND, so the hairline that marks it
+ *    runs through the middle of the colour change rather than along the edge of
+ *    one, and a result sitting exactly on a limit is drawn half in each.
+ *  · IT IS ONE ELEMENT, so two neighbouring regions cannot disagree by a
+ *    rounding at the seam and leave a hairline of card showing through.
+ *  · IT IS COMPUTED ONCE, at module scope, because it no longer depends on the
+ *    value. That is not a performance note — it is the whole change, stated as
+ *    code: a gradient that cannot take an argument cannot vary between two cards
+ *    on one grid.
  *
- * Clamped to the arc at both ends: the two outer bands are open-ended, and CSS
- * holds the first and last stop's colour out to the edges, which is exactly the
- * flat red that is wanted there.
+ * ── WHAT THIS REPLACED ────────────────────────────────────────────────────
+ *
+ * It used to be `bandRampStops` placed by VALUE and converted through a numeric
+ * scale — correct, and correct in a way that moved the green. See the note at
+ * the top of lib/rangeScale.ts for the failure; the short version is that a
+ * fixed geometry cannot have it.
+ *
+ * ── THE BLEND WIDTHS ARE CLAMPED PER BOUNDARY, NOT PER BAND ───────────────
+ *
+ * Each boundary takes the smallest of a nominal half-width and HALF THE GAP to
+ * the boundary either side of it. Half the gap is exactly "stop at the midpoint
+ * between two boundaries" — two neighbours each reaching at most halfway can
+ * meet and can never overlap — and taking the SAME figure on both sides is what
+ * keeps a boundary in the middle of its own blend. Clamping per band instead
+ * lets a blend go lopsided, which puts the hairline off-centre in the gradient
+ * it is marking. That is the identical rule `bandRampStops` applies in value
+ * space, applied here in angle space.
  */
-function ringGradient(
-  scale: Extract<Scale, { outOfScale: false }>,
-  low: number,
-  high: number,
-  severityThreshold: number | null | undefined,
-): string {
-  const threshold = severityThresholdFor(low, high, severityThreshold);
-  const halfWidth = ((scale.max - scale.min) * TRANSITION_SHARE) / 2;
-  const all = statusBands(low, high, severityThreshold).flatMap((band) =>
-    bandRampStops(band.status, { low, high, threshold, halfWidth }),
+const RING_GRADIENT = (() => {
+  const [green, olive, gold, orange, red] = (['green', 'olive', 'yellow', 'orange', 'red'] as const).map(
+    (hue) => hueTint[hue].fill,
   );
-
+  const b = GAUGE_BOUNDARIES;
   /**
-   * ONLY THE NEAREST STOP OUTSIDE THE ARC SURVIVES ON EACH SIDE.
-   *
-   * The two outer bands run off to infinity, so several of their stops land past
-   * the ends of the scale and clamp to 0% or 100% — and where two clamp to the
-   * same place, the one that paints the end is whichever the list happened to
-   * leave last. Keeping the nearest gives the colour that is actually true at
-   * that end, and CSS then holds it out to the edge.
+   * How wide a blend would be if nothing bound it, as a fraction of the arc.
+   * Wider than any gap here, so every one of the four is decided by its
+   * neighbours rather than by this — which is the harmless direction: it means
+   * each blend is as wide as it can be without two of them touching.
    */
-  const inside = all.filter((s) => s.value >= scale.min && s.value <= scale.max);
-  const below = all.filter((s) => s.value < scale.min).pop();
-  const above = all.find((s) => s.value > scale.max);
-  const kept = [...(below ? [below] : []), ...inside, ...(above ? [above] : [])];
+  const NOMINAL = 0.2;
+  const edges = [0, b.lowThreshold, b.low, b.high, b.highThreshold, 1];
+  const halfWidth = (i: number) => Math.min(NOMINAL, (edges[i] - edges[i - 1]) / 2, (edges[i + 1] - edges[i]) / 2);
 
-  const stops: { at: number; colour: string }[] = [];
-  for (const stop of kept) {
-    const at = clampPct(scale.pct(stop.value));
-    // Two adjacent bands name the SAME stop at their shared boundary — that is
-    // what makes the fill continuous — so the second copy is dropped rather than
-    // emitted as a zero-length step.
-    const previous = stops[stops.length - 1];
-    if (previous && previous.colour === stop.colour && Math.abs(previous.at - at) < 1e-6) continue;
-    stops.push({ at, colour: stop.colour });
-  }
+  const stops: [number, string][] = [];
+  const at = (position: number, colour: string) => stops.push([position, colour]);
+  // Low to high: flat red, hinge to gold at the threshold, flat gold, hinge to
+  // green at the bound, flat green, and the mirror of all of it on the way out.
+  const w1 = halfWidth(1);
+  const w2 = halfWidth(2);
+  const w3 = halfWidth(3);
+  const w4 = halfWidth(4);
+  at(0, red);
+  at(b.lowThreshold - w1, red);
+  at(b.lowThreshold, orange);
+  at(b.lowThreshold + w1, gold);
+  at(b.low - w2, gold);
+  at(b.low, olive);
+  at(b.low + w2, green);
+  at(b.high - w3, green);
+  at(b.high, olive);
+  at(b.high + w3, gold);
+  at(b.highThreshold - w4, gold);
+  at(b.highThreshold, orange);
+  at(b.highThreshold + w4, red);
+  at(1, red);
 
   const end = (ARC_SHARE * 100).toFixed(3);
-  const last = stops[stops.length - 1]?.colour ?? 'transparent';
-  const body = stops.map((s) => `${s.colour} ${(s.at * ARC_SHARE).toFixed(3)}%`).join(', ');
-  return `conic-gradient(from ${CONIC_FROM_DEG}deg, ${body}, ${last} ${end}%, transparent ${end}%, transparent 100%)`;
-}
+  const body = stops.map(([position, colour]) => `${colour} ${(position * 100 * ARC_SHARE).toFixed(3)}%`).join(', ');
+  // The 90° gap is a HARD STOP rather than a fade: two stops at the same
+  // position do not interpolate, which is what keeps the arc from ending in the
+  // grey shoulder a fade toward `transparent` would take it through.
+  return `conic-gradient(from ${CONIC_FROM_DEG}deg, ${body}, transparent ${end}%, transparent 100%)`;
+})();

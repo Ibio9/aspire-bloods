@@ -1260,18 +1260,59 @@ describe.each(MODES)('%s sidebar panel', (mode) => {
   const sheen = tone(mode, '--c-sheen');
   const panelSheened = blend(sheen, panelOnGlow, PANEL_SHEEN.peak[mode]);
 
+  /**
+   * ── THE MATERIAL IS SHARED; THE COLOUR IS NOT, IN DARK (Aug 2026) ────────
+   *
+   * This used to assert `--c-panel === --c-glass` outright, and the reason was
+   * good: the sidebar had carried espresso at 6%/38% while the control bar
+   * carried the card tone, which is one material in name and two on screen.
+   *
+   * What that unification got right is the MATERIAL — the same blur, the same
+   * saturation, the same specular streak, the same lit edge, the same grain,
+   * and those are still shared and still emitted from one record. What it got
+   * wrong for this one surface is the COLOUR: the card tone is a pale warm
+   * brown, the dark surface scale lifts toward a warm mid-brown, and at 78%
+   * over the page the column resolved to #252220 — a BROWN rail beside a
+   * near-black page, which is precisely the register `nightBase`'s own note
+   * warns against. Dark takes a near-black of its own now.
+   *
+   * Light is unchanged and is still the glass colour, so the assertion is per
+   * theme rather than dropped.
+   */
   it('is the same material as every other translucent surface', () => {
-    // The colour, not just the blur. The sidebar carried espresso at 6% / 38%
-    // while the control bar carried the card tone at 62% / 58% — one material
-    // in name and two on screen, which is what made the column read as a
-    // slightly-tinted piece of page.
-    expect(wash).toBe(tone(mode, '--c-glass'));
+    if (mode === 'light') {
+      expect(wash).toBe(tone(mode, '--c-glass'));
+    } else {
+      // Its own colour, and DARKER than the page rather than lighter — see the
+      // note on `--c-panel`. The material is asserted where it lives: the blur,
+      // the saturation and the sheen are one record shared with `.glass`, and
+      // `e2e/patient-sidebar.spec.ts` reads them off the element.
+      expect(wash).not.toBe(tone(mode, '--c-glass'));
+      expect(luminance(wash), 'the dark sidebar is not below the page').toBeLessThan(luminance(page));
+    }
   });
 
+  /**
+   * ⚠ THE FLOOR IS DIRECTION-AWARE, AND THE ARITHMETIC IS WHY.
+   *
+   * While the panel was LIGHTER than the page there was unlimited room above it
+   * and 1.08:1 was an easy bar. Going the other way there is almost none:
+   * WCAG's ratio is (L₁+0.05)/(L₂+0.05), the dark page's luminance is 0.0055,
+   * so a panel of PURE BLACK — which the palette forbids — would measure
+   * 0.0555/0.05 = 1.11:1 and that is the ceiling for the whole direction.
+   * Asking for 1.08 downward is asking for a panel 3% off black.
+   *
+   * So dark is held at 1.03 and the separation is carried where it always
+   * actually was: `--c-panel-edge` at 3.40:1, asserted below, which the note on
+   * that token already calls "the whole of the separation wherever the glow
+   * does not reach". Do not raise this floor without redoing the arithmetic —
+   * the only way to satisfy it is a black sidebar.
+   */
   it('separates from the page without becoming a card', () => {
     const fromPage = contrastRatio(panelOnPage, page);
     const cardFromPage = contrastRatio(card, page);
-    expect(fromPage, `panel against the page is ${fromPage.toFixed(2)}:1`).toBeGreaterThanOrEqual(1.08);
+    const floor = mode === 'dark' ? 1.03 : 1.08;
+    expect(fromPage, `panel against the page is ${fromPage.toFixed(3)}:1`).toBeGreaterThanOrEqual(floor);
     // Page, then panel, then card. A panel that has climbed past the card is a
     // surface again, and the whole point of a wash is that it is not one.
     expect(fromPage, `panel ${fromPage.toFixed(2)}:1 vs card ${cardFromPage.toFixed(2)}:1`).toBeLessThan(cardFromPage);
@@ -1491,18 +1532,122 @@ describe.each(MODES)('%s ambient sources', (mode) => {
   const card = tone(mode, '--c-cream-50');
 
   /** The two source positions and radii, exactly as globals.css writes them. */
-  const SOURCES = { rx: 0.62, ry: 0.58, a: { x: 0.96, y: 0.01 }, b: { x: 0.2, y: 0.98 } };
+  const SOURCES = { rx: 0.88, ry: 0.8, a: { x: 0.96, y: 0.01 }, b: { x: 0.2, y: 0.98 } };
+
+  /**
+   * The ramp, as multiples of a source's peak — the same nine stops globals.css
+   * writes, restated here so the sampling below is measuring the curve that is
+   * actually painted rather than a linear stand-in for it.
+   */
+  const RAMP: [number, number][] = [
+    [0, 1],
+    [0.09, 0.7],
+    [0.19, 0.4125],
+    [0.3, 0.25],
+    [0.42, 0.1375],
+    [0.55, 0.0675],
+    [0.7, 0.0275],
+    [0.85, 0.0075],
+    [1, 0],
+  ];
+
+  /** A source's alpha at `r` radii from its own centre, interpolated as CSS does. */
+  function rampAt(r: number, peak: number): number {
+    if (r >= 1) return 0;
+    for (let i = 1; i < RAMP.length; i++) {
+      const [x1, y1] = RAMP[i];
+      if (r <= x1) {
+        const [x0, y0] = RAMP[i - 1];
+        const t = x1 === x0 ? 0 : (r - x0) / (x1 - x0);
+        return (y0 + (y1 - y0) * t) * peak;
+      }
+    }
+    return 0;
+  }
 
   const underPrimary = blend(tone(mode, '--c-glow'), page, GLOW.primary[mode]);
   const underSecondary = blend(tone(mode, '--c-glow-2'), page, GLOW.secondary[mode]);
 
-  it('places the two sources far enough apart that no pixel carries both', () => {
-    const dx = (SOURCES.a.x - SOURCES.b.x) / SOURCES.rx;
-    const dy = (SOURCES.a.y - SOURCES.b.y) / SOURCES.ry;
-    const apart = Math.hypot(dx, dy);
-    // Each ramp reaches zero at one radius, so anything over 2 means the two
-    // never overlap at any strength.
-    expect(apart, `the sources are ${apart.toFixed(2)} radii apart`).toBeGreaterThan(2);
+  /**
+   * ═════════════════════════════════════════════════════════════════════════
+   *  THE WHOLE VIEWPORT, SAMPLED — WHICH REPLACED "CHECK EACH CORNER".
+   * ═════════════════════════════════════════════════════════════════════════
+   *
+   * The sources used to be 2.07 radii apart, so at every point at least one had
+   * already reached zero and no pixel carried both. That was the entire
+   * justification for measuring the two cores separately, and it stopped being
+   * true the moment they were enlarged to 88% × 80% (1.49 radii apart now).
+   *
+   * So the measurement changed rather than the claim being quietly dropped: the
+   * viewport is sampled on a grid, BOTH ramps are composited at every point in
+   * paint order, and the worst ground found anywhere is what the floors are
+   * asserted against. It is a strictly stronger check than the corners were —
+   * the corners are two of the points it visits — and, unlike them, it survives
+   * somebody making these bigger again, moving one, or adding a third.
+   *
+   * The vignette is deliberately NOT composited in. It only ever darkens, and in
+   * dark mode darkening the ground moves the contrast of light text the SAFE
+   * way; including it would flatter every number here.
+   */
+  const worstGround = (() => {
+    const g1 = tone(mode, '--c-glow');
+    const g2 = tone(mode, '--c-glow-2');
+    let worst = page;
+    let worstRatio = Infinity;
+    let at = { x: 0, y: 0 };
+    const STEPS = 60;
+    for (let i = 0; i <= STEPS; i++) {
+      for (let j = 0; j <= STEPS; j++) {
+        const x = i / STEPS;
+        const y = j / STEPS;
+        const a1 = rampAt(Math.hypot((x - SOURCES.a.x) / SOURCES.rx, (y - SOURCES.a.y) / SOURCES.ry), GLOW.primary[mode]);
+        const a2 = rampAt(Math.hypot((x - SOURCES.b.x) / SOURCES.rx, (y - SOURCES.b.y) / SOURCES.ry), GLOW.secondary[mode]);
+        // Paint order: the key is the first gradient in the stack, the fill the
+        // second, so the fill composites over the key over the page.
+        const ground = blend(g2, blend(g1, page, a1), a2);
+        // "Worst" is decided on BODY COPY, which is the token with the least
+        // room and the one every other floor is a fraction of.
+        const r = contrastRatio(tone(mode, '--c-espresso'), ground);
+        if (r < worstRatio) {
+          worstRatio = r;
+          worst = ground;
+          at = { x, y };
+        }
+      }
+    }
+    return { ground: worst, ratio: worstRatio, at };
+  })();
+
+  it('reports where on the page the two sources bite hardest', () => {
+    // eslint-disable-next-line no-console
+    console.log(
+      `  ${mode}: worst ground ${worstGround.ground} at ${(worstGround.at.x * 100).toFixed(0)}%,` +
+        `${(worstGround.at.y * 100).toFixed(0)}% — body copy ${worstGround.ratio.toFixed(2)}:1` +
+        ` (bare page ${contrastRatio(tone(mode, '--c-espresso'), page).toFixed(2)}:1)`,
+    );
+    // The sampler has to actually find the light. If the worst point it can find
+    // is the bare page, every ramp resolved to zero and this whole block is
+    // measuring nothing — which is exactly how a broken custom property would
+    // look from in here.
+    expect(worstGround.ground, 'the sampler never found either source').not.toBe(page);
+  });
+
+  it('leaves every text token above its floor at the worst point on the page', () => {
+    const body = contrastRatio(tone(mode, '--c-espresso'), worstGround.ground);
+    expect(body, `body copy at the worst point in ${mode} is ${body.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+      WCAG_AA_TEXT,
+    );
+    for (const token of ['--c-bronze', '--c-taupe-900']) {
+      const r = contrastRatio(tone(mode, token), worstGround.ground);
+      expect(r, `${token} at the worst point in ${mode} is ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+        WCAG_AA_LARGE_TEXT,
+      );
+    }
+  });
+
+  it('still lets a card separate from the page at the worst point', () => {
+    const r = contrastRatio(card, worstGround.ground);
+    expect(r, `a card at the worst point in ${mode} is ${r.toFixed(2)}:1 off the page`).toBeGreaterThan(1.05);
   });
 
   it('is a second source rather than more of the first', () => {
@@ -1632,9 +1777,31 @@ describe.each(MODES)('%s page-surface pane', (mode) => {
     expect(shift, `the pane tint moved the glass colour by ${shift.toFixed(3)}:1`).toBeLessThan(1.2);
   });
 
+  /**
+   * ── THE FILL IS NO LONGER WHAT SEPARATES A PANE (Aug 2026) ───────────────
+   *
+   * The alpha came down from 0.68/0.62 to 0.46/0.42 so more of the ambient
+   * light reaches through, and the flat body consequently sits much closer to
+   * the page — 1.03:1 in light, where the floor used to be 1.05.
+   *
+   * That is not the fill failing, it is the fill being asked to do less. What a
+   * reader sees is the pane WITH its specular streak and its lit edge on it,
+   * and those are what the separation is measured on now. It is a truer
+   * measurement either way: the streak is drawn over the wash and under the
+   * content on every pane in the product, so a check that ignored it was
+   * measuring a surface nobody is looking at.
+   */
   it('is a surface rather than a tint of the page', () => {
-    const r = contrastRatio(paneOnPage, page);
-    expect(r, `the pane is ${r.toFixed(2)}:1 off the page`).toBeGreaterThan(1.05);
+    const streaked = blend(tone(mode, '--c-glass-edge'), paneOnPage, GLASS.sheen.peak[mode]);
+    const flat = contrastRatio(paneOnPage, page);
+    const lit = contrastRatio(streaked, page);
+    expect(
+      lit,
+      `the pane is ${lit.toFixed(3)}:1 off the page with its streak (${flat.toFixed(3)}:1 without)`,
+    ).toBeGreaterThan(1.05);
+    // And the fill is still pulling in the right direction rather than being
+    // decorative — a pane identical to the page is one somebody set to zero.
+    expect(flat, `the pane's own fill is ${flat.toFixed(3)}:1 off the page`).toBeGreaterThan(1.01);
   });
 
   it('stays below a card, because a container must not out-read its contents', () => {
@@ -1643,13 +1810,35 @@ describe.each(MODES)('%s page-surface pane', (mode) => {
     );
   });
 
-  it('sits between the sidebar and the control bar, which is what its alpha is for', () => {
-    // The three surfaces differ only in what is BEHIND them: the sidebar has the
-    // page and the light, the control bar has the reader's own results moving
-    // under it, and a pane has other cards and headings. Ordered here, so a
-    // change to one that crossed another fails rather than being noticed later.
-    expect(GLASS.panel[mode]).toBeLessThan(PANEL_WASH_ALPHA[mode]);
-    expect(GLASS.panel[mode]).toBeGreaterThan(GLASS.wash[mode]);
+  /**
+   * ── AND THE ORDER OF THE THREE ALPHAS INVERTED (Aug 2026) ────────────────
+   *
+   * A pane used to be the most OPAQUE of the three translucent surfaces, on the
+   * reasoning that it has cards and headings behind it — more structure than the
+   * sidebar has to diffuse, less than the pinned control bar does.
+   *
+   * It is the most TRANSPARENT of the three now, and the reasoning is the same
+   * one read the other way round. What each surface has behind it decides how
+   * much it must OBSCURE, and the answers are not ordered by how much structure
+   * is back there — they are ordered by how much of it would be a problem:
+   *
+   *   control bar  0.62 / 0.58  the reader's own results scroll under it, and
+   *                             body copy legible through a pinned bar is the
+   *                             one thing this material exists to prevent.
+   *   sidebar      0.75 / 0.68  navigation, which must not be read through the
+   *                             page it navigates.
+   *   a pane       0.46 / 0.42  nothing moves under it, and it covers more of
+   *                             the viewport than either — so it is the surface
+   *                             with the most ambient light to transmit and the
+   *                             least reason to stop any of it.
+   *
+   * The ordering is still asserted, so a change to one that crossed another
+   * fails here rather than being noticed on a screenshot; what changed is which
+   * way round it goes and, more usefully, why.
+   */
+  it('transmits more than the sidebar or the control bar, which is what its alpha is for', () => {
+    expect(GLASS.panel[mode]).toBeLessThan(GLASS.wash[mode]);
+    expect(GLASS.wash[mode]).toBeLessThan(PANEL_WASH_ALPHA[mode]);
   });
 
   it('keeps every label on it at AA, streak and all', () => {
@@ -1713,7 +1902,41 @@ describe.each(MODES)('%s page-surface pane', (mode) => {
    * measured on, silently. Asserted as an inequality rather than trusted to the
    * comment above it.
    */
-  it('is not the surface the clinical palettes were solved against', () => {
+  /**
+   * ⚠ THE ONE PLACE A PANE MAY NOT GO, PINNED AS A NUMBER RATHER THAN A RULE.
+   *
+   * Glass is the DEFAULT surface now (see Card.tsx), so "a chart never sits on a
+   * pane" is an exception somebody has to keep, and an exception kept by comment
+   * is one that gets deleted by whoever tidies next. This is the measurement it
+   * rests on.
+   *
+   * The trend line's five status colours are solved at `LINE_FILL_TARGET` —
+   * 4.5:1 — against `--c-cream-50`, the card. Measured on a pane, in light, at
+   * the pane's own alpha: 4.53–4.82:1 on a card becomes 3.73:1, and 3.44:1 on a
+   * pane sitting under the key light. That is the CLINICAL palette failing its
+   * own solve because a decorative surface moved out from under it.
+   *
+   * ── AND THIS TEST RETIRES ITSELF ─────────────────────────────────────────
+   * It asserts the exception is still NEEDED. If the line palette is ever
+   * re-solved so that every hue clears the target on a lit pane, this fails —
+   * and the right response is to delete the `surface="card"` on the two chart
+   * cards and then delete this, with evidence rather than by taste.
+   */
+  it('is not a surface the trend line was ever solved against', () => {
     expect(paneOnPage).not.toBe(card);
+    if (mode !== 'light') return;
+    const worst = (['green', 'olive', 'yellow', 'orange', 'red'] as const)
+      .map((hue) => contrastRatio(tone(mode, `--c-hue-${hue}-mark`), paneOnLit))
+      .reduce((a, b) => Math.min(a, b));
+    const onCard = (['green', 'olive', 'yellow', 'orange', 'red'] as const)
+      .map((hue) => contrastRatio(tone(mode, `--c-hue-${hue}-mark`), card))
+      .reduce((a, b) => Math.min(a, b));
+    expect(onCard, `the line does not clear its own target on a card: ${onCard.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+      4.5,
+    );
+    expect(
+      worst,
+      `the trend line now clears ${worst.toFixed(2)}:1 on a lit pane — the chart cards no longer need surface="card"`,
+    ).toBeLessThan(4.5);
   });
 });

@@ -95,7 +95,7 @@ function LibraryCard({ entry }: { entry: LibraryEntry }) {
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
           aria-controls={panelId}
-          className="flex w-full items-start justify-between gap-4 rounded-card p-5 text-left transition-colors duration-150 ease-out hover:bg-cream-100 sm:p-6"
+          className="flex w-full items-start justify-between gap-4 rounded-card p-5 text-left transition-colors duration-150 ease-out hover:bg-cream-100/50 sm:p-6"
         >
           <span className="min-w-0">
             <span className="block font-display opsz-small text-lg leading-tight text-espresso sm:text-xl">{entry.name}</span>
@@ -119,7 +119,7 @@ function LibraryCard({ entry }: { entry: LibraryEntry }) {
         // Only the opened panel takes it — the closed row is a list item, and a
         // wall of four hundred vellum bars is a texture rather than a signal.
         // `rounded-b-card` because it is the foot of the card it sits in.
-        <div id={panelId} className="card-vellum rounded-b-card border-t border-taupe px-5 pb-6 pt-5 sm:px-6">
+        <div id={panelId} className="card-glass glass-vellum rounded-b-card border-t border-taupe px-5 pb-6 pt-5 sm:px-6">
           {/* One presentation for every entry. Whether a clinician has yet
               signed the wording off is recorded server-side and shown in the
               admin review queue; it changes nothing here, on purpose. */}

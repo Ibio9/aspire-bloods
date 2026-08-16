@@ -1,31 +1,39 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { ArcGauge, MiniArcGauge } from './ArcGauge';
+import { GAUGE_BOUNDARIES } from '../../lib/rangeScale';
 
 /**
  * =============================================================================
  *  THE ARC GAUGE, ON THE NUMBERS THE RANGE BAR WAS REPORTED WITH.
  * =============================================================================
  *
- * 3.4 against a lab reference range of 3.8–5.8. The scale derivation was right
- * and had been for some time — it draws 2 to 8 with the mark at 23% and the
- * range from 30% to 63% — and the CARD was still wrong, because it PRINTED
- * NOTHING. The only figures anywhere near the picture were the card's own "Lab
- * reference range 3.8–5.8" two lines below, so the drawing read as though it ran
- * from 3.8 to 5.8 and the mark inside its coloured track read as a value inside
- * the range. It is below the entire range.
+ * 3.4 against a lab reference range of 3.8–5.8 — a value BELOW its entire range.
+ * The instrument has been rebuilt twice around it and the assertions have
+ * changed both times, so it is worth being clear which claim is being tested
+ * now and which one it replaced.
  *
- * ── WHY THIS FILE SURVIVED THE CHANGE OF SHAPE (Aug 2026) ──────────────────
+ *   THE BAR       drew a scale, and the bug was that it PRINTED NOTHING: the
+ *                 only figures near the picture were the card's own "Lab
+ *                 reference range 3.8–5.8" two lines below, so the mark inside a
+ *                 coloured track read as a value inside the range.
+ *   THE ARC       drew the same scale bent round, printed its ends, and
+ *                 introduced a bug a straight bar cannot have — THE GREEN MOVED.
+ *                 An above-range value slid the in-range arc toward the start of
+ *                 the ring and a below-range value slid it toward the end, so
+ *                 two cards side by side showed the reference zone in two
+ *                 different places.
+ *   NOW           the ring is FIXED and symmetric. Green central, gold flanking,
+ *                 red at both ends, identical on every gauge in the product. The
+ *                 mark is placed by WHICH BAND the value is in and where inside
+ *                 it, so the colour under the mark always agrees with the word
+ *                 beside it.
  *
- * The bar became an arc. Every assertion here is about the CLAIM the instrument
- * makes rather than about the shape it makes it in — that the printed figures
- * are the scale that was actually drawn, that they contain the reference range
- * and the value, and that the mark sits at the value's true position on THAT
- * scale — so all of them are still the right assertions and none of them was
- * deleted. What changed is the coordinate they are read in: a `left:` percentage
- * became a rotation in degrees, and the two reference-bound hairlines became two
- * radial SVG lines. The arithmetic converting one to the other is written out
- * below so a failure says which of the two is wrong.
+ * The geometry is asserted in `lib/rangeScale.property.test.ts` over ~5,000
+ * generated inputs. What is asserted HERE is what the component renders from it:
+ * that the ring really is a constant, that the mark's rotation matches the
+ * placement, that the four hairlines are drawn at the four fixed angles, and
+ * that a refusal never swallows the reader's own value.
  *
  * Rendered through `react-dom/server` rather than a DOM: the positions are all
  * inline styles and SVG attributes and the labels are all text, so static markup
@@ -40,189 +48,224 @@ const ARC_START_DEG = 135;
 const ARC_SWEEP_DEG = 270;
 
 /**
- * The mark's position, recovered from its wrapper's rotation.
+ * The mark's position along the arc, 0–1, recovered from its wrapper's rotation.
  *
- * The wrapper is rotated by `screenAngle + 90` — the mark sits at the wrapper's
- * twelve o'clock, and twelve o'clock is −90° in screen degrees — so undoing that
- * and then the arc's own start and sweep gives back the percentage along the
- * scale. If this ever disagrees with the component, one of the two is wrong and
- * that is the point of writing it out rather than reading a percentage off an
- * attribute.
+ * The wrapper is rotated by `screenAngle + 90` — the mark sits at its twelve
+ * o'clock, and twelve o'clock is −90° in screen degrees — so undoing that and
+ * then the arc's own start and sweep gives back the fraction. Written out rather
+ * than read off an attribute so that if this and the component ever disagree,
+ * one of the two is wrong and the failure says which.
  */
-function markPctFrom(html: string): number {
+function markAt(html: string): number {
   const m = html.match(/rotate\(([-\d.]+)deg\)/);
   expect(m, 'the gauge did not render a rotated mark').not.toBeNull();
-  const screenDeg = Number(m![1]) - 90;
-  return ((screenDeg - ARC_START_DEG) / ARC_SWEEP_DEG) * 100;
+  return (Number(m![1]) - 90 - ARC_START_DEG) / ARC_SWEEP_DEG;
 }
 
 /**
- * The two reference-bound hairlines, as percentages along the scale.
+ * Every hairline crossing the ring, as fractions along the arc, sorted.
  *
- * They are radial lines, so their angle is recoverable from either endpoint
- * against the centre (50, 50) in the SVG's 0–100 user space. Read off the OUTER
- * endpoint (x2/y2), which sits on the ring's outer radius.
- *
- * MATCHED ON THE MARKUP AND NOT ON A COLOUR. The bar's version of this used to
- * name `bg-espresso/60`, so when the track went light in both themes and the
- * ticks had to move off `espresso` — which resolves to a near-white cream in
- * dark and is invisible on a pale green segment — it matched nothing and
- * reported "0 bounds" rather than "the tick changed colour". A geometric test
- * must not be pinned to a colour it is not about.
+ * They are radial lines, so the angle is recoverable from the outer endpoint
+ * against the centre (50, 50) in the SVG's 0–100 user space. MATCHED ON THE
+ * MARKUP AND NOT ON A COLOUR: the bar's version of this used to name a Tailwind
+ * class, so when the ticks had to change colour it matched nothing and reported
+ * "0 bounds found" rather than "the tick changed colour".
  */
-function boundPctsFrom(html: string): number[] {
+function hairlines(html: string): number[] {
   const lines = [...html.matchAll(/<line\b[^>]*\bx2="([-\d.]+)"[^>]*\by2="([-\d.]+)"[^>]*>/g)];
-  return lines.map(([, xs, ys]) => {
-    const x = Number(xs) - 50;
-    const y = Number(ys) - 50;
-    let deg = (Math.atan2(y, x) * 180) / Math.PI;
-    // atan2 returns (−180, 180]; the arc runs 135° → 405°, so the second half of
-    // it comes back negative and has to be brought back onto the arc's own turn.
-    if (deg < ARC_START_DEG) deg += 360;
-    return ((deg - ARC_START_DEG) / ARC_SWEEP_DEG) * 100;
-  });
+  return lines
+    .map(([, xs, ys]) => {
+      let deg = (Math.atan2(Number(ys) - 50, Number(xs) - 50) * 180) / Math.PI;
+      // atan2 returns (−180, 180]; the arc runs 135° → 405°, so its second half
+      // comes back negative and has to be brought onto the arc's own turn.
+      if (deg < ARC_START_DEG) deg += 360;
+      return (deg - ARC_START_DEG) / ARC_SWEEP_DEG;
+    })
+    .sort((a, b) => a - b);
 }
 
-/**
- * Every figure the gauge prints, in document order.
- *
- * `<span[^>]*class=` rather than `<span class=`: React emits `aria-hidden`
- * before `class` on these, and a regex that insists on the class coming first
- * matches nothing and reports "the gauge printed no figures" — which is the same
- * failure text as the bug this whole file exists to catch.
- */
+/** Every figure the gauge prints, in document order. */
 function printedNumbers(html: string): string[] {
   return [...html.matchAll(/<span[^>]*\bclass="numeric[^"]*"[^>]*>([^<]*)<\/span>/g)].map((m) => m[1]);
 }
 
 /** The conic gradient the ring is painted with. */
 function ringGradientFrom(html: string): string {
-  const m = html.match(/conic-gradient\(([^;"]*)\)/);
+  const m = html.match(/conic-gradient\([^;"]*\)/);
   expect(m, 'the gauge did not paint a conic ring').not.toBeNull();
   return m![0];
 }
 
-describe('MiniArcGauge — the card gauge, 3.4 against 3.8–5.8', () => {
-  const html = renderToStaticMarkup(<MiniArcGauge {...REPORTED} status="LOW" />);
-  const printed = printedNumbers(html);
-  const bounds = boundPctsFrom(html);
-  const markAt = markPctFrom(html);
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  THE RING IS THE SAME PICTURE ON EVERY GAUGE. This is the whole change.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+describe('the ring', () => {
+  const cases = [
+    { what: 'a value below its range', props: { value: 3.4, low: 3.8, high: 5.8 }, status: 'LOW' as const },
+    { what: 'three times the upper limit', props: { value: 122, low: 0, high: 41 }, status: 'SIGNIFICANT_HIGH' as const },
+    { what: 'well below the lower limit', props: { value: 65, low: 125, high: 375 }, status: 'LOW' as const },
+    { what: 'squarely in range', props: { value: 4.8, low: 3.8, high: 5.8 }, status: 'IN_RANGE' as const },
+    { what: 'a range spanning six orders of magnitude', props: { value: 5, low: 1, high: 1_000_000 }, status: 'IN_RANGE' as const },
+  ];
 
-  it('prints the ends of the scale it actually drew, and they are not the reference bounds', () => {
-    expect(printed).toHaveLength(2);
-    expect(printed).not.toContain('3.8');
-    expect(printed).not.toContain('5.8');
-  });
+  const gradients = cases.map((c) => ringGradientFrom(renderToStaticMarkup(<ArcGauge {...c.props} status={c.status} />)));
 
-  it('prints ends that contain the reference range rather than being it', () => {
-    const [minLabel, maxLabel] = printed.map(Number);
-    expect(minLabel).toBeLessThan(3.8);
-    expect(maxLabel).toBeGreaterThan(5.8);
-    // And the value, which is the whole reason the scale is wider than the range.
-    expect(minLabel).toBeLessThan(3.4);
-  });
-
-  it('draws the mark before the in-range arc rather than inside it', () => {
-    expect(bounds).toHaveLength(2);
-    const [inRangeFrom, inRangeTo] = bounds;
-    expect(markAt).toBeLessThan(inRangeFrom);
-    expect(inRangeFrom).toBeLessThan(inRangeTo);
-  });
-
-  it('places the mark at the value’s true position on the scale it printed', () => {
-    const [minLabel, maxLabel] = printed.map(Number);
-    expect(markAt).toBeCloseTo(((3.4 - minLabel) / (maxLabel - minLabel)) * 100, 6);
-  });
-
-  it('does not sweep on mount — a grid of 165 of these is not an animation', () => {
-    // The card gauge renders AT its value rather than at the middle of the band,
-    // which is what the assertion above is measuring; stated separately because
-    // the two would fail for very different reasons.
-    expect(html).not.toContain('transition-transform');
-  });
-
-  it('names the result, the range and the status for a screen reader', () => {
-    expect(html).toContain('aria-label="Result 3.4, reference range 3.8–5.8, status: Below range"');
-  });
-});
-
-describe('the arc itself', () => {
-  const html = renderToStaticMarkup(<ArcGauge {...REPORTED} status="LOW" unit="mmol/L" />);
-  const gradient = ringGradientFrom(html);
-
-  it('sweeps three quarters of a turn and leaves the last quarter empty', () => {
-    // Everything the scale paints is inside 75% of the circle, and the gap is a
-    // HARD stop rather than a fade — two stops at the same position do not
-    // interpolate, which is what keeps the arc from ending in a grey shoulder.
-    expect(gradient).toContain('75.000%, transparent 75.000%');
-    expect(gradient).toContain('transparent 100%');
-    const stops = [...gradient.matchAll(/\s([\d.]+)%/g)].map((m) => Number(m[1]));
-    for (const at of stops) expect(at).toBeLessThanOrEqual(100);
-    expect(stops.filter((s) => s < 75).length, 'the ramp painted no stops inside the arc').toBeGreaterThan(2);
-  });
-
-  it('starts at the lower left, so low is the first thing on the arc', () => {
-    // 225° from twelve o'clock, clockwise, is the lower-left corner. The whole
-    // reading order of the instrument depends on this one number.
-    expect(gradient).toContain('conic-gradient(from 225deg');
-  });
-
-  it('carries the five band fills rather than a colour of its own', () => {
-    // The ramp comes from `bandRampStops`, so every stop is one of the five hue
-    // fills — the same tokens the trend chart's own history and both PDFs use.
-    // A literal hex here would mean somebody had reinvented the palette.
-    expect(gradient).not.toMatch(/#[0-9a-f]{3,8}/i);
-    expect(gradient).toMatch(/var\(--c-hue-\w+-fill\)/);
-  });
-});
-
-describe('ArcGauge — the full gauge, on the same numbers', () => {
-  const html = renderToStaticMarkup(<ArcGauge {...REPORTED} status="LOW" unit="mmol/L" />);
-  const printed = printedNumbers(html);
-  const bounds = boundPctsFrom(html);
-
-  it('prints four figures: the two scale ends and the two reference bounds within them', () => {
-    expect(printed).toContain('3.8');
-    expect(printed).toContain('5.8');
-    const ends = printed.filter((p) => p !== '3.8' && p !== '5.8').map(Number);
-    expect(ends).toHaveLength(2);
-    expect(Math.min(...ends)).toBeLessThan(3.4);
-    expect(Math.max(...ends)).toBeGreaterThan(5.8);
-  });
-
-  it('marks the reference bounds inside the arc rather than at its ends', () => {
-    expect(bounds).toHaveLength(2);
-    for (const at of bounds) {
-      expect(at).toBeGreaterThan(0);
-      expect(at).toBeLessThan(100);
+  it('paints byte-identically whatever the value is doing', () => {
+    // Not "similar", not "the same stops in the same order" — identical strings.
+    // A gauge whose ring is a function of its value is the bug this replaced,
+    // and a weaker assertion would pass a version that had crept back toward it.
+    for (let i = 1; i < gradients.length; i++) {
+      expect(gradients[i], `${cases[i].what} painted a different ring from ${cases[0].what}`).toBe(gradients[0]);
     }
   });
 
-  it('sweeps to position on mount, from the middle of the reference band', () => {
-    // Server markup is the pre-mount frame, which is the resting position: the
-    // midpoint of the two bounds. The effect then moves it, and the transition
-    // is on `transform` so the path it takes is the arc rather than a chord
-    // straight through the middle of the gauge.
-    expect(html).toContain('transition-transform');
-    const [from, to] = bounds;
-    const at = markPctFrom(html);
-    expect(at).toBeCloseTo((from + to) / 2, 6);
+  it('sweeps three quarters of a turn from the lower left, and leaves the last quarter empty', () => {
+    // 225° from twelve o'clock, clockwise, is the lower-left corner. The whole
+    // reading order of the instrument rests on this one number.
+    expect(gradients[0]).toContain('conic-gradient(from 225deg');
+    // The gap is a HARD stop rather than a fade — two stops at the same position
+    // do not interpolate, which is what keeps the arc from ending in the grey
+    // shoulder a fade toward `transparent` would take it through.
+    expect(gradients[0]).toContain('75.000%, transparent 75.000%');
+    expect(gradients[0]).toContain('transparent 100%');
   });
 
-  it('names each reason in words instead of drawing, and prints only the figures that exist', () => {
-    const noValue = renderToStaticMarkup(<ArcGauge value={null} low={3.8} high={5.8} status="LOW" unit="mmol/L" />);
-    expect(noValue).toContain('no numeric value');
-    expect(noValue).toContain('3.8–5.8 mmol/L');
-    expect(noValue).not.toContain('NaN');
+  it('puts green in the centre, gold either side of it and red at both ends', () => {
+    const stops = [...gradients[0].matchAll(/var\(--c-hue-(\w+)-fill\)\)\s+([\d.]+)%/g)].map((m) => ({
+      hue: m[1],
+      at: Number(m[2]) / 75, // conic percent back to a fraction of the arc
+    }));
+    expect(stops.length, 'the ring painted no band fills at all').toBeGreaterThan(8);
+    const first = stops[0];
+    const last = stops[stops.length - 1];
+    expect(first.hue, 'the arc does not start in red').toBe('red');
+    expect(last.hue, 'the arc does not end in red').toBe('red');
+    // The middle of the arc is green, and it is green symmetrically.
+    const green = stops.filter((s) => s.hue === 'green').map((s) => s.at);
+    expect(green.length, 'there is no green on the ring').toBeGreaterThan(0);
+    expect(Math.min(...green)).toBeLessThan(0.5);
+    expect(Math.max(...green)).toBeGreaterThan(0.5);
+    expect(Math.min(...green) + Math.max(...green), 'the green is not centred').toBeCloseTo(1, 6);
+    // Gold flanks it on both sides.
+    const gold = stops.filter((s) => s.hue === 'yellow').map((s) => s.at);
+    expect(gold.some((a) => a < Math.min(...green)), 'no gold below the green').toBe(true);
+    expect(gold.some((a) => a > Math.max(...green)), 'no gold above the green').toBe(true);
+  });
 
-    const noRange = renderToStaticMarkup(<ArcGauge value={3.4} low={null} high={null} status="LOW" unit="mmol/L" />);
-    expect(noRange).toContain('no two-sided reference range');
-    expect(noRange).toContain('3.4 mmol/L');
-    expect(noRange).not.toContain('–');
+  it('carries the five band fills rather than a colour of its own', () => {
+    // A literal hex here would mean somebody had reinvented the palette rather
+    // than reaching for the tokens the trend chart and both PDFs already use.
+    expect(gradients[0]).not.toMatch(/#[0-9a-f]{3,8}/i);
+    expect(gradients[0]).toMatch(/var\(--c-hue-\w+-fill\)/);
   });
 });
 
-describe('MiniArcGauge — what it does with what it cannot draw', () => {
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  THE MARK IS IN THE BAND ITS OWN STATUS NAMES.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+describe('the mark', () => {
+  it('draws a below-range result in the low gold, left of the green', () => {
+    const at = markAt(renderToStaticMarkup(<MiniArcGauge {...REPORTED} status="LOW" />));
+    expect(at).toBeGreaterThan(GAUGE_BOUNDARIES.lowThreshold);
+    expect(at).toBeLessThan(GAUGE_BOUNDARIES.low);
+  });
+
+  it('draws three times the upper limit in the right-hand red, and not at the end of the arc', () => {
+    const at = markAt(renderToStaticMarkup(<MiniArcGauge value={122} low={0} high={41} status="SIGNIFICANT_HIGH" />));
+    expect(at).toBeGreaterThan(GAUGE_BOUNDARIES.highThreshold);
+    // NEVER CLAMPED. The outer bands are unbounded in value and finite in angle,
+    // so the placement saturates toward the end and never arrives — a mark
+    // pinned to the end has stopped carrying information.
+    expect(at).toBeLessThan(1);
+  });
+
+  /**
+   * ⚠ THE THRESHOLD IS EXPLICIT HERE ON PURPOSE. 65 against 125–375 is LOW and
+   * not significantly low: the default severity threshold is 1.5× the range's
+   * own WIDTH, which for a 250-wide range is 375, so significantly-low does not
+   * begin until −250. That surprised this test into being written wrongly first
+   * time, which is exactly the kind of thing a marker's own `severityThreshold`
+   * exists to correct — so this passes one, as a real marker with a narrow band
+   * would.
+   */
+  it('draws a value below its entire range in the left-hand red', () => {
+    const at = markAt(
+      renderToStaticMarkup(
+        <MiniArcGauge value={65} low={125} high={375} severityThreshold={30} status="SIGNIFICANT_LOW" />,
+      ),
+    );
+    expect(at).toBeLessThan(GAUGE_BOUNDARIES.lowThreshold);
+    expect(at).toBeGreaterThan(0);
+  });
+
+  it('draws the middle of the range at the middle of the arc', () => {
+    const at = markAt(renderToStaticMarkup(<MiniArcGauge value={4.8} low={3.8} high={5.8} status="IN_RANGE" />));
+    expect(at).toBeCloseTo(0.5, 6);
+  });
+
+  it('does not sweep on a card — a grid of 165 of these is not an animation', () => {
+    const html = renderToStaticMarkup(<MiniArcGauge {...REPORTED} status="LOW" />);
+    expect(html).not.toContain('transition-transform');
+  });
+
+  it('sweeps from the centre of the green on the full gauge', () => {
+    // Server markup is the pre-mount frame. It rests at the middle of the ring
+    // rather than at the midpoint of two bounds, which on a fixed ring is the
+    // same place on every card — so a grid of them settles together.
+    const html = renderToStaticMarkup(<ArcGauge {...REPORTED} status="LOW" unit="mmol/L" />);
+    expect(html).toContain('transition-transform');
+    expect(markAt(html)).toBeCloseTo(0.5, 6);
+  });
+});
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  THE HAIRLINES, AND THE TWO FIGURES THAT SURVIVED.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+describe('the boundaries', () => {
+  const html = renderToStaticMarkup(<ArcGauge {...REPORTED} status="LOW" unit="mmol/L" />);
+
+  it('marks all four boundaries, at the four fixed angles', () => {
+    expect(hairlines(html)).toEqual([
+      expect.closeTo(GAUGE_BOUNDARIES.lowThreshold, 6),
+      expect.closeTo(GAUGE_BOUNDARIES.low, 6),
+      expect.closeTo(GAUGE_BOUNDARIES.high, 6),
+      expect.closeTo(GAUGE_BOUNDARIES.highThreshold, 6),
+    ]);
+  });
+
+  /**
+   * TWO FIGURES, NOT FOUR. The two ends of the arc used to be printed because the
+   * ring WAS a number line; they now mean "significantly below" and
+   * "significantly above", which are states rather than quantities, so a figure
+   * at each end would label a position that no longer corresponds to it.
+   */
+  it('prints the two reference bounds and nothing else', () => {
+    expect(printedNumbers(html)).toEqual(['3.8', '5.8']);
+  });
+
+  it('prints no figures at all on a card', () => {
+    // The card states its reference range in words two lines below, and two
+    // figures round a 176px arc sit closer to the value in the middle than to
+    // the hairlines they would be naming.
+    expect(printedNumbers(renderToStaticMarkup(<MiniArcGauge {...REPORTED} status="LOW" />))).toEqual([]);
+    // The hairlines stay, so the boundary is still marked and still findable
+    // with the colour taken away.
+    expect(hairlines(renderToStaticMarkup(<MiniArcGauge {...REPORTED} status="LOW" />))).toHaveLength(4);
+  });
+});
+
+describe('what it says when it cannot draw', () => {
+  it('names the result, the range and the status for a screen reader', () => {
+    const html = renderToStaticMarkup(<MiniArcGauge {...REPORTED} status="LOW" />);
+    expect(html).toContain('aria-label="Result 3.4, reference range 3.8–5.8, status: Below range"');
+  });
+
   it('says there is no reference range rather than drawing one', () => {
     const html = renderToStaticMarkup(<MiniArcGauge value={3.4} low={null} high={5.8} status="LOW" />);
     expect(html).toContain('No reference range to draw against');
@@ -240,71 +283,52 @@ describe('MiniArcGauge — what it does with what it cannot draw', () => {
     expect(html).not.toContain('NaN');
   });
 
-  it('says a result too far out cannot be drawn to scale', () => {
-    const html = renderToStaticMarkup(<MiniArcGauge value={3000} low={0} high={41} status="SIGNIFICANT_HIGH" />);
-    expect(html).toContain('Too far outside the range to draw to scale');
+  it('refuses an open-topped range rather than drawing against a sentinel', () => {
+    const html = renderToStaticMarkup(<MiniArcGauge value={97} low={60} high={999} status="IN_RANGE" />);
+    expect(html).toContain('No upper limit to draw a scale against');
   });
 
   /**
-   * ⚠ THE VALUE IS INSIDE THE GAUGE NOW, so a refusal that dropped its children
+   * ⚠ AND "TOO FAR OUT TO DRAW TO SCALE" IS NO LONGER A REFUSAL.
+   *
+   * It existed because a value twenty times the width of its own range squeezed
+   * the reference band into a sliver of a numeric axis, and a band you cannot
+   * see is not a scale. A fixed ring has no such failure mode — the green is a
+   * third of the arc whatever the value does — so the case that used to be
+   * refused in words is now simply DRAWN, in the right band.
+   */
+  it('draws a result that used to be too far out to place at all', () => {
+    const html = renderToStaticMarkup(<MiniArcGauge value={3000} low={0} high={41} status="SIGNIFICANT_HIGH" />);
+    expect(html).not.toContain('Too far outside the range');
+    expect(html).toContain('conic-gradient');
+    expect(markAt(html)).toBeGreaterThan(GAUGE_BOUNDARIES.highThreshold);
+    expect(markAt(html)).toBeLessThan(1);
+  });
+
+  /**
+   * ⚠ THE VALUE IS INSIDE THE GAUGE, so a refusal that dropped its children
    * would drop the reader's own result off the card along with the picture of
    * it. The refusal is about the SCALE and never about the number.
    */
   it('still prints the value when it refuses to draw a scale for it', () => {
     const html = renderToStaticMarkup(
-      <MiniArcGauge value={3000} low={0} high={41} status="SIGNIFICANT_HIGH">
-        <p className="numeric">3000</p>
+      <MiniArcGauge value={97} low={60} high={999} status="IN_RANGE">
+        <p className="numeric">97</p>
       </MiniArcGauge>,
     );
-    expect(html).toContain('Too far outside the range to draw to scale');
-    expect(html).toContain('3000');
-  });
-});
-
-/**
- * A RESULT FAR OUTSIDE ITS RANGE IS DRAWN FAR OUTSIDE IT, and never pinned to
- * the end of the arc.
- *
- * This is the rule the whole scale module exists for, restated against the new
- * shape because a circle has an obvious place to clamp a mark to and that place
- * is a lie: a mark at the end of the arc is indistinguishable from a mark that
- * legitimately sits at the end of the arc.
- */
-describe('a value well outside the range', () => {
-  const html = renderToStaticMarkup(<ArcGauge value={122} low={0} high={41} status="SIGNIFICANT_HIGH" unit="U/L" />);
-  const printed = printedNumbers(html);
-  const bounds = boundPctsFrom(html);
-
-  it('draws the mark past the upper bound, on a scale that reaches it', () => {
-    const at = markPctFrom(html);
-    // Pre-mount this is the resting position, so re-derive from the printed
-    // scale instead: the claim is about the SCALE containing the value with
-    // room, which is what stops the mark being clamped once it moves.
-    const ends = printed.map(Number).filter((n) => !Number.isNaN(n));
-    const maxLabel = Math.max(...ends);
-    expect(maxLabel).toBeGreaterThan(122);
-    expect(at).toBeGreaterThan(0);
-    // The upper reference bound is a long way short of the far end of the arc,
-    // which is the picture "three times the upper limit" has to produce.
-    expect(Math.max(...bounds)).toBeLessThan(60);
+    expect(html).toContain('No upper limit to draw a scale against');
+    expect(html).toContain('97');
   });
 
-  /**
-   * 41 IS printed here, and it should be — as a reference BOUND, beside its own
-   * tick, a third of the way round an arc that runs to 140. What must never
-   * happen is 41 printed as the arc's END, which is the original bug: a mark
-   * hard against the right-hand side of a bar labelled "41" reads as "just at
-   * the top of my range" when the result is three times the upper limit.
-   *
-   * The two kinds are told apart by TONE and by the tick, never by a hue — the
-   * same rule the trend chart's axis follows — so the test reads the tone.
-   */
-  it('never prints a reference bound as an END of the arc', () => {
-    const ends = [...html.matchAll(/<span[^>]*\bclass="numeric[^"]*text-espresso\/80[^"]*"[^>]*>([^<]*)<\/span>/g)].map(
-      (m) => Number(m[1]),
-    );
-    expect(ends.length, 'the arc printed no scale ends at all').toBeGreaterThan(0);
-    expect(ends).not.toContain(41);
-    expect(Math.max(...ends)).toBeGreaterThan(122);
+  it('prints only the figures that exist on the full gauge', () => {
+    const noValue = renderToStaticMarkup(<ArcGauge value={null} low={3.8} high={5.8} status="LOW" unit="mmol/L" />);
+    expect(noValue).toContain('no numeric value');
+    expect(noValue).toContain('3.8–5.8 mmol/L');
+    expect(noValue).not.toContain('NaN');
+
+    const noRange = renderToStaticMarkup(<ArcGauge value={3.4} low={null} high={null} status="LOW" unit="mmol/L" />);
+    expect(noRange).toContain('no two-sided reference range');
+    expect(noRange).toContain('3.4 mmol/L');
+    expect(noRange).not.toContain('–');
   });
 });

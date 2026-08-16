@@ -1,3 +1,4 @@
+import { GLASS } from '@aspire-bloods/shared';
 import { test, expect } from '@playwright/test';
 import { pressThroughWalkthrough } from './walkthrough';
 
@@ -338,10 +339,18 @@ for (const theme of ['light', 'dark'] as const) {
     console.log(`[sidebar/${theme}] background-color: ${style.backgroundColor}`);
     console.log(`[sidebar/${theme}] border-right-color: ${style.borderRightColor}`);
 
-    expect(style.backdropFilter, 'the backdrop filter was dropped — check --glass-blur is emitted').toMatch(
-      /blur\(10px\)/,
+    // ⚠ AGAINST THE TOKEN, NOT A LITERAL. This named `blur(10px)` and
+    // `saturate(1.08)`, and both moved the moment the glass was pushed harder —
+    // so the spec failed on a change that was correct, which is the way round
+    // that teaches people to edit the number rather than read the failure.
+    // What is actually being checked is that the declaration RESOLVED at all:
+    // it is `blur(var(--glass-blur)) saturate(var(--glass-saturate))`, and one
+    // missing custom property invalidates the whole thing and the browser drops
+    // it to `none` with no warning anywhere.
+    expect(style.backdropFilter, 'the backdrop filter was dropped — check --glass-blur is emitted').toContain(
+      `blur(${GLASS.blur})`,
     );
-    expect(style.backdropFilter).toMatch(/saturate\(1\.08\)/);
+    expect(style.backdropFilter).toContain(`saturate(${GLASS.saturate})`);
 
     const rgba = /rgba?\(([^)]+)\)/.exec(style.backgroundColor);
     expect(rgba, `the sidebar has no background at all (${style.backgroundColor})`).not.toBeNull();

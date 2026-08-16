@@ -350,12 +350,23 @@ it. Moving it inward puts more of the page in the ramp's TAIL, which is why
 per theme (`GLOW` in tokens.ts, emitted as `--glow-1` / `--glow-2`). Four
 hand-written gradients would drift.
 
-**THE TWO NEVER OVERLAP, AND THAT IS LOAD-BEARING.** Their centres are 2.07 radii
-apart, so at every point at least one has reached zero — which is what makes
-"check the contrast at each corner" the right measurement rather than an
-optimistic one. `tokenContrast.test.ts` asserts the SEPARATION as well as the
-ratios, so the claim cannot quietly stop being true when somebody nudges a
-position. It nearly did, in this very pass.
+**THEY ARE BIGGER NOW — 88% x 80%, from 62% x 58% (Aug 2026).** Same anchors,
+same colours, same peaks, same ramp SHAPE: the alpha at any given fraction of the
+radius is unchanged and the radius is longer, so every stop lands further out and
+the falloff per pixel is gentler. The vignette grew with the light it is anchored
+to (125% -> 150%), or it would have begun its descent INSIDE the key rather than
+outside it and the two would have cancelled across the middle of the page.
+
+⚠ **AND THEY NOW OVERLAP, WHICH THEY DELIBERATELY DID NOT.** At 62% they were
+2.07 radii apart, so at every point at least one had reached zero — and THAT was
+the entire justification for measuring the two cores separately. At 88% they are
+1.49 apart. So the measurement changed rather than the claim being quietly
+dropped: `tokenContrast.test.ts` **SAMPLES THE VIEWPORT ON A 61x61 GRID**,
+composites both ramps at every point in paint order, and asserts every text token
+clears its floor at the worst ground it finds. Measured: light 7.13:1 at 20%,98%;
+dark 8.12:1 at 97%,2%, against floors of 4.5. That is strictly stronger than the
+corners were — they are two of the points it visits — and unlike them it survives
+somebody enlarging these again, moving one, or adding a third.
 
 **⚠ THE DARK KEY CAME DOWN FROM 0.40 TO 0.36, AND IT WAS A PRE-EXISTING BUG.**
 Checking every corner is what found it: at 0.40 `--c-bronze` measured **2.94:1
@@ -371,6 +382,72 @@ caught it in the same run.
 glow ADDS light to near-black, which moves text contrast the safe way; light's two
 both DARKEN cream. The pair is held to spending at most **15% of the bare page's
 own body-copy contrast** — measured at 12.5%, which is as strong as they go.
+
+## Glass is the default surface; a status tint is the exception (Aug 2026)
+
+**IT WAS OPT-IN AND IS NOW THE DEFAULT.** The old rule was a hand-maintained
+list of "page-level structural surfaces", which meant most of the product stayed
+flat while a handful of screens had a material — and a list of exceptions kept in
+step across forty call sites is forty chances to forget. `Card`'s `surface`
+defaults to `glass`; what is opaque is named: **anything carrying a status tint**
+(refused in Card.tsx rather than by convention), the auth card, the mobile
+drawer, and the two CHART cards.
+
+**THE EFFECT IS HARDER.** blur 10 → **20px**, saturate 1.08 → **1.55**, fill
+0.68/0.62 → **0.46/0.42**. The blur is free — what a backdrop filter costs is the
+EXISTENCE of the pass, not the radius (2px measured the same as 14px), so the
+only argument for 10px was about a number that turns out not to depend on it.
+The lower fill means **the fill is no longer what separates a pane**: the streak
+and the lit edge are, and the contrast test measures the streaked pane rather
+than the flat body.
+
+**AND THE THREE ALPHAS INVERTED.** A pane is now the most TRANSPARENT of the
+three translucent surfaces rather than the most opaque. What each has behind it
+decides how much it must OBSCURE: the control bar (0.62/0.58) has the reader's
+own results scrolling under it, the sidebar (0.75/0.68) is navigation that must
+not be read through the page it navigates, and a pane has nothing moving under it
+and covers more of the viewport than either.
+
+⚠ **THE TWO CHART CARDS STAY OPAQUE, ON A MEASUREMENT.** The trend line's five
+colours are solved at 4.5:1 against `--c-cream-50`. On a pane, in light, they
+fall from 4.53–4.82:1 to **3.73:1**, and to **3.44:1** under the key light — the
+clinical palette failing its own solve because a decorative surface moved out
+from under it. `tokenContrast.test.ts` pins that measurement and **retires
+itself**: if the palette is ever re-solved so a pane clears the target, that test
+fails and the exception can be deleted with evidence rather than by taste.
+
+**MEASURED after the change**, 166 cards, 3s scroll, headless Chromium: 25fps as
+shipped, 26fps with the panes filter removed, 60fps with no glass at all. The
+panes cost nothing; the cost is the backdrop pass that was already there.
+
+## The sidebar is near-black, not brown (Aug 2026)
+
+`--c-panel` in dark is `nightBase` taken a further 60% toward black (#070605),
+not the card tone. The whole dark surface scale lifts toward a warm mid-brown, so
+at 78% over the page the column resolved to #252220 — a brown rail beside a
+near-black page, which is exactly the register `nightBase`'s own note warns
+against.
+
+**IT IS A RECESSED COLUMN NOW, NOT A RAISED ONE**, and that is the change of
+idea: a panel darker than the page is a thing the page is lit in FRONT of, which
+is what a navigation rail beside a lit room actually is. Every measured claim
+gets easier in that direction — the labels gain contrast rather than losing it.
+
+**MORE TRANSPARENT AND DARKER AT ONCE** (`PANEL_WASH_ALPHA.dark` 0.78 → 0.68).
+Not a contradiction: those were only ever coupled while the FILL was the thing
+being asked to look like a panel. At 0.78 the lit half of the column stood 1.09:1
+above the unlit half, which reads as a lid; at 0.68 it is 1.16:1.
+
+⚠ **THE LADDER FLOOR IS DIRECTION-AWARE AND THE ARITHMETIC IS WHY.** WCAG's ratio
+is (L1+0.05)/(L2+0.05) and the dark page's luminance is 0.0055, so a PURE BLACK
+sidebar — which the palette forbids — would measure 1.11:1. Asking for the old
+1.08 downward is asking for a panel 3% off black. Dark is held at 1.03 and the
+separation is carried by `--c-panel-edge` at 3.40:1, which that token's own note
+already called "the whole of the separation wherever the glow does not reach".
+
+**AND `--c-panel` IS NO LONGER `--c-glass`.** That unification was right about
+the MATERIAL — same blur, saturation, streak, lit edge and grain, all still
+shared — and wrong about the colour for this one surface.
 
 ## Page surfaces are glass; result cards are not (Aug 2026)
 
@@ -403,6 +480,11 @@ rather than leaving it to a call site to remember.
 **GLASS IS A MATERIAL AND VELLUM IS A COLOUR**, and they are orthogonal. The
 explanation card wants both: `.glass-vellum` swaps `--glass-surface` and touches
 no number in the material.
+
+**⚠ THE REST OF THIS SECTION IS THE FIRST PASS AND IS SUPERSEDED BY THE TWO
+ABOVE.** Kept for the reasoning about what the material is and why the blur
+cannot carry it on its own; the alphas, the boundary and the default are all
+restated above.
 
 **MEASURED, HEADLESS CHROMIUM, 166 CARDS, 3s CONTINUOUS SCROLL:** 27fps as
 shipped, 27fps with the panes' filter removed, 60fps with every backdrop filter
@@ -459,8 +541,55 @@ both significants share one.
    DIRECTIONAL filter (`BELOW_ANY` / `ABOVE_ANY`), never the specific state, or
    a segment reading 4 would filter to 3.
 1. Result cards and rows — soft background wash (`bg-tint-*`).
-2. **THE RANGE BAR IS AN ARC GAUGE (Aug 2026). EVERYTHING IN THIS ITEM IS
-   STILL TRUE OF IT — READ "BAR" AS "ARC".** `components/ui/ArcGauge.tsx`
+2. **THE RANGE BAR IS AN ARC GAUGE, AND ITS RING IS FIXED (Aug 2026).**
+
+   **THE GRADIENT IS ALLOCATED BY BAND, SYMMETRICALLY, AND NEVER BY THE VALUE.**
+   Five slices at four constant angles — significantly-below red at the start,
+   gold, green in the centre, gold, significantly-above red at the end — with
+   equal angular space either side of centre (`GAUGE_BOUNDARIES` / `GAUGE_SLICES`
+   in lib/rangeScale.ts, at 15 / 34 / 66 / 85%). `RING_GRADIENT` is computed ONCE
+   at module scope, and that is the change stated as code: **a gradient that
+   cannot take an argument cannot vary between two cards on one grid.**
+
+   **WHY, AND IT IS A FAILURE A STRAIGHT BAR CANNOT HAVE.** Mapped to the numeric
+   axis the green MOVED: an above-range value slid the in-range arc toward the
+   start of the ring and a below-range value slid it toward the end. A ring is
+   read as a SHAPE before any number, so the one thing a reader takes in at a
+   glance meant something different on every card in a grid of 165.
+
+   **THE MARK IS PLACED BY WHICH BAND THE VALUE IS IN** and where inside it,
+   mapped onto that band's fixed slice — so the colour under the mark always
+   agrees with the status word beside it, by construction rather than by two
+   derivations happening to agree. **STILL NEVER CLAMPED**: the two outer bands
+   are unbounded in value and finite in angle, so the placement SATURATES toward
+   the end of the arc and never arrives.
+
+   ⚠ **WHAT IT COST, AND IT IS REAL.** Distance inside the two red slices is no
+   longer to scale — ORDER is preserved, magnitude is compressed. "How far out am
+   I" is answered by the figure in the middle of the gauge and by the status
+   word, not by the geometry. That is the right way round for this instrument: a
+   patient asks "is this inside the range" first and "by how much" second.
+
+   **AND ONE REFUSAL WENT AWAY WITH THE SCALE.** `reference-range-too-small` is
+   gone — a fixed ring cannot squeeze the green into a sliver, so a result that
+   used to be refused in words is now simply drawn, in the right band. Four
+   refusals remain, all about the RANGE rather than about the drawing.
+
+   **THE LABELS ARE THE TWO REFERENCE BOUNDS AND NOTHING ELSE.** The arc's ends
+   mean "significantly below" and "significantly above" — states rather than
+   quantities — so the two scale-end figures are gone. The two derived thresholds
+   get hairlines at the trend chart's lighter weight but no numbers: printing a
+   figure we computed beside two a laboratory stated would lend our arithmetic
+   the lab's authority. A card prints no figures at all and keeps all four
+   hairlines.
+
+   `rangeScale.property.test.ts` runs the new invariant over ~5,000 generated
+   inputs — the mark is always in the slice its own status names, is monotonic,
+   and never reaches either end. `e2e/arc-gauge.spec.ts` asserts every gauge on a
+   real 144-card report paints a BYTE-IDENTICAL ring across all five states.
+
+   *The rest of this item is the bar's own record, and everything in it except
+   the value-mapped geometry still describes the arc:* `components/ui/ArcGauge.tsx`
    replaced `RangeBar.tsx`, which is deleted. It is the same instrument bent
    round: the same scale (`lib/rangeScale.ts`, untouched), the same five states,
    the same `bandRampStops` derivation, the same boundary treatment, the same

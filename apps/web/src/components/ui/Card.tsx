@@ -32,17 +32,27 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
   /**
    * The card's SURFACE, as opposed to its shape.
    *
-   * `card` is the opaque cream one every result card takes. `glass` is the
-   * page-level pane — translucent over a backdrop blur, with a specular streak,
-   * a lit edge and grain (see `.glass-panel` in globals.css). `vellum-glass` is
-   * the same pane on the warm reading ground, and is for explanatory prose and
-   * nothing else.
+   * ── GLASS IS THE DEFAULT NOW (Aug 2026) ──────────────────────────────────
    *
-   * ⚠ NOT ON A TINTED CARD. A status wash is a clinical statement about the
-   * result on that card, and a translucent sheet with a moving highlight over it
-   * makes the one surface in the product whose colour means something the least
-   * legible of the lot. The two are refused together below rather than left to a
-   * call site to remember.
+   * It was opt-in, on a list of "page-level structural surfaces" that had to be
+   * kept in step by hand — and the result was that most of the product stayed
+   * flat while a handful of screens had a material. A list of exceptions
+   * maintained across forty call sites is not a rule, it is forty chances to
+   * forget. So the surface family IS glass and the exceptions are named:
+   *
+   *   `card`          opaque. Reached for deliberately, or forced by `tint`.
+   *   `glass`         the pane — translucent over a backdrop blur, with a
+   *                   specular streak, a lit edge and grain (`.glass-panel`).
+   *   `vellum-glass`  the same pane on the warm reading ground, for explanatory
+   *                   prose and nothing else.
+   *
+   * ⚠ AND A TINTED CARD IS NEVER A PANE. A status wash is a clinical statement
+   * about the result on that card, and a translucent sheet with a moving
+   * highlight over it makes the one surface in the product whose colour means
+   * something the least legible of the lot. That is refused below rather than
+   * left to a call site to remember — which is also what makes flipping the
+   * default safe: on a real report almost every measured card carries a status,
+   * so almost every one of them stays opaque without anybody deciding it.
    */
   surface?: 'card' | 'glass' | 'vellum-glass';
 }
@@ -65,7 +75,7 @@ const SURFACE: Record<NonNullable<CardProps['surface']>, string> = {
   'vellum-glass': 'glass-panel glass-vellum card-glass',
 };
 
-export function Card({ interactive, inert, padding = 'default', tint, surface = 'card', className = '', ...props }: CardProps) {
+export function Card({ interactive, inert, padding = 'default', tint, surface = 'glass', className = '', ...props }: CardProps) {
   const material = tint ? SURFACE.card : SURFACE[surface];
   return (
     <div

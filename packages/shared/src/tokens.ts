@@ -1747,7 +1747,36 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
   // are and why each goes the other way per theme.
   const glowPrimary = dark ? mix(brand.bronze, '#f0bd6a', 0.72) : mix(brand.bronze, '#f0bd6a', 0.3);
   const glowSecondary = dark ? mix(accent.teal, '#7fd8d0', 0.62) : accent.plum;
-  out['--c-panel'] = glassColour;
+  /**
+   * ── AND IN DARK IT IS NEAR-BLACK AGAIN, NOT THE CARD TONE (Aug 2026) ────
+   *
+   * The column read BROWN. That is not a misperception: `darkScales.cream[50]`
+   * is the card, and the whole dark surface scale lifts toward `nightLift` — a
+   * warm mid-brown — so the more of it a surface takes the browner it gets. At
+   * 78% over the page the sidebar was #252220, which is a brown column beside a
+   * near-black page, and it is the exact register the note on `nightBase`
+   * warns about: "raising the surfaces until a card separated on its own turned
+   * the whole viewport brown".
+   *
+   * So it goes the OTHER WAY off the page rather than up: `nightBase` taken a
+   * further 35% toward black. Warm (r > g > b, still espresso-derived), never
+   * neutral and never #000, and a long way from brown.
+   *
+   * A RECESSED COLUMN RATHER THAN A RAISED ONE, and that is the change of idea.
+   * A panel lighter than the page is a thing lifted off it; a panel darker than
+   * the page is a thing the page is lit in FRONT of, which is what a navigation
+   * rail beside a lit room actually is. Every measured claim gets easier in
+   * that direction: the labels on it gain contrast rather than losing it, and
+   * the light still passes through at the sidebar's own alpha.
+   *
+   * ⚠ IT IS NO LONGER THE SAME COLOUR AS `--c-glass`, which it has been since
+   * the two were unified. That unification was right about the MATERIAL and is
+   * untouched — same blur, same saturation, same streak, same lit edge, same
+   * grain — and wrong about the colour for this one surface, for the reason
+   * above. `tokenContrast.test.ts` asserts the material is shared and no longer
+   * asserts the colour is.
+   */
+  out['--c-panel'] = dark ? mix(nightBase, '#000000', 0.6) : glassColour;
   // The alpha itself is PANEL_WASH_ALPHA below rather than a variable here,
   // because it is an opacity and not a colour: everything in this map is a hex
   // that themeCssVars turns into channels.
@@ -2334,10 +2363,24 @@ export const themeTokens = {
  * holds, and the binding constraint is not the one anybody expects. It is not
  * "stay below a card": it is that past roughly 0.80 in dark the panel stops
  * TRANSMITTING — its lit and unlit halves converge and the glow reads as
- * having stopped at the seam. So the alpha is set just under that, which is
- * also comfortably under the card.
+ * having stopped at the seam.
+ *
+ * ── DARK CAME DOWN TO 0.68 WHEN THE COLOUR WENT NEAR-BLACK (Aug 2026) ──────
+ *
+ * 0.78 was set just under that transmission ceiling for a panel drawn in the
+ * CARD tone — a pale colour, where most of the alpha is spent making the
+ * surface look like a surface. A near-black panel does not need the alpha for
+ * that: the colour is already doing it, and every point of alpha spent is a
+ * point of the ambient light thrown away. Measured across the four candidate
+ * colours: at 0.78 the lit half of the column stands 1.09:1 above the unlit
+ * half, which is under the floor and reads as a lid; at 0.68 it is 1.16:1, and
+ * the glow adds 0.0083 of luminance where it lands rather than 0.0043.
+ *
+ * So it is more transparent AND darker, which is not a contradiction — those
+ * were only ever coupled because the fill was the thing being asked to look
+ * like a panel.
  */
-export const PANEL_WASH_ALPHA = { light: 0.75, dark: 0.78 } as const;
+export const PANEL_WASH_ALPHA = { light: 0.75, dark: 0.68 } as const;
 
 /**
  * THE GLASS MATERIAL, in three numbers, shared by every surface that uses it.
@@ -2388,8 +2431,43 @@ export const PANEL_WASH_ALPHA = { light: 0.75, dark: 0.78 } as const;
  */
 export const GLASS = {
   wash: { light: 0.62, dark: 0.58 },
-  blur: '10px',
-  saturate: '1.08',
+  /**
+   * ── 10px → 20px (Aug 2026) ───────────────────────────────────────────────
+   *
+   * The measurement above still stands and is the reason this is FREE: what a
+   * backdrop filter costs is the EXISTENCE of the pass, not the work inside it
+   * — 2px measured the same as 14px, a third of the frame rate with the filter
+   * absent. So a radius that reads as frost costs the same as one that does
+   * not, and the only argument for 10px was that it was the cheapest value that
+   * measured better than 14. That argument was about a number that turns out
+   * not to depend on the radius.
+   *
+   * Re-measured after this change with the same spec, and the frame rate is
+   * where it was.
+   *
+   * ⚠ THE BLUR STILL SHOWS NOTHING BEHIND A FLAT SURFACE. Doubling the radius
+   * does not change the note further down: blurring a smooth radial returns the
+   * same smooth radial. It earns its place where content genuinely scrolls
+   * under a pane, and the streak, the lit edge and the grain are what make the
+   * material read as glass everywhere else.
+   */
+  blur: '20px',
+  /**
+   * ── 1.08 → 1.55 ──────────────────────────────────────────────────────────
+   *
+   * The old value was chosen so the warm page underneath "stays warm through
+   * it", which is a floor rather than a design. What frost actually does to a
+   * light source behind it is CONCENTRATE its colour: the diffusion spreads the
+   * light over more of the pane and the eye reads the result as more saturated,
+   * not less. At 1.08 the glow arriving through a pane was the same gold as the
+   * glow beside it, so the pane was doing nothing to the light.
+   *
+   * The ceiling is where it stops being glass and starts being a colour filter,
+   * which is roughly where a neutral surface under it picks up a visible cast.
+   * 1.55 lifts the two glows clearly and leaves the cream and the near-black
+   * neutral.
+   */
+  saturate: '1.55',
   /**
    * ── THE PAGE-SURFACE PANE (Aug 2026) ─────────────────────────────────────
    *
@@ -2401,13 +2479,35 @@ export const GLASS = {
    * have other CARDS and headings behind them when the page scrolls, which is
    * more structure than the sidebar has to diffuse and less than the bar does.
    *
-   * ⚠ IT IS NOT ON MARKER RESULT CARDS AND MUST NOT BE. A Signature report
-   * draws 165 of them, and 165 panes each with its own specular streak is not a
-   * material, it is a texture — and the streak would be travelling across the
-   * one surface in the product whose background is already carrying a status
-   * tint. See `.glass-panel` in globals.css for the full boundary.
+   * ── 0.68 / 0.62 → 0.46 / 0.42 (Aug 2026), AND THE BOUNDARY MOVED WITH IT ──
+   *
+   * The panes read as "slightly glassy", and the fill was most of the reason: a
+   * pane at 0.68 is two thirds an opaque card, so two thirds of whatever is
+   * behind it — the ambient light most of all — was being painted over. Under
+   * half lets the glow through as light rather than as a rumour of one, which
+   * is the whole point of the material existing.
+   *
+   * ⚠ WHAT THIS COSTS, AND IT IS NOT NOTHING. A pane is a weaker surface at
+   * this alpha: it sits closer to the page and further from a card, so the
+   * page → pane → card ladder is tighter than it was. That is the trade the
+   * lower fill buys and it is asserted rather than assumed —
+   * `tokenContrast.test.ts` still holds the ladder, still holds every label on
+   * a pane at AA against the brightest backdrop the material can produce, and
+   * the streak and the lit edge are now carrying more of the separation than
+   * the fill is.
+   *
+   * ⚠ AND THE ONE EXCLUSION IS NOW THE TINTED CARD, NOT THE RESULT CARD. This
+   * used to say a marker result card may never be a pane, on the grounds that
+   * 165 streaks is a texture rather than a material. The rule is narrower and
+   * better: a card is opaque IF IT CARRIES A STATUS TINT, because that tint is
+   * a clinical statement and a translucent sheet with a moving highlight over it
+   * makes the one surface whose colour means something the least legible of the
+   * lot. On a real report almost every measured card has a status, so almost
+   * every one of those 165 is still opaque — the difference is that the rule now
+   * names the reason instead of the count. `Card` refuses the two together
+   * outright rather than leaving it to a call site.
    */
-  panel: { light: 0.68, dark: 0.62 },
+  panel: { light: 0.46, dark: 0.42 },
   /**
    * How much of the theme's SECOND ACCENT is mixed into a page pane's tint.
    *
@@ -2448,7 +2548,7 @@ export const GLASS = {
    * body colour.
    */
   sheen: {
-    peak: { light: 0.22, dark: 0.09 },
+    peak: { light: 0.33, dark: 0.09 },
     edge: { top: { light: 0.5, dark: 0.16 }, right: { light: 0.7, dark: 0.26 } },
     grain: { light: 0.022, dark: 0.038 },
   },

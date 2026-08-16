@@ -384,7 +384,11 @@ export function CompareView({
               />
             ) : (
               <>
-                <Card>
+                {/* ⚠ OPAQUE — the same measured exception as the marker page's trend
+                    card. This chart's line colours are solved against the CARD,
+                    and on a pane they fall under their own target. See
+                    MarkerDetailPage for the figures. */}
+                  <Card surface="card">
                   <p className="eyebrow mb-1">Compared over time</p>
                   <p className="mb-6 max-w-measure text-sm leading-relaxed text-espresso/80">
                     Each marker is plotted against its own reference range, so the shaded band is shared: a line
