@@ -1,0 +1,322 @@
+import { test, expect, type APIRequestContext, type Browser } from '@playwright/test';
+
+/**
+ * ===========================================================================
+ *  THE PAGE-SURFACE PANE, AND THE TWO AMBIENT SOURCES.
+ * ===========================================================================
+ *
+ * ── WHY THIS IS MEASURED AND NOT REVIEWED ──────────────────────────────────
+ *
+ * A screenshot cannot settle any of it, and that is not a general principle —
+ * it is specific to these two effects and it has caught real faults before:
+ *
+ *  · THE BACKDROP FILTER IS INVISIBLE TO A SCREENSHOT. Blurring what is behind
+ *    an element shows nothing when what is behind it is a flat colour and two
+ *    smooth radials, which is most of this page. Worse, the failure is SILENT:
+ *    the declaration is `blur(var(--glass-blur)) saturate(var(--glass-saturate))`,
+ *    so ONE missing custom property makes the whole declaration invalid and the
+ *    browser drops it to `none` with no warning anywhere.
+ *  · A GLOW AT `z-index: -1` CANNOT BE ASSERTED FROM A PIXEL either, because
+ *    what matters is not that it is there but that it is one of TWO, in two
+ *    hues, in corners far enough apart that no pixel carries both — which is
+ *    the whole basis on which `tokenContrast.test.ts` is allowed to check the
+ *    corners one at a time.
+ *
+ * ── AND THE BOUNDARY IS ASSERTED, NOT ONLY THE MATERIAL ────────────────────
+ *
+ * The interesting half of "which surfaces are glass" is which are NOT. A
+ * Signature report draws 165 marker result cards, each with a status tint under
+ * it, and 165 panes with 165 specular streaks travelling across them is not a
+ * material, it is a texture over the one surface in the product whose colour is
+ * a clinical statement. So the negative is checked as hard as the positive.
+ *
+ * Requires EXPOSE_DEV_OTP_CODE=true and the dev seed's demo account.
+ */
+
+const DEMO_EMAIL = process.env.SEED_DEMO_EMAIL ?? 'demo.showcase@aspireshield.dev';
+const DEMO_PASSWORD = process.env.SEED_DEMO_PASSWORD ?? 'DemoShowcase123!';
+
+async function signIn(request: APIRequestContext) {
+  const login = await request.post('/api/auth/login', { data: { email: DEMO_EMAIL, password: DEMO_PASSWORD } });
+  expect(login.ok(), 'the demo account could not sign in').toBeTruthy();
+  const body = await login.json();
+  if (body.status === 'authenticated') return;
+  const otp = await request.post('/api/auth/otp/verify', {
+    data: { challengeId: body.challengeId, code: body.devOtpCode, trustDevice: false },
+  });
+  expect(otp.ok()).toBeTruthy();
+}
+
+async function context(browser: Browser, theme: 'light' | 'dark') {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  await ctx.addInitScript((t) => {
+    try {
+      localStorage.setItem('aspire-theme', t as string);
+    } catch {
+      /* a private window with no storage is not a reason to fail */
+    }
+  }, theme);
+  await signIn(ctx.request);
+  return ctx;
+}
+
+for (const theme of ['light', 'dark'] as const) {
+  test(`two ambient sources, in two hues, at opposite corners — ${theme}`, async ({ browser }) => {
+    test.setTimeout(120_000);
+    const ctx = await context(browser, theme);
+    const page = await ctx.newPage();
+    await page.goto('/overview');
+    await page.waitForLoadState('networkidle');
+
+    const glow = await page.evaluate(() => {
+      const s = getComputedStyle(document.body, '::before');
+      return {
+        image: s.backgroundImage,
+        position: s.position,
+        zIndex: s.zIndex,
+        pointerEvents: s.pointerEvents,
+        attachment: s.backgroundAttachment,
+      };
+    });
+
+    // eslint-disable-next-line no-console
+    console.log(`\n  ${theme}: body::before is ${glow.position}, z-index ${glow.zIndex}`);
+
+    // TWO SOURCES. Both themes now — light mode used to be flat cream with
+    // nothing happening in it, which is the same complaint the dark page had
+    // before any of this existed.
+    const radials = [...glow.image.matchAll(/radial-gradient\(/g)].length;
+    const expected = theme === 'dark' ? 3 : 2; // dark carries the vignette as well
+    expect(radials, `${theme}: expected ${expected} radials on body::before, got ${radials}`).toBe(expected);
+
+    // AT OPPOSITE CORNERS, and far enough apart that no pixel carries both —
+    // which is what lets the contrast be checked one corner at a time.
+    expect(glow.image, 'the key light is not anchored at the top right').toContain('96% 1%');
+    // 20% and not 4%: the patient shell's sidebar is 288px, which is 20% of a
+    // 1440 viewport, so a fill anchored at the literal corner has its CORE —
+    // the only part of the ramp that is genuinely bright — behind an opaque
+    // column, and the second light exists nowhere the reader can see it.
+    expect(glow.image, 'the fill light is not anchored at the bottom left').toContain('20% 98%');
+
+    // IN TWO HUES. A second light the colour of the first is a wider first
+    // light, which is exactly the failure the original pair of viewport-sized
+    // radials had. The two ramps must not be built from one colour.
+    const colours = new Set([...glow.image.matchAll(/rgba?\((\d+),\s*(\d+),\s*(\d+)/g)].map((m) => `${m[1]},${m[2]},${m[3]}`));
+    expect(colours.size, `${theme}: the two sources resolved to ${colours.size} distinct colour(s)`).toBeGreaterThanOrEqual(2);
+
+    // BEHIND EVERYTHING, FIXED, INERT. It may never intercept a click and it
+    // may never travel on scroll.
+    expect(glow.position).toBe('fixed');
+    expect(Number(glow.zIndex)).toBeLessThan(0);
+    expect(glow.pointerEvents).toBe('none');
+
+    // AND THE SHELL MAY NOT PAINT OVER IT. This is the trap that hid the glow
+    // on every signed-in screen once already: the shell roots carried `bg-cream`
+    // and drew an opaque sheet over `body::before`.
+    const opaqueOverlay = await page.evaluate(() => {
+      const main = document.querySelector('main');
+      const shell = main?.parentElement;
+      const bg = (el: Element | null) => (el ? getComputedStyle(el).backgroundColor : '');
+      return [bg(document.body), bg(shell), bg(main)].filter((c) => c && c !== 'rgba(0, 0, 0, 0)' && !c.endsWith(', 0)'));
+    });
+    expect(opaqueOverlay, `something between body and main paints over the glow: ${opaqueOverlay.join(' ')}`).toEqual([]);
+
+    await ctx.close();
+  });
+
+  test(`the page-surface pane is the glass material — ${theme}`, async ({ browser }) => {
+    test.setTimeout(120_000);
+    const ctx = await context(browser, theme);
+    const page = await ctx.newPage();
+    await page.goto('/overview');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(600);
+
+    const pane = await page.evaluate(() => {
+      const el = document.querySelector<HTMLElement>('.glass-panel');
+      if (!el) return null;
+      const s = getComputedStyle(el);
+      const streak = getComputedStyle(el, '::before');
+      const grain = getComputedStyle(el, '::after');
+      return {
+        background: s.backgroundColor,
+        filter: s.backdropFilter || (s as unknown as Record<string, string>).webkitBackdropFilter,
+        border: s.borderTopColor,
+        streak: streak.backgroundImage,
+        streakZ: streak.zIndex,
+        grainOpacity: Number(grain.opacity),
+        grainBlend: grain.mixBlendMode,
+        grainZ: grain.zIndex,
+      };
+    });
+    expect(pane, 'no glass pane on the Overview').not.toBeNull();
+
+    // eslint-disable-next-line no-console
+    console.log(`\n  ${theme} pane: ${pane!.background}, filter ${pane!.filter}, grain ${pane!.grainOpacity}`);
+
+    // TRANSLUCENT OVER A BACKDROP BLUR. The alpha is the point: an opaque fill
+    // would paint over both sources, which is the thing glass exists to avoid.
+    const alpha = Number(pane!.background.match(/rgba?\([^)]*?,\s*([\d.]+)\)$/)?.[1] ?? '1');
+    expect(alpha, `the pane is opaque (${pane!.background})`).toBeLessThan(1);
+    expect(alpha, `the pane is barely there (${pane!.background})`).toBeGreaterThan(0.4);
+
+    // ⚠ THE SILENT FAILURE. One missing custom property invalidates the whole
+    // declaration and the browser drops it to `none` with no warning at all.
+    expect(pane!.filter, 'the pane has no backdrop filter — check for a missing custom property').toMatch(/blur\(/);
+    expect(pane!.filter).toMatch(/saturate\(/);
+    expect(pane!.filter).not.toBe('none');
+
+    // THE SPECULAR STREAK, and it is UNDER the content rather than over it. An
+    // absolutely-positioned pseudo-element at `auto` paints after in-flow
+    // content, which would put a sheet of light over the reader's own results.
+    expect(pane!.streak, 'the pane has no specular streak').toContain('linear-gradient');
+    expect(pane!.streak).toContain('208deg');
+    expect(Number(pane!.streakZ), 'the streak paints over the content instead of under it').toBeLessThan(0);
+
+    // THE GRAIN. Invisible as texture, visible in its absence — and soft-light
+    // rather than a plain alpha, because grey noise at any opacity LIFTS a dark
+    // surface toward grey instead of texturing it.
+    expect(pane!.grainOpacity).toBeGreaterThan(0);
+    expect(pane!.grainOpacity, 'the grain is visible as texture').toBeLessThan(0.08);
+    expect(pane!.grainBlend).toBe('soft-light');
+    expect(Number(pane!.grainZ)).toBeLessThan(0);
+
+    await ctx.close();
+  });
+}
+
+/**
+ * ── THE BOUNDARY: 165 RESULT CARDS ARE NOT 165 PANES ───────────────────────
+ *
+ * The rule is that a surface is a PANE if it is one of a handful of containers
+ * a screen is built out of, and stays an ordinary CARD if it is one of many
+ * instances of one repeating object or if it carries a STATUS COLOUR. Both
+ * clauses catch the marker result card, and the second is the one that matters:
+ * a status tint is a statement about somebody's blood, and a translucent sheet
+ * with a moving highlight over it makes the one surface in the product whose
+ * colour means something the least legible of the lot.
+ */
+test('a marker result card is never a pane, however many of them there are', async ({ browser }) => {
+  test.setTimeout(120_000);
+  const ctx = await context(browser, 'dark');
+  const page = await ctx.newPage();
+  await page.goto('/results?view=by-marker');
+  await page.locator('a[href^="/markers/"]').first().waitFor({ timeout: 30_000 });
+  await page.waitForTimeout(800);
+
+  const counts = await page.evaluate(() => {
+    const cards = [...document.querySelectorAll<HTMLElement>('a[href^="/markers/"] .card')];
+    return {
+      cards: cards.length,
+      panes: cards.filter((c) => c.classList.contains('glass-panel')).length,
+      filtered: cards.filter((c) => {
+        const f = getComputedStyle(c).backdropFilter;
+        return f && f !== 'none';
+      }).length,
+    };
+  });
+
+  // eslint-disable-next-line no-console
+  console.log(`\n  ${counts.cards} marker result cards, ${counts.panes} of them panes`);
+
+  expect(counts.cards, 'the marker list drew no cards').toBeGreaterThan(20);
+  expect(counts.panes, 'marker result cards became panes').toBe(0);
+  expect(counts.filtered, 'marker result cards picked up a backdrop filter').toBe(0);
+
+  await ctx.close();
+});
+
+/**
+ * ── WHAT THE PANES COST TO SCROLL PAST ─────────────────────────────────────
+ *
+ * The number is REPORTED rather than asserted against, for the reason already
+ * recorded on `GLASS.blur`: this is headless Chromium, which rasterises in
+ * software, and a backdrop filter there is close to a worst case rather than
+ * close to what a patient's browser does. A threshold that failed at 29fps and
+ * passed at 31 would be a fact about the machine it ran on.
+ *
+ * What IS asserted is the comparison — the panes must not cost more than the
+ * glass that was already on the page — because that is the question adding them
+ * actually raised, and it is machine-independent.
+ */
+test('the cost of scrolling a long list past the panes', async ({ browser }) => {
+  test.setTimeout(180_000);
+  const ctx = await context(browser, 'dark');
+  const page = await ctx.newPage();
+  await page.goto('/results?view=by-marker');
+  await page.locator('a[href^="/markers/"]').first().waitFor({ timeout: 30_000 });
+  await page.waitForTimeout(1200);
+
+  async function profile() {
+    return page.evaluate(async () => {
+      window.scrollTo(0, 0);
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+      const frames: number[] = [];
+      let last = performance.now();
+      const start = last;
+      await new Promise<void>((resolve) => {
+        function step(now: number) {
+          frames.push(now - last);
+          last = now;
+          // A steady scroll rather than one jump: a backdrop filter costs per
+          // FRAME it is composited on, so it only shows up under movement.
+          window.scrollBy(0, 24);
+          if (now - start > 3000) return resolve();
+          requestAnimationFrame(step);
+        }
+        requestAnimationFrame(step);
+      });
+      const deltas = frames.slice(1);
+      const total = deltas.reduce((a, b) => a + b, 0);
+      const sorted = [...deltas].sort((a, b) => a - b);
+      return {
+        fps: Math.round((deltas.length / total) * 1000),
+        medianMs: Number(sorted[Math.floor(sorted.length / 2)].toFixed(1)),
+        dropped: deltas.filter((d) => d > 20).length,
+      };
+    });
+  }
+
+  const cardCount = await page.locator('.card').count();
+  const paneCount = await page.locator('.glass-panel').count();
+
+  const asShipped = await profile();
+
+  // Only the PANES taken out, leaving the sidebar and the pinned bar exactly as
+  // they are — so the difference is the thing that was added and nothing else.
+  await page.addStyleTag({
+    content: '.glass-panel { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }',
+  });
+  await page.waitForTimeout(400);
+  const withoutPanes = await profile();
+
+  // And with every backdrop filter on the page gone, as the floor.
+  await page.addStyleTag({
+    content:
+      '.glass, .glass-panel, .panel-wash { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }',
+  });
+  await page.waitForTimeout(400);
+  const noGlassAtAll = await profile();
+
+  // eslint-disable-next-line no-console
+  console.log(
+    [
+      '',
+      `  ${cardCount} cards, ${paneCount} panes, 3s continuous scroll, headless Chromium (software raster)`,
+      `    as shipped        ${asShipped.fps} fps · median ${asShipped.medianMs}ms · ${asShipped.dropped} frames over 20ms`,
+      `    panes unfiltered  ${withoutPanes.fps} fps · median ${withoutPanes.medianMs}ms · ${withoutPanes.dropped} frames over 20ms`,
+      `    no glass at all   ${noGlassAtAll.fps} fps · median ${noGlassAtAll.medianMs}ms · ${noGlassAtAll.dropped} frames over 20ms`,
+      '',
+    ].join('\n'),
+  );
+
+  // The panes are on a page that already had glass on it. Adding them must not
+  // be the thing that costs the frames — a 15% allowance for run-to-run noise on
+  // a 3-second sample.
+  expect(
+    asShipped.fps,
+    `the panes cost ${withoutPanes.fps - asShipped.fps} fps against the same page with only their filter removed`,
+  ).toBeGreaterThan(withoutPanes.fps * 0.85);
+
+  await ctx.close();
+});

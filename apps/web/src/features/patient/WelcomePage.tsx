@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
-import { RangeBar } from '../../components/ui/RangeBar';
+import { ArcGauge } from '../../components/ui/ArcGauge';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { ClinicContactLines } from '../../components/patient/ClinicContact';
 import { apiFetch } from '../../lib/api';
@@ -114,20 +114,25 @@ const STEPS: WelcomeStep[] = [
         </p>
 
         <Card className="mt-6 max-w-3xl">
-          {/* The real bar, with a real number on it. Somebody meeting this
+          {/* The real gauge, with a real number in it. Somebody meeting this
               control for the first time here will meet the identical control on
               their own result an hour later. */}
           <p className="eyebrow mb-3">How a result is drawn</p>
-          <RangeBar
+          <ArcGauge
             value={EXAMPLE.value}
             low={EXAMPLE.low}
             high={EXAMPLE.high}
             status="IN_RANGE"
             severityThreshold={(EXAMPLE.high - EXAMPLE.low) * 1.5}
             unit={EXAMPLE.unit}
-          />
-          <p className="numeric mt-4 text-xs text-espresso/80">
-            {EXAMPLE.value} {EXAMPLE.unit} · reference range {EXAMPLE.low}–{EXAMPLE.high} {EXAMPLE.unit}
+          >
+            <p className="numeric tabular flex flex-wrap items-baseline justify-center gap-x-1.5 text-2xl font-semibold leading-none text-espresso">
+              {EXAMPLE.value} <span className="text-xs font-normal text-espresso/80">{EXAMPLE.unit}</span>
+            </p>
+            <StatusBadge status="IN_RANGE" className="mt-2" />
+          </ArcGauge>
+          <p className="numeric mt-4 text-center text-xs text-espresso/80">
+            reference range {EXAMPLE.low}–{EXAMPLE.high} {EXAMPLE.unit}
           </p>
 
           <ul className="mt-8 flex flex-col gap-3 border-t border-taupe pt-6">

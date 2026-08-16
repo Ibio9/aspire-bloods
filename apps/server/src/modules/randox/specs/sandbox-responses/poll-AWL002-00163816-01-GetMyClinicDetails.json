@@ -1,0 +1,33 @@
+{
+  "step": 1,
+  "api": "Nexus",
+  "name": "GetMyClinicDetails",
+  "method": "GET",
+  "path": "Clinic/GetMyClinicDetails",
+  "request": null,
+  "status": 200,
+  "ok": true,
+  "body": {
+    "id": 1298,
+    "name": "Aspire Wellness Testing Clinic",
+    "code": "AWL002",
+    "addressLine1": null,
+    "addressLine2": null,
+    "townCity": null,
+    "county": null,
+    "postalCode": null,
+    "clinicTestLocations": [
+      {
+        "id": 1298,
+        "name": "Aspire Wellness Testing Clinic",
+        "code": "AWL002",
+        "addressLine1": null,
+        "addressLine2": null,
+        "townCity": null,
+        "county": null,
+        "postalCode": null
+      }
+    ]
+  },
+  "raw": "{\"id\":1298,\"name\":\"Aspire Wellness Testing Clinic\",\"code\":\"AWL002\",\"addressLine1\":null,\"addressLine2\":null,\"townCity\":null,\"county\":null,\"postalCode\":null,\"clinicTestLocations\":[{\"id\":1298,\"name\":\"Aspire Wellness Testing Clinic\",\"code\":\"AWL002\",\"addressLine1\":null,\"addressLine2\":null,\"townCity\":null,\"county\":null,\"postalCode\":null}]}"
+}

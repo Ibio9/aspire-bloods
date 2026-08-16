@@ -16,7 +16,7 @@ import {
 } from '../../components/patient/PreviousResults';
 import { ThemeToggle } from '../../components/ui/ThemeToggle';
 import { statusBarClass } from '../../lib/markerCopy';
-import { RangeBar } from '../../components/ui/RangeBar';
+import { ArcGauge } from '../../components/ui/ArcGauge';
 import { TrendChart } from '../../components/ui/TrendChart';
 import { Modal } from '../../components/ui/Modal';
 import { Tabs } from '../../components/ui/Tabs';
@@ -237,10 +237,12 @@ export function ComponentsShowcase() {
         </div>
         <div className="max-w-md">
           <p className="mb-2 text-sm font-medium text-espresso">
-            Range bar — sweeps to position once on mount, text alternative via role=img/aria-label
+            Arc gauge — sweeps round the arc to position once on mount, text alternative via role=img/aria-label
           </p>
           <Card>
-            <RangeBar value={5.8} low={0.4} high={4} status="HIGH" />
+            <ArcGauge value={5.8} low={0.4} high={4} status="HIGH" unit="mmol/L">
+              <p className="numeric tabular text-2xl font-semibold leading-none text-espresso">5.8</p>
+            </ArcGauge>
           </Card>
         </div>
       </Section>

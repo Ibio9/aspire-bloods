@@ -469,20 +469,27 @@ test.describe('traffic-light status', () => {
   }
 
   /**
-   * The mark on the range bar is NO LONGER the status colour, and this test's
-   * name used to say it was.
+   * The mark on the range gauge is NOT the status colour, and this test's name
+   * once said it was.
    *
-   * It is the rangemark token now — white in dark, espresso in light, always
-   * inside the opposite ring — because a mark drawn in its own state's colour
-   * is a mark drawn in the shade of the segment it is standing on: a green dot
-   * on the green band, pale gold on the gold one. Its job is POSITION.
+   * It is the rangemark token — espresso in both themes, inside a ring of the
+   * plot's own tone — because a mark drawn in its own state's colour is a mark
+   * drawn in the shade of the segment it is standing on: a green dot on the
+   * green stretch of arc, pale gold on the gold one. Its job is POSITION.
    *
    * Nothing about the status layer is weakened by that, which is what this
-   * checks: the status is still stated in words on the bar's own accessible
+   * checks: the status is still stated in words on the gauge's own accessible
    * label, and the segment, the chevron and the card's wash still carry it
    * three more times over.
+   *
+   * ── AND THE BAR IS AN ARC NOW (Aug 2026), WHICH CHANGES NOTHING HERE ──────
+   * The geometry moved from percentages along a track to angles round a circle
+   * and is measured in `e2e/arc-gauge.spec.ts`. This assertion was never about
+   * the shape: it is about the instrument saying in WORDS what it draws in
+   * colour, which is the rule the whole status layer rests on and is identical
+   * either way.
    */
-  test('the range bar states the value, the range and the status in words', async ({ browser }) => {
+  test('the range gauge states the value, the range and the status in words', async ({ browser }) => {
     const ctx = await browser.newContext();
     await loginAsDemoPatient(ctx.request);
     const page = await ctx.newPage();

@@ -104,50 +104,115 @@
     z-index: 0;
   }
 
-  /* ── The ambient light source (dark only) ──────────────────────────────
-     A near-black page with ONE point of warm light in it. That is the whole
-     brief, and the previous version met none of it: two radials sized 112% and
+  /* ── TWO AMBIENT SOURCES, IN BOTH THEMES (Aug 2026) ────────────────────
+     A near-black page with ONE point of warm light in it was the whole brief,
+     and the version before that met none of it: two radials sized 112% and
      140% of the viewport put every pixel inside the bright part of the curve,
      so what read on screen was not a light source but a flat gold wash over a
      brown page. The falloff existed and was invisible, which is the same thing
      as not existing.
 
-     THE THREE THINGS THAT MAKE IT A SOURCE:
+     THE THREE THINGS THAT MAKE IT A SOURCE, and all three still hold:
 
-     1. A SMALL RADIUS. 62% × 58%, anchored just inside the top-right corner.
-        The distance from there to the opposite corner is more than 1.7 radii,
-        so the light is long gone before it arrives — which is what "a source"
-        means and what a viewport-sized radial can never do.
-     2. A BRIGHT CENTRE. 0.40 at the core, against 0.15 before. On #110F0D that
-        is a visible point of light rather than a suggestion of one.
+     1. A SMALL RADIUS. 62% × 58%, anchored just inside a corner. The distance
+        from there to the opposite corner is more than 1.7 radii, so the light
+        is long gone before it arrives — which is what "a source" means and
+        what a viewport-sized radial can never do.
+     2. A BRIGHT CENTRE. `--glow-1` is 0.40 at the core in dark, against 0.15
+        before. On #110F0D that is a visible point of light rather than a
+        suggestion of one.
      3. A STEEP, MANY-STOPPED FALLOFF. The alpha roughly halves every 12% of
         the radius, which is what makes it read as light rather than as paint.
-        Eight stops rather than four, spaced unevenly and closest together
+        Nine stops rather than four, spaced unevenly and closest together
         where the curve is steepest: a two-stop version of this ramp bands
         visibly on an 8-bit panel, and the banding is worst exactly where the
         gradient changes fastest.
 
-     The tail ends at `rgb(var(--c-glow) / 0)` and NOT at `transparent`.
-     `transparent` is rgba(0,0,0,0), so a browser interpolating toward it takes
-     the colour through black on the way — a grey-brown shoulder around the
-     light, which on a warm palette is the one thing that cannot be there.
-     Fading to the same hue at zero alpha keeps the whole ramp warm.
+     ── WHAT IS NEW: A SECOND SOURCE, AND IT IS IN LIGHT MODE TOO ──────────
 
-     Fixed to the viewport, so it does not travel on scroll; pointer-events
-     none, so it never intercepts anything; z-index -1, so it is behind every
-     scrap of content and cannot reduce the contrast of a single character.
-     Nothing on the page depends on it: the card surfaces, the hairline borders
-     and the shadows separate on their own, and turning this rule off leaves an
-     interface that still works.
+     One light gives a page a DIRECTION. Two give it DEPTH — and the second has
+     to differ in hue, or the pair reads as one wash that happens to be wide,
+     which is exactly the failure the original two radials had. So there is a
+     warm KEY at the top right and a cooler, quieter FILL at the bottom left:
+     teal in dark, plum in light. See `--c-glow-2` in tokens.ts for why the hue
+     changes between the themes and why teal is refused on cream.
+
+     AND LIGHT MODE PAINTS BOTH. It was flat cream with nothing happening in
+     it, which is the same complaint the dark page had before any of this
+     existed. The RAMP IS THE SAME CURVE in both themes and for both sources —
+     one set of stop positions, one set of multipliers, and a single peak per
+     source per theme (`--glow-1` / `--glow-2`, from GLOW in tokens.ts). Four
+     hand-written gradients would drift; this cannot.
+
+     ── THE FILL IS AT 20%, NOT AT THE CORNER, AND THAT WAS MEASURED ───────
+
+     It was at 4% 99%, which is where a light in the bottom-left corner belongs
+     — and on a screenshot of the signed-in shell it was INVISIBLE. The patient
+     sidebar is 288px wide, which at 1440 is 20% of the viewport, and it is a
+     pane at 78% of an opaque colour: so the only genuinely bright part of the
+     ramp, the core, was behind a column and the second light existed nowhere
+     the reader could see it. Anchored at 20% 98% the core sits just clear of
+     the sidebar's edge and the ellipse spills across the content.
+
+     Moving it inward puts more of the page in the TAIL of the ramp rather than
+     near its head, which is why `GLOW.secondary` in dark is 0.26 rather than
+     the 0.20 it was at the corner. Both numbers are on the record there.
+
+     ── THE TWO SOURCES DO NOT OVERLAP, AND THAT IS LOAD-BEARING ───────────
+
+     Their centres are 76% of the viewport apart horizontally and 97%
+     vertically, which against radii of 62% × 58% is about 2.07 radii — so at
+     every point on the page at least one of them has already reached zero, and
+     there is no pixel carrying both at strength. That is what makes "check the
+     contrast at each corner" the right measurement rather than an optimistic
+     one, and `tokenContrast.test.ts` asserts the separation as well as the
+     ratios so the claim cannot quietly stop being true if a position moves —
+     which is exactly what nearly happened when this one did.
+
+     Every tail ends at the hue at ZERO ALPHA and NOT at `transparent`.
+     `transparent` is rgba(0,0,0,0), so a browser interpolating toward it takes
+     the colour through black on the way — a grey shoulder around the light,
+     which on a warm palette is the one thing that cannot be there.
+
+     Fixed to the viewport, so they do not travel on scroll; pointer-events
+     none, so they never intercept anything; z-index -1, so they are behind
+     every scrap of content. Nothing on the page depends on them: the card
+     surfaces, the hairline borders and the shadows separate on their own, and
+     turning this rule off leaves an interface that still works.
 
      Static, at every motion preference. An ambient light that breathes is a
      notification, not a room. */
-  .dark body::before {
+  body::before {
     content: '';
     position: fixed;
     inset: 0;
     z-index: -1;
     pointer-events: none;
+    background-image:
+      radial-gradient(
+        62% 58% at 96% 1%,
+        rgb(var(--c-glow) / var(--glow-1)) 0%,
+        rgb(var(--c-glow) / calc(var(--glow-1) * 0.7)) 9%,
+        rgb(var(--c-glow) / calc(var(--glow-1) * 0.4125)) 19%,
+        rgb(var(--c-glow) / calc(var(--glow-1) * 0.25)) 30%,
+        rgb(var(--c-glow) / calc(var(--glow-1) * 0.1375)) 42%,
+        rgb(var(--c-glow) / calc(var(--glow-1) * 0.0675)) 55%,
+        rgb(var(--c-glow) / calc(var(--glow-1) * 0.0275)) 70%,
+        rgb(var(--c-glow) / calc(var(--glow-1) * 0.0075)) 85%,
+        rgb(var(--c-glow) / 0) 100%
+      ),
+      radial-gradient(
+        62% 58% at 20% 98%,
+        rgb(var(--c-glow-2) / var(--glow-2)) 0%,
+        rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.7)) 9%,
+        rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.4125)) 19%,
+        rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.25)) 30%,
+        rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.1375)) 42%,
+        rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.0675)) 55%,
+        rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.0275)) 70%,
+        rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.0075)) 85%,
+        rgb(var(--c-glow-2) / 0) 100%
+      );
   }
 
   /* ── GRAIN ON THE PAGE, AND A VIGNETTE AWAY FROM THE LIGHT (Aug 2026) ───
@@ -177,30 +242,55 @@
      and darkening the edges of a cream page is just a smaller page.
 
      Fixed, pointer-events none, z-index -1, static at every motion preference —
-     the same three rules the glow follows, and for the same reasons. */
+     the same three rules the glows follow, and for the same reasons.
+
+     ── AND THE VIGNETTE WAS EASED WHEN THE SECOND LAMP ARRIVED (Aug 2026) ──
+     It is anchored to the PRIMARY source, so the place it darkens hardest is
+     the bottom-left corner — which is now where the second source is. At its
+     old terminal 0.34 the two were cancelling: the teal came up and the
+     vignette took it straight back down, and the corner read as the shadow
+     tone with a cast on it rather than as a second light. 0.20 leaves the
+     unlit diagonal (top-left, bottom-right) still visibly falling away, which
+     is the whole job, and lets the fill be a fill.
+
+     Kept anchored to the primary rather than re-centred: a centred vignette is
+     a photographic effect applied to a document, which is the reason it was
+     put on the light in the first place. */
   .dark body::before {
     background-image:
       radial-gradient(
         62% 58% at 96% 1%,
-        rgb(var(--c-glow) / 0.4) 0%,
-        rgb(var(--c-glow) / 0.28) 9%,
-        rgb(var(--c-glow) / 0.165) 19%,
-        rgb(var(--c-glow) / 0.1) 30%,
-        rgb(var(--c-glow) / 0.055) 42%,
-        rgb(var(--c-glow) / 0.027) 55%,
-        rgb(var(--c-glow) / 0.011) 70%,
-        rgb(var(--c-glow) / 0.003) 85%,
+        rgb(var(--c-glow) / var(--glow-1)) 0%,
+        rgb(var(--c-glow) / calc(var(--glow-1) * 0.7)) 9%,
+        rgb(var(--c-glow) / calc(var(--glow-1) * 0.4125)) 19%,
+        rgb(var(--c-glow) / calc(var(--glow-1) * 0.25)) 30%,
+        rgb(var(--c-glow) / calc(var(--glow-1) * 0.1375)) 42%,
+        rgb(var(--c-glow) / calc(var(--glow-1) * 0.0675)) 55%,
+        rgb(var(--c-glow) / calc(var(--glow-1) * 0.0275)) 70%,
+        rgb(var(--c-glow) / calc(var(--glow-1) * 0.0075)) 85%,
         rgb(var(--c-glow) / 0) 100%
       ),
-      /* The vignette, under the light. Ends at the shadow tone at zero alpha
-         rather than at `transparent`, for the same reason the glow does. */
+      radial-gradient(
+        62% 58% at 20% 98%,
+        rgb(var(--c-glow-2) / var(--glow-2)) 0%,
+        rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.7)) 9%,
+        rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.4125)) 19%,
+        rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.25)) 30%,
+        rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.1375)) 42%,
+        rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.0675)) 55%,
+        rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.0275)) 70%,
+        rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.0075)) 85%,
+        rgb(var(--c-glow-2) / 0) 100%
+      ),
+      /* The vignette, under both lights. Ends at the shadow tone at zero alpha
+         rather than at `transparent`, for the same reason the glows do. */
         radial-gradient(
           125% 115% at 96% 1%,
           rgb(var(--c-shadow) / 0) 0%,
           rgb(var(--c-shadow) / 0) 45%,
-          rgb(var(--c-shadow) / 0.08) 65%,
-          rgb(var(--c-shadow) / 0.19) 82%,
-          rgb(var(--c-shadow) / 0.34) 100%
+          rgb(var(--c-shadow) / 0.03) 65%,
+          rgb(var(--c-shadow) / 0.07) 82%,
+          rgb(var(--c-shadow) / 0.12) 100%
         );
   }
 
@@ -892,6 +982,119 @@
     }
   }
 
+  /* ── THE PAGE-SURFACE PANE (Aug 2026) ──────────────────────────────────
+     The same material as the sidebar and the pinned control bar, at a third
+     alpha, on the big STRUCTURAL surfaces of a page: the Overview's sections,
+     the Results section containers, the at-a-glance strip, the Documents
+     cards, the explanation card, the contact card.
+
+     ⚠ AND NOT ON A MARKER RESULT CARD. A Signature report draws 165 of them,
+     and 165 panes each carrying its own specular streak is not a material, it
+     is a texture — the streaks would tile across the grid and read as a
+     rendering artefact. Worse, a result card's background is already carrying
+     a STATUS TINT, which is a clinical statement, and putting a translucent
+     sheet with a moving highlight over it makes the one surface in the product
+     whose colour means something the least legible of the lot. Result cards,
+     the trend chart and both range gauges keep their opaque treatment.
+
+     WHAT MAKES IT GLASS, and none of it is the blur — see GLASS.sheen in
+     tokens.ts for the measurement and the physics. The blur stays because some
+     of these panes genuinely do have cards scrolling under them.
+
+       background   the glass colour carrying a trace of the theme's second
+                    accent (`--c-glass-panel`), at `--glass-panel-wash`.
+       inset        a hairline of light along the top and the right edge, just
+                    inside the border, in `--c-glass-edge`.
+       ::before     the specular streak, 208° — from the top-right corner, the
+                    one nearest the warm key light, down to the bottom left.
+       ::after      grain, so a surface this large does not read as a fill.
+
+     BOTH PSEUDO-ELEMENTS ARE `z-index: -1`, which is load-bearing rather than
+     decorative: an absolutely-positioned pseudo at `auto` paints AFTER in-flow
+     content, so a streak without it is a sheet of light over the reader's own
+     results instead of under them. `isolation` keeps that negative index
+     inside the pane rather than depending on an ancestor. */
+  .glass-panel {
+    position: relative;
+    isolation: isolate;
+    /* THE COLOUR IS A VARIABLE SO THE MATERIAL AND THE GROUND STAY SEPARATE.
+       Glass is a MATERIAL — translucency, a streak, a lit edge, grain — and
+       vellum is a COLOUR, the warm reading ground under explanatory prose. They
+       are orthogonal, and the explanation card wants both: it is a pane, and it
+       is the one class of content in the product that is writing rather than
+       data. `.glass-vellum` swaps the ground without touching a single number
+       in the material. */
+    --glass-surface: var(--c-glass-panel);
+    background-color: rgb(var(--glass-surface) / var(--glass-panel-wash));
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    box-shadow:
+      inset 0 1px 0 0 rgb(var(--c-glass-edge) / var(--glass-sheen-top)),
+      inset -1px 0 0 0 rgb(var(--c-glass-edge) / var(--glass-sheen-right));
+  }
+
+  /* 208° runs from the top-right corner down to the bottom-left, which is the
+     direction the KEY light actually comes from: it is anchored at 96% 1% of
+     the viewport, so the top-right of any pane is the part nearest it.
+
+     Five stops rather than two, for the same reason the glows have nine: a
+     linear ramp across a pane reads as a fill with a gradient on it, and a band
+     that rises and falls reads as a reflection. It peaks a little way in rather
+     than at the very corner — a highlight pinned to a corner reads as a
+     lighting bug — and it is gone by 62%, so most of the pane is its own flat
+     body and the lit corner is genuinely a lit corner. */
+  .glass-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    border-radius: inherit;
+    background: linear-gradient(
+      208deg,
+      rgb(var(--c-glass-edge) / calc(var(--glass-sheen) * 0.55)) 0%,
+      rgb(var(--c-glass-edge) / var(--glass-sheen)) 14%,
+      rgb(var(--c-glass-edge) / calc(var(--glass-sheen) * 0.45)) 32%,
+      rgb(var(--c-glass-edge) / calc(var(--glass-sheen) * 0.12)) 48%,
+      rgb(var(--c-glass-edge) / 0) 62%
+    );
+  }
+
+  /* The sidebar's own tile, at a lower opacity — `soft-light` rather than a
+     plain alpha for the reason recorded on `.panel-wash`: grey noise at any
+     opacity LIFTS a dark surface toward grey instead of texturing it, and
+     soft-light leaves the mean alone and moves only the variance, which is what
+     grain is. */
+  .glass-panel::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    border-radius: inherit;
+    opacity: var(--glass-grain);
+    mix-blend-mode: soft-light;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)'/%3E%3C/svg%3E");
+    background-size: 160px 160px;
+  }
+
+  /* Same reasoning as `.glass`: body copy legible straight THROUGH a surface is
+     worse than losing the glows on one browser. The streak, the edges and the
+     grain are unaffected — none of them is a backdrop effect, which is the
+     whole point of them. */
+  /* The pane, on the warm reading ground rather than the ordinary glass tint.
+     See `--c-vellum` in tokens.ts for why paper goes in opposite directions in
+     the two themes, and `.glass-panel` above for why this is one line. */
+  .glass-vellum {
+    --glass-surface: var(--c-vellum);
+  }
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass-panel {
+      background-color: rgb(var(--glass-surface) / 0.96);
+    }
+  }
+
   /* THE GLASS ARRIVES WHEN THE BAR PINS, AND FADES RATHER THAN SNAPPING.
      Sitting in the page at the top, the bar is unboxed — there is nothing
      behind it to separate from, and a sheet of glass over the page at rest is
@@ -979,6 +1182,37 @@
     @apply bg-cream-50 border border-taupe rounded-card shadow-card;
   }
 
+  /* ── A CARD ON GLASS ────────────────────────────────────────────────────
+     The hairline, the radius and the shadow are the card's; the SURFACE is the
+     pane's. It has to come after `.card` in this stylesheet and it is the only
+     reason the order matters: both are single-class selectors, so equal
+     specificity means the later rule paints, and `.card`'s own `bg-cream-50`
+     would otherwise cover the pane with an opaque cream and take both ambient
+     glows with it.
+
+     ⚠ WHICH SURFACES TAKE IT IS A BOUNDARY, NOT A PREFERENCE (Aug 2026). A
+     surface is a PANE if it is one of a handful of containers a screen is built
+     out of. It stays an ordinary CARD if it is one of many instances of one
+     repeating object, or if it carries a STATUS COLOUR:
+
+       glass   the at-a-glance strip · the Results section containers · the
+               Documents cards · the marker explanation card (on vellum) · the
+               out-of-range contact card · the Overview's latest-panel card and
+               its Go-deeper tiles.
+       card    every marker result card (165 on a Signature report, each with a
+               status tint under it) · the Overview's attention cards and its
+               What's-changed cards · the auth card · the mobile drawer.
+
+     AND THE MARKER PAGE'S OWN TWO CARDS STAY CARDS, which is the one entry that
+     is a correctness constraint rather than a judgement. The trend chart's five
+     line colours are SOLVED at 4.5:1 against `--c-cream-50` (`LINE_FILL_TARGET`
+     in tokens.ts) and the range gauge's five band fills against the same. Making
+     that card a translucent pane changes the ground those palettes were measured
+     on, silently, and the palette in question is the clinical one. */
+  .card-glass {
+    background-color: rgb(var(--glass-surface) / var(--glass-panel-wash));
+  }
+
   /* ── THE SECOND SURFACE REGISTER (Aug 2026) ────────────────────────────
      A card on the warm reading ground rather than on the ordinary card
      surface. ONE class of content takes it — explanatory prose, i.e. the
@@ -1004,9 +1238,23 @@
 
      The same clamp as `.display-heading` deliberately: one page-scale display
      size, used by whichever element is actually the headline on that page. */
+  /* ── AND IT TOPS OUT AT 52px NOW, BECAUSE IT SITS INSIDE A RING (Aug 2026) ─
+     The value used to stand on its own above a horizontal bar, where the only
+     thing bounding it was the card's width and the display clamp could run to
+     72px. It is the CENTRE OF THE ARC GAUGE now, and the space it has is the
+     inscribed square of the gauge's inner circle — a fixed share of the
+     instrument at every size, with the unit beside it and the status word under
+     it. A 72px figure does not fit in that, and a value that overflows the ring
+     drawn to place it is worse than a smaller one.
+
+     52px is the type scale's own step below 72, so nothing here is off-scale,
+     and the rule the ladder actually turns on is untouched: the marker's name is
+     a `.section-heading` at 38px and the value still clears it. What was never
+     true is that the value had to be 72px specifically — what had to be true is
+     that it is the largest thing on the page, and it is. */
   .hero-value {
     @apply font-display opsz-hero font-semibold text-espresso;
-    font-size: clamp(2.375rem, 1.2rem + 3.6vw, 4.5rem);
+    font-size: clamp(2.375rem, 1rem + 2.6vw, 3.25rem);
     line-height: 1;
     letter-spacing: -0.028em;
   }
@@ -1437,6 +1685,7 @@
      as a flat translucent panel over whatever the renderer decided was behind
      it, which is usually nothing. */
   .glass,
+  .glass-panel,
   .panel-wash {
     background: none !important;
     -webkit-backdrop-filter: none !important;
@@ -1450,6 +1699,8 @@
      stray custom property somebody sets later. */
   .glass::before,
   .glass::after,
+  .glass-panel::before,
+  .glass-panel::after,
   .panel-wash::before,
   .panel-wash::after {
     display: none !important;

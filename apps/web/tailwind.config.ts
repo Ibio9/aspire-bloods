@@ -15,6 +15,7 @@ import {
   MEASURE,
   PANEL_WASH_ALPHA,
   GLASS,
+  GLOW,
   PANEL_SHEEN,
   SPARK,
   type TypeStep,
@@ -154,6 +155,17 @@ export default {
         espresso: scaleVars('espresso'),
         cream: scaleVars('cream'),
         taupe: scaleVars('taupe'),
+        // THE SECOND FAMILY — see `accent` in tokens.ts for the two hues, the
+        // channel rule that keeps them clear of every status colour, and why
+        // burnt amber was rejected. Same 50–900 shape as the brand families, so
+        // `text-teal-700` is a colour in both themes and nothing branches on the
+        // theme to reach one.
+        //
+        // ⚠ NOT ON A MARKER CARD, A RANGE GAUGE, A TREND CHART OR A STATUS
+        // BADGE. Those are status surfaces; a decorative hue beside them reads
+        // as a state.
+        teal: scaleVars('teal'),
+        plum: scaleVars('plum'),
         white: v('--c-white'),
         // Frozen light values — see staticTokens. `night` is the atmospheric
         // dark panel in both themes; `oncolor` is the light text on it and on
@@ -179,6 +191,15 @@ export default {
         panel: {
           DEFAULT: v('--c-panel'),
           edge: v('--c-panel-edge'),
+        },
+        // The page-surface pane: the glass colour carrying a trace of the
+        // theme's second accent, and the hairline of light along its lit edges.
+        // A colour of its own rather than a change to `--c-glass`, because that
+        // one is shared with the sidebar and the control bar and every figure
+        // measured against it is pinned. See `.glass-panel` in globals.css.
+        glass: {
+          panel: v('--c-glass-panel'),
+          edge: v('--c-glass-edge'),
         },
         // THE SECOND SURFACE REGISTER — the warm reading ground under
         // explanatory prose, and nothing else. See `--c-vellum` in tokens.ts
@@ -418,6 +439,23 @@ export default {
           '--glass-wash': String(GLASS.wash.light),
           '--glass-blur': GLASS.blur,
           '--glass-saturate': GLASS.saturate,
+          // The page-surface pane's own alpha, between the sidebar's and the
+          // control bar's — see GLASS.panel for what each of the three has
+          // behind it, which is what sets them apart.
+          '--glass-panel-wash': String(GLASS.panel.light),
+          // The pane's own specular streak, lit edges and grain. Same three
+          // effects as the sidebar at their own strengths — see GLASS.sheen.
+          '--glass-sheen': String(GLASS.sheen.peak.light),
+          '--glass-sheen-top': String(GLASS.sheen.edge.top.light),
+          '--glass-sheen-right': String(GLASS.sheen.edge.right.light),
+          '--glass-grain': String(GLASS.sheen.grain.light),
+          // The peak of each ambient source. The RAMP is written once in
+          // globals.css as multiples of these, so two sources across two themes
+          // are one curve at four strengths rather than four hand-written
+          // gradients. See GLOW in tokens.ts for why light's are a quarter of
+          // dark's — it is a contrast bound, not a taste.
+          '--glow-1': String(GLOW.primary.light),
+          '--glow-2': String(GLOW.secondary.light),
           // What makes the sidebar read as a PANE rather than as a wash. The
           // blur cannot do it on its own — there is nothing behind the column
           // but a flat colour and a smooth gradient, and blurring a smooth
@@ -444,6 +482,13 @@ export default {
           '--glass-wash': String(GLASS.wash.dark),
           '--glass-blur': GLASS.blur,
           '--glass-saturate': GLASS.saturate,
+          '--glass-panel-wash': String(GLASS.panel.dark),
+          '--glass-sheen': String(GLASS.sheen.peak.dark),
+          '--glass-sheen-top': String(GLASS.sheen.edge.top.dark),
+          '--glass-sheen-right': String(GLASS.sheen.edge.right.dark),
+          '--glass-grain': String(GLASS.sheen.grain.dark),
+          '--glow-1': String(GLOW.primary.dark),
+          '--glow-2': String(GLOW.secondary.dark),
           '--panel-sheen': String(PANEL_SHEEN.peak.dark),
           '--panel-sheen-top': String(PANEL_SHEEN.edge.top.dark),
           '--panel-sheen-right': String(PANEL_SHEEN.edge.right.dark),
@@ -480,6 +525,16 @@ export default {
             '--glass-wash': '0',
             '--glass-blur': '0px',
             '--glass-saturate': '1',
+            // A pane on paper is a rectangle of ink saying nothing, and both
+            // ambient sources cost a colour cartridge to print a corner
+            // slightly warmer. Off, with the shadows and the spark halo.
+            '--glass-panel-wash': '0',
+            '--glass-sheen': '0',
+            '--glass-sheen-top': '0',
+            '--glass-sheen-right': '0',
+            '--glass-grain': '0',
+            '--glow-1': '0',
+            '--glow-2': '0',
             '--moment-blur': '0px',
             '--moment-wash': '0',
             '--moment-shade': '0',

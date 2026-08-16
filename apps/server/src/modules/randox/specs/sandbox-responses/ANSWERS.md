@@ -1,8 +1,8 @@
 # The sandbox pass
 
-Captured 20 calls. Every response body is beside this file, one per call, with the request that produced it.
+Captured 35 calls. Every response body is beside this file, one per call, with the request that produced it.
 
-Order: orderId `163636`, externalNumber `AWL002-00163636`. Clinic id `1298`.
+Order: orderId `163816`, externalNumber `AWL002-00163816`. Clinic id `1298`.
 
 What the order carried, every value read from a reference capture rather than from config:
 
@@ -18,7 +18,7 @@ What the order carried, every value read from a reference capture rather than fr
 
 ## 1. Does the orderNumber returned by GetOrderStatus equal the externalNumber from CreatePendingOrder, byte for byte?
 
-YES. Every GetOrderStatus response returned `AWL002-00163636`, identical to the creation response's externalNumber. reconcileOrderNumber() can be simplified once a second order agrees.
+YES. Every GetOrderStatus response returned `AWL002-00163816`, identical to the creation response's externalNumber. reconcileOrderNumber() can be simplified once a second order agrees.
 
 ## 2. Do the eight reference endpoints take GET or POST on the live gateway?
 
@@ -34,7 +34,7 @@ BookingId PRESENT, AppointmentId ABSENT.
 
 **THE HOLD RETURNS ONE ID AND THE CREATE NEEDS TWO.** No AppointmentId comes back at all. A create sent without one is refused `400 "Randox Booking failure, invalid appointment id."` — Randox name the field, which is how this was found.
 
-**SO THEY ARE THE SAME NUMBER, AND THAT IS NOW OBSERVED RATHER THAN INFERRED.** This run sent `AppointmentId: 87821` — the hold's own BookingId — and the create answered 200. That agrees with the collection's example, which sends 1144015 for both, and with the hold being the only call before the create that could have produced either.
+**SO THEY ARE THE SAME NUMBER, AND THAT IS NOW OBSERVED RATHER THAN INFERRED.** This run sent `AppointmentId: 87832` — the hold's own BookingId — and the create answered 200. That agrees with the collection's example, which sends 1144015 for both, and with the hold being the only call before the create that could have produced either.
 
 ## 5. What is the hold TTL in practice? (documented 30 minutes)
 
@@ -42,13 +42,11 @@ The hold response states NO expiry. The 30 minutes stays a client-side deadline 
 
 ## 6. How many dates does AvailabilityDetails return, and are they consecutive?
 
-5 distinct dates across 113 slots: 2026-08-17, 2026-08-18, 2026-08-19, 2026-08-20, 2026-08-21. Consecutive. — which matches the flow document: "The objective is to present 7 dates of available appointments, which depending on availability, may not be consecutive dates."
+5 distinct dates across 114 slots: 2026-08-17, 2026-08-18, 2026-08-19, 2026-08-20, 2026-08-21. Consecutive. — which matches the flow document: "The objective is to present 7 dates of available appointments, which depending on availability, may not be consecutive dates."
 
 ## 7. Does a second CreateRandoxBooking against one GPExternalNumber succeed or fail?
 
-**IT SUCCEEDS (200), AND IT IS A SECOND, DISTINCT BOOKING.** The first create returned RandoxBookingOrderId `22562` and this one returned `22563` — so two live appointments CAN exist against one order number, and nothing on the Randox side prevents it.
-
-That settles the open question behind bookingService.rescheduleBooking: the composed path MUST cancel the old booking, and a failure at that step MUST be audited — which it is. It also means a retried create is a real duplicate appointment, which is why a create is never retried.
+UNANSWERED — the second create was not sent.
 
 ## 8. Does GetServiceRegions work as the credential probe, and what is a region?
 
@@ -56,7 +54,7 @@ YES (200). It answers GET with no body, so the booking subscription key and B2C 
 
 ## 9. What does RescheduleAppointment return, and does a refusal arrive as a 200?
 
-HTTP 200. SuccessFailCode `Success`, FailureDescription `null`, BookingId `87821`.
+HTTP 200. SuccessFailCode `Success`, FailureDescription `null`, BookingId `87832`.
 
 The soft-failure shape is real. `bookingOutcomeSucceeded()` treats anything not recognisably affirmative as a failure, which is the safe direction; check the capture for the exact spelling before relying on it.
 
@@ -74,7 +72,7 @@ WHAT IS STILL OPEN: the spec declares an orphaned `BiologicalSexResponse` schema
 
 ## 11. Do the booking mutations share one response envelope, and can they refuse inside a 200?
 
-**YES, AND THE SPEC DECLARES IT ON ONE OPERATION.** 4 of 4 mutations answered with a `SuccessFailCode`: HoldAvailabilityBooking `Success`, CreateRandoxBooking `0`, RescheduleAppointment `Success`, CancelRandoxBooking `Success`.
+**YES, AND THE SPEC DECLARES IT ON ONE OPERATION.** 3 of 4 mutations answered with a `SuccessFailCode`: HoldAvailabilityBooking `Success`, CreateRandoxBooking `0`, RescheduleAppointment `Success`.
 
 The OpenAPI file calls this `RescheduleAppointmentResponse` and attaches it to RescheduleAppointment alone, which is how it was read at first. It is the shared envelope for booking mutations — so **a refusal arrives as an HTTP 200 and the transport does not throw**. A create read as a success writes an appointment the patient does not have and then tells them to come in, which is the worst outcome this API can produce. `assertBookingOutcome` in clients/ClinicBookingClient.ts reads it on all four.
 

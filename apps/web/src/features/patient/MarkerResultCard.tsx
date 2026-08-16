@@ -9,7 +9,7 @@ import {
 } from '@aspire-bloods/shared';
 import { Card } from '../../components/ui/Card';
 import { StatusBadge } from '../../components/ui/StatusBadge';
-import { MiniRangeBar } from '../../components/ui/RangeBar';
+import { MiniArcGauge } from '../../components/ui/ArcGauge';
 import type { MarkerNavState } from './markerNavState';
 
 /**
@@ -217,28 +217,43 @@ export function MarkerResultCard({
           <p className="mt-1 text-xs leading-snug text-espresso/80">{name.expansion}</p>
         )}
 
-        {/* A textual result has no position on a numeric scale, and a result
-            with no status was never placed on one — the bar would be a guess
-            in both cases, so it is simply not drawn and the card falls back to
-            the words below. */}
-        {m.value !== null && status !== null && hasRange && (
-          <div className="mt-4">
-            <MiniRangeBar
+        {/* ── THE VALUE SITS IN THE GAUGE (Aug 2026) ──────────────────────
+            The card used to carry a range bar and then, four pixels below it, a
+            separate line with the number on it — the picture and the thing it
+            was a picture of, as two objects. The gauge has a middle and the
+            number goes in it, which is one object and one less line on a card
+            that has forty neighbours.
+
+            A textual result has no position on a numeric scale, and a result
+            with no status was never placed on one — the gauge would be a guess
+            in both cases, so it is simply not drawn and the value is set on its
+            own exactly as it used to be. Where the gauge is drawn but the SCALE
+            refuses (see rangeBarScale's five reasons), `MiniArcGauge` still
+            prints these children above its sentence, so the number never goes
+            missing from a card. */}
+        {m.value !== null && status !== null && hasRange ? (
+          <div className="mt-3">
+            <MiniArcGauge
               value={m.value}
               low={m.referenceLow}
               high={m.referenceHigh}
               status={status}
               severityThreshold={m.severityThreshold}
-            />
+            >
+              <p className="numeric tabular flex flex-wrap items-baseline justify-center gap-x-1 text-xl font-semibold leading-none text-espresso">
+                <span className="break-words">{m.value}</span>
+                <span className="text-xs font-normal text-espresso/80">{m.unit}</span>
+              </p>
+            </MiniArcGauge>
           </div>
+        ) : (
+          /* flex-wrap: a textual result ("Not detected") at display size must
+             wrap under itself, not push the unit out of the card. */
+          <p className="numeric tabular mt-4 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-xl font-semibold leading-none text-espresso">
+            <span className="break-words">{m.valueText ?? m.value}</span>
+            <span className="text-sm font-normal text-espresso/80">{m.unit}</span>
+          </p>
         )}
-
-        {/* flex-wrap: a textual result ("Not detected") at display size must
-            wrap under itself, not push the unit out of the card. */}
-        <p className="numeric tabular mt-4 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-xl font-semibold leading-none text-espresso">
-          <span className="break-words">{m.valueText ?? m.value}</span>
-          <span className="text-sm font-normal text-espresso/80">{m.unit}</span>
-        </p>
 
         {/* Absent, not blank, where there is no status: the words are below in
             place of the range, and no tint is applied to the card at all. */}

@@ -12,7 +12,7 @@ import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
 import { Card } from '../../components/ui/Card';
 import { LinkButton } from '../../components/ui/LinkButton';
 import { StatusBadge } from '../../components/ui/StatusBadge';
-import { RangeBar } from '../../components/ui/RangeBar';
+import { ArcGauge } from '../../components/ui/ArcGauge';
 import { TrendChart } from '../../components/ui/LazyCharts';
 import { MarkerExplanationBody } from '../../components/patient/MarkerExplanation';
 import { PrintHeader } from '../../components/patient/PrintDocument';
@@ -271,77 +271,90 @@ export function MarkerDetailPage() {
           bottom, where slack reads as nothing at all. */}
       <div className="mt-10 grid grid-cols-1 gap-7 lg:grid-cols-8">
         <Card className="lg:col-span-3">
-          <p className="eyebrow mb-4">Latest result</p>
-          {/* THE ONE EXCEPTION to "every number is mono": Fraunces at the hero
-              optical size, like a headline, with the unit in mono beside it at
-              a much smaller size — which is what makes the pair read as a
-              measurement rather than as a title with a word after it.
-              flex-wrap, because a textual result ("Not detected") at display
-              size has to wrap rather than push the unit and the copy button
-              out. */}
-          <p
-            className={`flex flex-wrap items-baseline gap-x-3 gap-y-1 ${
-              detail.latest.valueText ? 'hero-value-text' : 'hero-value'
-            }`}
-          >
-            <span className="tabular">{detail.latest.valueText ?? detail.latest.value}</span>
-            <span className="numeric text-base font-normal text-espresso/80">{detail.latest.unit}</span>
+          {/* THE COPY CONTROL SITS WITH THE LABEL, NOT UNDER THE GAUGE.
+              It had its own centred row below the instrument, where a bare
+              16px icon with no label beside it and 40px of card either side
+              read as a stray glyph rather than as a control — and the row
+              existed only because the value used to be there and the button
+              used to be beside it. Up here it is where a copy affordance
+              conventionally is, it is beside the thing it names ("Latest
+              result"), and the space it vacated closes. */}
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <p className="eyebrow">Latest result</p>
             <CopyButton
               value={`${detail.latest.valueText ?? detail.latest.value} ${detail.latest.unit}`}
               label="Copy result value"
-              className="ml-1 self-center"
             />
-          </p>
-          {/* ═══ THE STATUS IS THE SECOND THING ON THE PAGE (Aug 2026) ══════
-              It was a 14px label — the same one a card in a grid of forty gets
-              — sitting in a row of small print between the value and three more
-              lines of small print. On a page whose whole subject is one result,
-              "where does this sit" was the quietest sentence on the screen.
-
-              At `lead` it is the reading step with a 22px chevron, and the space
-              around it is doing as much as the size: 28px above and 28px below,
-              against the 12px it had, so it stands alone rather than heading a
-              stack. Still below the value and still smaller than the marker's
-              name, so the ladder is unchanged.
-
-              The amendment note is NOT in this row any more. It is a footnote
-              about the record, and beside a lead-sized status it read as part
-              of the finding. */}
-          <div className="mt-7">
-            <StatusBadge status={latestStatus} size="lead" />
           </div>
+          {/* ═══ THE VALUE IS INSIDE THE GAUGE NOW (Aug 2026) ═══════════════
+              The bar was a separate object under a separate hero number and a
+              separate status badge: three stacked statements about one result.
+              An arc has a middle, and the middle of an instrument measuring one
+              number is where that number goes — so the value, its unit and the
+              status word are the gauge's centre and the three elements are one.
+
+              WHAT SURVIVES FROM THE STACK, unchanged in kind:
+              · The value is still the loudest thing on the page and still the
+                ONE exception to "every number is mono" — Fraunces at the hero
+                optical size with the unit in mono beside it, which is what makes
+                the pair read as a measurement rather than as a title with a word
+                after it. `.hero-value` was retuned to top out at 52px rather
+                than 72px, because it now sits inside a ring with a fixed
+                interior; it still clears the marker's name at 38px, so the
+                ladder the page turns on is untouched.
+              · The status is still the second thing read and still carries its
+                chevron. It is under the value rather than under a bar.
+              · The amendment note is still OUT of that group — it is a footnote
+                about the record, and beside the finding it read as part of it.
+
+              A textual result has no position on a numeric scale, and a result
+              with no status was never placed on one — the gauge would be a guess
+              in both cases, so where either is true the value is set on its own
+              exactly as it used to be. */}
+          {detail.latest.value !== null && latestStatus !== null ? (
+            <ArcGauge
+              value={detail.latest.value}
+              low={detail.latest.referenceLow}
+              high={detail.latest.referenceHigh}
+              status={latestStatus}
+              severityThreshold={detail.latest.severityThreshold}
+              optimal={detail.optimal}
+              unit={detail.latest.unit}
+              className="mt-2"
+            >
+              <p className="hero-value flex flex-wrap items-baseline justify-center gap-x-2">
+                <span className="tabular">{detail.latest.value}</span>
+                <span className="numeric text-sm font-normal text-espresso/80">{detail.latest.unit}</span>
+              </p>
+              <div className="mt-2">
+                <StatusBadge status={latestStatus} />
+              </div>
+            </ArcGauge>
+          ) : (
+            <>
+              <p
+                className={`flex flex-wrap items-baseline gap-x-3 gap-y-1 ${
+                  detail.latest.valueText ? 'hero-value-text' : 'hero-value'
+                }`}
+              >
+                <span className="tabular">{detail.latest.valueText ?? detail.latest.value}</span>
+                <span className="numeric text-base font-normal text-espresso/80">{detail.latest.unit}</span>
+              </p>
+              {latestStatus !== null && (
+                <div className="mt-7">
+                  <StatusBadge status={latestStatus} size="lead" />
+                </div>
+              )}
+            </>
+          )}
+          {/* The amendment note is the one line that was NOT cut from this card:
+              it says this number changed after the patient saw it. Centred under
+              the gauge, and rendered only when there is one — an empty row here
+              is what opened the dead space the copy control used to sit in. */}
           {detail.latest.amendedAt && (
-            <p className="mt-2 text-xs text-espresso/80">
+            <p className="mt-3 text-center text-xs text-espresso/80">
               Amended <span className="numeric">{formatDate(detail.latest.amendedAt)}</span>
             </p>
-          )}
-          {/* ── THREE LINES CAME OFF HERE (Aug 2026) ────────────────────────
-              · "Lab reference range 3.9–5.1 mmol/L". The bar below draws that
-                range, marks both bounds and prints the scale it is drawn on.
-              · "Optimal below 5.0 mmol/L · outside optimal". Where the answer
-                is "outside", the card further down the page says so in a
-                sentence WITH its published source, which is the form that
-                belongs to advisory guidance. Where it is "within", nothing
-                needed saying at all.
-              · "Analysed by Randox Health". Gone from every patient surface —
-                see the same note in ReportHeader.
-              What is left between the value and the bar is the status, which
-              is what the page is for. */}
-          {/* A textual result has no position on a numeric scale, and a result
-              with no status was never placed on one — the bar would be a guess
-              in both cases, so it is simply not drawn. */}
-          {detail.latest.value !== null && latestStatus !== null && (
-            <div className="mt-7">
-              <RangeBar
-                value={detail.latest.value}
-                low={detail.latest.referenceLow}
-                high={detail.latest.referenceHigh}
-                status={latestStatus}
-                severityThreshold={detail.latest.severityThreshold}
-                optimal={detail.optimal}
-                unit={detail.latest.unit}
-              />
-            </div>
           )}
           {/* The history, directly beneath the range bar. It is the same data
               the chart on the right plots, read as a list rather than as a
@@ -405,7 +418,12 @@ export function MarkerDetailPage() {
           // class from the three labels below it, which is precisely how four
           // labels of one kind ended up in two competing tiers. It is rendered
           // by the component now, with its three siblings, in one class.
-          <Card className="card-vellum">
+          // GLASS ON VELLUM (Aug 2026). Vellum is the COLOUR — the warm
+          // reading ground under the one class of content in the product that
+          // is writing rather than data — and glass is the MATERIAL. The two
+          // are orthogonal and this card wants both; `.glass-vellum` swaps the
+          // ground without touching a number in the material.
+          <Card surface="vellum-glass">
             <MarkerExplanationBody explanation={detail.explanation} />
           </Card>
         )}
@@ -441,7 +459,7 @@ export function MarkerDetailPage() {
             the tail of the copy block, which is where they used to live as one
             comma-joined line. */}
         {detail.outOfRangeNotice && (
-          <Card className="mt-8">
+          <Card surface="glass" className="mt-8">
             <p className="max-w-measure whitespace-pre-line text-sm leading-relaxed text-espresso">
               {detail.outOfRangeNotice}
             </p>

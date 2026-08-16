@@ -20,7 +20,12 @@ import {
   PANEL_WASH_ALPHA,
   PANEL_SHEEN,
   GLASS,
+  GLOW,
   SPARK,
+  accent,
+  accentScales,
+  darkAccentScales,
+  brand,
   type StatusKey,
 } from '@aspire-bloods/shared';
 
@@ -1238,12 +1243,13 @@ describe.each(MODES)('%s sidebar panel', (mode) => {
   const wash = tone(mode, '--c-panel');
   const alpha = PANEL_WASH_ALPHA[mode];
 
-  // THE GLOW IS DARK-ONLY. The token is emitted in both themes so nothing has
-  // to branch, but the rule that paints it is `.dark body::before` — so in
-  // light there is no near corner and no far corner, there is only the page,
-  // and measuring a light-mode panel against a glow that is never drawn would
-  // be measuring a fiction. The backdrop in light is the page, twice.
-  const glowCore = mode === 'dark' ? blend(tone(mode, '--c-glow'), page, 0.4) : page;
+  // THE GLOW IS DRAWN IN BOTH THEMES NOW (Aug 2026), so the light-mode panel has
+  // a near corner and a far corner as well and this is no longer measuring a
+  // fiction there. The alpha comes from `GLOW.primary` rather than a literal, so
+  // moving the source's strength moves this measurement with it — the sidebar is
+  // against the left edge and the primary source is anchored at 96% 1%, so the
+  // core is the pessimistic backdrop rather than the real one.
+  const glowCore = blend(tone(mode, '--c-glow'), page, GLOW.primary[mode]);
 
   const panelOnPage = blend(wash, page, alpha);
   const panelOnGlow = blend(wash, glowCore, alpha);
@@ -1368,5 +1374,346 @@ describe.each(MODES)('%s sidebar panel', (mode) => {
     // Legible on its own where the wash is faintest, but never a line of light.
     expect(edge).toBeGreaterThanOrEqual(1.6);
     expect(edge).toBeLessThan(WCAG_AA_TEXT);
+  });
+});
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  THE SECOND FAMILY — AND THE ONE RULE THAT KEEPS IT OFF THE STATUS COLOURS
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Two accents were added because the palette had none: bronze, espresso, cream,
+ * taupe and five status hues all live between 10° and 90°, so the product had no
+ * cool colour at all and the only accent anything could reach for was the brand
+ * one.
+ *
+ * The constraint on them is not aesthetic. An accent may never be mistakable for
+ * a STATE, because green, gold and red on this product are a statement about
+ * somebody's blood. "Looks different enough" is not a check, so the separation
+ * is stated as something measurable and asserted here:
+ *
+ *     BLUE IS STRICTLY THE LOWEST CHANNEL IN EVERY STATUS HUE AND IN BRONZE.
+ *     IT IS NEVER STRICTLY THE LOWEST IN EITHER ACCENT, AT ANY STEP.
+ *
+ * It holds through the whole 50–900 ladder in both themes because mixing toward
+ * white, toward espresso or toward the page moves all three channels together
+ * and cannot reorder them — which is what makes this a structural claim rather
+ * than a lucky one.
+ */
+describe('the accent family', () => {
+  const channels = (hex: string) => {
+    const n = hex.replace('#', '');
+    return [parseInt(n.slice(0, 2), 16), parseInt(n.slice(2, 4), 16), parseInt(n.slice(4, 6), 16)] as const;
+  };
+  /** Blue below BOTH of the others — the shape every warm hue in this palette has. */
+  const blueStrictlyLowest = (hex: string) => {
+    const [r, g, b] = channels(hex);
+    return b < r && b < g;
+  };
+
+  it('gives every status hue and the brand accent the warm channel shape', () => {
+    for (const [name, hex] of Object.entries({ ...statusHue, bronze: brand.bronze })) {
+      expect(blueStrictlyLowest(hex), `${name} ${hex} is not blue-lowest, so the separation rule has no basis`).toBe(
+        true,
+      );
+    }
+  });
+
+  it('gives neither accent that shape, at any step, in either theme', () => {
+    for (const family of ['teal', 'plum'] as const) {
+      for (const scale of [accentScales[family], darkAccentScales[family]]) {
+        for (const [step, hex] of Object.entries(scale)) {
+          expect(
+            blueStrictlyLowest(hex),
+            `${family}-${step} is ${hex}, which has the channel shape of a status hue`,
+          ).toBe(false);
+        }
+      }
+    }
+  });
+
+  /**
+   * BURNT AMBER WAS THE THIRD CANDIDATE AND IT FAILS THIS. Written down here
+   * rather than in a comment because "we considered it and rejected it" is only
+   * worth anything if the rejection can be re-run: amber lands around 35–40°,
+   * between bronze at 22° and the status gold at 45°, and there is no opacity at
+   * which a decorative hue the colour of ABOVE RANGE becomes safe on a page of
+   * blood results.
+   */
+  it('rejects burnt amber by the same rule it accepted the other two by', () => {
+    expect(blueStrictlyLowest('#B5651D'), 'burnt amber has the channel shape of a status hue').toBe(true);
+  });
+
+  it('keeps both accents out of the marker surfaces entirely', () => {
+    // Neither accent may be the value of a token any status surface reads. This
+    // is the token-level half of the rule; the class-level half is that a tinted
+    // card refuses the pane material outright (see Card.tsx).
+    const forbidden = new Set<string>(Object.values(accent).map((h) => h.toLowerCase()));
+    for (const mode of MODES) {
+      for (const key of [
+        '--c-tint-in-range',
+        '--c-tint-high',
+        '--c-tint-significant-high',
+        '--c-hue-green-fill',
+        '--c-hue-yellow-fill',
+        '--c-hue-red-fill',
+        '--c-rangemark',
+        '--c-chart-reference-edge',
+      ]) {
+        expect(forbidden.has(tone(mode, key).toLowerCase()), `${key} in ${mode} is an accent hue`).toBe(false);
+      }
+    }
+  });
+});
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  TWO AMBIENT SOURCES, AND THE CONTRAST AT EVERY CORNER
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * A glow sits at `z-index: -1` behind every scrap of content, so it cannot
+ * reduce the contrast of a character directly. What it does is change the GROUND
+ * a character stands on, and the page is a ground: every heading and every line
+ * of body copy outside a card sits on it.
+ *
+ * ── WHY EACH CORNER SEPARATELY, AND NOT BOTH TOGETHER ──────────────────────
+ *
+ * The sources are anchored at 96% 1% and 4% 99% with radii of 62% × 58%, which
+ * puts their centres about 2.25 radii apart — so at every point on the page at
+ * least one of them has already reached zero and no pixel carries both at
+ * strength. That separation is asserted here as GEOMETRY before it is relied on,
+ * because "measure each corner" is only the right measurement while it stays
+ * true, and a position nudged in a later session would otherwise silently turn
+ * this whole block optimistic.
+ */
+describe.each(MODES)('%s ambient sources', (mode) => {
+  const page = tone(mode, '--c-cream');
+  const card = tone(mode, '--c-cream-50');
+
+  /** The two source positions and radii, exactly as globals.css writes them. */
+  const SOURCES = { rx: 0.62, ry: 0.58, a: { x: 0.96, y: 0.01 }, b: { x: 0.2, y: 0.98 } };
+
+  const underPrimary = blend(tone(mode, '--c-glow'), page, GLOW.primary[mode]);
+  const underSecondary = blend(tone(mode, '--c-glow-2'), page, GLOW.secondary[mode]);
+
+  it('places the two sources far enough apart that no pixel carries both', () => {
+    const dx = (SOURCES.a.x - SOURCES.b.x) / SOURCES.rx;
+    const dy = (SOURCES.a.y - SOURCES.b.y) / SOURCES.ry;
+    const apart = Math.hypot(dx, dy);
+    // Each ramp reaches zero at one radius, so anything over 2 means the two
+    // never overlap at any strength.
+    expect(apart, `the sources are ${apart.toFixed(2)} radii apart`).toBeGreaterThan(2);
+  });
+
+  it('is a second source rather than more of the first', () => {
+    // A second light the colour of the first is a wider first light, which is
+    // exactly the failure the original pair of viewport-sized radials had.
+    const chan = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    const [r1, g1, b1] = chan(tone(mode, '--c-glow'));
+    const [r2, g2, b2] = chan(tone(mode, '--c-glow-2'));
+    expect(tone(mode, '--c-glow-2')).not.toBe(tone(mode, '--c-glow'));
+    // The key is warm (blue lowest); the fill is not. Two lamps, not one.
+    expect(b1 < r1 && b1 < g1, 'the key light is not warm').toBe(true);
+    expect(b2 < r2 && b2 < g2, 'the fill light has the same channel shape as the key').toBe(false);
+  });
+
+  it('is a fill rather than a second key', () => {
+    // Two equal sources cancel each other's direction and the page goes flat
+    // again with more colour in it.
+    expect(GLOW.secondary[mode]).toBeLessThan(GLOW.primary[mode]);
+  });
+
+  /**
+   * ⚠ THE FLOOR. Body copy on the page clears AA text under either source at its
+   * core; everything else on the page clears AA-large.
+   *
+   * `--c-bronze` is held to the LARGE floor rather than the text one, and that
+   * is not a concession made for the glows: it measures 4.18:1 on the bare cream
+   * page before any of this exists, so it has never been a body-text colour
+   * there. It is a link and an accent, and 3:1 is the floor it has always
+   * answered to.
+   */
+  it('leaves every text token on the page above its floor at both cores', () => {
+    for (const [where, ground] of [
+      ['bare page', page],
+      ['under the key light', underPrimary],
+      ['under the fill light', underSecondary],
+    ] as const) {
+      const body = contrastRatio(tone(mode, '--c-espresso'), ground);
+      expect(body, `body copy ${where} in ${mode} is ${body.toFixed(2)}:1`).toBeGreaterThanOrEqual(WCAG_AA_TEXT);
+      for (const token of ['--c-bronze', '--c-taupe-900']) {
+        const r = contrastRatio(tone(mode, token), ground);
+        expect(r, `${token} ${where} in ${mode} is ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(WCAG_AA_LARGE_TEXT);
+      }
+    }
+  });
+
+  /**
+   * ── AND THE TWO THEMES NEED TWO DIFFERENT CLAIMS HERE ──────────────────────
+   *
+   * DARK had a key light before this pass, so the claim that means anything
+   * about the NEW one is comparative: the fill must not take any page token
+   * below where the source already there puts it. It is a long way from doing
+   * so — teal at 0.20 on near-black is a far gentler ground than gold at 0.36.
+   *
+   * LIGHT had no glow at all, so there is no prior source to compare with and a
+   * comparative test there would be measuring one new thing against another.
+   * (It also fails, by a hair and in the harmless direction: plum is a much
+   * darker hue than the gold, so at 0.075 it costs marginally more contrast than
+   * the key does at 0.10 — which is a fact about the two hues, not about one of
+   * them being too strong.) What is asserted instead is a BUDGET: between them
+   * the two sources may spend at most 15% of the bare page's own body-copy
+   * contrast. Measured at 10.2%.
+   */
+  if (mode === 'dark') {
+    it('never makes a ground harsher than the source that was already there', () => {
+      for (const token of ['--c-espresso', '--c-bronze', '--c-taupe-900']) {
+        const withFill = contrastRatio(tone(mode, token), underSecondary);
+        const withKey = contrastRatio(tone(mode, token), underPrimary);
+        expect(
+          withFill,
+          `${token} is ${withFill.toFixed(2)}:1 under the new fill against ${withKey.toFixed(2)}:1 under the existing key`,
+        ).toBeGreaterThanOrEqual(withKey);
+      }
+    });
+  } else {
+    it('spends at most a sixth of the page’s own contrast on either source', () => {
+      const bare = contrastRatio(tone(mode, '--c-espresso'), page);
+      for (const [which, ground] of [
+        ['key', underPrimary],
+        ['fill', underSecondary],
+      ] as const) {
+        const lit = contrastRatio(tone(mode, '--c-espresso'), ground);
+        expect(lit / bare, `the ${which} light costs ${(100 - (lit / bare) * 100).toFixed(1)}% of the page`).toBeGreaterThan(
+          0.85,
+        );
+      }
+    });
+  }
+
+  it('still lets a card separate from the page it is lit on', () => {
+    for (const [where, ground] of [
+      ['under the key light', underPrimary],
+      ['under the fill light', underSecondary],
+    ] as const) {
+      const r = contrastRatio(card, ground);
+      expect(r, `a card ${where} in ${mode} is ${r.toFixed(2)}:1 off the page`).toBeGreaterThan(1.05);
+    }
+  });
+});
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  THE PAGE-SURFACE PANE
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * The third alpha in the glass family, on the structural surfaces of a page.
+ * Three things have to hold at once and they pull against each other: it has to
+ * be a visible surface, it has to stay below a card (a container must not
+ * out-read the things inside it), and every piece of text on it has to clear AA
+ * against the BRIGHTEST backdrop the material can produce — which is the pane
+ * over a lit page with its own specular streak at peak on top of that.
+ */
+describe.each(MODES)('%s page-surface pane', (mode) => {
+  const page = tone(mode, '--c-cream');
+  const card = tone(mode, '--c-cream-50');
+  const litPage = blend(tone(mode, '--c-glow'), page, GLOW.primary[mode]);
+
+  const paneOnPage = blend(tone(mode, '--c-glass-panel'), page, GLASS.panel[mode]);
+  const paneOnLit = blend(tone(mode, '--c-glass-panel'), litPage, GLASS.panel[mode]);
+  const paneSheened = blend(tone(mode, '--c-glass-edge'), paneOnLit, GLASS.sheen.peak[mode]);
+
+  it('carries a trace of the theme own second accent rather than a colour of its own', () => {
+    // A pane the colour of a card is a card. A pane with its own hue is a fifth
+    // surface colour nobody chose. It is the glass colour with the counter-light
+    // mixed into it at GLASS.tint, and that is the whole of the difference.
+    expect(tone(mode, '--c-glass-panel')).not.toBe(tone(mode, '--c-glass'));
+    const shift = contrastRatio(tone(mode, '--c-glass-panel'), tone(mode, '--c-glass'));
+    expect(shift, `the pane tint moved the glass colour by ${shift.toFixed(3)}:1`).toBeLessThan(1.2);
+  });
+
+  it('is a surface rather than a tint of the page', () => {
+    const r = contrastRatio(paneOnPage, page);
+    expect(r, `the pane is ${r.toFixed(2)}:1 off the page`).toBeGreaterThan(1.05);
+  });
+
+  it('stays below a card, because a container must not out-read its contents', () => {
+    expect(Math.abs(luminance(paneOnPage) - luminance(page))).toBeLessThan(
+      Math.abs(luminance(card) - luminance(page)),
+    );
+  });
+
+  it('sits between the sidebar and the control bar, which is what its alpha is for', () => {
+    // The three surfaces differ only in what is BEHIND them: the sidebar has the
+    // page and the light, the control bar has the reader's own results moving
+    // under it, and a pane has other cards and headings. Ordered here, so a
+    // change to one that crossed another fails rather than being noticed later.
+    expect(GLASS.panel[mode]).toBeLessThan(PANEL_WASH_ALPHA[mode]);
+    expect(GLASS.panel[mode]).toBeGreaterThan(GLASS.wash[mode]);
+  });
+
+  it('keeps every label on it at AA, streak and all', () => {
+    const body = contrastRatio(tone(mode, '--c-espresso'), paneSheened);
+    expect(body, `body copy on the lit, streaked pane in ${mode} is ${body.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+      WCAG_AA_TEXT,
+    );
+    // The floor of the opacity ladder — /80 — is the tightest label on it.
+    const quiet = contrastRatio(blend(tone(mode, '--c-espresso'), paneSheened, 0.8), paneSheened);
+    expect(quiet, `an /80 label on the pane in ${mode} is ${quiet.toFixed(2)}:1`).toBeGreaterThanOrEqual(WCAG_AA_TEXT);
+  });
+
+  /**
+   * ── THE STREAK IS BOUNDED IN LUMINANCE, PER THEME, AND NOT IN CONTRAST ─────
+   *
+   * The same two bounds `.panel-wash`'s sheen answers to, for the same reason
+   * they had to be split there. They are two different physical claims because
+   * a highlight on a dark ground and a highlight on a light one are two
+   * different phenomena:
+   *
+   *  · DARK — A REFLECTION IS NEVER BRIGHTER THAN THE LIGHT IT REFLECTS. The key
+   *    lifts this pane by a measurable amount where it lands on it, and the
+   *    streak may add at most that much. Physical, self-adjusting, and it holds
+   *    the streak to the one thing on the page it is a reflection OF. (The pane
+   *    over the glow is ALREADY brighter than a card — that is the light doing
+   *    its job, and the ladder has always been about the pane's UNLIT body,
+   *    which `stays below a card` measures.)
+   *  · LIGHT — the sources are a tenth of dark's, so the same bound would hold
+   *    the streak to almost nothing. There the bound is the ladder itself: even
+   *    at its peak over a lit page, the pane stays below a card.
+   */
+  it('lights the pane without the streak becoming a surface of its own', () => {
+    const flatUnlit = luminance(paneOnPage);
+    const flatLit = luminance(paneOnLit);
+    const peak = luminance(paneSheened);
+    // It does something at all — a streak measuring identical to the flat wash
+    // is a custom property somebody set to zero, which is the failure the whole
+    // material exists to fix and would otherwise pass silently.
+    expect(
+      Math.abs(peak - flatLit),
+      `the streak moves the pane by ${(peak - flatLit).toFixed(5)}, which is nothing`,
+    ).toBeGreaterThan(0.0005);
+
+    if (mode === 'dark') {
+      expect(
+        peak - flatLit,
+        `the streak adds ${(peak - flatLit).toFixed(4)} where the key light itself adds only ${(flatLit - flatUnlit).toFixed(4)}`,
+      ).toBeLessThanOrEqual(flatLit - flatUnlit);
+    } else {
+      expect(peak, `the streaked pane is at ${peak.toFixed(4)} against a card's ${luminance(card).toFixed(4)}`).toBeLessThan(
+        luminance(card),
+      );
+    }
+  });
+
+  /**
+   * ⚠ THE ONE PLACE IT MAY NOT GO. The trend chart's five line colours and both
+   * gauges' five band fills are solved at a fixed ratio against `--c-cream-50`.
+   * A pane is not that colour, so a marker result card — or the marker page's own
+   * two cards — becoming a pane would move the ground a CLINICAL palette was
+   * measured on, silently. Asserted as an inequality rather than trusted to the
+   * comment above it.
+   */
+  it('is not the surface the clinical palettes were solved against', () => {
+    expect(paneOnPage).not.toBe(card);
   });
 });

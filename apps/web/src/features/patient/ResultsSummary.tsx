@@ -157,7 +157,12 @@ export function CountsStrip({
           that is the whole construction. overflow-hidden is what lets the
           segments' tinted fills reach the rounded corners without each one
           needing a radius of its own. */}
-      <ul className="grid w-full max-w-3xl grid-cols-1 divide-y divide-taupe overflow-hidden rounded-card border border-taupe shadow-card sm:auto-cols-fr sm:grid-flow-col sm:divide-x sm:divide-y-0">
+      {/* A PAGE-LEVEL PANE (Aug 2026). One strip per screen, holding three
+          segments — the definition of a structural surface rather than a
+          repeating object. `overflow-hidden` clips the pane’s own streak and
+          grain to the radius along with the segments’ tinted fills, which is
+          why the radius still lives here and nowhere inside. */}
+      <ul className="glass-panel card-glass grid w-full max-w-3xl grid-cols-1 divide-y divide-taupe overflow-hidden rounded-card border border-taupe shadow-card sm:auto-cols-fr sm:grid-flow-col sm:divide-x sm:divide-y-0">
         {shown.map((status) => {
           // The segment selects the DIRECTIONAL filter, not the specific state
           // — its number counts the significant one too, and a segment reading

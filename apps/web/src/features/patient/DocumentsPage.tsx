@@ -129,7 +129,9 @@ export function DocumentsPage() {
           {documents.map((doc, i) => (
             <li key={doc.reportId}>
               <Reveal delay={staggerDelay(i)}>
-              <Card>
+              {/* A page-level pane: three of them at most, each a container
+                  for one report’s documents. See `.card-glass`. */}
+              <Card surface="glass">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
                     <p className="eyebrow mb-2">{formatDate(doc.sampleDate)}</p>

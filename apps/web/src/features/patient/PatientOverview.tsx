@@ -5,7 +5,7 @@ import { Card } from '../../components/ui/Card';
 import { LinkButton } from '../../components/ui/LinkButton';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { StatusBadge } from '../../components/ui/StatusBadge';
-import { RangeBar } from '../../components/ui/RangeBar';
+import { ArcGauge } from '../../components/ui/ArcGauge';
 import { SectionRail, type RailSection } from '../../components/patient/SectionRail';
 import { AnimatedNumber } from '../../components/motion/AnimatedNumber';
 import { Reveal } from '../../components/motion/Reveal';
@@ -580,23 +580,32 @@ export function PatientOverview() {
                       <p className="text-balance font-display opsz-small text-lg leading-tight text-espresso">
                         {item.name}
                       </p>
-                      <p className="numeric tabular mt-2 flex flex-wrap items-baseline gap-x-1.5 text-xl font-semibold text-espresso">
-                        {item.value} <span className="text-sm font-normal text-espresso/80">{item.unit}</span>
-                      </p>
-                      <StatusBadge status={item.status} className="mt-2.5" />
-                      {/* NO WIDTH CAP. `max-w-md` held the bar at 448px inside
-                          an 848px card, which is the measurement in the note
-                          above; in a two-column card there is nothing left to
-                          cap it against and the scale should have the card. */}
-                      <div className="mt-6">
-                        <RangeBar
+                      {/* THE VALUE AND THE STATUS ARE THE GAUGE'S CENTRE now —
+                          one object rather than a number, a badge and a picture
+                          of the number stacked in a column. The order a reader
+                          meets them is unchanged: name, then value, then status,
+                          which is the arrangement the result card that appears
+                          165 times on a report also uses.
+
+                          NO WIDTH CAP, and the gauge caps itself: it is square,
+                          fluid up to its own maximum and centred, so a
+                          two-column card gives it exactly as much as it can use
+                          and nothing is squeezed. */}
+                      <div className="mt-4">
+                        <ArcGauge
                           value={item.value}
                           low={item.referenceLow}
                           high={item.referenceHigh}
                           status={item.status}
                           severityThreshold={item.severityThreshold}
                           unit={item.unit}
-                        />
+                          maxWidth={220}
+                        >
+                          <p className="numeric tabular flex flex-wrap items-baseline justify-center gap-x-1.5 text-2xl font-semibold leading-none text-espresso">
+                            {item.value} <span className="text-xs font-normal text-espresso/80">{item.unit}</span>
+                          </p>
+                          <StatusBadge status={item.status} className="mt-2" />
+                        </ArcGauge>
                       </div>
                       {/* Panels are optional, so the panel name is a segment
                           that may not exist. Printed raw it left an orphaned
@@ -640,7 +649,10 @@ export function PatientOverview() {
             Your most recent panel
           </h2>
           <Reveal>
-          <Card className="mt-8">
+          {/* The most prominent single surface on the landing page, and one of
+              it — a pane rather than a card. It carries no status tint: the
+              counts strip inside it does that, on its own segments. */}
+          <Card surface="glass" className="mt-8">
             <div className="flex flex-wrap items-start justify-between gap-6">
               <div>
                 <p className="eyebrow mb-2"><span className="numeric">{formatDate(data.latest.sampleDate)}</span></p>
@@ -725,7 +737,9 @@ export function PatientOverview() {
             {QUICK_ROUTES.map(({ to, label, body, icon: Icon }, i) => (
               <Reveal key={to} delay={staggerDelay(i)} className="h-full">
                 <Link to={to} className="block h-full rounded-card">
-                  <Card interactive className="flex h-full flex-col">
+                  {/* A Go-deeper tile: three of them, each a doorway to a
+                      screen rather than a result. Page furniture, so a pane. */}
+                  <Card surface="glass" interactive className="flex h-full flex-col">
                     <Icon className="text-bronze-700" />
                     <p className="mt-4 font-display opsz-small text-lg leading-tight text-espresso">{label}</p>
                     <p className="mt-2 flex-1 text-sm leading-relaxed text-espresso/90">{body}</p>

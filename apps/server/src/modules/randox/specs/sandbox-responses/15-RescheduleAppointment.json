@@ -5,19 +5,19 @@
   "method": "POST",
   "path": "RandoxBookings/RescheduleAppointment",
   "request": {
-    "appointmentId": 87821,
+    "appointmentId": 87832,
     "serviceId": 787,
     "locationId": 30,
-    "newAppointmentSlotId": "slot-room33-2026-08-17T07:30-staff19"
+    "newAppointmentSlotId": "slot-room33-2026-08-17T07:15-staff19"
   },
   "status": 200,
   "ok": true,
   "body": {
-    "BookingId": 87821,
+    "BookingId": 87832,
     "SuccessFailCode": "Success",
     "FailureDescription": null,
-    "NewAppointmentDateTime": "2026-08-17T07:30:00"
+    "NewAppointmentDateTime": "2026-08-17T07:15:00"
   },
-  "raw": "{\"BookingId\":87821,\"SuccessFailCode\":\"Success\",\"FailureDescription\":null,\"NewAppointmentDateTime\":\"2026-08-17T07:30:00\"}",
+  "raw": "{\"BookingId\":87832,\"SuccessFailCode\":\"Success\",\"FailureDescription\":null,\"NewAppointmentDateTime\":\"2026-08-17T07:15:00\"}",
   "note": "Q9: the first ever call to RescheduleAppointment. What does SuccessFailCode carry, and is a refusal a 200?"
 }

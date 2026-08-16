@@ -16,6 +16,80 @@ export const brand = {
   white: '#ffffff',
 } as const;
 
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  THE SECOND FAMILY — TWO ACCENTS, AND THE RULE THAT PICKED THEM (Aug 2026)
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * The palette was bronze, espresso, cream and taupe, plus five status hues, and
+ * EVERY ONE OF THOSE NINE COLOURS LIVES BETWEEN 10° AND 90° OF HUE. Written
+ * down like that the austerity stops being a matter of taste and becomes a
+ * measurement: the product had no cool colour at all, so every surface that
+ * needed to be something other than a card had to be a lighter or darker brown,
+ * and the only accent anything could reach for was bronze.
+ *
+ * ── THE ONE CONSTRAINT, AND IT IS NOT AESTHETIC ────────────────────────────
+ *
+ * An accent may never be mistakable for a STATE. Green, gold and red are solved,
+ * measured and clinically load-bearing, and a decorative hue that lands near one
+ * of them turns a page furniture colour into a reading about somebody's blood.
+ * "Looks different enough" is not a check, so here is one that a test can run:
+ *
+ *     EVERY STATUS HUE HAS BLUE AS ITS LOWEST CHANNEL.
+ *     NEITHER ACCENT DOES.
+ *
+ *   green  #5E8C3A  94 140  58   ·  teal  #2F6F6B   47 111 107   B is not lowest
+ *   olive  #939328 147 147  40   ·  plum  #6B4260  107  66  96   B is not lowest
+ *   yellow #C79A16 199 154  22
+ *   orange #C4711F 196 113  31
+ *   red    #B23A28 178  58  40
+ *   bronze #8a5e45 138  94  69
+ *
+ * That is a structural separation rather than a hopeful one, it holds at every
+ * tint and shade `buildScale` produces (mixing toward white or espresso moves
+ * all three channels together and cannot reorder them), and
+ * `tokenContrast.test.ts` asserts it.
+ *
+ * ── WHAT WAS PICKED ────────────────────────────────────────────────────────
+ *
+ *   teal  #2F6F6B  ~176°  Bronze's near-complement, 157° away from it and 86°
+ *                         from the nearest status hue. Low chroma and a shade
+ *                         green-leaning rather than blue-leaning, which is what
+ *                         lets it sit WITH warm brown instead of against it —
+ *                         teal and bronze is the oxidised-copper pairing, which
+ *                         is why it reads as belonging rather than as an
+ *                         addition. It is the cool counter-light in dark.
+ *   plum  #6B4260  ~313°  The bridge back. Red-dominant like bronze, so a plum
+ *                         glow and a bronze glow read as two lamps in one room
+ *                         rather than as two brands; blue second, so it can
+ *                         never be the status red, which has blue lowest by a
+ *                         long way. It is the warm counter-light in light.
+ *
+ * ── AND BURNT AMBER WAS REJECTED, WHICH IS THE USEFUL HALF ─────────────────
+ *
+ * It was on the list and it fails the one rule that cannot bend. Amber lands
+ * around 35–40°: between bronze at 19° and the status gold at 44°. A burnt-amber
+ * glow in the corner of a results page is the same hue as ABOVE RANGE, at a
+ * lower saturation, on the same screen as the thing it would be confused with.
+ * There is no opacity at which that becomes safe, because the failure is not one
+ * of strength. Nothing else was rejected: it is the only candidate that landed
+ * inside the reserved arc.
+ *
+ * ── WHERE THEY ARE USED, AND WHERE THEY ARE FORBIDDEN ──────────────────────
+ *
+ * Used: the second ambient glow in each theme, the tint and the lit edge of the
+ * page-surface glass, and the section rail. Forbidden, and this is not a style
+ * note: NOTHING on a marker card, in a range gauge, on a trend chart or in a
+ * status badge. Those are status surfaces, and a decorative hue next to them
+ * reads as a state.
+ */
+export const accent = {
+  teal: '#2F6F6B',
+  plum: '#6B4260',
+} as const;
+
+export type AccentHue = keyof typeof accent;
+
 // ---------------------------------------------------------------------------
 // Color math — tints/shades are derived programmatically from the four brand
 // hues only. Tints mix toward white; shades mix toward espresso (the brand's
@@ -202,6 +276,20 @@ export const scales = {
   espresso: buildScale(brand.espresso),
   cream: buildScale(brand.cream),
   taupe: buildScale(brand.taupe),
+} as const;
+
+/**
+ * The two accents on the same ladder every brand hue is on — tints toward
+ * white, shades toward espresso.
+ *
+ * Toward ESPRESSO and not toward black, exactly as the brand families are: a
+ * teal shaded toward black is a cold slate and stops belonging to this palette
+ * the moment it is put next to a card. Shading it toward the product's own
+ * darkest warm tone is what keeps a dark teal a member of the family.
+ */
+export const accentScales = {
+  teal: buildScale(accent.teal),
+  plum: buildScale(accent.plum),
 } as const;
 
 /**
@@ -1174,6 +1262,26 @@ export const darkScales = {
 } as const;
 
 /**
+ * The accents in dark, re-derived rather than reused — the same rule the status
+ * hues answer to and for the same reason. #2F6F6B on a #110F0D page measures
+ * 1.9:1: a teal that reads as a considered colour on cream is a dark smudge on
+ * near-black, and lightening it at the call site would desaturate it twice.
+ *
+ * Lifted toward the theme's own TEXT tone rather than toward white, so it
+ * arrives warm-adjacent instead of arriving as a pastel — the same operation
+ * `darkBronze` is, at the same kind of amount. The contrast ladder is then built
+ * off that lifted base, so step 500 in dark is a colour that can carry a
+ * hairline and step 300 one that can carry a glow.
+ */
+const darkTeal = mix(accent.teal, darkText, 0.36);
+const darkPlum = mix(accent.plum, darkText, 0.36);
+
+export const darkAccentScales = {
+  teal: buildDarkContrastScale(darkTeal, darkPage),
+  plum: buildDarkContrastScale(darkPlum, darkPage),
+} as const;
+
+/**
  * The recessed input surface. Light: literal white, one step brighter than
  * the card. Dark: one step *darker* than the card, which is what makes the
  * same inset shadow read as recessed in both themes.
@@ -1515,6 +1623,17 @@ const SOLVED: Record<'light' | 'dark', SolvedTokens> = {
   },
 };
 
+/**
+ * How much of the theme's second accent goes into a page pane's glass — see
+ * `GLASS.tint`, which is this number and exports it for the contrast test.
+ *
+ * It lives up here rather than in `GLASS` because `themeTokens` is built at
+ * module scope, several hundred lines before `GLASS` is declared, and a `const`
+ * read before its initialiser is a temporal-dead-zone throw at import time
+ * rather than a type error somebody sees.
+ */
+const GLASS_ACCENT_TINT = 0.08;
+
 function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
   const dark = mode === 'dark';
   const s = dark ? darkScales : scales;
@@ -1573,6 +1692,20 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
     }
   }
 
+  /**
+   * The two accents, per theme, on the same 50–900 shape every other family
+   * has — so `text-teal-700` is a colour in both themes and no call site ever
+   * branches on the theme to reach one. See `accent` at the top of this file for
+   * what they are and for the channel rule that keeps them off the status hues.
+   */
+  for (const family of ['teal', 'plum'] as const) {
+    const scale = dark ? darkAccentScales[family] : accentScales[family];
+    out[`--c-${family}`] = scale[500];
+    for (const step of [50, 100, 200, 300, 400, 500, 600, 700, 800, 900]) {
+      out[`--c-${family}-${step}`] = scale[step];
+    }
+  }
+
   out['--c-white'] = dark ? darkWhite : brand.white;
   out['--c-page'] = surface;
 
@@ -1607,6 +1740,13 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * the "stays below a card" rule does.
    */
   const glassColour = dark ? darkScales.cream[50] : mix(brand.white, brand.cream, 0.35);
+  // The two ambient sources, resolved here because three tokens further down
+  // are derived from them (`--c-glass-edge`, `--c-sheen`, and the glows
+  // themselves) and a colour computed twice is a colour that can differ from
+  // itself. See the long note on `--c-glow` / `--c-glow-2` below for what they
+  // are and why each goes the other way per theme.
+  const glowPrimary = dark ? mix(brand.bronze, '#f0bd6a', 0.72) : mix(brand.bronze, '#f0bd6a', 0.3);
+  const glowSecondary = dark ? mix(accent.teal, '#7fd8d0', 0.62) : accent.plum;
   out['--c-panel'] = glassColour;
   // The alpha itself is PANEL_WASH_ALPHA below rather than a variable here,
   // because it is an opacity and not a colour: everything in this map is a hex
@@ -1655,6 +1795,35 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * reading as the same material as everything else pinned to the page.
    */
   out['--c-glass'] = glassColour;
+
+  /**
+   * ── THE PAGE-SURFACE PANE'S OWN TINT ───────────────────────────────────
+   *
+   * The same glass, carrying a trace of the theme's SECOND ACCENT — teal in
+   * dark, plum in light, matching the counter-light each theme is lit by, so a
+   * pane looks like glass in a room with two lamps in it rather than like a
+   * fifth surface colour.
+   *
+   * A SEPARATE TOKEN RATHER THAN A CHANGE TO `--c-glass`, and that is the whole
+   * reason it exists. `--c-glass` is shared with `--c-panel`: tinting it would
+   * move the sidebar, the pinned control bar, the chart tooltip and the download
+   * button at once, and every one of those has a contrast figure pinned in
+   * tokenContrast.test.ts against a surface whose colour is part of the
+   * measurement. A new surface takes a new colour; nothing already solved moves.
+   */
+  out['--c-glass-panel'] = mix(
+    glassColour,
+    dark ? darkAccentScales.teal[500] : accentScales.plum[500],
+    GLASS_ACCENT_TINT,
+  );
+
+  /**
+   * The hairline of light along a pane's top and lit side. Warm white in light,
+   * and in dark the sheen colour carried a little toward the teal fill — the
+   * edge of a pane picks up whatever is lighting it, and in dark the thing
+   * nearest most panes' lower-left edge is the second source.
+   */
+  out['--c-glass-edge'] = dark ? mix(mix('#ffffff', glowPrimary, 0.34), darkAccentScales.teal[400], 0.22) : brand.white;
 
   /**
    * ── VELLUM: THE SECOND SURFACE REGISTER (Aug 2026) ──────────────────────
@@ -2081,11 +2250,49 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * itself rather than at `transparent` — see globals.css, where fading to
    * `transparent` would fade through a grey shoulder.
    *
-   * It is emitted in light mode too so nothing has to branch on the theme, but
-   * the rule that paints it is inside `.dark`. Static, at every motion
-   * preference: an ambient light that breathes is a notification, not a room.
+   * ── AND LIGHT MODE PAINTS IT NOW, AT ITS OWN VALUE (Aug 2026) ──────────
+   *
+   * This used to be emitted in light and never drawn, so one hex covered both
+   * themes by not being used in one of them. Light mode was flat cream with
+   * nothing happening in it, which is the same complaint the dark page had
+   * before the glow existed, and the fix is the same fix.
+   *
+   * BUT IT CANNOT BE THE SAME HEX, because a glow on a light ground is not the
+   * same phenomenon. On near-black, a glow is LIGHT ADDED and has to be lighter
+   * than the page. On cream there is nothing to add — a pale gold over #e3dfd3
+   * is invisible, measured at 1.02:1 — so what reads as warmth in a corner is
+   * colour taken slightly DOWN and further into the hue. Same source, same
+   * position, opposite direction, exactly as the trend chart's spark halo goes
+   * white in dark and warm-dark in light for the identical reason.
    */
-  out['--c-glow'] = mix(brand.bronze, '#f0bd6a', 0.72);
+  out['--c-glow'] = glowPrimary;
+
+  /**
+   * ── THE SECOND SOURCE (Aug 2026) ───────────────────────────────────────
+   *
+   * One light in one corner gives a page a direction. Two give it DEPTH, and
+   * the second one has to differ in hue or the two read as one wash that
+   * happens to be wide — which is precisely the failure the original pair of
+   * radials had, recorded above.
+   *
+   * It is anchored at the OPPOSITE corner (bottom-left; see globals.css) and it
+   * is the cooler, quieter of the two in both themes: a key light and a fill,
+   * which is what a room actually has. It never approaches the primary's
+   * strength — `GLOW.secondary` is half of `GLOW.primary` in dark and a little
+   * under it in light — because two equal sources cancel each other's direction
+   * and the page goes flat again with more colour in it.
+   *
+   * WHY THE HUE DIFFERS BETWEEN THE THEMES, and it is the same argument as the
+   * primary's. In dark the counter-light is TEAL: a cool fill against a warm key
+   * is what separates two sources, and on near-black there is room for a
+   * genuinely cool colour. In light it is PLUM, and teal is refused there — a
+   * cool hue at a visible alpha over cream does not tint it, it DESATURATES it,
+   * and a grey-green cast across half a medical results page is worse than no
+   * second source at all. Plum is red-dominant, so it warms the corner it sits
+   * in exactly as the brief asked, while being 294° from the primary and
+   * nowhere near a status hue.
+   */
+  out['--c-glow-2'] = glowSecondary;
 
   /**
    * ── THE COLOUR OF LIGHT ON A PANE ──────────────────────────────────────
@@ -2183,6 +2390,139 @@ export const GLASS = {
   wash: { light: 0.62, dark: 0.58 },
   blur: '10px',
   saturate: '1.08',
+  /**
+   * ── THE PAGE-SURFACE PANE (Aug 2026) ─────────────────────────────────────
+   *
+   * A third alpha in the family, for the big structural surfaces — the Overview
+   * sections, the Results section containers, the Documents cards, the
+   * explanation card, the contact card, the at-a-glance strip. It sits BETWEEN
+   * the sidebar (0.75/0.78, which has only the page behind it) and the pinned
+   * control bar (0.62/0.58, which has moving body copy behind it): these panes
+   * have other CARDS and headings behind them when the page scrolls, which is
+   * more structure than the sidebar has to diffuse and less than the bar does.
+   *
+   * ⚠ IT IS NOT ON MARKER RESULT CARDS AND MUST NOT BE. A Signature report
+   * draws 165 of them, and 165 panes each with its own specular streak is not a
+   * material, it is a texture — and the streak would be travelling across the
+   * one surface in the product whose background is already carrying a status
+   * tint. See `.glass-panel` in globals.css for the full boundary.
+   */
+  panel: { light: 0.68, dark: 0.62 },
+  /**
+   * How much of the theme's SECOND ACCENT is mixed into a page pane's tint.
+   *
+   * Not into `--c-glass` itself, which is shared with the sidebar and the
+   * control bar and whose contrast figures are pinned — this is a separate
+   * colour for the new surface, so nothing already measured moves. Small on
+   * purpose: at 0.08 the pane is the card tone with a cast, which is what glass
+   * over a coloured room looks like; past about 0.15 it is a coloured panel and
+   * the product has a fifth surface colour nobody chose.
+   */
+  tint: GLASS_ACCENT_TINT,
+  /**
+   * ── WHAT MAKES A PAGE PANE READ AS GLASS ─────────────────────────────────
+   *
+   * The same three effects as the sidebar, and for the same reason, which is
+   * worth restating because it is the single most misdiagnosed thing in this
+   * file: `backdrop-filter: blur()` blurs WHAT IS BEHIND, and behind most of
+   * these panes there is a flat page colour and two smooth radials. A Gaussian
+   * blur of a smooth gradient is the same smooth gradient. The blur earns its
+   * place where a pane genuinely has cards scrolling under it and does nothing
+   * at all where it does not, so it cannot be what carries the material.
+   *
+   *   peak   the specular streak, one soft diagonal band running from the top
+   *          right — the corner nearest the warm key light — and gone by about
+   *          two thirds across.
+   *   edge   a hairline of light just inside the border along the top and the
+   *          right, so border and highlight together read as thickness.
+   *   grain  below the threshold of being noticed as texture and above the
+   *          threshold of being noticed as absent.
+   *
+   * LOWER THAN THE SIDEBAR'S ON GRAIN AND HIGHER ON THE STREAK, and both for
+   * the same reason: a pane is wider than it is tall where the sidebar is the
+   * reverse, so a 208° band crosses far less of it and needs a little more
+   * strength to register, while the grain covers several times the area and
+   * needs less. Every one of these composites over the pane before any text
+   * sits on it, and `tokenContrast.test.ts` runs the AA floors against the
+   * brightest backdrop the streak can produce rather than against the flat
+   * body colour.
+   */
+  sheen: {
+    peak: { light: 0.22, dark: 0.09 },
+    edge: { top: { light: 0.5, dark: 0.16 }, right: { light: 0.7, dark: 0.26 } },
+    grain: { light: 0.022, dark: 0.038 },
+  },
+} as const;
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  TWO LIGHT SOURCES, IN BOTH THEMES — THE PEAK OF EACH RAMP (Aug 2026)
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * One number per source per theme. The RAMP SHAPE is written once in
+ * globals.css as multiples of these, so the two sources and the two themes are
+ * the same curve at four strengths rather than four hand-written gradients that
+ * drift — and so this file stays the only place a strength is decided.
+ *
+ * ── THE NUMBERS ARE BOUNDED BY CONTRAST, NOT BY TASTE ──────────────────────
+ *
+ * A glow sits at `z-index: -1` behind every scrap of content, so it cannot
+ * reduce the contrast of a character directly — but it changes the GROUND that
+ * character stands on, and the page is a ground. `tokenContrast.test.ts`
+ * composites each source at its peak over the page and over a card and re-runs
+ * every text token against the result, at the corner where each is strongest
+ * AND at the corner where the two overlap. Light is the tighter case by a long
+ * way: dark's glow ADDS light to a near-black page, which moves text contrast
+ * the safe direction, while light's two sources both DARKEN cream, which eats
+ * into the espresso-on-cream ratio directly.
+ *
+ * Which is why light's peaks are a quarter of dark's. They are not "subtle
+ * because light mode should be subtle" — they are as strong as they can be with
+ * the AA floor intact under both of them at once.
+ */
+export const GLOW = {
+  /**
+   * The warm key light, top right. Bronze-gold in both themes.
+   *
+   * ── DARK CAME DOWN FROM 0.40 TO 0.36, AND IT WAS A MEASUREMENT (Aug 2026) ─
+   *
+   * 0.40 was the value that turned this from a flat gold wash into a light
+   * SOURCE, and that reasoning is untouched. What it also did, and what nothing
+   * had measured until the second source arrived and every corner was checked,
+   * is put `--c-bronze` at **2.94:1 against its own core** — under the 3:1 floor
+   * for large text and UI, on a page token, on the one corner of the page the
+   * design draws attention to. That was true before any of this pass and would
+   * have gone on being true.
+   *
+   * 0.36 is the nearest step that clears it with room: bronze 3.22:1, body copy
+   * 7.84:1, taupe-900 5.32:1. And the room is not darker for it — there are two
+   * lamps now, so the key no longer has to carry the whole page on its own, and
+   * the total light on a dark viewport goes UP rather than down.
+   */
+  primary: { light: 0.1, dark: 0.36 },
+  /**
+   * The cool fill, bottom left. Teal in dark, plum in light — see `--c-glow-2`.
+   *
+   * DARK IS HIGHER THAN IT LOOKS BECAUSE IT IS FURTHER AWAY. The fill is
+   * anchored at 20% 98% rather than at the literal corner (see globals.css: the
+   * patient shell's sidebar is 288px, which is 20% of a 1440 viewport, so a
+   * light in the corner has its core behind an opaque column and exists nowhere
+   * the reader can see it) — and moving the anchor inward puts most of the
+   * content in the tail of the ramp rather than near its head. 0.26 at the core
+   * is what makes it visible where it now lands. Bronze measures 4.3:1 against
+   * that core, against the 3:1 floor.
+   *
+   * LIGHT IS BOUNDED BY SOMETHING ELSE ENTIRELY, and it is the tighter of the
+   * two constraints in this whole record: plum is a far darker hue than the
+   * key's gold, so it costs more contrast per unit of alpha, and light mode's
+   * two sources both DARKEN cream where dark mode's add light to near-black.
+   * 0.095 is as strong as it goes with the page still inside the 15% contrast
+   * budget `tokenContrast.test.ts` holds the pair to — 12.5% of the bare page's
+   * own body-copy ratio, measured. It is deliberately as high as that allows
+   * rather than as low as looks safe: light mode was flat cream with nothing
+   * happening in it, which is the complaint this exists to answer.
+   */
+  secondary: { light: 0.095, dark: 0.26 },
 } as const;
 
 /**
@@ -2239,7 +2579,17 @@ export const GLASS = {
  * composites the sheen into the brightest backdrop a nav label ever stands on.
  */
 export const PANEL_SHEEN = {
-  peak: { light: 0.2, dark: 0.07 },
+  /**
+   * ── DARK CAME DOWN WITH THE LIGHT IT REFLECTS (Aug 2026) ─────────────────
+   *
+   * 0.07 → 0.064, and it is the physical bound above doing exactly what it was
+   * written to do rather than a taste adjustment. The dark key light dropped
+   * from 0.40 to 0.36 (see `GLOW.primary`, where the reason is a measured
+   * contrast failure on `--c-bronze`), so the amount of light landing on this
+   * column dropped with it — and a reflection that stayed put would then have
+   * been brighter than its own source. The test caught it in the same run.
+   */
+  peak: { light: 0.2, dark: 0.064 },
   edge: { top: { light: 0.45, dark: 0.14 }, right: { light: 0.65, dark: 0.24 } },
   grain: { light: 0.035, dark: 0.055 },
 } as const;

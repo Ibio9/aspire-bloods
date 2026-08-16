@@ -361,7 +361,9 @@ function CategorisedSection({
       ) : (
         <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
           {shownAreas.map(({ c, members }) => (
-            <Card key={c.key} padding="tight">
+            // A SECTION CONTAINER, not a result card — a handful per section,
+            // each holding many rows, and none of them status-tinted.
+            <Card key={c.key} surface="glass" padding="tight">
               <p className="eyebrow mb-3">{c.name}</p>
               {members.map((m) => (
                 <PlainResult key={m.markerId} marker={m} />
@@ -369,7 +371,7 @@ function CategorisedSection({
             </Card>
           ))}
           {ungrouped.length > 0 && (
-            <Card padding="tight">
+            <Card surface="glass" padding="tight">
               <p className="eyebrow mb-3">{otherHeading}</p>
               {ungrouped.map((m) => (
                 <PlainResult key={m.markerId} marker={m} />

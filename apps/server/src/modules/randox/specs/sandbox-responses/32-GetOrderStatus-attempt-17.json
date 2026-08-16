@@ -1,0 +1,24 @@
+{
+  "step": 32,
+  "api": "Nexus",
+  "name": "GetOrderStatus-attempt-17",
+  "method": "POST",
+  "path": "Order/GetOrderStatus",
+  "request": {
+    "OrderNumber": "AWL002-00163816",
+    "OrderId": 163816,
+    "ClinicId": 1298
+  },
+  "status": 200,
+  "ok": true,
+  "body": {
+    "orderNumber": "AWL002-00163816",
+    "orderId": 163816,
+    "statusId": 1,
+    "statusDescription": "Incomplete",
+    "statusDate": "2026-08-14T18:49:45.67",
+    "arrangementType": "Randox Clinic",
+    "arrangementStatus": "Booked"
+  },
+  "raw": "{\"orderNumber\":\"AWL002-00163816\",\"orderId\":163816,\"statusId\":1,\"statusDescription\":\"Incomplete\",\"statusDate\":\"2026-08-14T18:49:45.67\",\"arrangementType\":\"Randox Clinic\",\"arrangementStatus\":\"Booked\"}"
+}

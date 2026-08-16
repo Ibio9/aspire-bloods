@@ -141,7 +141,19 @@ async function measure(browser: Browser, theme: 'light' | 'dark'): Promise<Card>
        * class ever comes back into this card, `labels` will be short and the
        * "all four identical" assertion below cannot even be reached.
        */
-      const column = document.querySelector('.card-vellum .max-w-measure') as HTMLElement | null;
+      /**
+       * ── AND THE VELLUM IS A PANE NOW (Aug 2026) ─────────────────────────
+       * The reading ground did not change — it is still `--c-vellum`, still the
+       * one class of content in the product that is writing rather than data.
+       * What changed is that it is applied THROUGH the glass material rather
+       * than as an opaque fill, so the class carrying it on the marker page is
+       * `.glass-vellum` while the marker library's disclosure panel still uses
+       * `.card-vellum`. Both are matched, because this spec is about the type
+       * ladder inside the card and must not care which surface it is drawn on.
+       */
+      const column = document.querySelector(
+        '.card-vellum .max-w-measure, .glass-vellum .max-w-measure',
+      ) as HTMLElement | null;
       if (!column) return null;
       const labels = [...column.querySelectorAll('.card-label')] as HTMLElement[];
       // The definition is the element straight after the first label.

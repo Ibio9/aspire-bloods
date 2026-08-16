@@ -7,18 +7,18 @@
   "request": {
     "ServiceId": 787,
     "LocationId": "30",
-    "AppointmentSlotId": "slot-room33-2026-08-17T07:15-staff19",
+    "AppointmentSlotId": "slot-room33-2026-08-17T07:00-staff19",
     "AppointmentSlotDate": "17/08/2026",
-    "AppointmentSlotTIme": "07:15"
+    "AppointmentSlotTIme": "07:00"
   },
   "status": 200,
   "ok": true,
   "body": {
-    "BookingId": 87821,
+    "BookingId": 87832,
     "SuccessFailCode": "Success",
     "FailureDescription": null,
     "NewAppointmentDateTime": null
   },
-  "raw": "{\"BookingId\":87821,\"SuccessFailCode\":\"Success\",\"FailureDescription\":null,\"NewAppointmentDateTime\":null}",
+  "raw": "{\"BookingId\":87832,\"SuccessFailCode\":\"Success\",\"FailureDescription\":null,\"NewAppointmentDateTime\":null}",
   "note": "Q4: do BookingId and AppointmentId come back from here. Q5: what expiry, if any, is stated."
 }

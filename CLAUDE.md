@@ -286,6 +286,131 @@ than either.
 Body copy legible straight through a pinned bar is worse than losing the glow on
 one browser.
 
+## The palette has a second family, and it is picked by a rule (Aug 2026)
+
+**Raheel asked for more colour and said not to treat the existing palette as a
+limitation.** Written down as a measurement rather than a matter of taste: bronze,
+espresso, cream, taupe and all five status hues live between **10° and 90° of
+hue**, so the product had no cool colour at all and the only accent anything
+could reach for was the brand one.
+
+**TWO ACCENTS. `accent` in tokens.ts.**
+
+    teal  #2F6F6B  ~176°  bronze's near-complement, 86° from the nearest status
+                          hue. Green-leaning rather than blue-leaning, which is
+                          what lets it sit WITH warm brown — teal and bronze is
+                          the oxidised-copper pairing. The cool fill in dark.
+    plum  #6B4260  ~313°  red-dominant like bronze, so a plum glow and a bronze
+                          glow read as two lamps in one room rather than two
+                          brands. The warm fill in light.
+
+**THE CONSTRAINT IS NOT AESTHETIC AND IT IS MACHINE-CHECKABLE.** An accent may
+never be mistakable for a STATE. "Looks different enough" is not a check, so:
+
+    BLUE IS STRICTLY THE LOWEST CHANNEL IN EVERY STATUS HUE AND IN BRONZE.
+    IT IS NEVER STRICTLY THE LOWEST IN EITHER ACCENT, AT ANY STEP.
+
+It holds through the whole 50–900 ladder in both themes because mixing toward
+white, espresso or the page moves all three channels together and cannot reorder
+them. `tokenContrast.test.ts` asserts it, on every step, both themes.
+
+**BURNT AMBER WAS THE THIRD CANDIDATE AND IS REJECTED BY THAT SAME RULE**, which
+is the useful half: it lands around 35–40°, between bronze at 22° and the status
+gold at 45°, so it is the hue of ABOVE RANGE at a lower saturation on the same
+screen. There is no opacity at which that becomes safe. The test asserts the
+rejection, so it can be re-run rather than merely recorded.
+
+**WHERE THEY ARE USED:** the second ambient glow in each theme, the tint and the
+lit edge of the page-surface pane, and nothing else yet. **WHERE THEY ARE
+FORBIDDEN, and this is not a style note:** nothing on a marker card, in a range
+gauge, on a trend chart or in a status badge. Those are status surfaces, and a
+decorative hue beside them reads as a state. Bronze, espresso and cream are
+untouched and are still the foundation; **the status colours are untouched**.
+
+## Two ambient sources, in both themes (Aug 2026)
+
+Dark had one warm glow in the top right. There are two now, in both themes: a
+warm KEY at 96% 1% and a cooler, quieter FILL at 20% 98%. One light gives a page
+a DIRECTION; two give it DEPTH.
+
+**LIGHT MODE PAINTS BOTH NOW**, and the key cannot be the same hex as dark's: on
+near-black a glow is LIGHT ADDED and must be lighter than the page, while on
+cream a pale gold measures 1.02:1 and what reads as warmth is colour taken
+slightly DOWN. Same source, same position, opposite direction — the identical
+reasoning as the trend chart's spark halo.
+
+**THE FILL IS AT 20%, NOT AT THE CORNER, AND THAT WAS FOUND ON A SCREENSHOT.**
+At 4% 99% it was invisible: the patient sidebar is 288px, which is 20% of a 1440
+viewport and is a pane at 78% of an opaque colour, so the only bright part of the
+ramp was behind a column and the second light existed nowhere a reader could see
+it. Moving it inward puts more of the page in the ramp's TAIL, which is why
+`GLOW.secondary` in dark is 0.26 rather than the 0.20 it was at the corner.
+
+**ONE RAMP SHAPE, WRITTEN ONCE.** Nine stops as multiples of one peak per source
+per theme (`GLOW` in tokens.ts, emitted as `--glow-1` / `--glow-2`). Four
+hand-written gradients would drift.
+
+**THE TWO NEVER OVERLAP, AND THAT IS LOAD-BEARING.** Their centres are 2.07 radii
+apart, so at every point at least one has reached zero — which is what makes
+"check the contrast at each corner" the right measurement rather than an
+optimistic one. `tokenContrast.test.ts` asserts the SEPARATION as well as the
+ratios, so the claim cannot quietly stop being true when somebody nudges a
+position. It nearly did, in this very pass.
+
+**⚠ THE DARK KEY CAME DOWN FROM 0.40 TO 0.36, AND IT WAS A PRE-EXISTING BUG.**
+Checking every corner is what found it: at 0.40 `--c-bronze` measured **2.94:1
+against its own core**, under the 3:1 floor, on a page token, in the one corner
+the design draws attention to. That was true before any of this pass. 0.36 gives
+bronze 3.22, body copy 7.84, taupe-900 5.32 — and the page is not darker for it,
+because there are two lamps now. `PANEL_SHEEN.peak.dark` came down with it
+(0.07 → 0.064): the sidebar's sheen is bounded by "a reflection is never brighter
+than the light it reflects", so less light means less reflection, and the test
+caught it in the same run.
+
+**LIGHT'S PEAKS ARE A QUARTER OF DARK'S AND THAT IS A BOUND, NOT A TASTE.** Dark's
+glow ADDS light to near-black, which moves text contrast the safe way; light's two
+both DARKEN cream. The pair is held to spending at most **15% of the bare page's
+own body-copy contrast** — measured at 12.5%, which is as strong as they go.
+
+## Page surfaces are glass; result cards are not (Aug 2026)
+
+A third alpha in the glass family (`GLASS.panel`, 0.68 / 0.62), between the
+sidebar's 0.75/0.78 and the control bar's 0.62/0.58 — the three differ only in
+what is BEHIND them. `.glass-panel` in globals.css carries the material:
+translucent fill over the shared backdrop blur, a specular streak at 208° from
+the corner nearest the key light, a lit edge along the top and right, and grain.
+`Card` takes `surface="glass"` or `surface="vellum-glass"`.
+
+**THE BOUNDARY IS A RULE, NOT A PREFERENCE.** A surface is a PANE if it is one of
+a handful of containers a screen is built out of. It stays an ordinary CARD if it
+is one of many instances of one repeating object, **or if it carries a status
+colour**.
+
+    glass   the at-a-glance strip · the Results section containers · the
+            Documents cards · the marker explanation card (on vellum) · the
+            out-of-range contact card · the Overview's latest-panel card and its
+            Go-deeper tiles.
+    card    every marker result card · the Overview's attention and
+            What's-changed cards · the auth card · the mobile drawer.
+
+**⚠ AND THE MARKER PAGE'S OWN TWO CARDS STAY CARDS, WHICH IS CORRECTNESS RATHER
+THAN JUDGEMENT.** The trend chart's five line colours and both gauges' five band
+fills are SOLVED at a fixed ratio against `--c-cream-50` (`LINE_FILL_TARGET`).
+Making that card a translucent pane moves the ground a CLINICAL palette was
+measured on, silently. `Card` refuses the pane material on a tinted card outright
+rather than leaving it to a call site to remember.
+
+**GLASS IS A MATERIAL AND VELLUM IS A COLOUR**, and they are orthogonal. The
+explanation card wants both: `.glass-vellum` swaps `--glass-surface` and touches
+no number in the material.
+
+**MEASURED, HEADLESS CHROMIUM, 166 CARDS, 3s CONTINUOUS SCROLL:** 27fps as
+shipped, 27fps with the panes' filter removed, 60fps with every backdrop filter
+gone. **The panes cost nothing measurable**; the cost is the pre-existing glass,
+and it is the EXISTENCE of the backdrop pass rather than the radius — which is
+the same finding already on `GLASS.blur` and the reason the radius was not
+reduced again. Software raster is a floor, not a verdict.
+
 ## The results control bar is pinned again, on glass (Aug 2026)
 
 Sticky, unboxed, and the glass **appears only once it pins** and **fades in**
@@ -334,7 +459,43 @@ both significants share one.
    DIRECTIONAL filter (`BELOW_ANY` / `ABOVE_ANY`), never the specific state, or
    a segment reading 4 would filter to 3.
 1. Result cards and rows — soft background wash (`bg-tint-*`).
-2. The range bar — flat green across the reference range, flat gold outside it,
+2. **THE RANGE BAR IS AN ARC GAUGE (Aug 2026). EVERYTHING IN THIS ITEM IS
+   STILL TRUE OF IT — READ "BAR" AS "ARC".** `components/ui/ArcGauge.tsx`
+   replaced `RangeBar.tsx`, which is deleted. It is the same instrument bent
+   round: the same scale (`lib/rangeScale.ts`, untouched), the same five states,
+   the same `bandRampStops` derivation, the same boundary treatment, the same
+   never-clamped mark, the same five refusals in words, the same `rangemark`
+   token. **A `linear-gradient` became a `conic-gradient`** — the polar form of
+   the identical statement, so a stop at `pct` along the scale is a stop at
+   `pct × 0.75` of the circle and nothing is resampled into segments. The ring
+   is cut out of it by a radial `mask-image`; the 90° gap is a HARD STOP inside
+   the gradient rather than a second mask, so no `mask-composite` is involved.
+   **AN ARC, NOT A RING, AND THAT IS THE FIRST DECISION.** A full circle says
+   the scale WRAPS, which a value between two bounds does not. It sweeps
+   CLOCKWISE FROM THE LOWER LEFT TO THE LOWER RIGHT, 270° with a 90° gap at the
+   bottom — and **the gap is where the two scale ends are printed**, which is
+   the argument for it being at the bottom.
+   **THE VALUE MOVED INTO THE MIDDLE**, with its unit and the status word under
+   it, on the marker page, on a result card and on the Overview's attention
+   cards. That is one object where there were three stacked ones. `.hero-value`
+   tops out at 52px rather than 72px because it now sits inside a ring with a
+   fixed interior; it still clears the marker's name at 38px, so the ladder is
+   unchanged.
+   **THE CARD GAUGE DROPS THE BOUND LABELS AND KEEPS THE TICKS.** The one
+   judgement call, and the same one the card bar made: four figures round a
+   148px arc collide, and the SCALE ENDS are the pair that cannot be recovered
+   from anything else on the card. It also does not sweep on mount — 165 marks
+   moving at once is a page that appears to be loading.
+   **THE MARK SWEEPS BY ROTATION**, not by moving two coordinates: transitioning
+   `left` and `top` would carry it across the CHORD, straight through the middle
+   of the gauge, rather than round the ring it is describing.
+   `ArcGauge.test.tsx` (20 tests) and `e2e/arc-gauge.spec.ts` replace the bar's
+   own; the e2e one reads the angle out of the computed transform MATRIX, so it
+   is the browser's answer rather than the component's. **The trend chart is
+   untouched.**
+
+   *What follows is the bar's own record, and every word of it still describes
+   the arc:* flat green across the reference range, flat gold outside it,
    flat red beyond the thresholds, with a BLEND CENTRED ON each of the four
    boundaries between them. The same instrument as the chart's bands, from the
    same derivation (`bandRampStops`), so the two speak one visual language; the
