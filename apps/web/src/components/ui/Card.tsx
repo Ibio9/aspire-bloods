@@ -72,11 +72,21 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
   surface?: 'card' | 'glass' | 'vellum-glass';
 }
 
+/**
+ * ── MORE GENEROUS (Aug 2026) ────────────────────────────────────────────
+ *
+ * One step up across the board. The direction is a spacious light theme with
+ * large soft forms, and THE RADIUS AND THE PADDING ARE ONE DECISION: a 1.5rem
+ * corner on a card padded at 1.75rem reads as a rounded box, because the corner
+ * eats most of the gap between the edge and the first line of type. Widening the
+ * corner without widening the padding is what makes a card look inflated rather
+ * than considered.
+ */
 const PADDING = {
   none: 'p-0',
-  tight: 'p-5 sm:p-6',
-  default: 'p-7 sm:p-9',
-  roomy: 'p-8 sm:p-12',
+  tight: 'p-6 sm:p-7',
+  default: 'p-8 sm:p-10',
+  roomy: 'p-9 sm:p-14',
 };
 
 /**

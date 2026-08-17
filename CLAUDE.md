@@ -30,7 +30,98 @@ Match the Aspire Rota sign-in for craft level. No default browser styling anywhe
 no native selects, no Chrome autofill blue, no native focus rings.
 Reference theaspireclinic.com for register: dark, atmospheric, spacious, restrained.
 
+## Light mode went pastel, and it is three numbers (Aug 2026, first pass)
+
+**THE COMPLAINT: light read as flat grey and white and looked cheap.** The
+direction is a soft, modern, premium light theme: a calm pastel carrying the
+surfaces, near-black ink, generous whitespace, large soft forms, one restrained
+accent. ⚠ **THIS IS A FIRST PASS MEANT TO BE TUNED**, which is why everything
+below is derived from three constants in `lightNeutral` rather than scattered.
+
+**THE PASTEL IS `accent.teal`, WHICH WAS ALREADY IN THE PALETTE.** It passes the
+one rule that matters: blue is never strictly its lowest channel, so no tint or
+shade of it can be mistaken for a STATE. It was chosen against the other two
+candidates rather than by default. **AMBER IS REFUSED OUTRIGHT** (it lands
+between bronze and the status gold, so a page tinted with it is the hue of ABOVE
+RANGE at a lower saturation, and no opacity makes that safe). **SLATE would work**
+and is what the pane carried, but it sits ~20° from the accent, so a slate page
+under a slate accent reads as one wash. Teal is 130° off the accent, which leaves
+the accent the only thing on the page that looks like a decision.
+
+    LIGHT_TINT      0.15    how much accent the page carries
+    LIGHT_HAIRLINE  0.045   how far the border sits toward the ink
+    LIGHT_BASE      #F1F3F6 the neutral the pastel is mixed into
+
+    page      #d3dfe3     card      #fdfdfe     card/page 1.34:1
+    sidebar   #c6d1d5     hairline  #cbd6da     body      13.1:1
+    pane tint #e7eef0     vellum    #e8eef1     accent    #5A6472 (bronze, untouched)
+
+**THE INK IS WARM NEAR-BLACK, IN LIGHT ONLY: `lightNeutral.ink` #1A1714.** A cool
+near-black on a cool pastel is two cool greys, which is the flat look this is
+getting away from. ⚠ `brand.espresso` is UNTOUCHED, because it seeds `nightBase`
+and every dark surface derived from it; warming it would be a dark-mode change
+wearing a light-mode label. `scales.espresso`, the light shadow and the light
+chart furniture all build from the light ink instead.
+
+**⚠ `buildScale`'s 50 STEP WENT 0.9 → 0.95, AND IT IS THE CARD.** With a pastel
+page, a card at 0.9 inherits a tenth of the tint (#fbfcfc) and the composition
+this is for — WHITE cards floating on a tinted ground — stops happening. It also
+cost the trend line real room: its five colours are solved at 4.5:1 off the card,
+and a card two levels darker pushed the light green and gold to 0.0899 of OKLab
+separation against a floor of 0.09.
+
+**SHAPE AND SPACING MOVED FOR BOTH THEMES, WHICH IS DELIBERATE.** Radii card
+1rem → **1.5rem** and input 0.625 → **0.875rem**; card padding one step up
+throughout. ⚠ **THE RADIUS AND THE PADDING ARE ONE DECISION** — a 1.5rem corner
+on a card padded at 1.75rem reads as a rounded box, because the corner eats most
+of the gap between the edge and the first line of type. Two themes of different
+SHAPE would be worse than one shape, so these are shared; only colour is
+light-only. The light SHADOW is softer and longer (`--shadow-blur`, per theme:
+28px light against 16px dark), because a short shadow on a pale ground reads as
+an outline and a long one reads as height.
+
+## The dark card status tint is solved for colour now (Aug 2026)
+
+**THE COMPLAINT: the dark card tint read muddy while light's read clean.** "The
+tint is translucent" is the right diagnosis of the RECIPE even though the applied
+value was always an opaque hex: `matchLight` mixes the hue INTO the card in light
+and then solves dark to the same CHROMA and the same presence. Dark carried
+exactly light's colourfulness by design (0.0228 against 0.0235 in green). **The
+matching was the bug.**
+
+**⚠ THE SAME CHROMA IS NOT THE SAME COLOUR AT A DIFFERENT LIGHTNESS.** A given
+OKLab chroma on a near-white ground is a clear pastel and on a near-black one is
+a grey with a rumour of hue in it. Nothing was mismeasured; the target was wrong.
+
+`solveWash` + `DARK_WASH` in tokens.ts: **2.6× light's chroma at 1.35:1 off the
+card** (light's own wash is 1.09:1 off ITS card, and copying that number into
+dark is what produced a tint nobody could see). Three floors bind it and are what
+stop it becoming a filled alert card: body copy at AA on the wash, the STATUS
+WORD at AA on the wash, and the wash lighter than the card rather than a hole in
+it. Measured on the gold: 10.51:1 body, 7.66:1 status word.
+
+    tint                  light      dark       dark chroma
+    In range              #dce5d5    #293c1a    2.58x light
+    Below / Above range   #fbf3d6    #453700    1.80x light
+    Significantly out     #edd4d1    #5b2a23    2.60x light
+
+**⚠ GOLD CANNOT REACH THE GAIN AND IS CAPPED BY THE GAMUT** — a dark yellow is a
+brown, which is the wall this file has now recorded from four directions. It
+takes the most sRGB holds at its lightness (1.8×) and the solve returns it.
+**LIGHT IS UNTOUCHED AND IS THE REFERENCE.** The gauge is unaffected: it paints
+`--c-hue-*-fill`, which is theme-identical and carries no wash.
+
+**AND THE MARKER CARD'S TINT IS BACK.** It was removed for one revision on the
+grounds that the dark wash was muddy; that was true of the wash and not of the
+idea. The gauge arc, the chevron and the word still carry the status on their own
+and the wash reinforces them, which is the rule as it always was.
+
 ## Light mode is bright, and it has its own two hexes (Aug 2026)
+
+⚠ **SUPERSEDED BY "Light mode went pastel" ABOVE**, which keeps the structure
+described here (light's surface and border are `lightNeutral`, not `brand`) and
+changes the values: the surface is a soft teal pastel rather than a cool
+near-white grey, and there is a third entry, the warm ink.
 
 **THE BRIEF: a bright, modern, premium light theme.** White cards on a soft
 near-white page, separation from tone steps, shadow and the glass rather than

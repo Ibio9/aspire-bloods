@@ -126,12 +126,6 @@ export const brand = {
  *                     copy on the sidebar and still clears AA, because the
  *                     shades run toward the ink rather than away from it.
  */
-export const lightNeutral = {
-  /** The light page, and the base of the whole light surface family. */
-  surface: '#EDEFF3',
-  /** Every hairline and divider in light. */
-  border: '#DCE0E7',
-} as const;
 
 /**
  * The four by what they ARE, for anything written after the retheme. Same
@@ -480,7 +474,18 @@ export function bandChromaCeiling(hue: 'green' | 'yellow' | 'red'): number {
  * hue (500) to dark shades (toward espresso, never toward pure black). */
 function buildScale(baseHex: string): Record<number, string> {
   const steps: Record<number, number> = {
-    50: -0.9, 100: -0.75, 200: -0.55, 300: -0.35, 400: -0.15,
+    // ── 50 WENT 0.9 → 0.95 WITH THE PASTEL (Aug 2026) ────────────────────
+    // Step 50 is THE LIGHT CARD, and the light page is a soft pastel now rather
+    // than a near-neutral. At 0.9 the card inherited a tenth of the page's tint
+    // and came out #fbfcfc, which is a pastel card on a pastel ground: the two
+    // surfaces read as one wash and the whole composition this is for — WHITE
+    // cards floating on a tinted ground — stops happening.
+    //
+    // It also cost the trend line real room. The five line colours are solved at
+    // 4.5:1 off the card, and a card two levels darker pushed the light green
+    // and gold to 0.0899 of OKLab separation against a floor of 0.09. At 0.95
+    // the card is #fdfdfe and they are 0.0906.
+    50: -0.95, 100: -0.75, 200: -0.55, 300: -0.35, 400: -0.15,
     500: 0, 600: 0.2, 700: 0.4, 800: 0.6, 900: 0.8,
   };
   const scale: Record<number, string> = {};
@@ -498,9 +503,70 @@ function buildScale(baseHex: string): Record<number, string> {
  * DARK theme's seeds and do not move when light mode is redesigned. The accent
  * and the ink are shared with dark on purpose and are built from `brand`.
  */
+/**
+ * ── LIGHT WENT PASTEL, AND IT IS FOUR NUMBERS IN ONE PLACE (Aug 2026) ──────
+ *
+ * THE COMPLAINT: light mode read as flat grey and white and looked cheap. The
+ * direction is a soft, modern, premium light theme — a calm pastel carrying the
+ * surfaces, near-black ink for type, generous whitespace and large soft forms.
+ *
+ * ── THE PASTEL IS THE SANCTIONED ACCENT, NOT A NEW HUE ────────────────────
+ *
+ * `accent.teal` (#2A6C74), which is already in the palette and already passes
+ * the one rule that matters: blue is never strictly its lowest channel, so it
+ * cannot be mistaken for a STATE at any tint or shade. It was picked over the
+ * other two candidates rather than by default. AMBER is refused outright — it
+ * lands between bronze and the status gold, so a page tinted with it is the hue
+ * of ABOVE RANGE at a lower saturation, and there is no opacity at which that
+ * becomes safe. SLATE would work and is what the pane already carried, but it
+ * sits about 20° from the accent, so a slate page under a slate accent reads as
+ * one wash rather than as a ground with a mark on it. Teal is 130° off the
+ * accent: the accent stays the only thing on the page that looks like a
+ * decision.
+ *
+ * ── AND THE INK IS WARM NOW, IN LIGHT ONLY ────────────────────────────────
+ *
+ * A cool near-black on a cool pastel is two cool greys, which is the flat look
+ * this is getting away from. #1A1714 is r > g > b and near-black: warm on
+ * inspection, black at a glance, 14.8:1 on the page. ⚠ It is LIGHT'S OWN and
+ * `brand.espresso` is untouched, because that one seeds `nightBase` and every
+ * dark surface derived from it — warming it would be a dark-mode change wearing
+ * a light-mode label.
+ *
+ * ── EVERY VALUE IS DERIVED FROM TWO NUMBERS, WHICH IS THE POINT ───────────
+ *
+ * `TINT` is how much accent the page carries and `HAIRLINE` is how far the
+ * border sits toward the ink. Change either and the page, the card, the panel,
+ * the hairline, the hover states and the chart furniture all follow. That is
+ * what makes this tunable rather than a set of hexes somebody has to keep in
+ * step by hand.
+ *
+ * MEASURED at these values: page #d3dfe3, card #fbfcfc at 1.32:1 off it, the
+ * sidebar 1.12:1, a pane 1.14:1, body copy 13.3:1.
+ */
+const LIGHT_TINT = 0.15;
+const LIGHT_HAIRLINE = 0.045;
+const LIGHT_BASE = '#F1F3F6';
+
+export const lightNeutral = {
+  /** The light page: a soft pastel, and the base of the whole light surface family. */
+  surface: mix(LIGHT_BASE, accent.teal, LIGHT_TINT),
+  /** Type and structural accents in light. Warm near-black, never grey. */
+  ink: '#1A1714',
+  /**
+   * Every hairline and divider in light. The page carried toward the ink rather
+   * than a grey of its own, so a hairline on a pastel ground is that ground a
+   * few steps down instead of a foreign colour drawn across it.
+   */
+  border: mix(mix(LIGHT_BASE, accent.teal, LIGHT_TINT), '#1A1714', LIGHT_HAIRLINE),
+} as const;
+
 export const scales = {
   bronze: buildScale(brand.bronze),
-  espresso: buildScale(brand.espresso),
+  // ⚠ LIGHT'S INK IS `lightNeutral.ink`, NOT `brand.espresso`. The brand one
+  // seeds `nightBase` and every dark surface derived from it; this family is
+  // type and structural accents in LIGHT, and it is a warm near-black.
+  espresso: buildScale(lightNeutral.ink),
   cream: buildScale(lightNeutral.surface),
   taupe: buildScale(lightNeutral.border),
 } as const;
@@ -1024,7 +1090,6 @@ function solveNeutral(hue: string, surface: string, target: number): string {
  * and the numbers were only ever true of that constraint. `solveAgainst` above
  * replaces it and is solved per theme against the card.
  */
-
 
 /**
  * How far each hue is lifted toward the theme's text tone before anything in
@@ -1876,6 +1941,49 @@ export interface SolvedTokens {
  * or `LINE_FILL_TARGET` and this returns different numbers, which is exactly
  * what the test compares against.
  */
+/**
+ * HOW PRESENT AND HOW COLOURFUL THE DARK CARD WASH IS — the two knobs, in one
+ * place, because this is the pair somebody will want to tune by eye afterwards.
+ *
+ *   contrast    how far the wash stands off the card. Light's own wash is 1.09:1
+ *               off ITS card, and copying that number into dark is what produced
+ *               a tint nobody could see; 1.35 is as present as the AA floors on
+ *               the wash allow with all three hues still solvable.
+ *   chromaGain  how much more colour than light's wash carries. Not 1: see the
+ *               note at the call site — the same chroma at a much lower
+ *               lightness is a grey with a rumour of hue in it.
+ */
+const DARK_WASH = { contrast: 1.35, chromaGain: 2.6 } as const;
+
+/**
+ * The rendering of `hue` closest to `targetChroma` that stands
+ * `DARK_WASH.contrast` off `surface`, lighter than it, with every colour in
+ * `floors` still clearing AA on it.
+ *
+ * A different objective from `solveTint`, which matches a contrast AND a chroma
+ * measured somewhere else. This one takes the contrast as the constraint and the
+ * chroma as the goal, so a hue that cannot reach the goal (gold, at a dark
+ * lightness) returns the most it can hold rather than failing.
+ */
+function solveWash(hue: string, surface: string, targetChroma: number, floors: string[]): string {
+  let best: { hex: string; miss: number } | null = null;
+  for (let lightness = 0.02; lightness <= 0.5; lightness += 0.002) {
+    for (let saturation = 0.05; saturation <= 1.00001; saturation += 0.01) {
+      const hex = reHsl(hue, Math.min(1, saturation), lightness);
+      if (Math.abs(contrastRatio(hex, surface) - DARK_WASH.contrast) > 0.02) continue;
+      // Lighter than the card, never darker: a wash below a near-black card is
+      // a hole punched in the surface rather than a tint on it.
+      if (relativeLuminance(hex) <= relativeLuminance(surface)) continue;
+      if (floors.some((ink) => contrastRatio(ink, hex) < 4.5)) continue;
+      const miss = Math.abs(okChroma(hex) - targetChroma);
+      if (!best || miss < best.miss) best = { hex, miss };
+    }
+  }
+  // Unreachable for any real card: the whole lightness ladder is searched and
+  // some rung always clears a 1.35:1 step off a near-black surface.
+  return best?.hex ?? hue;
+}
+
 export function solveTokens(mode: 'light' | 'dark'): SolvedTokens {
   const dark = mode === 'dark';
   const card = dark ? darkScales.cream[50] : scales.cream[50];
@@ -1899,7 +2007,51 @@ export function solveTokens(mode: 'light' | 'dark'): SolvedTokens {
         )
       : solveAgainst(statusHue[hue], [card], LINE_FILL_TARGET, bandChromaCeiling(hue as 'green' | 'yellow' | 'red')),
   );
-  const wash = byHue((hue) => matchLight(hue, TINT_MIX.wash));
+  /**
+   * ═══ THE CARD WASH IN DARK IS SOLVED FOR COLOUR NOW, NOT MATCHED ═══════
+   *
+   * ── THE COMPLAINT: THE DARK CARD TINT READS MUDDY ─────────────────────
+   *
+   * It did, and "the tint is translucent" is the right diagnosis of the RECIPE
+   * even though the applied colour was always an opaque hex. `matchLight` mixes
+   * the hue INTO the card in light and then solves dark to the same CHROMA and
+   * the same presence — so dark's wash carried exactly light's colourfulness by
+   * design (0.0228 against light's 0.0235 in green, 0.0382 against 0.0389 in
+   * gold). Matching was the bug.
+   *
+   * ⚠ THE SAME CHROMA IS NOT THE SAME COLOUR AT A DIFFERENT LIGHTNESS. A given
+   * OKLab chroma on a near-white ground is a clear pastel and on a near-black
+   * one is a grey with a rumour of hue in it. Light's wash reads as a green
+   * card; dark's read as a brown-grey card. Nothing was translucent and nothing
+   * was mismeasured; the target was wrong.
+   *
+   * ── SO DARK ASKS FOR MORE, AND IS HELD BY WHAT A CARD HAS TO DO ────────
+   *
+   * `DARK_WASH.chromaGain` of light's chroma, at `DARK_WASH.contrast` off the
+   * card, with the hue's own channel ratios kept (it is solved in the hue's own
+   * HSL angle, never mixed from the warm near-black card, which is the same
+   * reason `DARK_FILL` mixes a band from black). Three floors bind it and they
+   * are what stop this becoming a filled alert card: body copy at AA on the
+   * wash, the STATUS WORD at AA on the wash, and the wash lighter than the card
+   * rather than a hole cut in it.
+   *
+   * ⚠ GOLD CANNOT REACH THE GAIN AND IS CAPPED BY THE GAMUT, WHICH IS THE SAME
+   * WALL THIS FILE HAS RECORDED FOUR TIMES: a dark yellow is a brown, so gold
+   * takes the most sRGB holds at its lightness (1.7× rather than 2.6×) and the
+   * solve simply returns it. Green and red reach the gain exactly.
+   *
+   * LIGHT IS UNTOUCHED. It reads clean already and it is the reference.
+   */
+  const wash = byHue((hue) => {
+    const reference = mix(lightCard, statusHue[hue], TINT_MIX.wash);
+    if (!dark) return reference;
+    return solveWash(statusHue[hue], card, okChroma(reference) * DARK_WASH.chromaGain, [
+      darkText,
+      // The status word stands ON its own wash, and it is the tighter of the
+      // two: solved against the hue itself where the hue clears the floor.
+      darkStatusHex(hue),
+    ]);
+  });
   /**
    * ═══ THE STATUS WORD, AND IT IS THE HUE ITSELF WHERE THE HUE WILL DO ═══
    *
@@ -1957,7 +2109,6 @@ export function solveTokens(mode: 'light' | 'dark'): SolvedTokens {
   };
 }
 
-
 /**
  * WHAT SHIPS. Produced by `solveTokens` above and pinned by
  * `tokenContrast.test.ts`, which re-runs the search and asserts equality — so
@@ -1994,14 +2145,18 @@ const SOLVED: Record<'light' | 'dark', SolvedTokens> = {
     wash: { green: '#dce5d5', olive: '#ebedd4', yellow: '#fbf3d6', orange: '#f1e0cf', red: '#edd4d1' },
     track: { green: '#a1bb8c', olive: '#cbd08a', yellow: '#f8e28f', orange: '#dcac7d', red: '#d28c82' },
     label: { green: '#3d572c', yellow: '#675a27', red: '#8f3225' },
-    bound: '#93a0b5',
+    bound: '#8ba3ac',
   },
   dark: {
     line: { green: '#6b9948', olive: '#a3a324', yellow: '#dbad00', orange: '#de8929', red: '#e06452' },
-    wash: { green: '#2f362a', olive: '#2d2f1b', yellow: '#2e2811', orange: '#3e3124', red: '#483431' },
+    // ⚠ SOLVED FOR COLOUR, NOT MATCHED TO LIGHT'S — see the wash solve above.
+    // Green and red reach 2.6x light's chroma exactly; gold is capped by the
+    // gamut at 1.7x, which is the "a dark yellow is a brown" wall this file has
+    // now recorded from four different directions.
+    wash: { green: '#293c1a', olive: '#373b00', yellow: '#453700', orange: '#562e06', red: '#5b2a23' },
     track: { green: '#435931', olive: '#424601', yellow: '#3f3200', orange: '#73471c', red: '#905248' },
     // ⚠ The yellow is `statusHue.yellow` UNCHANGED — see the label solve above.
-    label: { green: '#80ae5b', yellow: '#F5CE3E', red: '#fa7d6b' },
+    label: { green: '#80ae5b', yellow: '#F5CE3E', red: '#f97c6a' },
     bound: '#5a6272',
   },
 };
@@ -2229,7 +2384,7 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    */
   out['--c-panel'] = dark
     ? mix(nightBase, '#000000', 0.72)
-    : mix(lightNeutral.surface, lightNeutral.border, 0.75);
+    : mix(lightNeutral.surface, lightNeutral.ink, 0.07);
   // The alpha itself is PANEL_WASH_ALPHA below rather than a variable here,
   // because it is an opacity and not a colour: everything in this map is a hex
   // that themeCssVars turns into channels.
@@ -2303,7 +2458,7 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    */
   out['--c-glass-panel'] = mix(
     glassColour,
-    dark ? darkAccentScales.teal[500] : accentScales.slate[200],
+    dark ? darkAccentScales.teal[500] : accentScales.teal[200],
     GLASS_ACCENT_TINT,
   );
 
@@ -2643,10 +2798,10 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * a near-black dark card measures about 1.1:1, which is the identical
    * failure with the themes swapped. They follow the theme.
    */
-  out['--c-chart-axis-line'] = dark ? darkScales.taupe[500] : mix(lightNeutral.border, brand.espresso, 0.22);
-  out['--c-chart-axis-text'] = dark ? darkScales.espresso[600] : mix(brand.espresso, lightNeutral.surface, 0.25);
+  out['--c-chart-axis-line'] = dark ? darkScales.taupe[500] : mix(lightNeutral.border, lightNeutral.ink, 0.22);
+  out['--c-chart-axis-text'] = dark ? darkScales.espresso[600] : mix(lightNeutral.ink, lightNeutral.surface, 0.25);
   out['--c-chart-gridline'] = dark ? darkScales.taupe[400] : mix(lightNeutral.surface, lightNeutral.border, 0.5);
-  out['--c-chart-cursor'] = dark ? darkScales.taupe[700] : mix(lightNeutral.border, brand.espresso, 0.42);
+  out['--c-chart-cursor'] = dark ? darkScales.taupe[700] : mix(lightNeutral.border, lightNeutral.ink, 0.42);
   // The card the chart is drawn on — what a point mark is filled with so the
   // line passes behind it. One expression with `tintTowards`, which is the
   // same card every wash is mixed from.
@@ -2745,7 +2900,7 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
   // near-black surface has to come from darkness, and a shadow with much warmth
   // left in it is a smudge — but a shadow with NONE is the one cool thing on an
   // entirely warm page, and at the corner of a card it shows.
-  out['--c-shadow'] = dark ? mix(brand.espresso, '#000000', 0.88) : brand.espresso;
+  out['--c-shadow'] = dark ? mix(brand.espresso, '#000000', 0.88) : lightNeutral.ink;
 
   /**
    * The ambient light source (dark mode only — see `.dark body::before` in

@@ -125,6 +125,13 @@ const GEO = {
   /** How far outside the ring a label's centre sits. */
   labelGap: 3.5,
 } as const;
+/**
+ * How much of the mark's diameter its outline takes. The ring exists so the dot
+ * reads against the five band colours it can stand on rather than melting into
+ * whichever one it is over; keeping it a SHARE means that job is done equally
+ * well at every gauge size, which a fixed pixel width cannot do.
+ */
+const MARK_RING_SHARE = 0.17;
 const RING_INNER = GEO.outer - GEO.stroke;
 /** The centreline of the ring — where the mark rides and where the optimal arc is stroked. */
 const RING_MID = GEO.outer - GEO.stroke / 2;
@@ -192,7 +199,17 @@ interface ArcGaugeProps {
    * states the reference range in words below. The full gauge prints all four.
    */
   boundLabels?: boolean;
-  /** Diameter of the result mark, in px. Fixed rather than fluid: it is the thing being read. */
+  /**
+   * Diameter of the result mark, in px. Fixed rather than fluid: it is the thing
+   * being read.
+   *
+   * ── SMALLER (Aug 2026): 14 → 11 on a full gauge, 10 → 8 on a card ────────
+   * The dot read as a heavy blob sitting on the ring rather than as a neat
+   * marker pointing at a position. Its OUTLINE shrinks with it (see
+   * `MARK_RING_SHARE`), which is the half that matters: a fixed 2px ring on a
+   * shrinking dot becomes a doughnut. Identical in both themes, and the mark is
+   * still centred on its true position by the same rotation as before.
+   */
   markPx?: number;
   /**
    * Whether the mark sweeps round the arc to its position on mount.
@@ -240,7 +257,7 @@ export function ArcGauge({
   children,
   maxWidth = 300,
   boundLabels = true,
-  markPx = 14,
+  markPx = 11,
   sweepOnMount = true,
   className = '',
 }: ArcGaugeProps) {
@@ -426,7 +443,7 @@ export function ArcGauge({
         style={{ inset: `${GEO.c - GEO.outer}%`, transform: `rotate(${markDeg + 90}deg)` }}
       >
         <div
-          className="absolute left-1/2 -translate-x-1/2 rounded-full border-2 border-rangemark-ring bg-rangemark shadow"
+          className="absolute left-1/2 -translate-x-1/2 rounded-full border-solid border-rangemark-ring bg-rangemark shadow"
           style={{
             // The ring's centreline, measured down from the top of this box:
             // the box is the ring's outer circle, so the centreline sits half a
@@ -434,6 +451,13 @@ export function ArcGauge({
             top: `calc(${(GEO.stroke / 2 / GEO.outer) * 50}% - ${markPx / 2}px)`,
             width: markPx,
             height: markPx,
+            // ── THE RING AROUND IT IS A SHARE OF THE MARK, NOT A FIXED 2px ──
+            // It was `border-2` at every size, so shrinking the mark made the
+            // outline a larger and larger fraction of it: at 8px a 2px ring is
+            // half the diameter and the mark reads as a doughnut rather than as
+            // a point. `MARK_RING_SHARE` keeps the two in proportion, and the
+            // floor stops it falling under a device pixel on the smallest gauge.
+            borderWidth: `${Math.max(1.25, markPx * MARK_RING_SHARE)}px`,
           }}
         />
       </div>
@@ -579,7 +603,7 @@ export function MiniArcGauge({
       severityThreshold={severityThreshold}
       maxWidth={176}
       boundLabels={false}
-      markPx={10}
+      markPx={8}
       sweepOnMount={false}
     >
       {children}

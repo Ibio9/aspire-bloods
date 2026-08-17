@@ -169,33 +169,25 @@ export function MarkerResultCard({
       state={navState}
       className="block h-full rounded-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
     >
-      {/* ── THE CARD CARRIES NO STATUS TINT (Aug 2026) ────────────────────
-          Every marker card is the SAME ground, whatever the result: the
-          product's ordinary opaque card surface, `bg-cream-50`, which is the
-          light card in light and the warm near-black card in dark.
+      {/* ── THE STATUS TINT IS BACK, AND THE DARK ONE IS SOLVED (Aug 2026) ──
+          It was removed for one revision on the grounds that the DARK wash read
+          as a muddy olive-brown. That was true of the wash and not of the idea:
+          the wash was solved to carry exactly LIGHT'S chroma, and the same
+          chroma at a much lower lightness is a grey with a rumour of hue in it.
+          Light's tint reads clean and always did.
 
-          WHY IT WENT. A wash is the hue mixed into the card, and a hue mixed
-          into a surface at 20% is a MUDDIER version of that hue by
-          construction, not a quieter one. On a near-black card the above-range
-          wash resolved to a dark olive-brown and the below-range one to another
-          muted tone, so the cards read as though the design had been left
-          half-finished — and the wash was working hardest on exactly the
-          results a patient cares most about.
+          Dark's is solved for COLOUR now rather than matched to light's — see
+          `solveWash` and `DARK_WASH` in tokens.ts. It carries 2.6× light's
+          chroma at 1.35:1 off the card, with the body copy and the status word
+          both held at AA on it, so a green card reads green and a red card reads
+          red in both themes.
 
-          ⚠ NO STATUS SIGNAL IS LOST, AND THAT IS WHAT MAKES THIS SAFE RATHER
-          THAN A SIMPLIFICATION. The rule has always been that colour is the
-          LAST thing carrying a status and never the first. Three carriers
-          remain on this card and every one of them survives greyscale and a
-          colourblind reader: the GAUGE ARC, which paints the five status
-          colours at full strength on the one surface in the product where they
-          are solved rather than washed; the CHEVRON, whose shape says the
-          direction and the severity; and the WORD, which says it outright. The
-          wash was the fourth statement of a fact already made three times, and
-          it was the only one of the four that was ever ambiguous.
-
-          The border, the type, the shadow and the radius are untouched, and so
-          is everything inside the card. */}
-      <Card interactive surface="card" padding="tight" className="flex h-full flex-col">
+          The tint is a surface wash and nothing else: the border, the type and
+          the shadow are the ordinary card's. The GAUGE ARC, the CHEVRON and the
+          WORD still carry the status on their own, in greyscale and to a
+          colourblind reader — the wash reinforces them and has never been the
+          thing that says it. */}
+      <Card interactive tint={status} padding="tight" className="flex h-full flex-col">
         {/* ── A MARKER'S NAME NEVER BREAKS MID-WORD (Aug 2026) ─────────────
             This carried `break-words` — `overflow-wrap: break-word` — which is
             a licence to hyphenate inside a word when one will not fit, and it

@@ -142,9 +142,9 @@ export default {
     borderRadius: {
       none: '0',
       // Dropdown panels, cards, tiles, modals — the softer of the two.
-      card: '1rem',
+      card: '1.5rem',
       // Controls: inputs, buttons, chips, focus rings.
-      input: '0.625rem',
+      input: '0.875rem',
       // The checkbox glyph ONLY. See above.
       mark: '0.25rem',
       full: '9999px',
