@@ -139,12 +139,31 @@ export default {
      * up on a card, a panel or a button, the fix is to delete it from there,
      * not to widen its remit.
      */
+    /**
+     * ── BOTH WENT UP A STEP (Aug 2026) ────────────────────────────────────
+     *
+     * 1rem → 1.25rem and 0.625rem → 0.75rem. The rule is untouched — two
+     * surface radii and only two — and what moved is where the pair sits.
+     *
+     * A 16px corner on a 15rem card is the default radius of every framework
+     * built since 2020, which is exactly the "templated" reading this pass was
+     * asked to get away from. 20px is enough softer to be a decision somebody
+     * made, and it is still nowhere near the pill a larger value would produce
+     * on a tight card. The control radius moves WITH it rather than
+     * independently, so a chip inside a card is still visibly the smaller
+     * corner of the two and the relationship between them is unchanged.
+     *
+     * ⚠ `mark` DID NOT MOVE, and it must not. It is icon geometry for the
+     * checkbox glyph: an 18px square at 12px of radius is already most of the
+     * way to a circle, and the control meaning "several of these" may not be
+     * the shape of the one meaning "exactly one of these".
+     */
     borderRadius: {
       none: '0',
       // Dropdown panels, cards, tiles, modals — the softer of the two.
-      card: '1rem',
+      card: '1.25rem',
       // Controls: inputs, buttons, chips, focus rings.
-      input: '0.625rem',
+      input: '0.75rem',
       // The checkbox glyph ONLY. See above.
       mark: '0.25rem',
       full: '9999px',
@@ -360,9 +379,29 @@ export default {
         // edge contact, one wide diffuse one that describes the distance
         // from the surface below. That pairing is what separates "floating"
         // from "outlined".
-        card: '0 1px 2px 0 rgb(var(--c-shadow) / var(--shadow-tight)), 0 2px 8px -2px rgb(var(--c-shadow) / var(--shadow-diffuse))',
+        // ── THREE LAYERS NOW, AND THE THIRD IS LIGHT RATHER THAN SHADOW
+        //    (Aug 2026) ────────────────────────────────────────────────────
+        //
+        // The pair below was correct and it was the whole of the depth cue, so
+        // every surface in the product read as "a rectangle with a shadow
+        // under it". What an expensive surface actually has is a LIT TOP EDGE
+        // as well: a hairline of the ambient light catching the card's own
+        // thickness, which is the same statement `.glass-panel` makes with its
+        // inset edges and the one thing an opaque card had no way to say.
+        //
+        // `--card-lip` is per theme for the same reason the shadow alphas are.
+        // In dark it is the sheen colour, so a card picks up the corner light;
+        // in light it is white and very quiet, because there is far less range
+        // above a cream card than above a near-black one.
+        //
+        // It is an INSET on the shadow token rather than a border, so it costs
+        // no layout, it follows the radius, and every card in the product gets
+        // it without a single call site changing — tinted cards included, where
+        // it is a highlight rather than a colour and carries no status.
+        card:
+          'inset 0 1px 0 0 rgb(var(--c-sheen) / var(--card-lip)), 0 1px 2px 0 rgb(var(--c-shadow) / var(--shadow-tight)), 0 4px 14px -4px rgb(var(--c-shadow) / var(--shadow-diffuse))',
         'card-hover':
-          '0 2px 4px 0 rgb(var(--c-shadow) / var(--shadow-tight)), 0 10px 24px -6px rgb(var(--c-shadow) / calc(var(--shadow-diffuse) * 1.75))',
+          'inset 0 1px 0 0 rgb(var(--c-sheen) / calc(var(--card-lip) * 1.5)), 0 2px 4px 0 rgb(var(--c-shadow) / var(--shadow-tight)), 0 18px 40px -10px rgb(var(--c-shadow) / calc(var(--shadow-diffuse) * 1.9))',
         // Auth form card — deliberately the heaviest surface in the product;
         // it has to genuinely float off the page, not sit flush on it.
         float:
@@ -426,7 +465,11 @@ export default {
           // Shadow opacity is part of the theme too: the same alpha that reads
           // as a soft warm shadow on cream disappears entirely on near-black.
           '--shadow-tight': '0.06',
-          '--shadow-diffuse': '0.08',
+          '--shadow-diffuse': '0.09',
+          // The lit top edge of every opaque card — see boxShadow.card. Quiet
+          // in light, because there is very little range above a near-white
+          // surface and this is a highlight rather than a line.
+          '--card-lip': '0.6',
           // How much of `--c-panel` survives on the sidebar. Per theme for the
           // same reason the shadow alphas are: the wash DIMS a cream page and
           // LIFTS a near-black one, and the two directions do not need the same
@@ -477,7 +520,10 @@ export default {
         '.dark': {
           ...asBaseVars('dark'),
           '--shadow-tight': '0.3',
-          '--shadow-diffuse': '0.36',
+          '--shadow-diffuse': '0.4',
+          // Louder in dark, because there is a great deal of range above a
+          // near-black card and the ambient light is the thing being caught.
+          '--card-lip': '0.085',
           '--panel-wash': String(PANEL_WASH_ALPHA.dark),
           '--glass-wash': String(GLASS.wash.dark),
           '--glass-blur': GLASS.blur,
@@ -521,6 +567,9 @@ export default {
             ...asBaseVars('light'),
             '--shadow-tight': '0',
             '--shadow-diffuse': '0',
+            // A hairline of white along the top of every card is invisible on
+            // paper and costs a pass of the head to print nothing.
+            '--card-lip': '0',
             '--panel-wash': '0',
             '--glass-wash': '0',
             '--glass-blur': '0px',

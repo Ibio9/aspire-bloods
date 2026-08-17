@@ -424,11 +424,11 @@ export function CompareView({
 
                 {/* THREE ACROSS, because the selection is capped at three. Two
                     columns made a 2 + 1 on every possible input, which is a
-                    card's width of nothing beside the last one. `items-start`
-                    for the same reason "What's changed" carries it: a row of
-                    unequal cards is allowed to be ragged along the bottom, and
-                    a stretched short card draws its slack as empty card. */}
-                <div className="mt-6 grid grid-cols-1 items-start gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                    card's width of nothing beside the last one. `.card-row`
+                    equalises the heights and makes each card a flex column, so
+                    a short card spends the difference on its own gaps rather
+                    than on a slab of empty card under its last line. */}
+                <div className="card-row mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                   {series.filter((s) => s.points.length > 0).map((s, i) => {
                     const last = s.points[s.points.length - 1];
                     const first = s.points[0];

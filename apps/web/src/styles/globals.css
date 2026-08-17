@@ -119,7 +119,7 @@
         is long gone before it arrives — which is what "a source" means and
         what a viewport-sized radial can never do.
      2. A BRIGHT CENTRE. `--glow-1` is 0.36 at the core in dark. On the
-        near-black page (#0b0c0e) that is a visible point of light rather than a
+        near-black page (#0e0c0a) that is a visible point of light rather than a
         suggestion of one.
      3. A STEEP, MANY-STOPPED FALLOFF. The alpha roughly halves every 12% of
         the radius, which is what makes it read as light rather than as paint.
@@ -1056,6 +1056,18 @@
      than at the very corner — a highlight pinned to a corner reads as a
      lighting bug — and it is gone by 62%, so most of the pane is its own flat
      body and the lit corner is genuinely a lit corner. */
+  /* ── AND THERE ARE TWO STREAKS NOW, BECAUSE THERE ARE TWO LAMPS (Aug 2026)
+     The page is lit by a warm key at the top right and a cooler fill at the
+     bottom left, and a pane that catches only one of them is a pane lit by a
+     room the reader can see is lit by two. The second runs at 28° — the exact
+     reciprocal of the first — and at under a third of its strength, because a
+     fill is a fill: it is there to stop the far corner of a large pane going
+     dead, not to be seen as a highlight.
+
+     They cannot compound. Each peaks at 14% of its OWN axis and is gone by 62%,
+     and their axes start at opposite corners, so at every point at most one of
+     them is above a rumour — which is what keeps the AA floor the contrast
+     suite measures against the streaked pane unchanged. */
   .glass-panel::before {
     content: '';
     position: absolute;
@@ -1063,14 +1075,23 @@
     z-index: -1;
     pointer-events: none;
     border-radius: inherit;
-    background: linear-gradient(
-      208deg,
-      rgb(var(--c-glass-edge) / calc(var(--glass-sheen) * 0.55)) 0%,
-      rgb(var(--c-glass-edge) / var(--glass-sheen)) 14%,
-      rgb(var(--c-glass-edge) / calc(var(--glass-sheen) * 0.45)) 32%,
-      rgb(var(--c-glass-edge) / calc(var(--glass-sheen) * 0.12)) 48%,
-      rgb(var(--c-glass-edge) / 0) 62%
-    );
+    background:
+      linear-gradient(
+        208deg,
+        rgb(var(--c-glass-edge) / calc(var(--glass-sheen) * 0.55)) 0%,
+        rgb(var(--c-glass-edge) / var(--glass-sheen)) 14%,
+        rgb(var(--c-glass-edge) / calc(var(--glass-sheen) * 0.45)) 32%,
+        rgb(var(--c-glass-edge) / calc(var(--glass-sheen) * 0.12)) 48%,
+        rgb(var(--c-glass-edge) / 0) 62%
+      ),
+      linear-gradient(
+        28deg,
+        rgb(var(--c-glass-edge) / calc(var(--glass-sheen) * 0.16)) 0%,
+        rgb(var(--c-glass-edge) / calc(var(--glass-sheen) * 0.3)) 14%,
+        rgb(var(--c-glass-edge) / calc(var(--glass-sheen) * 0.13)) 32%,
+        rgb(var(--c-glass-edge) / calc(var(--glass-sheen) * 0.04)) 48%,
+        rgb(var(--c-glass-edge) / 0) 62%
+      );
   }
 
   /* The sidebar's own tile, at a lower opacity — `soft-light` rather than a
@@ -1193,6 +1214,48 @@
      sit flush; the hairline taupe border only defines the edge. */
   .card {
     @apply bg-cream-50 border border-taupe rounded-card shadow-card;
+  }
+
+  /* ── EVERY CARD IN A ROW IS THE HEIGHT OF THE TALLEST CARD IN THAT ROW ───
+     (Aug 2026, and it reverses a rule this stylesheet used to argue for.)
+
+     THE OLD RULE WAS `items-start` AND RAGGED BOTTOMS, on the reasoning that a
+     card stretched past its own content draws the difference as empty card. It
+     is a real failure and it has a real cause, and the cause is not the
+     stretching: it is a card whose CONTENT is pinned to the top of a box that
+     grew. A row of cards of visibly different heights is the worse of the two —
+     it reads as a layout that did not finish rather than as a set of things of
+     different sizes, and on a grid of a hundred and sixty-five marker cards it
+     is the single loudest thing on the page.
+
+     WHAT ACTUALLY BREAKS IT, AND WHY THIS IS NOT ONE DECLARATION. A grid
+     already stretches its items; what fails is the chain of PASS-THROUGH
+     WRAPPERS between the item and the card — an `<li>`, a `Reveal`, and the
+     `<a>` that makes a card its own click target. Every one of those sizes to
+     its own content, so the cell is full height and the card inside it is not,
+     and `align-items: stretch` looks like it is doing nothing. Each wrapper in
+     that chain is named here rather than reached with a descendant selector,
+     because `height: 100%` on everything inside a card is a different bug.
+
+     THE CARD IS A COLUMN, so the space lands where a designer would put it —
+     between the blocks that should breathe rather than in one slab at the
+     bottom. A call site that wants a specific block to take the slack says so
+     with `mt-auto` on that block; nothing here decides it. */
+  .card-row {
+    align-items: stretch;
+  }
+
+  .card-row > *,
+  .card-row .reveal,
+  .card-row > * > a,
+  .card-row > * > * > a,
+  .card-row .card {
+    height: 100%;
+  }
+
+  .card-row .card {
+    display: flex;
+    flex-direction: column;
   }
 
   /* ── A CARD ON GLASS ────────────────────────────────────────────────────
@@ -1328,9 +1391,24 @@
   /* A card that is itself the click target. Lifts almost imperceptibly and the shadow spreads,
      so the depth cue does the work rather than a colour change. Press collapses it back down,
      instantly on the way in and eased on release — the same asymmetry as Button. */
+  /* ── AND THE MOVEMENT IS SLOWER AND LONGER NOW (Aug 2026) ───────────────
+     150ms of `ease-out` over half a step is a UI acknowledgement — the card
+     confirming it heard the pointer. What this register wants is a card that
+     RISES: further (a full step), over long enough to be read as movement
+     rather than as a state change, on a curve that decelerates almost to a stop
+     before it arrives. The press still collapses instantly, which is the
+     asymmetry Button already has and is what makes a click feel mechanical
+     rather than laggy.
+
+     The properties are named rather than `transition` (all), so nothing else
+     that happens to change on this card — a colour, a width — gets dragged
+     along at 260ms. */
   .card-interactive {
-    @apply cursor-pointer transition duration-150 ease-out hover:border-bronze/60 hover:shadow-card-hover;
-    @apply motion-safe:hover:-translate-y-0.5 active:translate-y-0 active:shadow-card active:duration-0;
+    @apply cursor-pointer hover:border-bronze/60 hover:shadow-card-hover;
+    @apply motion-safe:hover:-translate-y-1 active:translate-y-0 active:shadow-card active:duration-0;
+    transition-property: transform, box-shadow, border-color, background-color;
+    transition-duration: 260ms;
+    transition-timing-function: cubic-bezier(0.16, 0.84, 0.28, 1);
   }
 
   /* Not yet released: muted and inert. It must not offer a hover lift or a pointer cursor,

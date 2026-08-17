@@ -271,25 +271,45 @@ test.describe('marker names', () => {
     const licences = await breakLicences(page, '#whats-changed .card > p:first-child');
     expect(licences, `a change card's name may break mid-word: ${JSON.stringify(licences)}`).toEqual([]);
 
-    // NO EMPTY HALF-CARD. Every card ends its own padding below its own last
-    // element — not at the height of the tallest card in the row.
-    const slack = await page.evaluate(() => {
+    /**
+     * ── EQUAL HEIGHTS PER ROW, WHICH IS THE OPPOSITE OF WHAT THIS ASSERTED
+     *    (Aug 2026) ────────────────────────────────────────────────────────
+     *
+     * It used to measure the SLACK below each card's last element and hold it
+     * at the card's own bottom padding — i.e. it asserted the row was ragged.
+     * The complaint that produced `.card-row` is that a row of cards at
+     * visibly different heights reads as a layout that did not finish.
+     *
+     * What is measured instead is the claim the class actually makes: every
+     * card sharing a row is the height of the tallest card in that row. Cards
+     * are grouped by their painted TOP rather than by index, because how many
+     * fit on a row is a function of the viewport and this test should not have
+     * to know the column count to check the invariant.
+     */
+    const rows = await page.evaluate(() => {
       const cards = [...document.querySelectorAll('#whats-changed .card')];
-      return cards.map((card) => {
+      const byTop = new Map<number, { name: string; height: number }[]>();
+      for (const card of cards) {
         const box = card.getBoundingClientRect();
-        const last = card.lastElementChild!.getBoundingClientRect();
-        const pad = parseFloat(getComputedStyle(card).paddingBottom);
-        return {
+        // 2px absorbs sub-pixel rounding between two items on one row.
+        const key = [...byTop.keys()].find((t) => Math.abs(t - box.top) <= 2) ?? Math.round(box.top);
+        if (!byTop.has(key)) byTop.set(key, []);
+        byTop.get(key)!.push({
           name: card.firstElementChild?.textContent?.slice(0, 40) ?? '?',
           height: Math.round(box.height),
-          extra: Math.round(box.bottom - last.bottom - pad),
-        };
-      });
+        });
+      }
+      return [...byTop.values()];
     });
-    console.log(`\n  What’s changed — ${slack.length} cards`);
-    for (const c of slack) console.log(`    ${String(c.height).padStart(4)}px  +${c.extra}px slack  ${c.name}`);
-    for (const c of slack) {
-      expect(c.extra, `"${c.name}" carries ${c.extra}px of empty card below its content`).toBeLessThanOrEqual(2);
+    console.log(`\n  What’s changed — ${rows.length} rows`);
+    for (const row of rows) {
+      for (const c of row) console.log(`    ${String(c.height).padStart(4)}px  ${c.name}`);
+      const heights = row.map((c) => c.height);
+      const spread = Math.max(...heights) - Math.min(...heights);
+      expect(
+        spread,
+        `cards on one row differ by ${spread}px: ${row.map((c) => `${c.name}=${c.height}`).join(', ')}`,
+      ).toBeLessThanOrEqual(2);
     }
     // Two across at this width, not three — so a card has room for its name.
     const columns = await page.evaluate(
