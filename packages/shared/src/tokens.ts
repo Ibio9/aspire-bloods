@@ -946,28 +946,139 @@ const TINT_MIX = {
  * them; a light plate there would need the island too, and neither was the
  * complaint. Two tokens because there are two jobs.
  *
- * ONE LIGHTNESS AND ONE SATURATION, so the five read as one family rather than
- * as five separately-chosen colours — and so the pair somebody will want to tune
- * by eye afterwards is two numbers rather than ten hexes.
+ * ══ THE HUES COME FROM A REFERENCE RAMP NOW, AND THE DEPTH IS SOLVED ══════
+ *
+ * ── WHY THE PLATE HUE STOPPED BEING THE STATUS HUE ────────────────────────
+ *
+ * The family was `statusHue` rendered at one saturation and one lightness, and
+ * it was deepened twice on that basis before it ran out of room: `statusHue
+ * .green` is a muted leaf at 94 degrees, so every rendering of it at a light
+ * lightness arrives washed out before it arrives rich.
+ *
+ * The brief is a vivid orange-yellow-green reference ramp, adopted for its
+ * HUES and refused at its brightness. So the plate takes its angle from a seed
+ * of its own and its depth from a solve, and the two decisions are separated:
+ *
+ *   green   `#63C132`, a bright leaf at 99 degrees, four degrees off the status
+ *           green and a great deal fresher.
+ *   yellow  `#F0B429`, a warm golden at 42 degrees. Four degrees warmer than
+ *           `statusHue.yellow`, which is the whole difference between a lemon
+ *           and a gold.
+ *   red     `statusHue.red` ITSELF, at 8 degrees, and that is a refusal rather
+ *           than an omission. The reference ramp ends in an ORANGE, and an
+ *           orange ground under the words "Significantly above range" is the
+ *           hue of ABOVE RANGE on the surface that means the opposite. Red is
+ *           deepened and saturated instead, which is what makes it read warmer.
+ *
+ * ⚠ THE STATUS COLOURS THEMSELVES ARE UNTOUCHED. `statusHue` is unchanged and
+ * still asserted as literals; the gauge, the chart and both PDFs are unaffected.
+ * What is new is that a GROUND may be picked for how it reads as a ground.
+ *
+ * ── PER HUE, BECAUSE ONE LIGHTNESS CANNOT SERVE THREE ─────────────────────
+ *
+ * The same shape as `BAND_FILL` and for the same reason: at one HSL lightness a
+ * green is a lime while a red is still a salmon, so a single pair of numbers
+ * either leaves the green neon or the red pale. Each hue states its own, and
+ * every one of them is bounded by the same three floors:
+ *
+ *   · the light ink at 6:1 or better on the plate, and its /80 step at AA;
+ *   · the status word at AA on its own plate (see `STATUS_PLATE_LABEL`);
+ *   · the plate never more colourful than its own seed, which is what keeps
+ *     "deepened and slightly muted" from drifting into the raw reference.
+ *
+ * ⚠ RED SITS LOWER IN PERCEIVED LIGHTNESS THAN THE OTHER TWO (OKLab 0.71
+ * against 0.83) AND CANNOT BE LIFTED TO MEET THEM. Reaching 0.83 at this chroma
+ * puts red back at a pale coral, which is the thing being got away from. The set
+ * is balanced by treatment rather than by a number: one operation, one bound,
+ * each hue as deep as its own gamut allows.
  */
-const PLATE = { saturation: 0.88, lightness: 0.81 } as const;
+export const PLATE_SEED: Record<'green' | 'yellow' | 'red', string> = {
+  green: '#63C132',
+  yellow: '#F0B429',
+  red: statusHue.red,
+};
 
-/** The plate for a hue: the hue's own angle at the family's lightness. */
-function statusPlate(hue: StatusHue): string {
-  return reHsl(statusHue[hue], PLATE.saturation, PLATE.lightness);
+/**
+ * The depth of each plate: its seed's hue angle at a stated saturation and
+ * lightness. Solved against the floors above, then written down, exactly as
+ * `BAND_FILL` is.
+ */
+const PLATE_FILL: Record<'green' | 'yellow' | 'red', { saturation: number; lightness: number }> = {
+  green: { saturation: 0.6, lightness: 0.62 },
+  yellow: { saturation: 0.82, lightness: 0.65 },
+  red: { saturation: 0.82, lightness: 0.68 },
+};
+
+/** Which of the three the five states resolve to. Both golds are one colour by construction. */
+const PLATE_HUE: Record<StatusKey, 'green' | 'yellow' | 'red'> = {
+  inRange: 'green',
+  high: 'yellow',
+  low: 'yellow',
+  significantHigh: 'red',
+  significantLow: 'red',
+};
+
+/** The plate for a hue: its seed's own angle at that hue's stated depth. */
+function statusPlate(hue: 'green' | 'yellow' | 'red'): string {
+  return reHsl(PLATE_SEED[hue], PLATE_FILL[hue].saturation, PLATE_FILL[hue].lightness);
 }
 
 /**
- * The five plates, resolved once. Theme-identical by construction — there is no
- * `mode` in this expression and there is not going to be one.
+ * The five plates, resolved once. Theme-identical by construction, there is no
+ * `mode` in this expression and there is not going to be one, and identical on
+ * both surfaces that take one: the marker result card and the strip segments.
  */
-export const STATUS_PLATE = {
-  inRange: statusPlate('green'),
-  high: statusPlate('yellow'),
-  low: statusPlate('yellow'),
-  significantHigh: statusPlate('red'),
-  significantLow: statusPlate('red'),
-} as const satisfies Record<StatusKey, string>;
+export const STATUS_PLATE = Object.fromEntries(
+  (Object.keys(PLATE_HUE) as StatusKey[]).map((key) => [key, statusPlate(PLATE_HUE[key])]),
+) as Record<StatusKey, string>;
+
+/**
+ * ── THE STATUS WORD ON A PLATE IS ITS OWN TOKEN (Aug 2026) ────────────────
+ *
+ * A deeper ground costs the word that stands on it, and the word is the one
+ * piece of type in the product carrying a status colour. On the deepest plate
+ * the authored `statusTextHex` measures 3.4:1, which is not a legible label.
+ *
+ * ⚠ AND IT MUST NOT BE FIXED BY DARKENING THE ORDINARY LABEL, which was the
+ * previous answer and was wrong in a way worth writing down: that token is also
+ * the status word on a plain card, on the page, in a tooltip and in a table,
+ * and dragging all of those down to clear a surface most of them never touch
+ * makes every status word in light mode a near-black. The plate is a SURFACE
+ * with its own requirement, so it gets its own value, emitted inside
+ * `.status-plate` where it is the only place it applies.
+ *
+ * The move is the authored derivation continued, further toward the light ink
+ * in hundredths, so the three stay a family and a hue that already clears comes
+ * back byte-identical. Green does; gold and red do not.
+ */
+export const STATUS_PLATE_LABEL = Object.fromEntries(
+  (Object.keys(PLATE_HUE) as StatusKey[]).map((key) => {
+    const hue = PLATE_HUE[key];
+    const plate = statusPlate(hue);
+    const authored = statusTextHex(hue);
+    if (contrastRatio(authored, plate) >= 4.5) return [key, authored];
+    for (let extra = 0.01; extra <= 0.8; extra += 0.01) {
+      const hex = mix(authored, lightNeutral.ink, extra);
+      if (contrastRatio(hex, plate) >= 4.5) return [key, hex];
+    }
+    // Unreachable: the light ink clears 6:1 on the deepest plate in the family,
+    // so the walk always terminates a long way before the end of its range.
+    return [key, lightNeutral.ink];
+  }),
+) as Record<StatusKey, string>;
+
+/**
+ * The status word's own variables, ready for the `.status-plate` rule in
+ * tailwind.config.ts. Emitted from here rather than assembled there, so the
+ * name of a status custom property is decided in exactly one place.
+ */
+export function statusPlateLabelCssVars(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, hex] of Object.entries(STATUS_PLATE_LABEL)) {
+    out[`--c-status-${kebab(key)}`] = hexToRgbChannels(hex);
+  }
+  return out;
+}
 
 /**
  * The point fill, per hue, as a distance from the hue itself — toward espresso
@@ -2215,45 +2326,19 @@ export function solveTokens(mode: 'light' | 'dark'): SolvedTokens {
    * piece of TYPE is the exact hex wherever it can be read.
    */
   /**
-   * ── AND LIGHT ANSWERS TO THE PLATE NOW, WHICH IS A SURFACE IT LANDS ON ───
+   * ⚠ AND LIGHT IS THE AUTHORED VALUE AGAIN, BECAUSE THE PLATE HAS ITS OWN.
    *
-   * The status word stands on the marker card and on the at-a-glance strip, and
-   * since Aug 2026 both of those are the PLATE — a clean status tint rather than
-   * a near-white card. So the plate is one of the surfaces this colour has to
-   * clear, and it is the tightest of them by a distance: at the plate's current
-   * depth the light RED label measures 4.58:1 on the red plate against 8.9:1 on
-   * the card.
-   *
-   * ⚠ THIS IS WHAT BOUNDS HOW DEEP A PLATE CAN GO, and it is why the pair moves
-   * together. Deepen `PLATE` by eye without this and the one piece of type in
-   * the product that carries a status colour goes under AA on its own ground —
-   * silently, because every other measurement on the card gets BETTER as the
-   * plate darkens.
-   *
-   * THE RULE IS THE SAME ONE DARK ANSWERS TO: take the authored value where it
-   * clears every surface, and move only where it does not. The move is the
-   * authored derivation continued — further toward the light ink, in hundredths
-   * — rather than a fresh solve, so the three labels stay a family and a hue
-   * that still clears comes back byte-identical. Measured at the current plate:
-   * green and gold are untouched, red goes two hundredths.
+   * For one revision this solved against the PLATE as well, which is a surface
+   * the status word genuinely lands on. It was the wrong place to answer it:
+   * this token is also the status word on a plain card, on the page, in a
+   * tooltip and in a table, so clearing a ground most of those never touch
+   * dragged every status word in light mode toward a near-black. The plate is a
+   * surface with its own requirement and it gets its own value, which is
+   * `STATUS_PLATE_LABEL`, emitted only inside `.status-plate`.
    */
-  const lightLabelOn = (hue: 'green' | 'yellow' | 'red'): string => {
-    const authored = statusTextHex(hue);
-    const surfaces = [statusPlate(hue), lightNeutral.surface, lightCard, brand.white, wash[hue]];
-    const clears = (hex: string) => surfaces.every((s) => contrastRatio(hex, s) >= 4.5);
-    if (clears(authored)) return authored;
-    for (let extra = 0.01; extra <= 0.6; extra += 0.01) {
-      const hex = mix(authored, lightNeutral.ink, extra);
-      if (clears(hex)) return hex;
-    }
-    // Unreachable for any plate this palette can produce: the ink itself clears
-    // 10:1 on the deepest of them, so the walk always terminates well before it.
-    return mix(authored, lightNeutral.ink, 0.6);
-  };
-
   const label = Object.fromEntries(
     (['green', 'yellow', 'red'] as const).map((hue) => {
-      if (!dark) return [hue, lightLabelOn(hue)];
+      if (!dark) return [hue, statusTextHex(hue)];
       const surfaces = [wash[hue], darkPage, darkScales.cream[50], darkWhite];
       // The literal rather than `WCAG_AA_TEXT`, which is a `const` declared far
       // below this — a temporal-dead-zone throw at module load, not a lint nit.
@@ -2307,7 +2392,7 @@ const SOLVED: Record<'light' | 'dark', SolvedTokens> = {
     line: { green: '#507e2c', olive: '#717816', yellow: '#917200', orange: '#a95d1b', red: '#c14836' },
     wash: { green: '#dce6d4', olive: '#ecedd3', yellow: '#fcf4d5', orange: '#f2e0ce', red: '#eed5d0' },
     track: { green: '#a1bc8c', olive: '#ccd08a', yellow: '#f9e28e', orange: '#dcac7c', red: '#d28c81' },
-    label: { green: '#3d572c', yellow: '#675a27', red: '#8d3125' },
+    label: { green: '#3d572c', yellow: '#675a27', red: '#8f3225' },
     bound: '#b49c81',
   },
   dark: {

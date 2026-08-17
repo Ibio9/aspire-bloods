@@ -191,38 +191,65 @@ mis-solved; the card being dark was the problem.
 
 **SO THE CARD STOPS BEING DARK.** One family, five entries, no theme branch:
 
-    status                plate      chroma / hue's own   light ink   status word
-    In range              #c9f9a4    0.121 / 0.124        14.9:1      6.76:1
-    Below / Above range   #f9e7a4    0.087 / 0.158        14.4:1      5.54:1
-    Significantly out     #f9afa4    0.089 / 0.159         9.9:1      4.50:1
+    status                plate      seed       s / l        light ink   word
+    In range              #8cd864    #63C132    0.60 / 0.62  10.30:1     4.67:1
+    Below / Above range   #efc35d    #F0B429    0.82 / 0.65  10.74:1     4.52:1
+    Significantly out     #f07c6a    statusRed  0.82 / 0.68   6.63:1     4.51:1
 
-**⚠ DEEPENED TWICE, AND IT IS NOW AT THE WALL — 0.82/0.895 → 0.86/0.84 →
-0.88/0.81.** The first setting read as faint pastels (chroma 0.044–0.063), the
-second as a tint somebody chose. **THE THIRD IS AS DEEP AS THIS FAMILY GOES, and
-the thing that stops it is the palette's own rule rather than a number somebody
-picked**: a plate may never be MORE COLOURFUL THAN THE STATUS HUE IT DERIVES
-FROM — the same `bandChromaCeiling` the chart bands answer to. The GREEN plate
-now sits at 0.121 against green's own 0.124. One more uniform step makes it more
-colourful than `statusHue.green`, which is refused.
+**⚠ THE HUES COME FROM A REFERENCE RAMP NOW, NOT FROM `statusHue`.** The family
+was the status hues at one saturation and one lightness, deepened twice on that
+basis, and it ran out of room: `statusHue.green` is a muted leaf, so every
+rendering of it at a light lightness arrives washed out before it arrives rich.
+The brief was a vivid orange-yellow-green ramp, **adopted for its HUES and
+refused at its brightness**. `PLATE_SEED` holds the angles:
 
-**AND THE SECOND BOUND MOVED THE STATUS WORD, WHICH IS WORTH KNOWING BEFORE
-TOUCHING EITHER.** The word stands ON the plate, so the plate is one of the
-surfaces it has to clear — and it is the tightest by a distance (red: 4.50:1 on
-its plate against 8.9:1 on the card). `solveTokens` takes the authored
-`statusTextHex` where it clears every surface and continues the SAME derivation —
-further toward the light ink, in hundredths — only where it does not. Green and
-gold are byte-identical to what they always were; **light's red label went
-#8f3225 → #8d3125, two hundredths**. `statusHue` is untouched, and so is
-`status.*.hex`, which is what both PDFs print.
+- **green `#63C132`**, a bright leaf at 99 degrees, four degrees off the status
+  green and a great deal fresher;
+- **yellow `#F0B429`**, a warm golden at 42 degrees. Four degrees warmer than
+  `statusHue.yellow`, which is the whole difference between a lemon and a gold;
+- **red is `statusHue.red` ITSELF at 8 degrees, and that is a refusal rather
+  than an omission.** The reference ramp ends in an ORANGE, and an orange ground
+  under the words "Significantly above range" is the hue of ABOVE RANGE on the
+  surface that means the opposite. Red is deepened and saturated instead, which
+  is what makes it read warmer.
 
-⚠ Deepen `PLATE` by eye without re-running that solve and the one piece of type
-in the product carrying a status colour goes under AA on its own ground —
-silently, because every other measurement on the card IMPROVES as the plate
-darkens.
+**⚠ THE STATUS COLOURS THEMSELVES ARE UNTOUCHED.** `statusHue` is unchanged and
+still asserted as literals; the gauge, the trend chart and both PDFs are
+unaffected. What is new is that a GROUND may be picked for how it reads as a
+ground.
 
-`STATUS_PLATE` in tokens.ts, from TWO numbers (`PLATE.saturation` 0.88,
-`PLATE.lightness` 0.81) at each hue's own angle, so the five read as one family
-and the pair to tune by eye is two numbers rather than ten hexes. This is the
+**PER HUE, BECAUSE ONE LIGHTNESS CANNOT SERVE THREE.** `PLATE_FILL` is the same
+shape as `BAND_FILL` and for the same reason: at one HSL lightness a green is a
+lime while a red is still a salmon, so a single pair either leaves the green neon
+or the red pale. ⚠ **RED SITS LOWER IN PERCEIVED LIGHTNESS THAN THE OTHER TWO
+(OKLab 0.71 against 0.83) AND CANNOT BE LIFTED TO MEET THEM** without going back
+to a pale coral. The set is balanced by TREATMENT rather than by a number: one
+operation, one bound, each hue as deep as its own gamut allows.
+
+**THE CEILING IS THE SEED'S OWN CHROMA**, which is "adopt the hue, refuse the
+brightness" as a number: deepening may take chroma up toward the seed and may
+never pass it. The floors are the light ink at 6:1 or better, its /80 step at AA,
+and the status word at AA on its own plate.
+
+**⚠ AND THE STATUS WORD ON A PLATE IS ITS OWN TOKEN NOW (`STATUS_PLATE_LABEL`).**
+At this depth the authored `statusTextHex` measures 3.4:1 on the deepest plate.
+The previous answer was to darken the ORDINARY light label until it cleared, and
+that was wrong in a way worth writing down: that token is also the status word on
+a plain card, on the page, in a tooltip and in a table, so clearing a ground most
+of them never touch dragged every status word in light mode toward a near-black.
+The plate is a surface with its own requirement, so it gets its own value,
+emitted only inside `.status-plate`. Light's ordinary red label is back to the
+authored #8f3225 and the test asserts it did not move.
+
+⚠ **BOTH `.status-plate` RULES SIT AFTER THE PRINT BLOCK IN tailwind.config.ts.**
+A media query adds no specificity, so `:root, .dark` inside `@media print` and
+`.status-plate` are equally specific and SOURCE ORDER decides. Declared earlier,
+print would put the ordinary label back on a plate a printed page still paints,
+since `--c-plate-*` is theme-identical and survives into print.
+
+`STATUS_PLATE` in tokens.ts, one operation over three seeds and three depths, so
+the five states are one family and what somebody tunes by eye afterwards is six
+numbers rather than ten hexes. This is the
 composition the gauge already draws — its five fills are solved against
 `PLOT_SURFACE`, a light ground, and are byte-identical in both themes. A light
 plate under a light arc is one object; a light arc on a near-black card was two.

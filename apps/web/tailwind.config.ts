@@ -18,6 +18,7 @@ import {
   GLOW,
   PANEL_SHEEN,
   SPARK,
+  statusPlateLabelCssVars,
   type TypeStep,
 } from '../../packages/shared/src/tokens';
 
@@ -534,34 +535,6 @@ export default {
           'color-scheme': 'dark',
         },
         /**
-         * ── A PLATED SURFACE IS A LIGHT ISLAND, AND IT HAS TO BE (Aug 2026) ─
-         *
-         * The marker result card's status ground is one soft pastel family at a
-         * single lightness, identical in both themes — see STATUS_PLATE in
-         * tokens.ts for why a dark card can never carry a clean yellow. In dark
-         * mode that puts near-white cream type, a #F5CE3E status word and a dark
-         * hairline on a pale pastel: unreadable, and unreadable in the one place
-         * a wrong colour is a clinical statement.
-         *
-         * So the ink comes with the ground. This is the SAME mechanism the print
-         * block below uses and for the same reason: every colour in the product
-         * already resolves through these custom properties, so re-emitting the
-         * light set at a selector that beats `.dark` turns everything inside the
-         * card light in one place — the value, the marker name, the status word,
-         * the border, the meta lines — and anything added to that card later is
-         * covered by construction rather than by remembering.
-         *
-         * ⚠ COLOURS ONLY. The shadow alphas, the glass alphas and the sheens are
-         * NOT re-emitted: they are the DARK page's numbers and this card is still
-         * sitting on the dark page. A light card wants dark mode's deeper shadow,
-         * not light mode's.
-         *
-         * ⚠ AND THE GAUGE INSIDE IT DOES NOT MOVE. `--c-hue-*-fill` and
-         * `--c-rangemark` are theme-identical already, so the arc paints the same
-         * five bytes it always did whether or not this rule exists.
-         */
-        '.dark .status-plate': asBaseVars('light'),
-        /**
          * ── PRINT IS LIGHT, WHATEVER THE SCREEN IS ────────────────────────
          *
          * A patient reading in dark mode who presses Ctrl+P got a near-black
@@ -625,6 +598,49 @@ export default {
             'color-scheme': 'light',
           },
         },
+        /**
+         * ── A PLATED SURFACE IS A LIGHT ISLAND, AND IT HAS TO BE (Aug 2026) ─
+         *
+         * The marker result card's status ground is one soft pastel family at a
+         * single lightness, identical in both themes — see STATUS_PLATE in
+         * tokens.ts for why a dark card can never carry a clean yellow. In dark
+         * mode that puts near-white cream type, a #F5CE3E status word and a dark
+         * hairline on a pale pastel: unreadable, and unreadable in the one place
+         * a wrong colour is a clinical statement.
+         *
+         * So the ink comes with the ground. This is the SAME mechanism the print
+         * block above uses and for the same reason: every colour in the product
+         * already resolves through these custom properties, so re-emitting the
+         * light set at a selector that beats `.dark` turns everything inside the
+         * card light in one place (the value, the marker name, the status word,
+         * the border, the meta lines) and anything added to that card later is
+         * covered by construction rather than by remembering.
+         *
+         * ⚠ COLOURS ONLY. The shadow alphas, the glass alphas and the sheens are
+         * NOT re-emitted: they are the DARK page's numbers and this card is still
+         * sitting on the dark page. A light card wants dark mode's deeper shadow,
+         * not light mode's.
+         *
+         * ⚠ AND THE STATUS WORD IS ITS OWN VALUE ON BOTH RULES, WHICH IS WHY THE
+         * PLAIN `.status-plate` EXISTS AT ALL. The plate is deep enough that the
+         * ordinary light label measures 3.4:1 on it, so the word is re-solved for
+         * this ground alone (`STATUS_PLATE_LABEL`) rather than every status word
+         * in light mode being dragged toward a near-black to clear a surface most
+         * of them never touch.
+         *
+         * ⚠ BOTH RULES SIT AFTER THE PRINT BLOCK ON PURPOSE. A media query adds
+         * no specificity, so `:root, .dark` inside `@media print` and
+         * `.status-plate` are equally specific and SOURCE ORDER decides. Declared
+         * earlier, the print block would put the ordinary label back on a plate a
+         * printed page still paints, since `--c-plate-*` is theme-identical and
+         * survives into print.
+         *
+         * ⚠ AND THE GAUGE INSIDE IT DOES NOT MOVE. `--c-hue-*-fill` and
+         * `--c-rangemark` are theme-identical already, so the arc paints the same
+         * five bytes it always did whether or not this rule exists.
+         */
+        '.status-plate': statusPlateLabelCssVars(),
+        '.dark .status-plate': { ...asBaseVars('light'), ...statusPlateLabelCssVars() },
       });
     }),
     // Fraunces' optical-size axis, as three utilities rather than an inline
