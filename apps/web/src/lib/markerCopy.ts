@@ -82,50 +82,31 @@ export function statusColor(status: MarkerStatusInput): string {
 }
 
 /**
- * The Part One surface wash, as a Tailwind class.
+ * ── THE STATUS GROUND, AND `statusTintClass` IS GONE WITH THE LAST CALLER ──
  *
- * Deliberately a background utility and nothing else. The card keeps its taupe
- * border, its espresso text and its ordinary shadow; only the fill changes.
- * Status is still carried first by the shape (level mark / chevron / doubled
- * chevron) and by the word beside it — strip every colour off the page and the
- * result reads exactly the same. The tint is reinforcement for the majority of
- * people who scan a page of results by colour before they read any of it.
- */
-const STATUS_TINT_CLASS: Record<MarkerStatus, string> = {
-  IN_RANGE: 'bg-tint-inRange',
-  HIGH: 'bg-tint-high',
-  LOW: 'bg-tint-low',
-  SIGNIFICANT_HIGH: 'bg-tint-significantHigh',
-  SIGNIFICANT_LOW: 'bg-tint-significantLow',
-};
-
-/** No wash where there is no status: the card keeps the ordinary cream surface. */
-export function statusTintClass(status: MarkerStatusInput): string {
-  const known = asMarkerStatus(status);
-  return known ? STATUS_TINT_CLASS[known] : '';
-}
-
-/**
- * ── THE CARD'S GROUND, WHICH IS NOT THE WASH ABOVE (Aug 2026) ──────────────
+ * There used to be a `bg-tint-*` helper here and it was the surface wash: the
+ * status hue mixed INTO whatever it sat on, which in dark mode means the hue
+ * rendered at a near-black surface's lightness — a brown for gold and a maroon
+ * for red, in any colour space, at any chroma. That is what "the card tint
+ * reads muddy" was, and the counts strip carried the identical colours.
  *
- * A `bg-tint-*` is the status hue mixed INTO the surface it sits on, which in
- * dark mode means the hue rendered at a near-black card's lightness — and a
- * yellow at that lightness is a brown and a red is a maroon, in any colour
- * space, at any chroma. That is what "the card tint reads muddy" was.
+ * Both surfaces take the PLATE now, so the helper had no callers left and is
+ * deleted rather than left dormant. `bg-tint-*` itself is untouched and is
+ * still written directly by the alert cards and the toasts, which are ordinary
+ * surfaces inside the ordinary theme with ordinary text on them.
  *
- * `bg-plate-*` is a soft pastel at ONE lightness, byte-identical in both
+ * `bg-plate-*` is a clean status tint at ONE lightness, byte-identical in both
  * themes — the same composition the gauge already draws, since its five fills
  * are solved against a light ground and carry no theme branch either. See
  * STATUS_PLATE in tokens.ts.
  *
- * ⚠ IT TRAVELS WITH `card-status-plate`, WHICH IS NOT OPTIONAL. That class
- * re-emits the light token set inside the card, so the ink, the hairline and
- * the status word come with the ground; without it a dark-mode card would put
- * near-white cream type on a pale pastel. `Card` applies the pair together and
- * is the only thing that applies either.
- *
- * The wash is untouched and still paints the counts strip and the alert cards,
- * which are ordinary surfaces inside the ordinary theme.
+ * ⚠ IT TRAVELS WITH `status-plate`, WHICH IS NOT OPTIONAL. That class re-emits
+ * the light token set inside the element, so the ink, the hairline and the
+ * status word come with the ground; without it a dark-mode surface would put
+ * near-white cream type on a light tint. This helper emits the pair together
+ * and is the only thing that emits either — `Card` and the counts strip both
+ * call it, which is what makes the two read as one system by construction
+ * rather than by two call sites agreeing.
  */
 const STATUS_PLATE_CLASS: Record<MarkerStatus, string> = {
   IN_RANGE: 'bg-plate-inRange',
@@ -135,10 +116,10 @@ const STATUS_PLATE_CLASS: Record<MarkerStatus, string> = {
   SIGNIFICANT_LOW: 'bg-plate-significantLow',
 };
 
-/** No plate where there is no status: the card keeps the ordinary cream surface. */
+/** No plate where there is no status: the surface keeps its ordinary ground. */
 export function statusPlateClass(status: MarkerStatusInput): string {
   const known = asMarkerStatus(status);
-  return known ? `card-status-plate ${STATUS_PLATE_CLASS[known]}` : '';
+  return known ? `status-plate ${STATUS_PLATE_CLASS[known]}` : '';
 }
 
 /** The stronger fill, for the category summary bars where a 12% wash would simply vanish. */
@@ -274,7 +255,7 @@ export function matchesStatusFilter(status: MarkerStatusInput, filter: StatusFil
  *
  * Expressed as a fold onto a REPRESENTATIVE status rather than as three new
  * keys, so the segment can go on rendering through StatusBadge (chevron down /
- * level mark / chevron up) and `statusTintClass` (gold / green / gold) with no
+ * level mark / chevron up) and `statusPlateClass` (gold / green / gold) with no
  * second vocabulary anywhere. The two gold segments are the same colour by
  * construction — `low` and `high` resolve to the same hue — and are told apart
  * by the chevron and the word, which is the shape layer doing its usual job.

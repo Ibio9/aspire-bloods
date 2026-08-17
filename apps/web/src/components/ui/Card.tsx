@@ -36,9 +36,11 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
    * which is the composition the gauge inside the card already draws.
    *
    * `statusPlateClass` therefore emits TWO classes: the plate colour, and
-   * `card-status-plate`, which re-emits the light token set inside the card so
-   * the ink, the hairline and the status word come with the ground. Neither is
-   * useful without the other and nothing but this component applies either.
+   * `status-plate`, which re-emits the light token set inside the card so the
+   * ink, the hairline and the status word come with the ground. Neither is
+   * useful without the other, and the counts strip calls the same helper — which
+   * is what makes the strip and the cards one system by construction rather than
+   * by two call sites happening to agree.
    *
    * The refusal below stays and matters more than before — a translucent sheet
    * with a moving highlight over the one surface whose colour is a clinical

@@ -172,12 +172,22 @@ mis-solved; the card being dark was the problem.
 
 **SO THE CARD STOPS BEING DARK.** One family, five entries, no theme branch:
 
-    in range            #e2face   (light ink 16.0:1)
-    below / above       #faf1ce   (15.8:1)
-    significantly out   #fad4ce   (13.1:1)
+    status                plate      light ink   status word
+    In range              #d2f9b3    15.2:1      6.91:1
+    Below / Above range   #f9eab3    14.8:1      5.69:1
+    Significantly out     #f9bcb3    10.9:1      4.86:1
 
-`STATUS_PLATE` in tokens.ts, from TWO numbers (`PLATE.saturation` 0.82,
-`PLATE.lightness` 0.895) at each hue's own angle, so the five read as one family
+**⚠ DEEPENED ONE STEP (Aug 2026), AND THE STATUS WORD IS WHAT BOUNDS IT.** The
+first setting was 0.82 / 0.895 and read as faint pastels — #e2face, #faf1ce,
+#fad4ce, chroma 0.044–0.063. At 0.86 / 0.84 the family carries 0.061–0.100 and
+reads as a tint somebody chose. **There is about one more step in the whole
+family and no more**: the light red status word measures 4.86:1 on the red plate
+against a floor of 4.5, and it fails before the ink does. Deepen these by eye
+without checking the WORD and the one piece of type in the product that carries
+a status colour goes under AA on its own ground.
+
+`STATUS_PLATE` in tokens.ts, from TWO numbers (`PLATE.saturation` 0.86,
+`PLATE.lightness` 0.84) at each hue's own angle, so the five read as one family
 and the pair to tune by eye is two numbers rather than ten hexes. This is the
 composition the gauge already draws — its five fills are solved against
 `PLOT_SURFACE`, a light ground, and are byte-identical in both themes. A light
@@ -194,12 +204,25 @@ the shadow and glass alphas are not re-emitted, because the card is still sittin
 on the dark page. The gauge does not move at all — `--c-hue-*-fill`,
 `--c-rangemark` and `--c-chart-reference-edge` are theme-identical already.
 
-**⚠ `--c-tint-*` IS UNTOUCHED AND STILL PAINTS THE COUNTS STRIP AND THE ALERT
-CARDS.** Those are surfaces inside the ordinary theme with ordinary text on them;
-a light plate there would need the island too, and neither was the complaint. Two
-tokens because there are two jobs. `Card` applies `statusPlateClass`, which emits
-the plate colour AND `card-status-plate` together — neither is useful without the
-other and nothing else applies either.
+**THE AT-A-GLANCE STRIP TAKES THE SAME PLATE (Aug 2026).** It was carrying the
+identical muddy `bg-tint-*` fills the cards used to, on the same screen as the
+cards, so the two halves of one summary disagreed about what a status looks like.
+Both call `statusPlateClass` now, which is what makes them one system BY
+CONSTRUCTION rather than by two call sites happening to agree. Only the segment
+GROUNDS changed: the counts, the labels, the chevrons, the selection ring and the
+dividers are untouched.
+
+**AND `statusTintClass` IS DELETED, BECAUSE THAT WAS ITS LAST CALLER.** A helper
+that paints the exact colour a pass has just removed, left in the tree with no
+callers, is the "one autocomplete away" failure this file records elsewhere.
+⚠ `--c-tint-*` and the `bg-tint-*` UTILITIES ARE UNTOUCHED and are still written
+directly by the alert cards and the toasts — ordinary surfaces inside the
+ordinary theme, with ordinary text on them. Two token families because there are
+two jobs; what went is the helper, not the wash.
+
+`.status-plate` (renamed from `.card-status-plate` when the strip took it, since
+it is no longer card-only) is the island, and `statusPlateClass` emits it with
+the colour — neither is useful without the other and nothing else applies either.
 
 ## Light mode went pastel, and it is three numbers (Aug 2026, first pass)
 
@@ -1112,6 +1135,10 @@ both significants share one.
 
 **Where it appears, and it must appear in all of them:**
 0. **THE AT-A-GLANCE COUNTS STRIP IS THREE SEGMENTS, NOT FIVE (Aug 2026).**
+   ⚠ Its segment GROUNDS are the status PLATE now, not `bg-tint-*` — see "The
+   marker card's status ground is a PLATE, not a wash" above. Everything in this
+   item about the fold, the two gold segments and the directional filter is
+   unchanged.
    Below range · In range · Above range, in that order. Significantly below
    counts as below and significantly above as above — `STRIP_STATE` in
    lib/markerCopy.ts is the one place that folding is written down. **The five

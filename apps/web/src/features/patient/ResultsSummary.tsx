@@ -4,7 +4,7 @@ import {
   filterCountLabel,
   statusBarClass,
   statusLabel,
-  statusTintClass,
+  statusPlateClass,
   STRIP_FILTER,
   STRIP_STATE,
   type StatusFilter,
@@ -68,7 +68,7 @@ export interface SummaryMarker {
  *
  * BOTH GOLD SEGMENTS ARE THE SAME COLOUR, by construction rather than by two
  * records agreeing: `low` and `high` resolve to the same hue in tokens.ts, so
- * `statusTintClass('LOW')` and `statusTintClass('HIGH')` paint one wash.
+ * `statusPlateClass('LOW')` and `statusPlateClass('HIGH')` paint one ground.
  * Direction is the chevron and the word, which is what the shape layer is for.
  */
 const STRIP_ORDER: ('LOW' | 'IN_RANGE' | 'HIGH')[] = ['LOW', 'IN_RANGE', 'HIGH'];
@@ -190,7 +190,7 @@ export function CountsStrip({
                 // them read as a large hollow object rather than a dense one.
                 // The unit still has generous space AROUND it — that is where
                 // the room belongs, and it is untouched.
-                className={`flex w-full flex-col items-center justify-center gap-2 px-4 py-4 text-center transition duration-150 ease-out sm:py-5 ${statusTintClass(status)} ${
+                className={`flex w-full flex-col items-center justify-center gap-2 px-4 py-4 text-center transition duration-150 ease-out sm:py-5 ${statusPlateClass(status)} ${
                   // Selection is a bronze inset ring, not a border: a border
                   // would push the segment's contents by a pixel and shunt the
                   // whole row. Bronze rather than the status hue, so the ring

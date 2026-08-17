@@ -355,12 +355,14 @@ describe.each(MODES)('%s theme', (mode) => {
    * wash is the hue mixed INTO the surface, so in dark it is the hue at a
    * near-black card's lightness — a brown for gold and a maroon for red, at any
    * chroma, in any colour space. The plate is a soft pastel at one lightness,
-   * IDENTICAL IN BOTH THEMES, and the card carries the light token set with it
-   * (`.card-status-plate` in tailwind.config.ts).
+   * IDENTICAL IN BOTH THEMES, and the surface carries the light token set with
+   * it (`.status-plate` in tailwind.config.ts). Two surfaces take it: the marker
+   * result card and the at-a-glance strip's segments, which is what makes those
+   * two read as one system.
    *
    * So every floor here is measured against LIGHT's ink and LIGHT's status word
-   * in both modes, because that is what is painted inside a plated card in both
-   * modes. Measuring dark's cream against the plate would be measuring a pairing
+   * in both modes, because that is what is painted inside a plated surface in
+   * both modes. Measuring dark's cream against the plate would be measuring a pairing
    * that never renders.
    */
   it('grounds the marker card in a plate that is the same colour in both themes', () => {
@@ -378,13 +380,23 @@ describe.each(MODES)('%s theme', (mode) => {
       // read as one family rather than as five separately-chosen colours. The
       // window is generous because equal HSL lightness is not equal luminance —
       // a yellow at a given lightness is always the brighter of any pair.
-      expect(luminance(plate), `the ${key} plate is at ${luminance(plate).toFixed(3)}`).toBeGreaterThan(0.6);
-      // Low in chroma: a plate is a GROUND, and the gauge, the chevron and the
-      // word on it are what carry the status. Past this it is an alert.
+      expect(luminance(plate), `the ${key} plate is at ${luminance(plate).toFixed(3)}`).toBeGreaterThan(0.55);
+      /**
+       * ⚠ THE CEILING WENT 0.09 → 0.115 WHEN THE FAMILY WAS DEEPENED (Aug
+       * 2026), and it is worth saying what it is and is not. It is NOT the
+       * bound that keeps a plate from becoming a filled alert card — the bound
+       * that does that is the STATUS WORD at AA on its own plate, asserted
+       * below, and it is a real one: at this saturation the red plate carries
+       * the light red label at 4.86:1 against a floor of 4.5, so there is
+       * roughly one more step in the whole family and no more. This is a
+       * backstop a long way above the deepest solvable plate.
+       */
       const chroma = okChroma(plate);
-      expect(chroma, `the ${key} plate carries ${chroma.toFixed(4)} of chroma`).toBeLessThan(0.09);
-      // ...and enough of it to be a colour rather than a warm grey.
-      expect(chroma, `the ${key} plate carries only ${chroma.toFixed(4)} of chroma`).toBeGreaterThan(0.02);
+      expect(chroma, `the ${key} plate carries ${chroma.toFixed(4)} of chroma`).toBeLessThan(0.115);
+      // ...and enough of it to be a colour rather than a warm grey. Raised with
+      // the family: the complaint that produced this pass was that the plates
+      // read as faint pastels, and 0.02 was low enough to pass that version.
+      expect(chroma, `the ${key} plate carries only ${chroma.toFixed(4)} of chroma`).toBeGreaterThan(0.04);
     }
   });
 

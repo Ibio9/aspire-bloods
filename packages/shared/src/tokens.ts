@@ -950,7 +950,7 @@ const TINT_MIX = {
  * as five separately-chosen colours — and so the pair somebody will want to tune
  * by eye afterwards is two numbers rather than ten hexes.
  */
-const PLATE = { saturation: 0.82, lightness: 0.895 } as const;
+const PLATE = { saturation: 0.86, lightness: 0.84 } as const;
 
 /** The plate for a hue: the hue's own angle at the family's lightness. */
 function statusPlate(hue: StatusHue): string {

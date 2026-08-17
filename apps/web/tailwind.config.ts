@@ -534,7 +534,7 @@ export default {
           'color-scheme': 'dark',
         },
         /**
-         * ── A PLATED CARD IS A LIGHT ISLAND, AND IT HAS TO BE (Aug 2026) ───
+         * ── A PLATED SURFACE IS A LIGHT ISLAND, AND IT HAS TO BE (Aug 2026) ─
          *
          * The marker result card's status ground is one soft pastel family at a
          * single lightness, identical in both themes — see STATUS_PLATE in
@@ -560,7 +560,7 @@ export default {
          * `--c-rangemark` are theme-identical already, so the arc paints the same
          * five bytes it always did whether or not this rule exists.
          */
-        '.dark .card-status-plate': asBaseVars('light'),
+        '.dark .status-plate': asBaseVars('light'),
         /**
          * ── PRINT IS LIGHT, WHATEVER THE SCREEN IS ────────────────────────
          *

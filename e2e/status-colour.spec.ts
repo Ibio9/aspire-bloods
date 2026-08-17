@@ -90,7 +90,7 @@ test.describe('traffic-light status', () => {
        * The five states themselves are untouched, and the cards are where they
        * live. So the washes are read off the marker cards, which is also the
        * surface a patient actually reads a status on: `Card`'s `tint` prop is
-       * what `statusTintClass` paints, and it is the thing this spec exists to
+       * what `statusPlateClass` paints, and it is the thing this spec exists to
        * stop turning into beige.
        *
        * Each card carries its status in words, so the label and the wash are
