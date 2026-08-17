@@ -160,6 +160,65 @@ describe('the ring', () => {
     expect(gradients[0]).not.toMatch(/#[0-9a-f]{3,8}/i);
     expect(gradients[0]).toMatch(/var\(--c-hue-\w+-fill\)/);
   });
+
+  /**
+   * ═══ THE ARC IS OPAQUE, AND THAT IS WHY THE GOLD IS THE SAME GOLD IN BOTH
+   *     THEMES (Aug 2026) ═════════════════════════════════════════════════
+   *
+   * The five fills are byte-identical across the themes and always have been —
+   * `tokenContrast.test.ts` asserts it at the token layer. What made dark's gold
+   * read as a muddy dark yellow was that the MASK feathered a quarter of the
+   * ring's width, so a quarter of it was composited against the card: toward
+   * near-black in dark, toward cream in light. One colour, two grounds, opposite
+   * results, and no re-solve of the hue could have reached it.
+   *
+   * So what is asserted here is the thing the token test cannot see: that
+   * nothing between the token and the pixel introduces an alpha. Every one of
+   * these has been a real bug in this component or in the tokens it reads.
+   */
+  /**
+   * The ring's inline style, with the two entities `renderToStaticMarkup`
+   * introduces put back. `style` is an ATTRIBUTE in static markup, so an
+   * apostrophe inside the mask's data URI arrives as `&#x27;` — which the
+   * browser un-escapes when it parses the attribute, and which React never
+   * produces at all on the client, where the style is set as a DOM property.
+   * Asserting against the escaped form would be asserting about the test
+   * harness.
+   */
+  const ringStyle = (html: string): string => {
+    const m = html.match(/class="arc-gauge__ring[^"]*"[^>]*style="([^"]*)"/);
+    expect(m, 'the gauge did not render a ring element').not.toBeNull();
+    return m![1].replace(/&#x27;/g, "'").replace(/&quot;/g, '"');
+  };
+
+  it('paints the arc fully opaque — no alpha, no blend, no filter, anywhere on it', () => {
+    const style = ringStyle(renderToStaticMarkup(<ArcGauge value={4.8} low={3.8} high={5.8} status="IN_RANGE" />));
+    // `rgb(var(--x) / 0.4)` and `rgba(…)` are the two ways a token gets an alpha
+    // put on it at a call site. Neither belongs on this element.
+    expect(style, 'a gradient stop carries an alpha').not.toMatch(/rgba\(/);
+    expect(style, 'a gradient stop carries a slash alpha').not.toMatch(/var\(--c-hue-\w+-fill\)\s*\/\s*[\d.]/);
+    expect(style, 'the arc carries an opacity').not.toMatch(/(^|[;\s])opacity:/);
+    expect(style, 'the arc carries a blend mode').not.toMatch(/mix-blend|mixBlend|background-blend/);
+    expect(style, 'the arc carries a filter').not.toMatch(/filter:/);
+  });
+
+  it('cuts the annulus with a stroked circle rather than a feathered radial', () => {
+    // THE MEASUREMENT THIS REPLACED: `radial-gradient(… transparent 84.87%, #000
+    // 87.44%, #000 99%, transparent 100%)` ramped over 2.57 points of radius at
+    // the inner edge and 1 at the outer — 1.8px and 0.7px of partial alpha on a
+    // 9.7px ring at the card size, i.e. 26% of the band. A stroked circle has
+    // the browser's own sub-pixel geometric antialiasing at the boundary and a
+    // fully opaque interior.
+    const style = ringStyle(renderToStaticMarkup(<ArcGauge value={4.8} low={3.8} high={5.8} status="IN_RANGE" />));
+    expect(style, 'the ring mask is a gradient again').not.toMatch(/mask-image:[^;]*radial-gradient/i);
+    expect(style).toMatch(/mask-image:\s*url\("data:image\/svg\+xml/i);
+    expect(style, 'the mask is not a stroke').toMatch(/circle/);
+    expect(style, 'the mask stroke is not opaque white').toMatch(/stroke='%23ffffff'/);
+    expect(style, 'the mask has a fill, so it is a disc rather than a ring').toMatch(/fill='none'/);
+    // Laid out against the element rather than an intrinsic size the SVG does
+    // not declare — an auto-sized mask is a mask that can be the wrong radius.
+    expect(style).toMatch(/mask-size:\s*100% 100%/);
+  });
 });
 
 /**

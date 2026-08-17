@@ -651,6 +651,41 @@ both significants share one.
    at module scope, and that is the change stated as code: **a gradient that
    cannot take an argument cannot vary between two cards on one grid.**
 
+   **⚠ THE ARC IS FULLY OPAQUE, AND THAT WAS THE "MUDDY GOLD IN DARK MODE" FIX
+   (Aug 2026). DO NOT REACH FOR THE COLOURS AGAIN.** The five fills are
+   BYTE-IDENTICAL in the two themes and always have been — #a5cd85 / #b8bc69 /
+   #cbab4c / #db955e / #ea7f6f, solved once against `PLOT_SURFACE` and emitted
+   with no theme branch, asserted by `tokenContrast.test.ts`. The complaint was
+   real and had been "fixed" twice by re-solving hues, which could never have
+   reached it: **what was translucent was the MASK.** It was a radial gradient
+   feathered at both edges (`RING_INNER ± 0.4`, plus a 99%→100% fade), which on a
+   176px card gauge is 1.8px at the inner edge and 0.7px at the outer against a
+   9.7px ring — **a quarter of the band composited against the card**, resolving
+   toward near-black in dark and toward cream in light. One colour, two grounds,
+   opposite results. The mask is a STROKED CIRCLE now (an inline SVG `<circle>`,
+   `fill="none"`, opaque white stroke at the ring's own width, `mask-size: 100%
+   100%`), so the edge is the browser's own sub-pixel antialiasing and the
+   interior is opaque. Every figure in it is derived from `GEO`, never typed.
+   **NOTHING IN THE ARC MAY CARRY AN ALPHA** — not a stop, not the mask, not a
+   blend mode, an opacity, a filter, a sheen or a glow; `ArcGauge.test.tsx` reads
+   the ring's own computed style and fails on any of them. The two boundary
+   hairlines are the named exception: they are marks ON the arc, they are the
+   greyscale carrier the status rules require, and they composite one
+   theme-independent colour over one theme-independent band, so their result is
+   identical in both themes too.
+
+   **THE VALUE IN THE MIDDLE IS `GaugeValue`, AND IT IS ONE STEP SMALLER.** It
+   was written out at three call sites — the result card at 28px, the Overview's
+   attention cards and the walkthrough at 38px — which had already drifted on the
+   gap between the number and its unit. One component, two sizes (`card` 21px,
+   `section` 28px), each a step of the type scale. The value was filling the
+   ring's interior corner to corner; the room it has is the inscribed square of
+   the inner circle, which is a fixed share of the instrument. ⚠ **IT IS MONO AND
+   STAYS MONO** — the single hero value on a marker detail page is the ONE
+   Fraunces exception in the whole type system and it is not this component. ⚠
+   **THE UNIT STAYS AT 12px**, which moves the ratio: holding the old proportion
+   through a step down asks for 9px, and 12px is the floor of the scale.
+
    **WHY, AND IT IS A FAILURE A STRAIGHT BAR CANNOT HAVE.** Mapped to the numeric
    axis the green MOVED: an above-range value slid the in-range arc toward the
    start of the ring and a below-range value slid it toward the end. A ring is

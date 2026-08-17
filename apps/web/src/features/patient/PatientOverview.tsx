@@ -5,7 +5,7 @@ import { Card } from '../../components/ui/Card';
 import { LinkButton } from '../../components/ui/LinkButton';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { StatusBadge } from '../../components/ui/StatusBadge';
-import { ArcGauge } from '../../components/ui/ArcGauge';
+import { ArcGauge, GaugeValue } from '../../components/ui/ArcGauge';
 import { SectionRail, type RailSection } from '../../components/patient/SectionRail';
 import { AnimatedNumber } from '../../components/motion/AnimatedNumber';
 import { Reveal } from '../../components/motion/Reveal';
@@ -601,9 +601,7 @@ export function PatientOverview() {
                           unit={item.unit}
                           maxWidth={260}
                         >
-                          <p className="numeric tabular flex flex-wrap items-baseline justify-center gap-x-1.5 text-2xl font-semibold leading-none text-espresso">
-                            {item.value} <span className="text-xs font-normal text-espresso/80">{item.unit}</span>
-                          </p>
+                          <GaugeValue value={item.value} unit={item.unit} size="section" />
                           <StatusBadge status={item.status} className="mt-2" />
                         </ArcGauge>
                       </div>

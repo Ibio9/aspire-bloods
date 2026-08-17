@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { TwoTierHeading } from '../../components/ui/TwoTierHeading';
-import { ArcGauge } from '../../components/ui/ArcGauge';
+import { ArcGauge, GaugeValue } from '../../components/ui/ArcGauge';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { ClinicContactLines } from '../../components/patient/ClinicContact';
 import { apiFetch } from '../../lib/api';
@@ -126,9 +126,7 @@ const STEPS: WelcomeStep[] = [
             severityThreshold={(EXAMPLE.high - EXAMPLE.low) * 1.5}
             unit={EXAMPLE.unit}
           >
-            <p className="numeric tabular flex flex-wrap items-baseline justify-center gap-x-1.5 text-2xl font-semibold leading-none text-espresso">
-              {EXAMPLE.value} <span className="text-xs font-normal text-espresso/80">{EXAMPLE.unit}</span>
-            </p>
+            <GaugeValue value={EXAMPLE.value} unit={EXAMPLE.unit} size="section" />
             <StatusBadge status="IN_RANGE" className="mt-2" />
           </ArcGauge>
           <p className="numeric mt-4 text-center text-xs text-espresso/80">

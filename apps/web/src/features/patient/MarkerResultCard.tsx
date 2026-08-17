@@ -9,7 +9,7 @@ import {
 } from '@aspire-bloods/shared';
 import { Card } from '../../components/ui/Card';
 import { StatusBadge } from '../../components/ui/StatusBadge';
-import { MiniArcGauge } from '../../components/ui/ArcGauge';
+import { GaugeValue, MiniArcGauge } from '../../components/ui/ArcGauge';
 import type { MarkerNavState } from './markerNavState';
 
 /**
@@ -240,10 +240,10 @@ export function MarkerResultCard({
               status={status}
               severityThreshold={m.severityThreshold}
             >
-              <p className="numeric tabular flex flex-wrap items-baseline justify-center gap-x-1 text-xl font-semibold leading-none text-espresso">
-                <span className="break-words">{m.value}</span>
-                <span className="text-xs font-normal text-espresso/80">{m.unit}</span>
-              </p>
+              {/* The gauge owns this type now — see `GaugeValue`. Three call
+                  sites had their own copy of the flex row and two of them had
+                  already drifted on the gap. */}
+              <GaugeValue value={m.value} unit={m.unit} />
             </MiniArcGauge>
           </div>
         ) : (

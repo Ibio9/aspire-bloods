@@ -66,11 +66,27 @@ import {
  * is not a performance note. It is the change itself, stated as code: a gradient
  * that cannot take an argument cannot vary between two cards on one grid.
  *
- * The ring is then cut out of that gradient with a radial MASK rather than
- * drawn as a stroked shape, which is what lets the whole thing be one element
- * with one paint. The 90° gap is part of the gradient rather than part of the
- * mask (a hard stop at 75%, no interpolation across it), so no mask compositing
- * is needed and the component works wherever `mask-image` does.
+ * The ring is then cut out of that gradient by a MASK rather than drawn as a
+ * stroked shape, which is what lets the whole thing be one element with one
+ * paint — and since Aug 2026 the mask itself IS a stroked circle, so the ring's
+ * interior is fully opaque and its edge is the browser's own sub-pixel
+ * antialiasing rather than a ramp. See `RING_MASK` for the measurement that
+ * forced that, and for why "the gold is muddy in dark mode" was a compositing
+ * fault rather than a colour one. The 90° gap is part of the gradient rather
+ * than part of the mask (a hard stop at 75%, no interpolation across it), so no
+ * mask compositing is involved and the component works wherever `mask-image`
+ * does.
+ *
+ * ⚠ NOTHING IN THE ARC MAY CARRY AN ALPHA. Not a gradient stop, not the mask's
+ * interior, not a blend mode, not an `opacity`, not a filter, and not a sheen or
+ * a glow. The five fills are solved against `PLOT_SURFACE` and are byte-
+ * identical in the two themes; the instant any of them is composited against the
+ * card, that identity stops being true of what a reader actually sees, and it
+ * stops being true in opposite directions in the two themes. The two boundary
+ * HAIRLINES drawn across the ring are the one exception and are not the arc:
+ * they are marks ON it, they are the greyscale carrier the status rules require,
+ * and they composite one theme-independent colour over one theme-independent
+ * band, so their result is identical in both themes too.
  *
  * ── IT IS FLUID, AND EVERY NUMBER IN HERE IS A SHARE OF THE BOX ────────────
  *
@@ -318,10 +334,17 @@ export function ArcGauge({
         style={{
           inset: `${GEO.c - GEO.outer}%`,
           background: RING_GRADIENT,
-          // Feathered by a hair at both edges — a hard stop in a mask is an
-          // aliased circle, and this is a curve at every size.
+          // A STROKED CIRCLE, not a feathered radial — see RING_MASK for the
+          // measurement and for why a quarter of this ring used to be composited
+          // against the card. Nothing in this element has an alpha: the gradient
+          // stops are opaque tokens, the mask's interior is opaque white, and
+          // there is no blend mode, filter or opacity anywhere on it.
           WebkitMaskImage: RING_MASK,
           maskImage: RING_MASK,
+          WebkitMaskSize: '100% 100%',
+          maskSize: '100% 100%',
+          WebkitMaskRepeat: 'no-repeat',
+          maskRepeat: 'no-repeat',
         }}
       />
 
@@ -435,6 +458,70 @@ export function ArcGauge({
         </span>
       ))}
     </div>
+  );
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  THE VALUE IN THE MIDDLE — ONE COMPONENT, ONE STEP SMALLER (Aug 2026)
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * It was written out at three call sites: the result card at `text-xl`, and the
+ * Overview's attention cards and the first-sign-in walkthrough at `text-2xl`,
+ * each with its own copy of the flex row, the gap and the unit's classes. Three
+ * copies of one object is three chances for them to disagree, and they already
+ * had — the gaps were 1 and 1.5.
+ *
+ * ── AND EACH IS ONE STEP DOWN THE SCALE ────────────────────────────────────
+ *
+ * 28px → 21px on a card, 38px → 28px in the two larger gauges. The value was
+ * filling the interior corner to corner: the room it has is the inscribed square
+ * of the ring's inner circle, which is a fixed share of the instrument, so a
+ * long value with a unit beside it was arriving at the ring rather than sitting
+ * inside it. Both new sizes are steps of the type scale — nothing here is off
+ * it — and the value is still comfortably the largest thing on the card.
+ *
+ * ⚠ THE FACE IS IBM PLEX MONO AND STAYS MONO. Every number in the product is
+ * mono; the ONE exception in the whole type system is the single hero value on a
+ * marker detail page, which is Fraunces at `opsz-hero` and is not this component
+ * (see `.hero-value` in globals.css). A gauge on a card reaching for the display
+ * face would make a second exception out of the one that is deliberately
+ * singular.
+ *
+ * ⚠ AND THE UNIT STAYS AT 12px, WHICH MOVES THE RATIO. It was 12 against 28 and
+ * 12 against 38; holding those proportions through a step down asks for a 9px
+ * unit, and 12px is the floor of the type scale — the same floor the explanation
+ * card's answers sit at and the reason nothing in this product is set smaller.
+ * The unit is still unambiguously the junior of the pair: smaller, `font-normal`
+ * against `font-semibold`, and at /80 against full tone.
+ */
+const GAUGE_VALUE_SIZE = {
+  /** A result card's gauge, at 176px. */
+  card: 'text-lg',
+  /** The Overview's attention cards and the walkthrough, at 260–300px. */
+  section: 'text-xl',
+} as const;
+
+export function GaugeValue({
+  value,
+  unit,
+  size = 'card',
+}: {
+  value: ReactNode;
+  unit?: string | null;
+  size?: keyof typeof GAUGE_VALUE_SIZE;
+}) {
+  return (
+    // `flex-wrap`: a textual result at this size must wrap under itself rather
+    // than push its unit out of the ring. `items-baseline` so the unit sits on
+    // the number's baseline rather than floating beside its cap height, and
+    // `justify-center` because the gauge's centre well is centred.
+    <p
+      className={`numeric tabular flex flex-wrap items-baseline justify-center gap-x-1.5 font-semibold leading-none text-espresso ${GAUGE_VALUE_SIZE[size]}`}
+    >
+      <span className="break-words">{value}</span>
+      {unit && <span className="text-xs font-normal text-espresso/80">{unit}</span>}
+    </p>
   );
 }
 
@@ -626,19 +713,64 @@ function axisLabels(
 }
 
 /**
- * The annulus, as a mask. Percentages in a radial gradient are shares of the
- * gradient's own radius, and `closest-side` on a square element makes that
- * radius exactly half the box — so this is resolution-independent and needs no
- * size prop. Feathered by a percent at both edges because a hard stop in a mask
- * is an aliased circle.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  THE ANNULUS IS A STROKED CIRCLE, AND THAT IS THE FIX FOR THE MUDDY GOLD
+ *  (Aug 2026). ═════════════════════════════════════════════════════════════
+ *
+ * ── THE COMPLAINT, AND IT WAS RIGHT ABOUT THE MECHANISM ────────────────────
+ *
+ * "In dark mode the gauge status arc, the gold especially, renders as a muddy
+ * dark yellow." This had been adjusted twice by moving COLOURS, and the colours
+ * were never the problem: `--c-hue-*-fill` is byte-identical in the two themes
+ * and always has been — #a5cd85 / #b8bc69 / #cbab4c / #db955e / #ea7f6f — solved
+ * once against `PLOT_SURFACE` and emitted without a theme branch, which
+ * `tokenContrast.test.ts` asserts.
+ *
+ * ── WHAT WAS ACTUALLY TRANSLUCENT ──────────────────────────────────────────
+ *
+ * THE MASK. It was a radial gradient with a deliberate feather at both edges —
+ * `RING_INNER ± 0.4` of a 39-unit radius, plus a 99% → 100% fade at the rim —
+ * which is not antialiasing, it is a RAMP. Measured on a 176px card gauge, where
+ * the ring is 9.7px wide:
+ *
+ *     inner edge   58.2px → 60.0px of radius     1.8px of partial alpha
+ *     outer edge   67.9px → 68.6px               0.7px of partial alpha
+ *                                                2.5px of 9.7px = 26% of the ring
+ *
+ * A QUARTER OF THE RING WAS COMPOSITED AGAINST THE CARD, and that is why the
+ * fault is theme-asymmetric with identical tokens: a partially transparent gold
+ * over a near-black card resolves toward black, which is a muddy dark yellow,
+ * and the same gold over cream resolves toward white and stays a clean gold. One
+ * colour, two grounds, opposite results — and no amount of re-solving the hue
+ * could have fixed it, because the hue was never wrong.
+ *
+ * ── SO THE RING IS A STROKE NOW, AND ITS INTERIOR IS FULLY OPAQUE ──────────
+ *
+ * The mask is an inline SVG carrying one `<circle>` with `fill="none"` and an
+ * opaque white stroke at the ring's own width. What that buys is a hard edge
+ * with the browser's own sub-pixel geometric antialiasing — a fraction of a
+ * pixel, at the boundary only — instead of a ramp measured in whole pixels. The
+ * band's colour is now the token's colour across the whole of the ring's width
+ * in both themes.
+ *
+ * ⚠ EVERY NUMBER BELOW IS DERIVED, NOT TYPED. The masked element is the ring's
+ * OUTER circle (`inset: 11%`), so a 0–100 viewBox over it puts the outer radius
+ * at 50 and everything else scales by 100/(2 × GEO.outer). Writing the two
+ * figures out by hand is how a mask ends up a hair off the gradient it is
+ * cutting, which reads as a hairline of card inside the ring.
+ *
+ * `preserveAspectRatio="none"` with `mask-size: 100% 100%` rather than the
+ * default `auto`: the element is square (`aspect-ratio: 1`) so nothing is
+ * actually stretched, and stating it means the mask cannot be laid out by an
+ * intrinsic size this SVG deliberately does not declare.
  */
-const RING_MASK = [
-  'radial-gradient(closest-side circle at 50% 50%,',
-  `transparent ${(((RING_INNER - 0.4) / GEO.outer) * 100).toFixed(2)}%,`,
-  `#000 ${(((RING_INNER + 0.4) / GEO.outer) * 100).toFixed(2)}%,`,
-  '#000 99%,',
-  'transparent 100%)',
-].join(' ');
+const MASK_SCALE = 100 / (2 * GEO.outer);
+const MASK_RADIUS = (RING_MID * MASK_SCALE).toFixed(3);
+const MASK_STROKE = (GEO.stroke * MASK_SCALE).toFixed(3);
+const RING_MASK =
+  `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'` +
+  ` preserveAspectRatio='none'%3E%3Ccircle cx='50' cy='50' r='${MASK_RADIUS}' fill='none'` +
+  ` stroke='%23ffffff' stroke-width='${MASK_STROKE}'/%3E%3C/svg%3E")`;
 
 /** A hairline crossing the ring at `at` percent of the scale. */
 function radialLine(at: number): { x1: number; y1: number; x2: number; y2: number } {
