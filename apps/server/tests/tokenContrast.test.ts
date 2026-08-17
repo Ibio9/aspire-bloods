@@ -348,6 +348,81 @@ describe.each(MODES)('%s theme', (mode) => {
     }
   });
 
+  /**
+   * ═══ THE MARKER CARD'S PLATE ═══════════════════════════════════════════════
+   *
+   * A different token from the wash above and a different thing on screen. The
+   * wash is the hue mixed INTO the surface, so in dark it is the hue at a
+   * near-black card's lightness — a brown for gold and a maroon for red, at any
+   * chroma, in any colour space. The plate is a soft pastel at one lightness,
+   * IDENTICAL IN BOTH THEMES, and the card carries the light token set with it
+   * (`.card-status-plate` in tailwind.config.ts).
+   *
+   * So every floor here is measured against LIGHT's ink and LIGHT's status word
+   * in both modes, because that is what is painted inside a plated card in both
+   * modes. Measuring dark's cream against the plate would be measuring a pairing
+   * that never renders.
+   */
+  it('grounds the marker card in a plate that is the same colour in both themes', () => {
+    for (const key of Object.keys(status) as StatusKey[]) {
+      expect(tone('light', `--c-plate-${kebab(key)}`), `${key} plate differs between the themes`).toBe(
+        tone('dark', `--c-plate-${kebab(key)}`),
+      );
+    }
+  });
+
+  it('keeps the plate light and low in chroma rather than a filled alert card', () => {
+    for (const key of Object.keys(status) as StatusKey[]) {
+      const plate = tone(mode, `--c-plate-${kebab(key)}`);
+      // Light: every plate sits within a hair of the same luminance, so the five
+      // read as one family rather than as five separately-chosen colours. The
+      // window is generous because equal HSL lightness is not equal luminance —
+      // a yellow at a given lightness is always the brighter of any pair.
+      expect(luminance(plate), `the ${key} plate is at ${luminance(plate).toFixed(3)}`).toBeGreaterThan(0.6);
+      // Low in chroma: a plate is a GROUND, and the gauge, the chevron and the
+      // word on it are what carry the status. Past this it is an alert.
+      const chroma = okChroma(plate);
+      expect(chroma, `the ${key} plate carries ${chroma.toFixed(4)} of chroma`).toBeLessThan(0.09);
+      // ...and enough of it to be a colour rather than a warm grey.
+      expect(chroma, `the ${key} plate carries only ${chroma.toFixed(4)} of chroma`).toBeGreaterThan(0.02);
+    }
+  });
+
+  it('reads every plated card in the light ink, which is what the island emits', () => {
+    for (const key of Object.keys(status) as StatusKey[]) {
+      const plate = tone(mode, `--c-plate-${kebab(key)}`);
+      const body = contrastRatio(tone('light', '--c-espresso'), plate);
+      expect(body, `body copy on the ${key} plate is ${body.toFixed(2)}:1`).toBeGreaterThanOrEqual(WCAG_AA_TEXT);
+      // The floor of the opacity ladder, which is what the meta lines take.
+      const quiet = contrastRatio(blend(tone('light', '--c-espresso'), plate, 0.8), plate);
+      expect(quiet, `an /80 line on the ${key} plate is ${quiet.toFixed(2)}:1`).toBeGreaterThanOrEqual(WCAG_AA_TEXT);
+      // The status WORD, which is the one piece of type in the product carrying
+      // a status colour and stands on this exact ground.
+      const label = contrastRatio(tone('light', `--c-status-${kebab(key)}`), plate);
+      expect(label, `the ${key} status word on its own plate is ${label.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+        WCAG_AA_TEXT,
+      );
+    }
+  });
+
+  it('tells the three plate hues apart, which is the whole reason it is coloured', () => {
+    const green = tone(mode, '--c-plate-in-range');
+    const gold = tone(mode, '--c-plate-high');
+    const red = tone(mode, '--c-plate-significant-high');
+    for (const [a, b, names] of [
+      [green, gold, 'in range vs high'],
+      [gold, red, 'high vs significantly out'],
+      [green, red, 'in range vs significantly out'],
+    ] as const) {
+      expect(a, names).not.toBe(b);
+      // In OKLab, because two pastels of one lightness differ in hue and chroma
+      // and barely at all in contrast — a ratio check here would pass on three
+      // identical greys.
+      const apart = deltaOk(a, b);
+      expect(apart, `${names}: the two plates are ${apart.toFixed(4)} apart in OKLab`).toBeGreaterThan(0.03);
+    }
+  });
+
   it('keeps each tint distinguishable from the untinted card it replaces', () => {
     // Not an accessibility threshold — a sanity one. A wash that measures
     // 1.01:1 against the plain card is not a tint, it is a rounding error, and
@@ -1744,22 +1819,49 @@ describe('the accent family', () => {
  * a character stands on, and the page is a ground: every heading and every line
  * of body copy outside a card sits on it.
  *
- * ── WHY EACH CORNER SEPARATELY, AND NOT BOTH TOGETHER ──────────────────────
+ * ── AND THERE ARE FOUR OF THEM NOW (Aug 2026) ──────────────────────────────
  *
- * The sources are anchored at 96% 1% and 4% 99% with radii of 62% × 58%, which
- * puts their centres about 2.25 radii apart — so at every point on the page at
- * least one of them has already reached zero and no pixel carries both at
- * strength. That separation is asserted here as GEOMETRY before it is relied on,
- * because "measure each corner" is only the right measurement while it stays
- * true, and a position nudged in a later session would otherwise silently turn
- * this whole block optimistic.
+ * A key at 96% 1%, a fill at 20% 98%, a green at 99% 99%, and a diagonal ribbon
+ * of five soft blobs crossing the whole viewport. The cores are still measured
+ * one at a time below, because "no page token fails under any single source" is
+ * a claim worth keeping legible — but the claim that MATTERS is the sampled one:
+ * every point of the viewport with all four composited in paint order, worst
+ * ground wins. Adding a source without adding it to the sampler would leave that
+ * measurement quietly describing a page that is no longer the one being drawn.
  */
 describe.each(MODES)('%s ambient sources', (mode) => {
   const page = tone(mode, '--c-cream');
   const card = tone(mode, '--c-cream-50');
 
-  /** The two source positions and radii, exactly as globals.css writes them. */
-  const SOURCES = { rx: 0.88, ry: 0.8, a: { x: 0.96, y: 0.01 }, b: { x: 0.2, y: 0.98 } };
+  /** The three source positions and radii, exactly as globals.css writes them. */
+  const SOURCES = { rx: 0.88, ry: 0.8, a: { x: 0.96, y: 0.01 }, b: { x: 0.2, y: 0.98 }, c: { x: 0.99, y: 0.99 } };
+
+  /**
+   * THE DIAGONAL RIBBON, as globals.css writes it: five soft blobs whose centres
+   * follow a bowed diagonal, each at its own share of the streak's peak so the
+   * band fades into both corners. Restated here for the same reason the ramp is
+   * — this block is only worth anything if it is sampling the thing that paints.
+   */
+  const STREAK = {
+    rx: 0.3,
+    ry: 0.24,
+    blobs: [
+      { x: 0.04, y: 0.08, share: 0.45 },
+      { x: 0.32, y: 0.2, share: 0.85 },
+      { x: 0.56, y: 0.38, share: 1 },
+      { x: 0.78, y: 0.62, share: 0.85 },
+      { x: 0.96, y: 0.92, share: 0.6 },
+    ],
+  };
+
+  /** The ribbon's own five-stop ramp, again as written. */
+  const STREAK_RAMP: [number, number][] = [
+    [0, 1],
+    [0.25, 0.6],
+    [0.5, 0.28],
+    [0.75, 0.09],
+    [1, 0],
+  ];
 
   /**
    * The ramp, as multiples of a source's peak — the same nine stops globals.css
@@ -1779,12 +1881,12 @@ describe.each(MODES)('%s ambient sources', (mode) => {
   ];
 
   /** A source's alpha at `r` radii from its own centre, interpolated as CSS does. */
-  function rampAt(r: number, peak: number): number {
+  function rampAt(r: number, peak: number, ramp: [number, number][] = RAMP): number {
     if (r >= 1) return 0;
-    for (let i = 1; i < RAMP.length; i++) {
-      const [x1, y1] = RAMP[i];
+    for (let i = 1; i < ramp.length; i++) {
+      const [x1, y1] = ramp[i];
       if (r <= x1) {
-        const [x0, y0] = RAMP[i - 1];
+        const [x0, y0] = ramp[i - 1];
         const t = x1 === x0 ? 0 : (r - x0) / (x1 - x0);
         return (y0 + (y1 - y0) * t) * peak;
       }
@@ -1792,8 +1894,24 @@ describe.each(MODES)('%s ambient sources', (mode) => {
     return 0;
   }
 
+  /**
+   * The ribbon at one point: five blobs in one background-image list, so they
+   * composite over each other in paint order (first layer on top) rather than
+   * summing. Modelled the same way here.
+   */
+  function streakAt(x: number, y: number): number {
+    let alpha = 0;
+    for (const blob of [...STREAK.blobs].reverse()) {
+      const r = Math.hypot((x - blob.x) / STREAK.rx, (y - blob.y) / STREAK.ry);
+      const a = rampAt(r, GLOW.streak[mode] * blob.share, STREAK_RAMP);
+      alpha = 1 - (1 - alpha) * (1 - a);
+    }
+    return alpha;
+  }
+
   const underPrimary = blend(tone(mode, '--c-glow'), page, GLOW.primary[mode]);
   const underSecondary = blend(tone(mode, '--c-glow-2'), page, GLOW.secondary[mode]);
+  const underTertiary = blend(tone(mode, '--c-glow-3'), page, GLOW.tertiary[mode]);
 
   /**
    * ═════════════════════════════════════════════════════════════════════════
@@ -1819,6 +1937,8 @@ describe.each(MODES)('%s ambient sources', (mode) => {
   const worstGround = (() => {
     const g1 = tone(mode, '--c-glow');
     const g2 = tone(mode, '--c-glow-2');
+    const g3 = tone(mode, '--c-glow-3');
+    const streak = tone(mode, '--c-streak');
     let worst = page;
     let worstRatio = Infinity;
     let at = { x: 0, y: 0 };
@@ -1829,9 +1949,11 @@ describe.each(MODES)('%s ambient sources', (mode) => {
         const y = j / STEPS;
         const a1 = rampAt(Math.hypot((x - SOURCES.a.x) / SOURCES.rx, (y - SOURCES.a.y) / SOURCES.ry), GLOW.primary[mode]);
         const a2 = rampAt(Math.hypot((x - SOURCES.b.x) / SOURCES.rx, (y - SOURCES.b.y) / SOURCES.ry), GLOW.secondary[mode]);
-        // Paint order: the key is the first gradient in the stack, the fill the
-        // second, so the fill composites over the key over the page.
-        const ground = blend(g2, blend(g1, page, a1), a2);
+        const a3 = rampAt(Math.hypot((x - SOURCES.c.x) / SOURCES.rx, (y - SOURCES.c.y) / SOURCES.ry), GLOW.tertiary[mode]);
+        // Paint order, bottom to top: the ribbon is on `html::before` and is
+        // therefore under everything body paints; then the key (first gradient
+        // in body::before's stack), the fill, and the green.
+        const ground = blend(g3, blend(g2, blend(g1, blend(streak, page, streakAt(x, y)), a1), a2), a3);
         // "Worst" is decided on BODY COPY, which is the token with the least
         // room and the one every other floor is a fraction of.
         const r = contrastRatio(tone(mode, '--c-espresso'), ground);
@@ -1845,7 +1967,7 @@ describe.each(MODES)('%s ambient sources', (mode) => {
     return { ground: worst, ratio: worstRatio, at };
   })();
 
-  it('reports where on the page the two sources bite hardest', () => {
+  it('reports where on the page the ambient layer bites hardest', () => {
     // eslint-disable-next-line no-console
     console.log(
       `  ${mode}: worst ground ${worstGround.ground} at ${(worstGround.at.x * 100).toFixed(0)}%,` +
@@ -1856,7 +1978,12 @@ describe.each(MODES)('%s ambient sources', (mode) => {
     // is the bare page, every ramp resolved to zero and this whole block is
     // measuring nothing — which is exactly how a broken custom property would
     // look from in here.
-    expect(worstGround.ground, 'the sampler never found either source').not.toBe(page);
+    expect(worstGround.ground, 'the sampler never found any source').not.toBe(page);
+    // And it has to find the RIBBON, which is the one source with no core of its
+    // own in a corner — if `streakAt` returned zero everywhere the grid would
+    // still find the key and this block would pass while measuring three
+    // sources out of four.
+    expect(streakAt(0.56, 0.38), 'the ribbon resolved to nothing at its own brightest blob').toBeGreaterThan(0);
   });
 
   it('leaves every text token above its floor at the worst point on the page', () => {
@@ -1890,29 +2017,72 @@ describe.each(MODES)('%s ambient sources', (mode) => {
    * read as two sources; two lights of one colour are one wide light, which is
    * exactly the failure the original pair of viewport-sized radials had.
    */
-  it('is a second source rather than more of the first', () => {
-    const chan = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-    const hueOf = (hex: string) => {
-      const [r, g, b] = chan(hex).map((v) => v / 255);
-      const max = Math.max(r, g, b);
-      const min = Math.min(r, g, b);
-      const d = max - min;
-      if (d === 0) return 0;
-      const h = max === r ? ((g - b) / d + (g < b ? 6 : 0)) / 6 : max === g ? ((b - r) / d + 2) / 6 : ((r - g) / d + 4) / 6;
-      return h * 360;
+  const chan = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  const hueOf = (hex: string) => {
+    const [r, g, b] = chan(hex).map((v) => v / 255);
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const d = max - min;
+    if (d === 0) return 0;
+    const h = max === r ? ((g - b) / d + (g < b ? 6 : 0)) / 6 : max === g ? ((b - r) / d + 2) / 6 : ((r - g) / d + 4) / 6;
+    return h * 360;
+  };
+
+  /**
+   * ── THREE SOURCES NOW, AND THE CLAIM IS PAIRWISE (Aug 2026) ────────────────
+   *
+   * The brief is a page lit in blue, white and a touch of green rather than one
+   * flat field, and "three lamps" is only true if a reader can name them
+   * separately. Two sources 10° apart are one light with a wide falloff, which
+   * is the failure this file has recorded twice — once for the original pair of
+   * viewport-sized radials, and once when the retheme left the key and the teal
+   * fill 4° apart. Asserting it PAIRWISE is what stops a third source being
+   * added into the gap between the first two.
+   */
+  it('gives every source a hue a reader could name separately from the others', () => {
+    const sources = {
+      key: tone(mode, '--c-glow'),
+      fill: tone(mode, '--c-glow-2'),
+      green: tone(mode, '--c-glow-3'),
     };
-    const key = tone(mode, '--c-glow');
-    const fill = tone(mode, '--c-glow-2');
-    expect(fill).not.toBe(key);
-    const apart = Math.abs(hueOf(key) - hueOf(fill));
-    const separation = Math.min(apart, 360 - apart);
-    expect(separation, `the two sources are ${separation.toFixed(0)}° apart in ${mode}`).toBeGreaterThan(20);
+    const names = Object.keys(sources) as (keyof typeof sources)[];
+    for (let i = 0; i < names.length; i++) {
+      for (let j = i + 1; j < names.length; j++) {
+        const a = sources[names[i]];
+        const b = sources[names[j]];
+        expect(a, `${names[i]} and ${names[j]} are the same colour`).not.toBe(b);
+        const apart = Math.abs(hueOf(a) - hueOf(b));
+        const separation = Math.min(apart, 360 - apart);
+        expect(
+          separation,
+          `${names[i]} and ${names[j]} are ${separation.toFixed(0)}° apart in ${mode}`,
+        ).toBeGreaterThan(20);
+      }
+    }
+  });
+
+  /**
+   * ⚠ THE GREEN MAY NOT BE A STATUS GREEN, AND THIS IS THE MACHINE-CHECKABLE
+   * FORM OF THAT. Every status hue in this palette has blue strictly lowest;
+   * that is the rule the two brand accents already answer to, for the reason
+   * that a decorative hue with a state's channel shape reads as a state. An
+   * ambient green in the corner of a results page is the one ambient decision
+   * capable of being read as a finding, so it is a MINT — red lowest — and no
+   * alpha of it over any surface can reorder the channels.
+   */
+  it('keeps the green source out of the shape of a status colour', () => {
+    const [r, g, b] = chan(tone(mode, '--c-glow-3'));
+    expect(b, `the green source is ${tone(mode, '--c-glow-3')}, which has blue lowest`).toBeGreaterThan(Math.min(r, g));
   });
 
   it('is a fill rather than a second key', () => {
-    // Two equal sources cancel each other's direction and the page goes flat
-    // again with more colour in it.
+    // Equal sources cancel each other's direction and the page goes flat again
+    // with more colour in it. Strictly ordered, all four: key, fill, green, and
+    // the ribbon quietest of the lot — it covers the whole viewport, so it is
+    // the one with the most of the page inside it.
     expect(GLOW.secondary[mode]).toBeLessThan(GLOW.primary[mode]);
+    expect(GLOW.tertiary[mode]).toBeLessThan(GLOW.secondary[mode]);
+    expect(GLOW.streak[mode]).toBeLessThan(GLOW.tertiary[mode]);
   });
 
   /**
@@ -1925,11 +2095,12 @@ describe.each(MODES)('%s ambient sources', (mode) => {
    * there. It is a link and an accent, and 3:1 is the floor it has always
    * answered to.
    */
-  it('leaves every text token on the page above its floor at both cores', () => {
+  it('leaves every text token on the page above its floor at every core', () => {
     for (const [where, ground] of [
       ['bare page', page],
       ['under the key light', underPrimary],
       ['under the fill light', underSecondary],
+      ['under the green light', underTertiary],
     ] as const) {
       const body = contrastRatio(tone(mode, '--c-espresso'), ground);
       expect(body, `body copy ${where} in ${mode} is ${body.toFixed(2)}:1`).toBeGreaterThanOrEqual(WCAG_AA_TEXT);
@@ -1974,6 +2145,7 @@ describe.each(MODES)('%s ambient sources', (mode) => {
       for (const [which, ground] of [
         ['key', underPrimary],
         ['fill', underSecondary],
+        ['green', underTertiary],
       ] as const) {
         const lit = contrastRatio(tone(mode, '--c-espresso'), ground);
         expect(lit / bare, `the ${which} light costs ${(100 - (lit / bare) * 100).toFixed(1)}% of the page`).toBeGreaterThan(
@@ -1987,6 +2159,7 @@ describe.each(MODES)('%s ambient sources', (mode) => {
     for (const [where, ground] of [
       ['under the key light', underPrimary],
       ['under the fill light', underSecondary],
+      ['under the green light', underTertiary],
     ] as const) {
       const r = contrastRatio(card, ground);
       expect(r, `a card ${where} in ${mode} is ${r.toFixed(2)}:1 off the page`).toBeGreaterThan(1.05);

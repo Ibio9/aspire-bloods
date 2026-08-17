@@ -61,7 +61,7 @@ async function context(browser: Browser, theme: 'light' | 'dark') {
 }
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`two ambient sources, in two hues, at opposite corners — ${theme}`, async ({ browser }) => {
+  test(`three ambient sources, in three hues, at three corners — ${theme}`, async ({ browser }) => {
     test.setTimeout(120_000);
     const ctx = await context(browser, theme);
     const page = await ctx.newPage();
@@ -82,27 +82,30 @@ for (const theme of ['light', 'dark'] as const) {
     // eslint-disable-next-line no-console
     console.log(`\n  ${theme}: body::before is ${glow.position}, z-index ${glow.zIndex}`);
 
-    // TWO SOURCES. Both themes now — light mode used to be flat cream with
-    // nothing happening in it, which is the same complaint the dark page had
-    // before any of this existed.
+    // THREE SOURCES (Aug 2026). Both themes — light mode used to be flat cream
+    // with nothing happening in it, which is the same complaint the dark page
+    // had before any of this existed, and the answer is the same answer.
     const radials = [...glow.image.matchAll(/radial-gradient\(/g)].length;
-    const expected = theme === 'dark' ? 3 : 2; // dark carries the vignette as well
+    const expected = theme === 'dark' ? 4 : 3; // dark carries the vignette as well
     expect(radials, `${theme}: expected ${expected} radials on body::before, got ${radials}`).toBe(expected);
 
-    // AT OPPOSITE CORNERS, and far enough apart that no pixel carries both —
-    // which is what lets the contrast be checked one corner at a time.
+    // AT THREE CORNERS. They overlap now, which is why the contrast suite
+    // samples the whole viewport rather than checking each core.
     expect(glow.image, 'the key light is not anchored at the top right').toContain('96% 1%');
     // 20% and not 4%: the patient shell's sidebar is 288px, which is 20% of a
     // 1440 viewport, so a fill anchored at the literal corner has its CORE —
     // the only part of the ramp that is genuinely bright — behind an opaque
     // column, and the second light exists nowhere the reader can see it.
     expect(glow.image, 'the fill light is not anchored at the bottom left').toContain('20% 98%');
+    // The green IS at its corner, because nothing opaque covers the bottom
+    // right — the asymmetry with the fill is the sidebar and nothing else.
+    expect(glow.image, 'the green light is not anchored at the bottom right').toContain('99% 99%');
 
-    // IN TWO HUES. A second light the colour of the first is a wider first
+    // IN THREE HUES. A second light the colour of the first is a wider first
     // light, which is exactly the failure the original pair of viewport-sized
-    // radials had. The two ramps must not be built from one colour.
+    // radials had. The ramps must not be built from one colour.
     const colours = new Set([...glow.image.matchAll(/rgba?\((\d+),\s*(\d+),\s*(\d+)/g)].map((m) => `${m[1]},${m[2]},${m[3]}`));
-    expect(colours.size, `${theme}: the two sources resolved to ${colours.size} distinct colour(s)`).toBeGreaterThanOrEqual(2);
+    expect(colours.size, `${theme}: the sources resolved to ${colours.size} distinct colour(s)`).toBeGreaterThanOrEqual(3);
 
     // BEHIND EVERYTHING, FIXED, INERT. It may never intercept a click and it
     // may never travel on scroll.
@@ -120,6 +123,32 @@ for (const theme of ['light', 'dark'] as const) {
       return [bg(document.body), bg(shell), bg(main)].filter((c) => c && c !== 'rgba(0, 0, 0, 0)' && !c.endsWith(', 0)'));
     });
     expect(opaqueOverlay, `something between body and main paints over the glow: ${opaqueOverlay.join(' ')}`).toEqual([]);
+
+    // ── AND THE DIAGONAL RIBBON, WHICH IS A SEPARATE ELEMENT ───────────────
+    // Five soft blobs on `html::before` whose centres follow a bowed diagonal
+    // from the top left to the bottom right. It is on `html` rather than as a
+    // sixth layer of `body::before` for a reason a screenshot cannot check:
+    // `body` creates a stacking context, so everything it paints — including
+    // its own z-index:-1 pseudo-elements — is painted ABOVE any positioned box
+    // of `html`. That is what puts the ribbon under the three radials, under
+    // the grain, and under every scrap of content.
+    const ribbon = await page.evaluate(() => {
+      const s = getComputedStyle(document.documentElement, '::before');
+      return { image: s.backgroundImage, position: s.position, pointerEvents: s.pointerEvents };
+    });
+    const blobs = [...ribbon.image.matchAll(/radial-gradient\(/g)].length;
+    expect(blobs, `${theme}: expected 5 blobs in the ribbon, got ${blobs}`).toBe(5);
+    // The bow: the middle blob is ABOVE the straight line between the two ends,
+    // which is what makes it a curve rather than a diagonal bar.
+    for (const at of ['4% 8%', '32% 20%', '56% 38%', '78% 62%', '96% 92%']) {
+      expect(ribbon.image, `the ribbon has no blob at ${at}`).toContain(at);
+    }
+    expect(ribbon.position).toBe('fixed');
+    expect(ribbon.pointerEvents).toBe('none');
+    // It resolved to a colour rather than to nothing: `rgb(var(--x))` with a
+    // missing custom property is dropped silently, which is the failure mode
+    // this whole token layer is written to make impossible.
+    expect(ribbon.image, `${theme}: the ribbon resolved to no colour at all`).toMatch(/rgba?\(\d+, \d+, \d+/);
 
     await ctx.close();
   });

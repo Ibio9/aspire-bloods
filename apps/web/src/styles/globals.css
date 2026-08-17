@@ -225,6 +225,117 @@
         rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.0275)) 70%,
         rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.0075)) 85%,
         rgb(var(--c-glow-2) / 0) 100%
+      ),
+      /* ── THE THIRD SOURCE: A SOFT GREEN, BOTTOM RIGHT (Aug 2026) ─────────
+         Same ramp, same rule, third hue. The two existing sources are cool
+         blues in the top-right and lower-left; the bottom right had nothing in
+         it, so a page whose whole subject is depth was flat along one diagonal.
+
+         ANCHORED AT THE CORNER, unlike the fill. The fill had to be pulled to
+         20% because the patient sidebar is 288px of opaque column over the
+         bottom LEFT and its core was behind it. Nothing covers the bottom
+         right, so a light there is where it looks like it is.
+
+         See `glowTertiary` in tokens.ts for why it is a mint rather than a
+         green: blue is never its lowest channel, so no alpha of it over any
+         surface arrives at the shape of a STATUS colour. */
+        radial-gradient(
+          88% 80% at 99% 99%,
+          rgb(var(--c-glow-3) / var(--glow-3)) 0%,
+          rgb(var(--c-glow-3) / calc(var(--glow-3) * 0.7)) 9%,
+          rgb(var(--c-glow-3) / calc(var(--glow-3) * 0.4125)) 19%,
+          rgb(var(--c-glow-3) / calc(var(--glow-3) * 0.25)) 30%,
+          rgb(var(--c-glow-3) / calc(var(--glow-3) * 0.1375)) 42%,
+          rgb(var(--c-glow-3) / calc(var(--glow-3) * 0.0675)) 55%,
+          rgb(var(--c-glow-3) / calc(var(--glow-3) * 0.0275)) 70%,
+          rgb(var(--c-glow-3) / calc(var(--glow-3) * 0.0075)) 85%,
+          rgb(var(--c-glow-3) / 0) 100%
+        );
+  }
+
+  /* ── THE DIAGONAL STREAK — A CURVED RIBBON, NOT A ROTATED BAR (Aug 2026) ─
+     A slow ribbon of light sweeping from the top left to the bottom right,
+     bowed rather than straight, low opacity, behind everything. The reference
+     is the XMB wave: the thing that stops a large dark field reading as a
+     single flat plane is one long form crossing it that is neither a surface
+     nor a mark.
+
+     ── WHY FIVE BLOBS AND NOT ONE ROTATED GRADIENT ──────────────────────────
+
+     A `linear-gradient` cannot curve; it is straight by definition. The obvious
+     alternative is one elongated radial with `transform: rotate()`, and that is
+     refused for a reason that has nothing to do with looks: **a transform on a
+     fixed-position element changes the containing block for every fixed
+     descendant inside it.** This element has none today, and a rule that is
+     only safe while nobody nests anything is a trap rather than a technique.
+
+     So it is five soft blobs whose centres follow a quadratic Bézier from
+     (4%,8%) through a control point at (62%,26%) to (96%,92%) — the bow — each
+     wide enough to overlap its neighbours by well over half its radius, so what
+     paints is one continuous band rather than five dots. The two END blobs are
+     at 45% and 60% of the peak, which is what makes the ribbon fade INTO the
+     corners rather than stop at them.
+
+     ── AND IT IS ON `html`, WHICH IS THE WHOLE POINT OF PUTTING IT THERE ────
+
+     `body` creates a stacking context (position: relative, z-index: 0), so
+     everything it paints — including its own `z-index: -1` pseudo-elements,
+     which is where the three radials and the grain live — is painted ABOVE any
+     positioned box of `html` at the same index. So the ribbon lands exactly
+     where it belongs: over the page colour, under the ambient sources, under
+     the grain, under every scrap of content. It also keeps the four radial
+     stacks in one declaration instead of eight.
+
+     Fixed, pointer-events none, static at every motion preference. An ambient
+     light that moves is a notification, not a room — the "sweep" is the SHAPE
+     of the thing, not an animation of it. Off in print with the rest of the
+     ambient layer (`--streak: 0` in tailwind.config.ts). */
+  html::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image:
+      radial-gradient(
+        30% 24% at 4% 8%,
+        rgb(var(--c-streak) / calc(var(--streak) * 0.45)) 0%,
+        rgb(var(--c-streak) / calc(var(--streak) * 0.27)) 25%,
+        rgb(var(--c-streak) / calc(var(--streak) * 0.126)) 50%,
+        rgb(var(--c-streak) / calc(var(--streak) * 0.04)) 75%,
+        rgb(var(--c-streak) / 0) 100%
+      ),
+      radial-gradient(
+        30% 24% at 32% 20%,
+        rgb(var(--c-streak) / calc(var(--streak) * 0.85)) 0%,
+        rgb(var(--c-streak) / calc(var(--streak) * 0.51)) 25%,
+        rgb(var(--c-streak) / calc(var(--streak) * 0.238)) 50%,
+        rgb(var(--c-streak) / calc(var(--streak) * 0.077)) 75%,
+        rgb(var(--c-streak) / 0) 100%
+      ),
+      radial-gradient(
+        30% 24% at 56% 38%,
+        rgb(var(--c-streak) / var(--streak)) 0%,
+        rgb(var(--c-streak) / calc(var(--streak) * 0.6)) 25%,
+        rgb(var(--c-streak) / calc(var(--streak) * 0.28)) 50%,
+        rgb(var(--c-streak) / calc(var(--streak) * 0.09)) 75%,
+        rgb(var(--c-streak) / 0) 100%
+      ),
+      radial-gradient(
+        30% 24% at 78% 62%,
+        rgb(var(--c-streak) / calc(var(--streak) * 0.85)) 0%,
+        rgb(var(--c-streak) / calc(var(--streak) * 0.51)) 25%,
+        rgb(var(--c-streak) / calc(var(--streak) * 0.238)) 50%,
+        rgb(var(--c-streak) / calc(var(--streak) * 0.077)) 75%,
+        rgb(var(--c-streak) / 0) 100%
+      ),
+      radial-gradient(
+        30% 24% at 96% 92%,
+        rgb(var(--c-streak) / calc(var(--streak) * 0.6)) 0%,
+        rgb(var(--c-streak) / calc(var(--streak) * 0.36)) 25%,
+        rgb(var(--c-streak) / calc(var(--streak) * 0.168)) 50%,
+        rgb(var(--c-streak) / calc(var(--streak) * 0.054)) 75%,
+        rgb(var(--c-streak) / 0) 100%
       );
   }
 
@@ -295,8 +406,28 @@
         rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.0075)) 85%,
         rgb(var(--c-glow-2) / 0) 100%
       ),
+      /* The green, bottom right — see the light-mode stack above, where the
+         reasoning lives. Same ramp, same anchor, its own peak. */
+        radial-gradient(
+          88% 80% at 99% 99%,
+          rgb(var(--c-glow-3) / var(--glow-3)) 0%,
+          rgb(var(--c-glow-3) / calc(var(--glow-3) * 0.7)) 9%,
+          rgb(var(--c-glow-3) / calc(var(--glow-3) * 0.4125)) 19%,
+          rgb(var(--c-glow-3) / calc(var(--glow-3) * 0.25)) 30%,
+          rgb(var(--c-glow-3) / calc(var(--glow-3) * 0.1375)) 42%,
+          rgb(var(--c-glow-3) / calc(var(--glow-3) * 0.0675)) 55%,
+          rgb(var(--c-glow-3) / calc(var(--glow-3) * 0.0275)) 70%,
+          rgb(var(--c-glow-3) / calc(var(--glow-3) * 0.0075)) 85%,
+          rgb(var(--c-glow-3) / 0) 100%
+        ),
       /* The vignette, under both lights. Ends at the shadow tone at zero alpha
-         rather than at `transparent`, for the same reason the glows do. */
+         rather than at `transparent`, for the same reason the glows do.
+
+         ⚠ IT IS LAST IN THE STACK AND THEREFORE PAINTS FIRST, so it darkens the
+         page and the three sources sit on top of it rather than being knocked
+         back by it. That was already true of the two; the green is anchored in
+         the corner the vignette reaches hardest after the bottom left, which is
+         why its peak is the third of the four rather than the second. */
         radial-gradient(
           150% 140% at 96% 1%,
           rgb(var(--c-shadow) / 0) 0%,

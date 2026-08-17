@@ -30,7 +30,180 @@ Match the Aspire Rota sign-in for craft level. No default browser styling anywhe
 no native selects, no Chrome autofill blue, no native focus rings.
 Reference theaspireclinic.com for register: dark, atmospheric, spacious, restrained.
 
+## Light is a WARM ground with a COOL pastel on it (Aug 2026, second pass)
+
+⚠ **THIS SUPERSEDES "Light mode went pastel" BELOW**, which is the first pass and
+came back with the same complaint. Read this one first; the structural half of
+the older note (light's surfaces are `lightNeutral`, `brand.cream`/`taupe` are
+the DARK seeds) is unchanged and still correct.
+
+**THE COMPLAINT, TWICE: light reads as a flat grey wash.** The first pass tinted
+the PAGE with the accent — `mix('#F1F3F6', accent.teal, 0.15)`, which resolves to
+#d3dfe3 — and that IS the reason it came back. **Mixing a dark, low-chroma teal
+into a cool near-white produces a blue-grey.** The page carried a cast rather
+than a colour and the ink over it was the only warm thing on the screen. A
+surface whose OKLab chroma is 0.012 is a grey however it was arrived at.
+
+**SO THE GROUND IS WARM AND THE COLOUR IS SOMEWHERE ELSE.** Two surfaces leaning
+in opposite directions, which is the whole idea:
+
+    surface  #F3EADF  THE PAGE. A warm off-white ivory, r > g > b, no accent
+                      mixed into it at all. Not grey (nothing cool in it), not
+                      brown (within a few percent of white).
+    pastel   #e1f2f4  THE SECONDARY TINT. Section grounds, every pane. Built at
+                      the teal's own HUE ANGLE with a stated saturation and
+                      lightness (`reHsl`), never by mixing the dark accent into
+                      white — that operation is what produced the grey.
+    rail     #b7dfe4  THE SIDEBAR. The same pastel `LIGHT_RAIL_DROP` lower in
+                      lightness. ⚠ A STEP DOWN, NOT A MIX TOWARD THE INK: both
+                      put it below the page, only one keeps it a colour. The ink
+                      is warm and the pastel is cool, so mixing them cancels —
+                      measured on a screenshot, the rail was the largest surface
+                      still rendering blue-grey.
+    card     #fefefd  1.18:1 off the page, and that step is deliberately small.
+
+**FIVE NUMBERS, AND EVERYTHING FOLLOWS THEM** (`LIGHT_BASE`,
+`LIGHT_PASTEL_SATURATION`, `LIGHT_PASTEL_LIGHTNESS`, `LIGHT_RAIL_DROP`,
+`LIGHT_HAIRLINE`). Change one and the page, the card, the panes, the rail, the
+hairline, the hover states and the chart furniture all move. ⚠ `LIGHT_RAIL_DROP`
+was SWEPT, not picked: under ~0.09 the rail fails the 1.08:1 floor off the page,
+past ~0.14 it overtakes the card's own step and the page → panel → card ladder
+inverts. It is 0.115, the middle of that window.
+
+**⚠ `GLASS.panel` IN LIGHT WENT 0.46 → 0.60, AND THAT IS WHAT MAKES A PANE READ
+AS A PANE.** A pane is the pastel now rather than the glass colour with a trace
+of accent in it, and at 0.46 over a WARM page fewer than half its channels
+survived: a cool tint at half strength over a warm ground is a NEUTRAL, so the
+pane rendered as exactly the flat grey box this pass exists to remove. The alpha
+is what decides how much of a colour reaches the screen. Still the most
+transparent of the three glass surfaces, which is the claim that is asserted.
+
+**SEPARATION IS SHADOW AND GLASS, NOT A GREY RULE.** The card/page tone step is
+1.18:1 on purpose, the hairline is softer (`LIGHT_HAIRLINE` 0.045 → 0.075 off a
+much lighter base, i.e. a quieter line), and the card's diffuse shadow is longer
+again (16 → 24px, 36 → 46 on hover, `--shadow-diffuse` 0.11 → 0.13). A short
+shadow under a white card on a warm off-white page reads as an OUTLINE; a long
+one reads as HEIGHT.
+
+**THE INK, THE RADII AND THE TYPE ARE UNTOUCHED.** `lightNeutral.ink` #1A1714 is
+still the warm near-black, the radii are still 1.5rem / 0.875rem, and Fraunces /
+Plex / Plex Mono are untouched — this pass is colour, surface, depth and shape.
+
+## Four ambient sources in both themes, and one of them is a ribbon (Aug 2026)
+
+⚠ **THIS SUPERSEDES "Two ambient sources" further down.** The ramp, the anchoring
+argument and the "a light must be a SOURCE" reasoning there are all still
+correct and still the reason this works; the count, the hues and the peaks moved.
+
+    key      96% 1%    #DDF0F4 dark · #6CB6C6 light   0.40 / 0.13
+    fill     20% 98%   #7BA6F2 dark · #5E7FD6 light   0.38 / 0.11
+    green    99% 99%   #8FE3AE dark · #57B584 light   0.32 / 0.10
+    ribbon   diagonal  #DCEAFF dark · #8FB0D8 light   0.15 / 0.055
+
+**THE FILL IS A PROPER BLUE NOW.** It was the teal accent, which put it about
+10° from the key once the key went cool — and two lights 10° apart are one light
+with a wide falloff, the exact failure this file has recorded twice. Key, fill
+and green are pairwise >20° apart and `tokenContrast.test.ts` asserts it
+PAIRWISE, which is what stops a fourth source being dropped into the gap.
+
+**⚠ THE GREEN IS A MINT, AND THAT IS A CONSTRAINT.** Blue is never strictly its
+lowest channel, so no alpha of it over any surface can arrive at the shape of a
+STATUS colour. An ambient green in the corner of a results page is the one
+ambient decision capable of being read as a finding. Asserted.
+
+**THE GREEN IS AT ITS CORNER AND THE FILL IS NOT**, and the asymmetry is the
+sidebar and nothing else: 288px of opaque column sits over the bottom left, so a
+light there has its core behind it. Nothing covers the bottom right.
+
+**THE RIBBON IS FIVE BLOBS ON A BOWED DIAGONAL, ON `html::before`.** A slow
+curved sweep from the top left to the bottom right, in the spirit of the XMB
+wave. Two decisions worth keeping:
+
+- **NOT a rotated bar.** A `linear-gradient` cannot curve, and the obvious
+  alternative — one elongated radial with `transform: rotate()` — is refused
+  because **a transform on a fixed element changes the containing block for
+  every fixed descendant inside it.** A rule that is only safe while nobody
+  nests anything is a trap. Five soft blobs whose centres follow a quadratic
+  Bézier from (4%,8%) through (62%,26%) to (96%,92%), each overlapping its
+  neighbours by well over half its radius, so what paints is one band. The two
+  END blobs are at 45% and 60% of the peak, which fades it INTO the corners.
+- **On `html` rather than as a sixth layer of `body::before`.** `body` creates a
+  stacking context, so everything it paints — including its own `z-index: -1`
+  pseudo-elements — is painted ABOVE any positioned box of `html`. That puts the
+  ribbon under the three radials, under the grain and under all content, and
+  keeps it one declaration instead of two.
+
+Static at every motion preference: the "sweep" is the SHAPE, never an animation.
+Off in print with the rest of the ambient layer.
+
+**⚠ THE DARK PEAKS ARE AT A MEASURED CEILING, NOT A TASTE.** 0.43 on the key was
+tried and fails twice — `--c-bronze` at 2.98:1 against its own core (floor 3.0)
+and an /80 label on a lit pane at 4.44:1 (floor 4.5). 0.40 is the last step that
+clears both. **`darkBronze` went 0.58 → 0.72 in the same pass, and it is the
+same mechanism as last time: THE ACCENT IS MEASURED AGAINST THE LIGHT**, so a
+brighter room is a lighter accent, every time.
+
+**AND THE SAMPLER MEASURES ALL FOUR.** `tokenContrast.test.ts` composites the
+ribbon and the three radials at every point of a 61×61 grid in paint order and
+asserts every text token clears its floor at the worst ground it finds — light
+13.40:1, dark 5.44:1, floor 4.5. Adding a source without adding it there would
+leave that measurement describing a page nobody is looking at, so the test also
+asserts the ribbon resolves to something at its own brightest blob.
+
+## The marker card's status ground is a PLATE, not a wash (Aug 2026)
+
+⚠ **THIS SUPERSEDES "The dark card status tint is solved for colour now" BELOW.**
+
+**THE COMPLAINT: the card tint reads muddy — yellow dingy, red tomato.**
+
+**THE FIRST QUESTION HAD A DEFINITE ANSWER: IT IS NOT TRANSLUCENT.** `bg-tint-*`
+resolves through `rgb(var(--c-tint-high) / <alpha-value>)` with no modifier, so
+it paints at alpha 1 in both themes. **A light plate placed BEHIND the card would
+have done nothing at all** — it would have been covered pixel for pixel. So the
+tint itself had to move.
+
+**WHY THE OPAQUE VALUE WAS STILL MUDDY, WHICH IS THE USEFUL PART.** `--c-tint-*`
+in dark is `solveWash`'s answer: the hue rendered at the LIGHTNESS OF A DARK
+CARD. That is the wall this file has now recorded from five directions — **a
+yellow at a dark lightness is a brown and a red at a dark lightness is a
+maroon**, in any colour space, at any chroma. #453700 and #5b2922 are the most
+colourful renderings that exist at 1.35:1 off a near-black card. Nothing was
+mis-solved; the card being dark was the problem.
+
+**SO THE CARD STOPS BEING DARK.** One family, five entries, no theme branch:
+
+    in range            #e2face   (light ink 16.0:1)
+    below / above       #faf1ce   (15.8:1)
+    significantly out   #fad4ce   (13.1:1)
+
+`STATUS_PLATE` in tokens.ts, from TWO numbers (`PLATE.saturation` 0.82,
+`PLATE.lightness` 0.895) at each hue's own angle, so the five read as one family
+and the pair to tune by eye is two numbers rather than ten hexes. This is the
+composition the gauge already draws — its five fills are solved against
+`PLOT_SURFACE`, a light ground, and are byte-identical in both themes. A light
+plate under a light arc is one object; a light arc on a near-black card was two.
+
+**⚠ A LIGHT PLATE IN DARK MODE NEEDS THE INK TO COME WITH IT.** `--c-espresso` is
+a near-white cream in dark and `--c-status-yellow` is #F5CE3E, so a card that
+changed only its background would be unreadable in the one place a wrong colour
+is a clinical statement. `.dark .card-status-plate` re-emits the LIGHT token set
+inside the card — **the same mechanism `@media print` already uses**, at a
+selector that beats `.dark` — so the value, the name, the status word, the
+hairline and the meta lines are all light's own by construction. COLOURS ONLY:
+the shadow and glass alphas are not re-emitted, because the card is still sitting
+on the dark page. The gauge does not move at all — `--c-hue-*-fill`,
+`--c-rangemark` and `--c-chart-reference-edge` are theme-identical already.
+
+**⚠ `--c-tint-*` IS UNTOUCHED AND STILL PAINTS THE COUNTS STRIP AND THE ALERT
+CARDS.** Those are surfaces inside the ordinary theme with ordinary text on them;
+a light plate there would need the island too, and neither was the complaint. Two
+tokens because there are two jobs. `Card` applies `statusPlateClass`, which emits
+the plate colour AND `card-status-plate` together — neither is useful without the
+other and nothing else applies either.
+
 ## Light mode went pastel, and it is three numbers (Aug 2026, first pass)
+
+⚠ **SUPERSEDED — see "Light is a WARM ground with a COOL pastel on it" above.**
 
 **THE COMPLAINT: light read as flat grey and white and looked cheap.** The
 direction is a soft, modern, premium light theme: a calm pastel carrying the
@@ -81,6 +254,11 @@ light-only. The light SHADOW is softer and longer (`--shadow-blur`, per theme:
 an outline and a long one reads as height.
 
 ## The dark card status tint is solved for colour now (Aug 2026)
+
+⚠ **SUPERSEDED — see "The marker card's status ground is a PLATE, not a wash"
+above.** The diagnosis here (matching light's CHROMA was the bug) is right and the
+wash it produced still paints the counts strip and the alert cards; what is wrong
+is the conclusion that a dark card can carry a clean status colour at all.
 
 **THE COMPLAINT: the dark card tint read muddy while light's read clean.** "The
 tint is translucent" is the right diagnosis of the RECIPE even though the applied
@@ -727,6 +905,11 @@ decorative hue beside them reads as a state. Bronze, espresso and cream are
 untouched and are still the foundation; **the status colours are untouched**.
 
 ## Two ambient sources, in both themes (Aug 2026)
+
+⚠ **SUPERSEDED — see "Four ambient sources in both themes, and one of them is a
+ribbon" above.** Everything below about the RAMP, about a light having to be a
+source rather than a wash, and about why the fill is at 20% rather than at the
+corner is unchanged and is why the current version works.
 
 Dark had one warm glow in the top right. There are two now, in both themes: a
 warm KEY at 96% 1% and a cooler, quieter FILL at 20% 98%. One light gives a page

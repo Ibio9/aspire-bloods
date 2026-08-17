@@ -504,61 +504,111 @@ function buildScale(baseHex: string): Record<number, string> {
  * and the ink are shared with dark on purpose and are built from `brand`.
  */
 /**
- * ── LIGHT WENT PASTEL, AND IT IS FOUR NUMBERS IN ONE PLACE (Aug 2026) ──────
+ * ── LIGHT IS A WARM GROUND WITH A COOL PASTEL ON IT (Aug 2026, second pass) ─
  *
- * THE COMPLAINT: light mode read as flat grey and white and looked cheap. The
- * direction is a soft, modern, premium light theme — a calm pastel carrying the
- * surfaces, near-black ink for type, generous whitespace and large soft forms.
+ * THE COMPLAINT, TWICE: light mode reads as a flat grey wash. The first pass
+ * answered it by tinting the PAGE with the teal accent — `mix('#F1F3F6',
+ * accent.teal, 0.15)`, which resolves to #d3dfe3 — and that is the whole reason
+ * it came back. **Mixing a dark, low-chroma teal into a cool near-white
+ * produces a blue-grey**, so the page carried a cast rather than a colour, and
+ * the ink over it was the only warm thing on the screen. A page whose OKLab
+ * chroma is 0.012 is a grey however it was arrived at.
  *
- * ── THE PASTEL IS THE SANCTIONED ACCENT, NOT A NEW HUE ────────────────────
+ * ── SO THE GROUND IS WARM AND THE COLOUR IS SOMEWHERE ELSE ────────────────
  *
- * `accent.teal` (#2A6C74), which is already in the palette and already passes
- * the one rule that matters: blue is never strictly its lowest channel, so it
- * cannot be mistaken for a STATE at any tint or shade. It was picked over the
- * other two candidates rather than by default. AMBER is refused outright — it
- * lands between bronze and the status gold, so a page tinted with it is the hue
- * of ABOVE RANGE at a lower saturation, and there is no opacity at which that
- * becomes safe. SLATE would work and is what the pane already carried, but it
- * sits about 20° from the accent, so a slate page under a slate accent reads as
- * one wash rather than as a ground with a mark on it. Teal is 130° off the
- * accent: the accent stays the only thing on the page that looks like a
- * decision.
+ * Two surfaces rather than one, and they lean in opposite directions:
  *
- * ── AND THE INK IS WARM NOW, IN LIGHT ONLY ────────────────────────────────
+ *   `surface`  THE PAGE. A soft warm off-white — an ivory, r > g > b, no accent
+ *              mixed into it at all. It is not grey because there is nothing
+ *              cool in it, and it is not brown because it sits within a few
+ *              percent of white.
+ *   `pastel`   THE SECONDARY TINT. Every SECTION ground, every pane and the
+ *              sidebar. This is where the colour lives, and it is a genuine
+ *              pastel rather than a wash: built at the teal's own hue angle at a
+ *              stated saturation and lightness (`reHsl`) rather than by mixing
+ *              the dark accent into white, which is exactly the operation that
+ *              produced a grey last time.
  *
- * A cool near-black on a cool pastel is two cool greys, which is the flat look
- * this is getting away from. #1A1714 is r > g > b and near-black: warm on
- * inspection, black at a glance, 14.8:1 on the page. ⚠ It is LIGHT'S OWN and
- * `brand.espresso` is untouched, because that one seeds `nightBase` and every
- * dark surface derived from it — warming it would be a dark-mode change wearing
- * a light-mode label.
+ * A warm ground under cool panes is the composition; one tone flooded across
+ * everything was the problem.
  *
- * ── EVERY VALUE IS DERIVED FROM TWO NUMBERS, WHICH IS THE POINT ───────────
+ * ── THE PASTEL IS THE SANCTIONED ACCENT'S HUE, NOT A NEW ONE ──────────────
  *
- * `TINT` is how much accent the page carries and `HAIRLINE` is how far the
- * border sits toward the ink. Change either and the page, the card, the panel,
- * the hairline, the hover states and the chart furniture all follow. That is
- * what makes this tunable rather than a set of hexes somebody has to keep in
- * step by hand.
+ * `accent.teal` (#2A6C74) is already in the palette and already passes the one
+ * rule that matters: blue is never strictly its lowest channel, so it cannot be
+ * mistaken for a STATE at any tint or shade. AMBER is still refused outright —
+ * it lands between bronze and the status gold, so a surface tinted with it is
+ * the hue of ABOVE RANGE at a lower saturation. SLATE sits about 20° from the
+ * accent, so a slate pane under a slate accent reads as one wash. Teal is 130°
+ * off the accent: the accent stays the only thing on the page that looks like a
+ * decision, and the pastel reads as a ground.
  *
- * MEASURED at these values: page #d3dfe3, card #fbfcfc at 1.32:1 off it, the
- * sidebar 1.12:1, a pane 1.14:1, body copy 13.3:1.
+ * ── AND THE INK IS WARM, IN LIGHT ONLY ────────────────────────────────────
+ *
+ * #1A1714 is r > g > b and near-black: warm on inspection, black at a glance.
+ * ⚠ It is LIGHT'S OWN and `brand.espresso` is untouched, because that one seeds
+ * `nightBase` and every dark surface derived from it — warming it would be a
+ * dark-mode change wearing a light-mode label.
+ *
+ * ── FOUR NUMBERS, AND EVERYTHING ELSE FOLLOWS THEM ────────────────────────
+ *
+ * The base, the pastel's saturation and lightness, and how far the hairline
+ * sits toward the ink. Change any one and the page, the card, the panel, the
+ * panes, the hairline, the hover states and the chart furniture all move with
+ * it — which is what makes this tunable by eye afterwards rather than a set of
+ * hexes somebody has to keep in step by hand.
+ *
+ * ⚠ THE HAIRLINE IS DELIBERATELY SOFTER THAN IT WAS (0.045 → 0.075 off a much
+ * lighter base, which is a QUIETER line in absolute terms — see `--c-taupe`
+ * measured against the new page). The brief is separation from shadow and glass
+ * rather than from hard grey rules, and a border is the one thing that cannot
+ * be softened without measuring, because `--c-panel-edge` is derived from it
+ * and is the whole of the sidebar's separation where the light does not reach.
  */
-const LIGHT_TINT = 0.15;
-const LIGHT_HAIRLINE = 0.045;
-const LIGHT_BASE = '#F1F3F6';
+const LIGHT_BASE = '#F3EADF';
+const LIGHT_PASTEL_SATURATION = 0.45;
+const LIGHT_PASTEL_LIGHTNESS = 0.92;
+/**
+ * How far below the pastel the navigation rail sits. Swept rather than picked:
+ * the window is narrow at both ends and both ends are asserted — under about
+ * 0.09 the rail fails the 1.08:1 floor off the page, and past about 0.14 it
+ * overtakes the CARD's own step off the page, at which point the rail has
+ * climbed past a card and the page → panel → card ladder is inverted.
+ */
+const LIGHT_RAIL_DROP = 0.115;
+const LIGHT_HAIRLINE = 0.075;
 
 export const lightNeutral = {
-  /** The light page: a soft pastel, and the base of the whole light surface family. */
-  surface: mix(LIGHT_BASE, accent.teal, LIGHT_TINT),
+  /** The light page: a soft warm off-white, and the base of the whole light surface family. */
+  surface: LIGHT_BASE,
+  /**
+   * The secondary register — section grounds, every pane, the sidebar rail.
+   * Built at the accent's HUE rather than mixed from it: mixing a dark teal into
+   * a near-white is what produced a blue-grey page in the first pass, and no
+   * amount of it produces a pastel.
+   */
+  pastel: reHsl(accent.teal, LIGHT_PASTEL_SATURATION, LIGHT_PASTEL_LIGHTNESS),
+  /**
+   * The navigation rail: the SAME pastel a few steps down, so the column and
+   * the panes read as one register.
+   *
+   * ⚠ A STEP DOWN IN LIGHTNESS, NOT A MIX TOWARD THE INK. Both put the rail
+   * below the page, which is the claim the ladder makes; only one of them keeps
+   * it a colour. The ink is warm and the pastel is cool, so mixing them cancels
+   * — measured on a screenshot, the rail rendered as the blue-grey this whole
+   * pass exists to get rid of, and it was the largest single surface still doing
+   * it. Dropping the lightness at the same hue and saturation cannot desaturate
+   * anything.
+   */
+  rail: reHsl(accent.teal, LIGHT_PASTEL_SATURATION, LIGHT_PASTEL_LIGHTNESS - LIGHT_RAIL_DROP),
   /** Type and structural accents in light. Warm near-black, never grey. */
   ink: '#1A1714',
   /**
    * Every hairline and divider in light. The page carried toward the ink rather
-   * than a grey of its own, so a hairline on a pastel ground is that ground a
-   * few steps down instead of a foreign colour drawn across it.
+   * than a grey of its own, so a hairline on a warm ground is that ground a few
+   * steps down instead of a foreign colour drawn across it.
    */
-  border: mix(mix(LIGHT_BASE, accent.teal, LIGHT_TINT), '#1A1714', LIGHT_HAIRLINE),
+  border: mix(LIGHT_BASE, '#1A1714', LIGHT_HAIRLINE),
 } as const;
 
 export const scales = {
@@ -851,6 +901,73 @@ const TINT_MIX = {
   edge: 0.92,
   edgeDark: 0.82,
 } as const;
+
+/**
+ * ═══ THE MARKER CARD'S STATUS GROUND — A PLATE, NOT A WASH (Aug 2026) ══════
+ *
+ * ── THE COMPLAINT: THE CARD TINT READS MUDDY. YELLOW IS DINGY, RED IS TOMATO ─
+ *
+ * ── AND THE FIRST QUESTION HAD A DEFINITE ANSWER: IT IS NOT TRANSLUCENT ────
+ *
+ * `bg-tint-*` resolves through `rgb(var(--c-tint-high) / <alpha-value>)` with no
+ * modifier, so it paints at alpha 1. Nothing composites it, in either theme.
+ * **A light plate placed behind the card would therefore have done nothing at
+ * all** — it would have been covered, pixel for pixel, by an opaque colour. So
+ * the tint itself had to move, which is the other half of the brief.
+ *
+ * ── WHY THE OPAQUE VALUE WAS STILL MUDDY, WHICH IS THE USEFUL PART ────────
+ *
+ * `--c-tint-*` in dark is `solveWash`'s answer: the hue rendered at the
+ * LIGHTNESS OF A DARK CARD. That is the wall this file has now recorded from
+ * five directions — **a yellow at a dark lightness is a brown and a red at a
+ * dark lightness is a maroon**, in any colour space, at any chroma. #453700 and
+ * #5b2a23 are the most colourful renderings of gold and red that exist at 1.35:1
+ * off a near-black card. Nothing was mis-solved; the LIGHTNESS was the problem,
+ * and it was fixed by the card being dark.
+ *
+ * ── SO THE CARD STOPS BEING DARK, AND IT IS THE SAME PLATE IN BOTH THEMES ──
+ *
+ * One family, five entries, no theme branch: a soft pastel at ONE lightness with
+ * the status hue's own angle, which is the composition the gauge already draws
+ * (its five fills are solved against `PLOT_SURFACE`, a light ground, and are
+ * byte-identical in both themes). A light plate under a light arc is one object;
+ * a light arc on a near-black card was two.
+ *
+ * ⚠ AND A LIGHT PLATE IN DARK MODE NEEDS THE INK TO COME WITH IT. `--c-espresso`
+ * is a near-white cream in dark and `--c-status-yellow` is #F5CE3E, so a card
+ * that changed only its background would be unreadable. `.card-status-plate` in
+ * tailwind.config.ts re-emits the LIGHT token set inside the card — the same
+ * mechanism `@media print` already uses, at a selector that beats `.dark` — so
+ * every `text-espresso`, every hairline and the status word inside a plated card
+ * are light's own, by construction rather than by remembering.
+ *
+ * ⚠ `--c-tint-*` IS UNTOUCHED AND STILL PAINTS THE COUNTS STRIP AND THE ALERT
+ * CARDS. Those are surfaces inside the ordinary theme with ordinary text on
+ * them; a light plate there would need the island too, and neither was the
+ * complaint. Two tokens because there are two jobs.
+ *
+ * ONE LIGHTNESS AND ONE SATURATION, so the five read as one family rather than
+ * as five separately-chosen colours — and so the pair somebody will want to tune
+ * by eye afterwards is two numbers rather than ten hexes.
+ */
+const PLATE = { saturation: 0.82, lightness: 0.895 } as const;
+
+/** The plate for a hue: the hue's own angle at the family's lightness. */
+function statusPlate(hue: StatusHue): string {
+  return reHsl(statusHue[hue], PLATE.saturation, PLATE.lightness);
+}
+
+/**
+ * The five plates, resolved once. Theme-identical by construction — there is no
+ * `mode` in this expression and there is not going to be one.
+ */
+export const STATUS_PLATE = {
+  inRange: statusPlate('green'),
+  high: statusPlate('yellow'),
+  low: statusPlate('yellow'),
+  significantHigh: statusPlate('red'),
+  significantLow: statusPlate('red'),
+} as const satisfies Record<StatusKey, string>;
 
 /**
  * The point fill, per hue, as a distance from the hue itself — toward espresso
@@ -1621,8 +1738,17 @@ const darkText = mix(brand.cream, brand.white, 0.45);
   * ground than the gold it replaced: at 0.42 the accent came out #959CA4 and
   * measured 2.76:1 there, under the 3:1 floor for large text and UI. A lighter
   * accent on near-black is the register this theme wants in any case.
+  *
+  * ── AND 0.58 → 0.72 WHEN THE ROOM GOT BRIGHTER (Aug 2026) ─────────────────
+  *
+  * The identical mechanism a second time, and it is the whole reason this token
+  * is a derivation rather than a hex. The dark page gained a third source and a
+  * diagonal ribbon and the key went 0.36 → 0.40, so the brightest ground on the
+  * page moved up — and the accent measured **2.68:1 at the key's own core**,
+  * under the same 3:1 floor it failed at in 2026's first pass. THE ACCENT IS
+  * MEASURED AGAINST THE LIGHT, so more light is more accent, every time.
   */
-const darkBronze = mix(brand.bronze, brand.cream, 0.58);
+const darkBronze = mix(brand.bronze, brand.cream, 0.72);
 /** Borders: a warm mid-brown that shows against every dark surface without becoming a line of light. */
 const darkTaupe = mix(brand.taupe, nightBase, 0.66);
 
@@ -2141,11 +2267,11 @@ const SOLVED: Record<'light' | 'dark', SolvedTokens> = {
    * old value's exact luminance for precisely this reason. See the note there.
    */
   light: {
-    line: { green: '#507e2c', olive: '#70781a', yellow: '#8f7208', orange: '#a85d1f', red: '#c14836' },
-    wash: { green: '#dce5d5', olive: '#ebedd4', yellow: '#fbf3d6', orange: '#f1e0cf', red: '#edd4d1' },
-    track: { green: '#a1bb8c', olive: '#cbd08a', yellow: '#f8e28f', orange: '#dcac7d', red: '#d28c82' },
+    line: { green: '#507e2c', olive: '#717816', yellow: '#917200', orange: '#a95d1b', red: '#c14836' },
+    wash: { green: '#dce6d4', olive: '#ecedd3', yellow: '#fcf4d5', orange: '#f2e0ce', red: '#eed5d0' },
+    track: { green: '#a1bc8c', olive: '#ccd08a', yellow: '#f9e28e', orange: '#dcac7c', red: '#d28c81' },
     label: { green: '#3d572c', yellow: '#675a27', red: '#8f3225' },
-    bound: '#8ba3ac',
+    bound: '#b49c81',
   },
   dark: {
     line: { green: '#6b9948', olive: '#a3a324', yellow: '#dbad00', orange: '#de8929', red: '#e06452' },
@@ -2153,8 +2279,8 @@ const SOLVED: Record<'light' | 'dark', SolvedTokens> = {
     // Green and red reach 2.6x light's chroma exactly; gold is capped by the
     // gamut at 1.7x, which is the "a dark yellow is a brown" wall this file has
     // now recorded from four different directions.
-    wash: { green: '#293c1a', olive: '#373b00', yellow: '#453700', orange: '#562e06', red: '#5b2a23' },
-    track: { green: '#435931', olive: '#424601', yellow: '#3f3200', orange: '#73471c', red: '#905248' },
+    wash: { green: '#273d16', olive: '#373b00', yellow: '#453700', orange: '#582d02', red: '#5b2922' },
+    track: { green: '#415a2d', olive: '#424601', yellow: '#403301', orange: '#764719', red: '#935147' },
     // ⚠ The yellow is `statusHue.yellow` UNCHANGED — see the label solve above.
     label: { green: '#80ae5b', yellow: '#F5CE3E', red: '#f97c6a' },
     bound: '#5a6272',
@@ -2309,7 +2435,7 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * down — the identical inversion the trend chart's spark halo makes, and for
    * the identical reason.
    */
-  const glowPrimary = dark ? '#C4D4E8' : '#8894A6';
+  const glowPrimary = dark ? '#DDF0F4' : '#6CB6C6';
   /**
    * ── THE FILL IS TEAL IN BOTH THEMES NOW (Aug 2026) ───────────────────────
    *
@@ -2325,7 +2451,51 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * light used to differ was that a cool hue over CREAM desaturates rather than
    * tints — that was a fact about cream, and there is no cream any more.
    */
-  const glowSecondary = dark ? mix(accent.teal, '#7fd8d0', 0.62) : accent.teal;
+  /**
+   * ── THE FILL IS A PROPER BLUE NOW, NOT A SECOND CYAN (Aug 2026) ──────────
+   *
+   * It was the teal accent, which put it about 10° from the key once the key
+   * went cool — and 10° apart is one light with a wide falloff, the exact
+   * failure the second source exists to avoid and the one this file has already
+   * recorded once. The key is a near-white with a cyan cast, the fill is a
+   * genuine blue about 30° off it, and the third source below is green. Three
+   * hues that a reader can name separately is what makes a page read as lit
+   * rather than tinted.
+   */
+  const glowSecondary = dark ? '#7BA6F2' : '#5E7FD6';
+  /**
+   * ── THE THIRD SOURCE: A SOFT GREEN, BOTTOM RIGHT (Aug 2026) ──────────────
+   *
+   * The brief is a dark base with depth and colour in it — blue, white and a
+   * touch of green — rather than one flat dark field, and the two existing
+   * sources are both cool blues in the two LEFT-hand and TOP corners. The
+   * bottom right had nothing in it at all.
+   *
+   * ⚠ IT IS A MINT, AND THAT IS A CONSTRAINT RATHER THAN A PREFERENCE. The rule
+   * every non-status hue in this palette answers to is that blue is never
+   * strictly its lowest channel — a colour with blue at the floor is the shape
+   * of a STATE, and a status green in the corner of a results page is the one
+   * ambient decision that could be read as a finding. #8FE3AE has red lowest,
+   * so no alpha of it over any surface can arrive at the shape of `statusHue
+   * .green`. It also sits 47° off the key and 77° off the fill.
+   */
+  const glowTertiary = dark ? '#8FE3AE' : '#57B584';
+  /**
+   * ── AND THE DIAGONAL STREAK, WHICH IS NOT A RADIAL AT ALL ────────────────
+   *
+   * A slow curved ribbon of light sweeping corner to corner, top-left to
+   * bottom-right, behind everything. Drawn in globals.css as five soft blobs
+   * along a bowed diagonal rather than as a rotated bar, because a `linear-
+   * gradient` cannot curve and a `transform` on a fixed pseudo-element is a
+   * containing-block change waiting to catch a modal.
+   *
+   * The COLOUR goes in opposite directions per theme for the same reason every
+   * other ambient source in this file does: on near-black a ribbon of light is
+   * light ADDED and has to be lighter than the page; on a warm off-white there
+   * is nothing to add, so what reads as a sweep of light is the ground taken
+   * very slightly down and cool.
+   */
+  const glowStreak = dark ? '#DCEAFF' : '#8FB0D8';
   /**
    * ── AND IN DARK IT IS NEAR-BLACK AGAIN, NOT THE CARD TONE (Aug 2026) ────
    *
@@ -2382,9 +2552,20 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * — same blur, saturation, streak, lit edge and grain, and the contrast suite
    * asserts that — and only the colour is the surface's own.
    */
+  /**
+   * ── AND LIGHT'S RAIL IS THE PASTEL NOW, NOT THE PAGE TAKEN DOWN (Aug 2026) ─
+   *
+   * The direction is unchanged and so is every measured claim about it: the
+   * column is BELOW the page, it is the surface the page is lit in front of.
+   * What changed is where the tone comes from. It was `mix(surface, ink, 0.07)`
+   * — the page a few steps toward black, which is a page-coloured column, i.e.
+   * the flat monotone the second pass exists to answer. It is `lightNeutral
+   * .pastel` a touch further down instead, so the rail carries the same
+   * secondary colour every pane does and the two read as one register.
+   */
   out['--c-panel'] = dark
     ? mix(nightBase, '#000000', 0.72)
-    : mix(lightNeutral.surface, lightNeutral.ink, 0.07);
+    : lightNeutral.rail;
   // The alpha itself is PANEL_WASH_ALPHA below rather than a variable here,
   // because it is an opacity and not a colour: everything in this map is a hex
   // that themeCssVars turns into channels.
@@ -2456,11 +2637,20 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * from a light step of the same hue. Dark keeps the base: there, mixing toward
    * the accent lifts, which is the direction that surface wants anyway.
    */
-  out['--c-glass-panel'] = mix(
-    glassColour,
-    dark ? darkAccentScales.teal[500] : accentScales.teal[200],
-    GLASS_ACCENT_TINT,
-  );
+  /**
+   * ── AND IN LIGHT IT IS THE SECONDARY REGISTER ITSELF (Aug 2026) ──────────
+   *
+   * It was the glass colour with 8% of a light teal step mixed in, which on a
+   * near-white pane is a cast rather than a colour — and with the alpha at 0.46
+   * over the page, less than half of that cast reached the screen. A section on
+   * this page is meant to CARRY the pastel, so the light pane takes
+   * `lightNeutral.pastel` outright and the tint constant applies to dark only.
+   * The pane is still bounded by the same three claims it always was: a visible
+   * surface, below a card, and every label on it at AA over its own streak.
+   */
+  out['--c-glass-panel'] = dark
+    ? mix(glassColour, darkAccentScales.teal[500], GLASS_ACCENT_TINT)
+    : lightNeutral.pastel;
 
   /**
    * The hairline of light along a pane's top and lit side. Warm white in light,
@@ -2648,6 +2838,11 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
       const source = role === 'bar' ? 'track' : role;
       out[`--c-tint-${kebab(key)}${name}`] = out[`--c-hue-${hue}-${source}`];
     }
+    // The marker card's ground. Emitted per theme like everything else in this
+    // map, and IDENTICAL in the two — see STATUS_PLATE, where the reason is that
+    // a status colour at a dark lightness is a brown whatever else is done to
+    // it. The card carries the light token island with it.
+    out[`--c-plate-${kebab(key)}`] = STATUS_PLATE[key];
   }
 
   // Charts. The bands and the point fills now take the status hues above (see
@@ -2967,6 +3162,20 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
   out['--c-glow-2'] = glowSecondary;
 
   /**
+   * The third source, bottom right — see `glowTertiary` above for why it is a
+   * mint rather than a green and why it may not be a green.
+   */
+  out['--c-glow-3'] = glowTertiary;
+
+  /**
+   * The diagonal ribbon. Drawn on `html::before` rather than as another layer of
+   * `body::before`, so it sits BELOW the three radials in paint order and is one
+   * declaration shared by both themes with only its colour and its peak per
+   * theme. See `glowStreak` above.
+   */
+  out['--c-streak'] = glowStreak;
+
+  /**
    * ── THE COLOUR OF LIGHT ON A PANE ──────────────────────────────────────
    *
    * What the specular sheen and the two edge highlights on the sidebar are
@@ -3150,7 +3359,21 @@ export const GLASS = {
    * names the reason instead of the count. `Card` refuses the two together
    * outright rather than leaving it to a call site.
    */
-  panel: { light: 0.46, dark: 0.42 },
+  /**
+   * ⚠ LIGHT WENT 0.46 → 0.60 WHEN THE PANE BECAME THE SECONDARY REGISTER
+   * (Aug 2026), and the reason is a screenshot rather than a preference. A pane
+   * is now `lightNeutral.pastel` rather than the glass colour with a trace of
+   * accent in it, and at 0.46 over a WARM page fewer than half the pastel's own
+   * channels survived: a cool tint at half strength over a warm ground is a
+   * NEUTRAL, and the pane rendered as the flat grey box this whole pass exists
+   * to get rid of. It is the alpha that decides how much of a colour reaches the
+   * screen, so a pane asked to carry a colour needs a higher one.
+   *
+   * Still the most transparent of the three glass surfaces, which is the claim
+   * that matters and is asserted: 0.60 < the control bar's 0.62 < the sidebar's
+   * 0.75.
+   */
+  panel: { light: 0.6, dark: 0.42 },
   /**
    * How much of the theme's SECOND ACCENT is mixed into a page pane's tint.
    *
@@ -3242,7 +3465,7 @@ export const GLOW = {
    * lamps now, so the key no longer has to carry the whole page on its own, and
    * the total light on a dark viewport goes UP rather than down.
    */
-  primary: { light: 0.1, dark: 0.36 },
+  primary: { light: 0.13, dark: 0.4 },
   /**
    * The cool fill, bottom left. Teal in dark, slate in light — see `--c-glow-2`.
    *
@@ -3265,7 +3488,26 @@ export const GLOW = {
    * rather than as low as looks safe: light mode was flat cream with nothing
    * happening in it, which is the complaint this exists to answer.
    */
-  secondary: { light: 0.095, dark: 0.26 },
+  secondary: { light: 0.11, dark: 0.38 },
+  /**
+   * ── THE GREEN, BOTTOM RIGHT (Aug 2026) ────────────────────────────────────
+   *
+   * Quieter than the fill, which keeps the ordering key > fill > accent and
+   * stops the page having three equal lamps in it — three equal sources cancel
+   * each other's direction exactly as two do, with more colour in the result.
+   *
+   * It is anchored at the corner rather than pulled inward the way the fill was,
+   * because nothing opaque covers the bottom right: the sidebar is on the left,
+   * which is the whole reason the fill had to move.
+   */
+  tertiary: { light: 0.1, dark: 0.32 },
+  /**
+   * The diagonal ribbon's own peak, at the brightest point of its brightest
+   * blob. Lowest of the four in both themes and deliberately so — it crosses the
+   * whole viewport, so it is the source with the most of the page inside it, and
+   * anything a reader notices AS a streak is too strong.
+   */
+  streak: { light: 0.055, dark: 0.15 },
 } as const;
 
 /**

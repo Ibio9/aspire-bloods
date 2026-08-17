@@ -1,6 +1,6 @@
 import type { HTMLAttributes } from 'react';
 import type { MarkerStatusInput } from '@aspire-bloods/shared';
-import { statusTintClass } from '../../lib/markerCopy';
+import { statusPlateClass } from '../../lib/markerCopy';
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
   /**
@@ -28,20 +28,23 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
    * food sensitivity and microbiome composition have no reference range, so
    * there is no status to tint by and no tint is applied to them.
    *
-   * ⚠ AND THE MARKER RESULT CARD NO LONGER PASSES ONE (Aug 2026), which is
-   * worth knowing before reading the rest of this file: it was the overwhelming
-   * majority of the tinted cards in the product. A wash is the hue mixed INTO
-   * the card, so on a near-black surface it is a MUDDIER version of that hue by
-   * construction rather than a quieter one, and the above-range cards read as
-   * dark olive-brown. The status is carried by the gauge arc, the chevron and
-   * the word, which is where the rules always said it lived.
+   * ⚠ IT IS A PLATE RATHER THAN A WASH SINCE Aug 2026, AND THAT IS THE FIX FOR
+   * "the card tint reads muddy". A wash is the hue mixed INTO the card, so on a
+   * near-black surface it is the hue at a near-black LIGHTNESS — and a yellow
+   * there is a brown and a red is a maroon, whatever chroma is spent on it. The
+   * ground is a soft pastel at one lightness now, byte-identical in both themes,
+   * which is the composition the gauge inside the card already draws.
    *
-   * The prop stays, the refusal below stays, and every word of the reasoning
-   * stays — the counts strip still paints these washes through
-   * `statusTintClass`, and a tinted card must still never be a pane. What
-   * changed is that almost nothing now asks for one, so `surface` has to be
-   * stated explicitly where an opaque card is wanted: the tint was incidentally
-   * forcing the marker grid opaque, and glass is the default.
+   * `statusPlateClass` therefore emits TWO classes: the plate colour, and
+   * `card-status-plate`, which re-emits the light token set inside the card so
+   * the ink, the hairline and the status word come with the ground. Neither is
+   * useful without the other and nothing but this component applies either.
+   *
+   * The refusal below stays and matters more than before — a translucent sheet
+   * with a moving highlight over the one surface whose colour is a clinical
+   * statement is the least legible thing this product could draw. `surface` has
+   * to be stated explicitly where an opaque UNTINTED card is wanted: the plate
+   * incidentally forces the marker grid opaque, and glass is the default.
    */
   tint?: MarkerStatusInput;
   /**
@@ -106,7 +109,7 @@ export function Card({ interactive, inert, padding = 'default', tint, surface = 
     <div
       className={`card ${PADDING[padding]} ${material} ${interactive && !inert ? 'card-interactive' : ''} ${
         inert ? 'card-inert' : ''
-      } ${statusTintClass(tint)} ${className}`}
+      } ${statusPlateClass(tint)} ${className}`}
       {...props}
     />
   );

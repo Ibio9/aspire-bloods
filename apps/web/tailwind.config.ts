@@ -253,6 +253,19 @@ export default {
           'significantHigh-edge': v('--c-tint-significant-high-edge'),
           'significantLow-edge': v('--c-tint-significant-low-edge'),
         },
+        // The MARKER CARD's status ground, and a different thing from the wash
+        // above — see STATUS_PLATE in tokens.ts. One soft pastel family at a
+        // single lightness, identical in both themes, because a status hue at a
+        // dark card's lightness is a brown however it is solved. A plated card
+        // carries `.card-status-plate` with it, which re-emits the light token
+        // set inside itself so the ink and the status word come with the ground.
+        plate: {
+          inRange: v('--c-plate-in-range'),
+          high: v('--c-plate-high'),
+          low: v('--c-plate-low'),
+          significantHigh: v('--c-plate-significant-high'),
+          significantLow: v('--c-plate-significant-low'),
+        },
         // The result mark on a range bar, and the ring around it. Deliberately
         // NOT one of the status colours: the mark says where the result sits,
         // and it sits on a track made of the status colour, so a mark in that
@@ -360,13 +373,16 @@ export default {
         // edge contact, one wide diffuse one that describes the distance
         // from the surface below. That pairing is what separates "floating"
         // from "outlined".
-        // The diffuse layer reaches further than it did (8px → 16px of blur,
-        // 24 → 36 on hover). A short shadow under a card on a near-white page
-        // reads as an outline; a long one reads as height, and height is the
-        // whole of what separates a white card from a near-white page.
-        card: '0 1px 2px 0 rgb(var(--c-shadow) / var(--shadow-tight)), 0 4px 16px -4px rgb(var(--c-shadow) / var(--shadow-diffuse))',
+        // The diffuse layer reaches further than it did (8px → 16 → 24px of
+        // blur, 24 → 36 → 46 on hover). A short shadow under a card on a
+        // near-white page reads as an OUTLINE; a long one reads as HEIGHT, and
+        // height is now the whole of what separates a white card from the warm
+        // off-white page it sits on — the tone step between the two is
+        // deliberately small (1.13:1), because the brief is separation from
+        // shadow and glass rather than from hard grey rules.
+        card: '0 1px 2px 0 rgb(var(--c-shadow) / var(--shadow-tight)), 0 6px 24px -6px rgb(var(--c-shadow) / var(--shadow-diffuse))',
         'card-hover':
-          '0 2px 4px 0 rgb(var(--c-shadow) / var(--shadow-tight)), 0 16px 36px -10px rgb(var(--c-shadow) / calc(var(--shadow-diffuse) * 1.75))',
+          '0 2px 4px 0 rgb(var(--c-shadow) / var(--shadow-tight)), 0 18px 46px -12px rgb(var(--c-shadow) / calc(var(--shadow-diffuse) * 1.75))',
         // Auth form card — deliberately the heaviest surface in the product;
         // it has to genuinely float off the page, not sit flush on it.
         float:
@@ -438,7 +454,7 @@ export default {
           // and is what "separation from shadow rather than from a fill" means
           // as a number. Tighter contact, wider spread.
           '--shadow-tight': '0.05',
-          '--shadow-diffuse': '0.11',
+          '--shadow-diffuse': '0.13',
           // How much of `--c-panel` survives on the sidebar. Per theme for the
           // same reason the shadow alphas are: the wash DIMS a cream page and
           // LIFTS a near-black one, and the two directions do not need the same
@@ -468,6 +484,11 @@ export default {
           // dark's — it is a contrast bound, not a taste.
           '--glow-1': String(GLOW.primary.light),
           '--glow-2': String(GLOW.secondary.light),
+          // The green at the bottom right and the diagonal ribbon, both added
+          // Aug 2026. Same rule as the two above: the RAMP is written once in
+          // globals.css as multiples of these.
+          '--glow-3': String(GLOW.tertiary.light),
+          '--streak': String(GLOW.streak.light),
           // What makes the sidebar read as a PANE rather than as a wash. The
           // blur cannot do it on its own — there is nothing behind the column
           // but a flat colour and a smooth gradient, and blurring a smooth
@@ -501,6 +522,8 @@ export default {
           '--glass-grain': String(GLASS.sheen.grain.dark),
           '--glow-1': String(GLOW.primary.dark),
           '--glow-2': String(GLOW.secondary.dark),
+          '--glow-3': String(GLOW.tertiary.dark),
+          '--streak': String(GLOW.streak.dark),
           '--panel-sheen': String(PANEL_SHEEN.peak.dark),
           '--panel-sheen-top': String(PANEL_SHEEN.edge.top.dark),
           '--panel-sheen-right': String(PANEL_SHEEN.edge.right.dark),
@@ -510,6 +533,34 @@ export default {
           '--chart-line-glow': String(SPARK.line.alpha.dark),
           'color-scheme': 'dark',
         },
+        /**
+         * ── A PLATED CARD IS A LIGHT ISLAND, AND IT HAS TO BE (Aug 2026) ───
+         *
+         * The marker result card's status ground is one soft pastel family at a
+         * single lightness, identical in both themes — see STATUS_PLATE in
+         * tokens.ts for why a dark card can never carry a clean yellow. In dark
+         * mode that puts near-white cream type, a #F5CE3E status word and a dark
+         * hairline on a pale pastel: unreadable, and unreadable in the one place
+         * a wrong colour is a clinical statement.
+         *
+         * So the ink comes with the ground. This is the SAME mechanism the print
+         * block below uses and for the same reason: every colour in the product
+         * already resolves through these custom properties, so re-emitting the
+         * light set at a selector that beats `.dark` turns everything inside the
+         * card light in one place — the value, the marker name, the status word,
+         * the border, the meta lines — and anything added to that card later is
+         * covered by construction rather than by remembering.
+         *
+         * ⚠ COLOURS ONLY. The shadow alphas, the glass alphas and the sheens are
+         * NOT re-emitted: they are the DARK page's numbers and this card is still
+         * sitting on the dark page. A light card wants dark mode's deeper shadow,
+         * not light mode's.
+         *
+         * ⚠ AND THE GAUGE INSIDE IT DOES NOT MOVE. `--c-hue-*-fill` and
+         * `--c-rangemark` are theme-identical already, so the arc paints the same
+         * five bytes it always did whether or not this rule exists.
+         */
+        '.dark .card-status-plate': asBaseVars('light'),
         /**
          * ── PRINT IS LIGHT, WHATEVER THE SCREEN IS ────────────────────────
          *
@@ -547,6 +598,8 @@ export default {
             '--glass-grain': '0',
             '--glow-1': '0',
             '--glow-2': '0',
+            '--glow-3': '0',
+            '--streak': '0',
             '--moment-blur': '0px',
             '--moment-wash': '0',
             '--moment-shade': '0',
