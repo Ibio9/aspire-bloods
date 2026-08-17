@@ -3179,7 +3179,7 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * happens to be wide — which is precisely the failure the original pair of
    * radials had, recorded above.
    *
-   * It is anchored down the OPPOSITE side (middle-left; see globals.css) and it
+   * It is anchored down the LEFT EDGE (see globals.css) and it
    * is the cooler, quieter of the two in both themes: a key light and a fill,
    * which is what a room actually has. It never approaches the primary's
    * strength — `GLOW.secondary` is half of `GLOW.primary` in dark and a little
@@ -3485,7 +3485,10 @@ export const GLASS = {
  */
 export const GLOW = {
   /**
-   * The warm key light, top right. Bronze-gold in both themes.
+   * The key light, TOP CENTRE since Aug 2026 (it was the top-right corner).
+   * Horizontally centred, hard against the top edge, so the page reads as lit
+   * from above rather than from over one shoulder. Colour, radii and peak are
+   * untouched; only the anchor moved.
    *
    * ── DARK CAME DOWN FROM 0.40 TO 0.36, AND IT WAS A MEASUREMENT (Aug 2026) ─
    *
@@ -3504,19 +3507,25 @@ export const GLOW = {
    */
   primary: { light: 0.13, dark: 0.4 },
   /**
-   * The cool fill, middle left — beside the sidebar rather than under it.
+   * The cool fill, at the left edge, vertically centred.
    *
-   * ── AND IT MOVED UP THE SIDE (Aug 2026): 20% 98% → 20% 50% ──────────────
-   * Same colour, same radii, same peak; only the anchor moved. At the bottom
-   * corner it read as light coming from UNDER the page, which is not a thing a
-   * room does; at the vertical centre it reads as light standing beside the
-   * navigation rail. The x is unchanged and is the load-bearing half — see
-   * below. Nothing derived from this token moved, and the viewport sampler in
-   * `tokenContrast.test.ts` re-found the worst ground at the new position on
+   * ── IT HAS MOVED TWICE (Aug 2026): 20% 98% → 20% 50% → 0% 50% ───────────
+   * Same colour, same radii, same peak each time; only the anchor. Off the
+   * bottom corner first, because a source there reads as light coming from
+   * under the page, which is not a thing a room does. Then out to the left
+   * edge, so the light arrives from beside the page rather than from inside it.
+   * Nothing derived from this token moved either time, and the viewport sampler
+   * in `tokenContrast.test.ts` re-found the worst ground at the new position on
    * its own, which is the check that makes moving a source cheap.
    *
+   * ⚠ THE 20% WAS THERE FOR A REASON AND THAT REASON IS NOW THE INTENT. The
+   * patient shell's sidebar is 288px, which at 1440 is 20% of the viewport, so
+   * a source at the literal edge has its CORE behind an opaque column. At 0%
+   * that is deliberate: the rail is lit from behind and what reaches the
+   * reading area is the ramp rather than the core.
+   *
    * DARK IS HIGHER THAN IT LOOKS BECAUSE IT IS FURTHER AWAY. The fill is
-   * anchored at 20% rather than at the literal edge (see globals.css: the
+   * anchored off the corner (see globals.css: the
    * patient shell's sidebar is 288px, which is 20% of a 1440 viewport, so a
    * light in the corner has its core behind an opaque column and exists nowhere
    * the reader can see it) — and moving the anchor inward puts most of the

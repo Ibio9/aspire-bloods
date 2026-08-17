@@ -1846,7 +1846,7 @@ describe('the accent family', () => {
  *
  * ── AND THERE ARE FOUR OF THEM NOW (Aug 2026) ──────────────────────────────
  *
- * A key at 96% 1%, a fill at 20% 50%, a green at 99% 99%, and a diagonal ribbon
+ * A key at 50% 0%, a fill at 0% 50%, a green at 99% 99%, and a diagonal ribbon
  * of five soft blobs crossing the whole viewport. The cores are still measured
  * one at a time below, because "no page token fails under any single source" is
  * a claim worth keeping legible — but the claim that MATTERS is the sampled one:
@@ -1859,7 +1859,7 @@ describe.each(MODES)('%s ambient sources', (mode) => {
   const card = tone(mode, '--c-cream-50');
 
   /** The three source positions and radii, exactly as globals.css writes them. */
-  const SOURCES = { rx: 0.88, ry: 0.8, a: { x: 0.96, y: 0.01 }, b: { x: 0.2, y: 0.5 }, c: { x: 0.99, y: 0.99 } };
+  const SOURCES = { rx: 0.88, ry: 0.8, a: { x: 0.5, y: 0 }, b: { x: 0, y: 0.5 }, c: { x: 0.99, y: 0.99 } };
 
   /**
    * THE DIAGONAL RIBBON, as globals.css writes it: five soft blobs whose centres

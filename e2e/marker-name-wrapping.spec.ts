@@ -312,11 +312,15 @@ test.describe('marker names', () => {
         `cards on one row differ by ${spread}px: ${row.map((c) => `${c.name}=${c.height}`).join(', ')}`,
       ).toBeLessThanOrEqual(2);
     }
-    // Two across at this width, not three — so a card has room for its name.
+    // THREE ACROSS AT THIS WIDTH (Aug 2026), where it used to be two. The
+    // objection to three was that a card had no room for a marker's name; what
+    // answers it is the card dropping to the tight padding step, and the name
+    // check above runs over this section as well, so a name that no longer fits
+    // fails there rather than here.
     const columns = await page.evaluate(
       () => getComputedStyle(document.querySelector('#whats-changed .grid')!).gridTemplateColumns.split(' ').length,
     );
-    expect(columns, 'What’s changed should be at most two cards across').toBeLessThanOrEqual(2);
+    expect(columns, 'What’s changed should be three cards across at this width').toBe(3);
 
     await ctx.close();
   });

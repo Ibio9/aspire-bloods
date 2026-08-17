@@ -91,15 +91,14 @@ for (const theme of ['light', 'dark'] as const) {
 
     // AT THREE CORNERS. They overlap now, which is why the contrast suite
     // samples the whole viewport rather than checking each core.
-    expect(glow.image, 'the key light is not anchored at the top right').toContain('96% 1%');
-    // 20% 50%, and BOTH halves are deliberate. The x: the patient shell's
-    // sidebar is 288px, which is 20% of a 1440 viewport, so a fill anchored at
-    // the literal left edge has its CORE — the only part of the ramp that is
-    // genuinely bright — behind an opaque column, and the second light exists
-    // nowhere the reader can see it. The y: it was at 98%, i.e. a light in the
-    // bottom-left corner; at the vertical centre it reads as light coming from
-    // BESIDE the sidebar rather than from under the page.
-    expect(glow.image, 'the fill light is not anchored at the middle left').toContain('20% 50%');
+    expect(glow.image, 'the key light is not anchored at the top centre').toContain('50% 0%');
+    // 0% 50%: the left edge, vertically centred. It sat at 20% for a long time
+    // because the patient shell's sidebar is 288px, which at 1440 is 20% of the
+    // viewport, so a source at the literal edge has its core behind an opaque
+    // column. That is still true and is now the intent: the column is lit from
+    // behind and the ramp spills past it into the content, rather than the core
+    // sitting in the reading area.
+    expect(glow.image, 'the fill light is not anchored at the left edge').toContain('0% 50%');
     // The green IS at its corner, because nothing opaque covers the bottom
     // right — the asymmetry with the fill is the sidebar and nothing else.
     expect(glow.image, 'the green light is not anchored at the bottom right').toContain('99% 99%');

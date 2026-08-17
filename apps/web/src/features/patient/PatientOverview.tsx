@@ -103,7 +103,11 @@ function ChangeCard({ change }: { change: ChangeItem }) {
        that did not finish; a row of equal cards with a little more air in the
        short ones does not read as anything at all, which is the point. */
     <Link to={`/markers/${change.markerId}`} className="rounded-card">
-      <Card interactive>
+      {/* The tight step, not the default one, since the grid went three across
+          (see the note at the grid). It is the same padding the marker result
+          card takes in its own 15rem grid, so the two densest card grids in the
+          product are padded alike rather than each choosing for itself. */}
+      <Card interactive padding="tight">
         {/* No `break-words` anywhere on a marker's name — see MarkerResultCard
             for the failure that rule exists against. `text-balance` decides
             WHICH of the legal breaks to take: greedy line-breaking fitted as
@@ -808,21 +812,28 @@ export function PatientOverview() {
               the date it is compared with, which is the whole of what the
               sentence said.
 
-              ── TWO ACROSS, NOT THREE ──────────────────────────────────────
-              Three columns inside a section that already gives 144px of its
-              width to the rail left each card about 270px at 1440 — narrow
-              enough that a marker's name took three lines while the card below
-              it was mostly empty. These cards hold a name, two figures with an
-              arrow between them, a movement label, a date and a badge; that is
-              a wide, short shape, and forcing it into a third of the column
-              made it a tall, thin one with a hole in it.
+              ── THREE ACROSS AT lg, AND THE OLD OBJECTION IS ANSWERED ──────
+              This was two across, and the argument for it was that three
+              columns inside a section giving 144px of its width to the rail
+              left each card about 270px at 1440: narrow enough that a marker's
+              name took three lines while the card below it was mostly empty.
 
-              THE ROW IS EQUALISED (`.card-row`) AND THE HOLE IS STILL CLOSED,
-              which is what the ragged version could not manage at the same time:
-              the card is a flex column, so one shorter than its neighbour spends
-              the difference on the gaps between its own blocks rather than on a
-              slab of empty card under the last one. */}
-          <div className="card-row mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2">
+              Both halves of that are now handled rather than avoided. The HOLE
+              is closed by `.card-row`, which makes the card a flex column, so a
+              card shorter than its neighbour spends the difference on the gaps
+              between its own blocks instead of on a slab of empty card under
+              the last one. The WIDTH is bought back by the card dropping to the
+              tight padding step, which is the same one the marker result card
+              takes at 15rem and returns roughly 30px of content width per card.
+              Two cards at half a wide column were oversized for what they hold:
+              a name, two figures with an arrow between them, a movement label,
+              a date and a badge.
+
+              THREE, THEN TWO, THEN ONE. `lg` is where the content column is
+              wide enough for three; below it the pair reads properly and below
+              `sm` a single column is the only honest answer. Nothing about the
+              card's internal layout changes at any of them. */}
+          <div className="card-row mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {data.changes.map((change, i) => (
               <Reveal key={change.markerId} delay={staggerDelay(i)}>
                 <ChangeCard change={change} />

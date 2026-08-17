@@ -133,7 +133,7 @@
      One light gives a page a DIRECTION. Two give it DEPTH — and the second has
      to differ in hue, or the pair reads as one wash that happens to be wide,
      which is exactly the failure the original two radials had. So there is a
-     warm KEY at the top right and a cooler, quieter FILL at the middle left:
+     KEY at the top centre and a cooler, quieter FILL at the left edge:
      teal in dark, slate in light. See `--c-glow-2` in tokens.ts for why the hue
      changes between the themes and why teal is refused on cream.
 
@@ -144,22 +144,28 @@
      source per theme (`--glow-1` / `--glow-2`, from GLOW in tokens.ts). Four
      hand-written gradients would drift; this cannot.
 
-     ── THE FILL IS AT 20% 50%: BESIDE THE SIDEBAR, NOT UNDER THE PAGE ─────
+     ── THE TWO SOURCES MOVED AGAIN (Aug 2026): 50% 0% AND 0% 50% ──────────
+
+     The key is horizontally centred and hard against the top edge, so the page
+     reads as lit from above rather than from over one shoulder. The fill is at
+     the left edge, vertically centred, so it arrives from beside the page.
+     Colours, radii, ramps and peaks are all untouched: this is the anchors and
+     nothing else. The vignette moved WITH the key, because it is the same
+     radial run the other way and an unanchored vignette is a photographic
+     effect rather than the absence of a light.
+
+     ── AND THE OLD 20% IS NOW THE INTENT RATHER THAN THE CONSTRAINT ────────
 
      It was at 4% 99%, which is where a light in the bottom-left corner belongs
      — and on a screenshot of the signed-in shell it was INVISIBLE. The patient
      sidebar is 288px wide, which at 1440 is 20% of the viewport, and it is a
      pane at 78% of an opaque colour: so the only genuinely bright part of the
      ramp, the core, was behind a column and the second light existed nowhere
-     the reader could see it. Anchored at 20% the core sits just clear of the
-     sidebar's edge and the ellipse spills across the content.
-
-     ── AND THE Y MOVED TO THE MIDDLE (Aug 2026): 98% → 50% ────────────────
-     Same colour, same radii, same peak; only the anchor. A source in the
-     bottom-left CORNER reads as light coming from under the page, which is not
-     something a room does — at the vertical centre it reads as light standing
-     BESIDE the navigation rail, which is what that column looks lit by. The x
-     is untouched and is still the load-bearing half of the position.
+     the reader could see it. At 0% the core is behind that column again, and
+     this time that is the point: the rail is lit from behind, and what crosses
+     the reading area is the TAIL of the ramp rather than its head. The failure
+     the 20% was written against was a second light nobody could see anywhere;
+     a ramp that spills past the column is not that.
 
      Moving it inward puts more of the page in the TAIL of the ramp rather than
      near its head, which is why `GLOW.secondary` in dark is 0.26 rather than
@@ -210,7 +216,7 @@
     pointer-events: none;
     background-image:
       radial-gradient(
-        88% 80% at 96% 1%,
+        88% 80% at 50% 0%,
         rgb(var(--c-glow) / var(--glow-1)) 0%,
         rgb(var(--c-glow) / calc(var(--glow-1) * 0.7)) 9%,
         rgb(var(--c-glow) / calc(var(--glow-1) * 0.4125)) 19%,
@@ -222,7 +228,7 @@
         rgb(var(--c-glow) / 0) 100%
       ),
       radial-gradient(
-        88% 80% at 20% 50%,
+        88% 80% at 0% 50%,
         rgb(var(--c-glow-2) / var(--glow-2)) 0%,
         rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.7)) 9%,
         rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.4125)) 19%,
@@ -392,7 +398,7 @@
   .dark body::before {
     background-image:
       radial-gradient(
-        88% 80% at 96% 1%,
+        88% 80% at 50% 0%,
         rgb(var(--c-glow) / var(--glow-1)) 0%,
         rgb(var(--c-glow) / calc(var(--glow-1) * 0.7)) 9%,
         rgb(var(--c-glow) / calc(var(--glow-1) * 0.4125)) 19%,
@@ -404,7 +410,7 @@
         rgb(var(--c-glow) / 0) 100%
       ),
       radial-gradient(
-        88% 80% at 20% 50%,
+        88% 80% at 0% 50%,
         rgb(var(--c-glow-2) / var(--glow-2)) 0%,
         rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.7)) 9%,
         rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.4125)) 19%,
@@ -438,7 +444,7 @@
          the corner the vignette reaches hardest after the bottom left, which is
          why its peak is the third of the four rather than the second. */
         radial-gradient(
-          150% 140% at 96% 1%,
+          150% 140% at 50% 0%,
           rgb(var(--c-shadow) / 0) 0%,
           rgb(var(--c-shadow) / 0) 45%,
           rgb(var(--c-shadow) / 0.03) 65%,
@@ -1043,7 +1049,7 @@
 
   /* THE SHEEN. 208deg runs from the top-right corner down to the bottom-left,
      which is the direction the light actually comes from: the glow is anchored
-     at 96% 1% of the viewport and this column is against the left edge, so its
+     at 50% 0% of the viewport and this column is against the left edge, so its
      own top-right corner is the part nearest the source.
 
      Five stops rather than two, for the same reason the glow itself has eight:
@@ -1187,7 +1193,7 @@
   }
 
   /* 208° runs from the top-right corner down to the bottom-left, which is the
-     direction the KEY light actually comes from: it is anchored at 96% 1% of
+     direction the KEY light actually comes from: it is anchored at 50% 0% of
      the viewport, so the top-right of any pane is the part nearest it.
 
      Five stops rather than two, for the same reason the glows have nine: a

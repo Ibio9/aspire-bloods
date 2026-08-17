@@ -95,8 +95,8 @@ Plex / Plex Mono are untouched — this pass is colour, surface, depth and shape
 argument and the "a light must be a SOURCE" reasoning there are all still
 correct and still the reason this works; the count, the hues and the peaks moved.
 
-    key      96% 1%    #DDF0F4 dark · #6CB6C6 light   0.40 / 0.13
-    fill     20% 50%   #7BA6F2 dark · #5E7FD6 light   0.38 / 0.11
+    key      50% 0%    #DDF0F4 dark · #6CB6C6 light   0.40 / 0.13
+    fill     0% 50%    #7BA6F2 dark · #5E7FD6 light   0.38 / 0.11
     green    99% 99%   #8FE3AE dark · #57B584 light   0.32 / 0.10
     ribbon   diagonal  #DCEAFF dark · #8FB0D8 light   0.15 / 0.055
 
@@ -111,18 +111,28 @@ lowest channel, so no alpha of it over any surface can arrive at the shape of a
 STATUS colour. An ambient green in the corner of a results page is the one
 ambient decision capable of being read as a finding. Asserted.
 
-**THE GREEN IS AT ITS CORNER AND THE FILL IS NOT, IN EITHER AXIS.** The x is the
-sidebar: 288px of opaque column sits over the left edge, which at 1440 is 20% of
-the viewport, so a light anchored there has its core behind it. Nothing covers
-the bottom right, so the green is where it looks like it is.
+**⚠ THE POSITIONS HAVE MOVED THREE TIMES AND THE COLOURS HAVE NOT MOVED ONCE.**
+Key: 96% 1% (top right) to 50% 0% (top centre), so the page reads as lit from
+above rather than from over one shoulder. Fill: 20% 98% (bottom left) to 20% 50%
+to 0% 50% (the left edge, vertically centred), so it arrives from beside the page
+rather than from under it. Green and ribbon are where they were. Every colour,
+radius, ramp and peak is untouched through all of it, and nothing derived from
+any of these tokens moved: the viewport sampler re-finds the worst ground at the
+new positions on its own, which is the check that makes moving a source cheap.
 
-**⚠ AND THE FILL'S Y MOVED 98% → 50% (Aug 2026).** Same colour, same radii, same
-peak; only the anchor. A source in the bottom-left CORNER reads as light coming
-from under the page, which is not something a room does; at the vertical centre
-it reads as light standing BESIDE the navigation rail, which is what that column
-looks lit by. Nothing derived from the token moved, and the viewport sampler
-re-found the worst ground at the new position on its own — which is the check
-that makes moving a source cheap.
+**AND THE VIGNETTE MOVES WITH THE KEY, WHICH IS NOT A SEPARATE DECISION.** It is
+the same radial run the other way, so the page darkens with distance FROM the
+light. Left where it was it would darken with distance from a light that is no
+longer there, which is a photographic effect applied to a document.
+
+**⚠ THE FILL'S 20% WAS THERE FOR A REASON AND THAT REASON IS NOW THE INTENT.**
+The patient shell's sidebar is 288px, which at 1440 is 20% of the viewport, so a
+source at the literal edge has its CORE behind an opaque column. That was written
+against a real failure: at 4% 99% the second light existed nowhere the reader
+could see it. At 0% 50% the column is lit from BEHIND and what crosses the
+reading area is the tail of the ramp rather than its head, which is a different
+thing from invisible. The green is still at its own corner because nothing
+opaque covers the bottom right.
 
 **THE RIBBON IS FIVE BLOBS ON A BOWED DIAGONAL, ON `html::before`.** A slow
 curved sweep from the top left to the bottom right, in the spirit of the XMB
@@ -3426,7 +3436,25 @@ it: at four rows in the two-line arrangement it overflowed.
   marker IS before they are told who to ring about it — the definition is
   context for the prompt, not a footnote to it.
 
-# "What's changed" is two cards across (Aug 2026)
+# "What's changed" is THREE cards across (Aug 2026)
+
+⚠ **IT WAS TWO, AND THE NOTE BELOW IS THE ARGUMENT FOR TWO.** Both halves of it
+are now handled rather than avoided, which is why the number changed:
+
+- the HOLE a stretched short card drew is closed by `.card-row` (the card is a
+  flex column, so the slack falls between its blocks), which the note below
+  already records at its head;
+- the WIDTH is bought back by the card taking the TIGHT padding step, the same
+  one the marker result card takes in its own 15rem grid. Two cards at half a
+  wide column were oversized for what they hold.
+
+`grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`: three where the content column has
+room, two below that, one below `sm`. Nothing about the card's internal layout
+changes at any of them, and the marker-name checks in
+`e2e/marker-name-wrapping.spec.ts` run over this section, so a name that stops
+fitting fails as a name rather than as a column count.
+
+
 
 ⚠ **THE "EACH ITS OWN HEIGHT" HALF IS REVERSED** — see `.card-row` near the top
 of this file. The WIDTH argument below is untouched and is still why this section
