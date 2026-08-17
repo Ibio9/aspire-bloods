@@ -355,6 +355,90 @@ function okChroma(hex: string): number {
 }
 
 /**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  BLENDING TWO STATUS COLOURS PERCEPTUALLY — AND WHY `mix()` CANNOT (Aug 2026)
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * `mix()` interpolates in sRGB, which is the right tool for a wash (a surface
+ * plus a little of a hue) and the wrong one for the HINGE between two status
+ * colours. A straight line between two sRGB points passes through the middle of
+ * the cube, and the middle of the cube is grey: the sRGB midpoint of the green
+ * band and a clean yellow is **#cdae62**, a dull gold that is less colourful
+ * than either of the colours it joins. That is the whole of "green to yellow
+ * passes through a dull olive" — a fact about the interpolation space, not about
+ * either endpoint, and it survives any choice of yellow.
+ *
+ * OKLab is built so that a straight line between two colours holds its
+ * colourfulness, and its POLAR form (OKLCH) is what actually walks the hue round
+ * rather than cutting the corner off it: lightness and chroma interpolate
+ * linearly, and the hue takes the SHORTER of the two arcs between them. Measured
+ * on the same pair: **#cbcc55**, which is a bright yellow-green — the colour a
+ * reader expects halfway between a green and a yellow.
+ *
+ * ⚠ THE HUE ARC IS THE PART THAT HAS TO BE SHORT. Taking the long way round
+ * between green (~130°) and yellow (~100°) is a 330° journey through blue,
+ * magenta and red, which would draw a rainbow along a reference bound. Every
+ * pair this is used on is well under 180° apart, so the shorter arc is the
+ * obvious one — and it is written down rather than assumed, because the day
+ * somebody blends two colours that are nearly opposite it stops being obvious.
+ */
+type OKLab = [number, number, number];
+
+function srgbToLinear(v: number): number {
+  const c = v / 255;
+  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+}
+
+function linearToSrgb(v: number): number {
+  const c = v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055;
+  return Math.min(255, Math.max(0, c * 255));
+}
+
+function hexToOklab(hex: string): OKLab {
+  const [r, g, b] = hexToRgb(hex).map(srgbToLinear);
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  return [
+    0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+    1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+    0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s,
+  ];
+}
+
+function oklabToHex([L, A, B]: OKLab): string {
+  const l = (L + 0.3963377774 * A + 0.2158037573 * B) ** 3;
+  const m = (L - 0.1055613458 * A - 0.0638541728 * B) ** 3;
+  const s = (L - 0.0894841775 * A - 1.2914855480 * B) ** 3;
+  return rgbToHex([
+    linearToSrgb(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s),
+    linearToSrgb(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s),
+    linearToSrgb(-0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s),
+  ]);
+}
+
+/**
+ * `t` of the way from `a` to `b` IN OKLCH — lightness and chroma linear, hue
+ * along the shorter arc. The one blend operation the status colours use.
+ */
+export function oklchMix(a: string, b: string, t: number): string {
+  const [la, aa, ba] = hexToOklab(a);
+  const [lb, ab, bb] = hexToOklab(b);
+  const ca = Math.hypot(aa, ba);
+  const cb = Math.hypot(ab, bb);
+  const ha = Math.atan2(ba, aa);
+  const hb = Math.atan2(bb, ab);
+  // The shorter arc, in radians. See the warning above.
+  let dh = hb - ha;
+  if (dh > Math.PI) dh -= 2 * Math.PI;
+  if (dh < -Math.PI) dh += 2 * Math.PI;
+  const L = la + (lb - la) * t;
+  const C = ca + (cb - ca) * t;
+  const H = ha + dh * t;
+  return oklabToHex([L, Math.cos(H) * C, Math.sin(H) * C]);
+}
+
+/**
  * THE CEILING ON A BAND FILL'S COLOURFULNESS, PER HUE — and it is not a number
  * anybody typed in.
  *
@@ -517,7 +601,7 @@ export const statusHue = {
    * name on it, which is what drew a chartreuse stripe along a reference bound
    * the last time one was chosen independently.
    */
-  olive: '#A4A021',
+  olive: '#A7AF36',
   /**
    * ── A CLEAN YELLOW, SET DELIBERATELY (Aug 2026) ──────────────────────────
    *
@@ -540,7 +624,7 @@ export const statusHue = {
    * gauge reading green, olive, gold; the hue is what stops the gold reading
    * brown. Neither alone was enough, which is why this had come back twice.
    */
-  yellow: '#EAB308',
+  yellow: '#F5CE3E',
   /** The hinge at a SIGNIFICANTLY-OUT THRESHOLD — never a state. */
   orange: '#C4711F',
   /** Warm brick-red. Unmistakably red, never a web #f00 alert. */
@@ -969,7 +1053,19 @@ const DARK_HUE_LIFT: Record<StatusHue, number> = { green: 0.2, olive: 0.15, yell
  * mark still standing off its own band.
  */
 const DARK_FILL = { band: 0.46, track: 0.78, edge: 0.94 } as const;
-const DARK_FILL_HUE: Record<StatusHue, number> = { green: 1, olive: 0.9, yellow: 0.82, orange: 0.9, red: 1.08 };
+// ── YELLOW 0.82 → 0.7 AND OLIVE 0.9 → 0.8 (Aug 2026) ───────────────────────
+// A per-hue multiplier corrects for the four hues not starting at the same
+// luminance, and two of them started somewhere else when the status yellow went
+// to a clean #F5CE3E and the olive hinge followed it. Both are LIGHTER now, so
+// their dark KEY SWATCHES came up with them and the boundary hairline drawn
+// across each fell under its 1.3:1 floor — 1.19 on yellow, 1.29 on olive. That
+// is a boundary you cannot see, on the one surface where a boundary has to
+// survive greyscale. 0.7 and 0.8 put them at 1.43 and 1.48.
+//
+// ⚠ THIS IS THE 18×12 KEY SWATCH IN MultiTrendChart AND NOTHING ELSE. The GAUGE
+// paints `--c-hue-*-fill`, which is the hue itself and carries no multiplier —
+// see BAND_FILL. A change here cannot darken the arc.
+const DARK_FILL_HUE: Record<StatusHue, number> = { green: 1, olive: 0.8, yellow: 0.7, orange: 0.9, red: 1.08 };
 
 /**
  * ---------------------------------------------------------------------------
@@ -1180,7 +1276,7 @@ const BAND_FILL: Record<'green' | 'yellow' | 'red' | 'optimal', BandFill> = {
   // is 0.1374 rather than 0.1194, and holding that at the same contrast costs
   // four points of HSL lightness. Measured: #d1aa33, 1.85:1, okC 0.1377 — a 15%
   // gain in colourfulness with no change to where it lands on the ladder.
-  yellow: { saturation: 0.63, lightness: 0.508 }, // #d1aa33, 1.85:1, okC 0.1377
+  yellow: { saturation: 0.902, lightness: 0.602 }, // #f5ce3e, 1.24:1, okC 0.1682
   red: { saturation: 0.75, lightness: 0.678 }, // #ea7f6f, 2.25:1, okC 0.1348
   // The optimal narrowing: the same green, one small step deeper. 1.15:1 off
   // the in-range band — a visible shading-in, nothing like a boundary.
@@ -1863,17 +1959,17 @@ const SOLVED: Record<'light' | 'dark', SolvedTokens> = {
    * old value's exact luminance for precisely this reason. See the note there.
    */
   light: {
-    line: { green: '#507e2c', olive: '#727716', yellow: '#947000', orange: '#ab5c1b', red: '#c14836' },
-    wash: { green: '#dce5d5', olive: '#eae9d0', yellow: '#f9edca', orange: '#f1e0cf', red: '#edd4d1' },
-    track: { green: '#a1bb8c', olive: '#c9c77e', yellow: '#f2d26f', orange: '#dcac7d', red: '#d28c82' },
-    label: { green: '#3d572c', yellow: '#635013', red: '#8f3225' },
+    line: { green: '#507e2c', olive: '#70781a', yellow: '#8f7208', orange: '#a85d1f', red: '#c14836' },
+    wash: { green: '#dce5d5', olive: '#ebedd4', yellow: '#fbf3d6', orange: '#f1e0cf', red: '#edd4d1' },
+    track: { green: '#a1bb8c', olive: '#cbd08a', yellow: '#f8e28f', orange: '#dcac7d', red: '#d28c82' },
+    label: { green: '#3d572c', yellow: '#675a27', red: '#8f3225' },
     bound: '#93a0b5',
   },
   dark: {
-    line: { green: '#6b9948', olive: '#a9a424', yellow: '#e6ae00', orange: '#e38929', red: '#e06452' },
-    wash: { green: '#2f362a', olive: '#32311e', yellow: '#362c0e', orange: '#3e3124', red: '#483431' },
-    track: { green: '#435931', olive: '#4c4a01', yellow: '#4d3a00', orange: '#73471c', red: '#905248' },
-    label: { green: '#80ae5b', yellow: '#e6ae00', red: '#fa7d6b' },
+    line: { green: '#6b9948', olive: '#a3a324', yellow: '#dbad00', orange: '#de8929', red: '#e06452' },
+    wash: { green: '#2f362a', olive: '#2d2f1b', yellow: '#2e2811', orange: '#3e3124', red: '#483431' },
+    track: { green: '#435931', olive: '#424601', yellow: '#3f3200', orange: '#73471c', red: '#905248' },
+    label: { green: '#80ae5b', yellow: '#dbad00', red: '#fa7d6b' },
     bound: '#5a6272',
   },
 };
@@ -2253,6 +2349,19 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * hue — see BAND_FILL. Olive is exactly half of the green fill and the gold
    * one; orange is exactly half of the gold and the red. That is the claim a
    * boundary blend makes, made where the blend is actually drawn.
+   *
+   * ── AND "HALF" IS MEASURED IN OKLCH NOW, NOT IN sRGB (Aug 2026) ──────────
+   *
+   * The claim was always "a result sitting exactly on the limit is drawn exactly
+   * half in each colour". `mix()` made that claim in sRGB, where a straight line
+   * between two colours passes through the middle of the cube — and the middle
+   * of the cube is grey. Measured on the green fill and the clean yellow:
+   * sRGB's midpoint is **#cdae62**, a dull gold LESS colourful than either
+   * endpoint, which is the whole of "green to yellow passes through olive".
+   * OKLCH's is **#c9d165**, a bright yellow-green.
+   *
+   * The claim is unchanged; the space it is measured in is one where "half"
+   * means what a reader thinks it means. See `oklchMix`.
    */
   const bandFill = (hue: 'green' | 'yellow' | 'red' | 'optimal'): string => {
     const { saturation, lightness } = BAND_FILL[hue];
@@ -2262,8 +2371,8 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
     green: bandFill('green'),
     yellow: bandFill('yellow'),
     red: bandFill('red'),
-    olive: mix(bandFill('green'), bandFill('yellow'), 0.5),
-    orange: mix(bandFill('yellow'), bandFill('red'), 0.5),
+    olive: oklchMix(bandFill('green'), bandFill('yellow'), 0.5),
+    orange: oklchMix(bandFill('yellow'), bandFill('red'), 0.5),
   };
 
   /**

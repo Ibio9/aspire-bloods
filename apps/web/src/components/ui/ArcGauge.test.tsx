@@ -202,6 +202,43 @@ describe('the ring', () => {
     expect(style, 'the arc carries a filter').not.toMatch(/filter:/);
   });
 
+  /**
+   * ═══ THE RAMP IS INTERPOLATED PERCEPTUALLY (Aug 2026) ══════════════════
+   *
+   * Green met yellow through a dull olive, and after the yellow itself was
+   * replaced it STILL did — because the dip is a property of the interpolation
+   * space rather than of either endpoint. A straight line between two sRGB
+   * points passes through the middle of the cube and the middle of the cube is
+   * grey.
+   *
+   * Two things answer it and the test holds both, because either alone is
+   * weaker than it looks: the hinge STOPS are OKLCH midpoints (asserted in
+   * tokenContrast.test.ts, where the hexes are), and the gradient BETWEEN the
+   * stops is interpolated `in oklch` where the browser can. The sRGB string is
+   * the fallback and must still be emitted — `background: var(--x)` resolving
+   * to something unparseable falls back to the property's INITIAL value, not to
+   * the previous declaration, so a single oklch-only paint is an invisible
+   * gauge on every browser that cannot read it.
+   */
+  it('offers both a perceptual ramp and an sRGB fallback, with identical stops', () => {
+    const html = renderToStaticMarkup(<ArcGauge value={4.8} low={3.8} high={5.8} status="IN_RANGE" />);
+    const style = ringStyle(html);
+    const srgb = style.match(/--ring-paint:\s*(conic-gradient\([^;"]*\))/);
+    const oklch = style.match(/--ring-paint-oklch:\s*(conic-gradient\([^;"]*\))/);
+    expect(srgb, 'the sRGB fallback ramp is not emitted').not.toBeNull();
+    expect(oklch, 'the perceptual ramp is not emitted').not.toBeNull();
+    expect(oklch![1]).toContain('conic-gradient(in oklch from');
+    expect(srgb![1], 'the fallback is not plain sRGB').not.toContain('in oklch');
+    // ONE STOP LIST. The two differ by the interpolation keyword and by nothing
+    // else — two hand-maintained ramps would drift, and the one that drifted
+    // would be the one almost nobody renders.
+    expect(oklch![1].replace('in oklch ', '')).toBe(srgb![1]);
+    // The paint reaches the element as a custom property so `@supports` in
+    // globals.css can choose between them; an inline `background` could not be
+    // overridden by a stylesheet without `!important`.
+    expect(style, 'the ring paints from an inline background again').not.toMatch(/(^|;)\s*background:/);
+  });
+
   it('cuts the annulus with a stroked circle rather than a feathered radial', () => {
     // THE MEASUREMENT THIS REPLACED: `radial-gradient(… transparent 84.87%, #000
     // 87.44%, #000 99%, transparent 100%)` ramped over 2.57 points of radius at

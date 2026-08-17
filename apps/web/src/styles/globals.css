@@ -1224,6 +1224,38 @@
 
      ⚠ NOT FOR A GRID OF CONTROLS. It stretches an Input's wrapper to the
      tallest cell, which is a taller label, not a taller field. */
+  /* ── THE ARC GAUGE'S RING, AND WHY ITS PAINT IS NOT AN INLINE STYLE ──────
+     (Aug 2026)
+
+     The component hands over two gradients with IDENTICAL STOPS and one word of
+     difference — `in oklch`. This rule takes the sRGB one; the `@supports` below
+     takes the perceptual one wherever the browser can interpolate a gradient in
+     it.
+
+     WHY IT IS DONE HERE RATHER THAN INLINE. React style objects hold one value
+     per property, so the two-declaration fallback CSS is built for cannot be
+     expressed there — and `background: var(--a); background: var(--b)` does not
+     work either: a `var()` that resolves to something the browser cannot parse
+     is invalid AT COMPUTED-VALUE TIME, which falls back to the property's
+     INITIAL value rather than to the declaration above it. That is no gradient
+     at all, i.e. an invisible gauge on every older browser. `@supports` asks the
+     question at parse time, which is the only place it can be answered safely.
+
+     ⚠ AND THE FALLBACK IS NOT A DEGRADED PICTURE. Every boundary already carries
+     a stop at its own OKLCH midpoint (`FILL.olive` / `FILL.orange` in tokens.ts),
+     so even in sRGB the browser only interpolates across half a blend — 4.5% of
+     the arc — with the correct colour pinned at the centre of it. `in oklch`
+     makes the whole ramp exact rather than three-point-sampled. */
+  .arc-gauge__ring {
+    background: var(--ring-paint);
+  }
+
+  @supports (background: conic-gradient(in oklch, red, blue)) {
+    .arc-gauge__ring {
+      background: var(--ring-paint-oklch);
+    }
+  }
+
   .card-row {
     align-items: stretch;
   }

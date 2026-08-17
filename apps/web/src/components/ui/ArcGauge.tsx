@@ -333,7 +333,21 @@ export function ArcGauge({
         aria-hidden="true"
         style={{
           inset: `${GEO.c - GEO.outer}%`,
-          background: RING_GRADIENT,
+          // ── THE PAINT ARRIVES AS TWO CUSTOM PROPERTIES, NOT AS `background`
+          //
+          // `.arc-gauge__ring` in globals.css takes the sRGB one and then, inside
+          // an `@supports`, the OKLCH one — so a browser that cannot interpolate
+          // a gradient perceptually gets the ramp it always got rather than no
+          // ring at all. That fallback CANNOT be done with two `background`
+          // declarations here: React style objects have one key per property,
+          // and it cannot be done with `background: var(--a); background:
+          // var(--b)` either, because a `var()` that resolves to something
+          // invalid is invalid AT COMPUTED-VALUE TIME and falls back to the
+          // property's initial value rather than to the previous declaration —
+          // i.e. to no gradient. `@supports` asks the question at parse time,
+          // which is the only place it can be answered safely.
+          ['--ring-paint' as string]: RING_GRADIENT,
+          ['--ring-paint-oklch' as string]: RING_GRADIENT_OKLCH,
           // A STROKED CIRCLE, not a feathered radial — see RING_MASK for the
           // measurement and for why a quarter of this ring used to be composited
           // against the card. Nothing in this element has an alpha: the gradient
@@ -824,7 +838,7 @@ function arcPath(fromPct: number, toPct: number, radius: number): string {
  * it is marking. That is the identical rule `bandRampStops` applies in value
  * space, applied here in angle space.
  */
-const RING_GRADIENT = (() => {
+const RING_PAINT = (() => {
   const [green, olive, gold, orange, red] = (['green', 'olive', 'yellow', 'orange', 'red'] as const).map(
     (hue) => hueTint[hue].fill,
   );
@@ -886,5 +900,29 @@ const RING_GRADIENT = (() => {
   // The 90° gap is a HARD STOP rather than a fade: two stops at the same
   // position do not interpolate, which is what keeps the arc from ending in the
   // grey shoulder a fade toward `transparent` would take it through.
-  return `conic-gradient(from ${CONIC_FROM_DEG}deg, ${body}, transparent ${end}%, transparent 100%)`;
+  const tail = `transparent ${end}%, transparent 100%`;
+  return {
+    srgb: `conic-gradient(from ${CONIC_FROM_DEG}deg, ${body}, ${tail})`,
+    /**
+     * ── THE SAME STOPS, INTERPOLATED PERCEPTUALLY (Aug 2026) ───────────────
+     *
+     * `in oklch` is the browser doing between the stops exactly what `oklchMix`
+     * does at the stops: lightness and chroma linear, hue along the shorter arc.
+     * Without it the browser walks a straight line through the sRGB cube, and
+     * the middle of the cube is grey — which is why green→yellow dipped through
+     * a dull olive even after the yellow itself was clean.
+     *
+     * THE HINGE TOKENS ARE THE BELT AND THIS IS THE BRACES, in that order. Each
+     * boundary already carries a stop at its own OKLCH midpoint, so even in the
+     * sRGB fallback below the browser only ever interpolates across half a
+     * blend — 4.5% of the arc — with the correct colour pinned at the centre.
+     * Where `in oklch` is supported the whole ramp is exact rather than
+     * three-point-sampled. `@supports` in globals.css decides which is used, so
+     * the fallback is the ramp that already shipped rather than no ring at all.
+     */
+    oklch: `conic-gradient(in oklch from ${CONIC_FROM_DEG}deg, ${body}, ${tail})`,
+  };
 })();
+
+const RING_GRADIENT = RING_PAINT.srgb;
+const RING_GRADIENT_OKLCH = RING_PAINT.oklch;

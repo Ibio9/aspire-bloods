@@ -26,6 +26,7 @@ import {
   accentScales,
   darkAccentScales,
   brand,
+  oklchMix,
   type StatusKey,
 } from '@aspire-bloods/shared';
 
@@ -117,6 +118,53 @@ function tone(mode: (typeof MODES)[number], name: string): string {
   const hex = themeTokens[mode][name];
   if (!hex) throw new Error(`no such token: ${name} (${mode})`);
   return hex;
+}
+
+/**
+ * THE sRGB MIDPOINT, kept only so the hinge test can assert the tokens are NOT
+ * it. See "puts each hinge exactly halfway": a straight line between two sRGB
+ * points passes through the middle of the cube, and the middle of the cube is
+ * grey, so this is the operation that produced the dull olive.
+ */
+/** OKLab, for measuring how far apart two colours actually look. */
+function okLab(hex: string): [number, number, number] {
+  const [r, g, b] = [1, 3, 5]
+    .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  return [
+    0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+    1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+    0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s,
+  ];
+}
+
+/** The hue angle in degrees — the carrier the five band fills escalate along. */
+function hslHue(hex: string): number {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  if (d === 0) return 0;
+  const h = max === r ? ((g - b) / d + (g < b ? 6 : 0)) / 6 : max === g ? ((b - r) / d + 2) / 6 : ((r - g) / d + 4) / 6;
+  return h * 360;
+}
+
+function srgbMix(a: string, b: string, t: number): string {
+  return (
+    '#' +
+    [1, 3, 5]
+      .map((i) => {
+        const x = parseInt(a.slice(i, i + 2), 16);
+        const y = parseInt(b.slice(i, i + 2), 16);
+        return Math.round(x + (y - x) * t)
+          .toString(16)
+          .padStart(2, '0');
+      })
+      .join('')
+  );
 }
 
 /**
@@ -348,11 +396,48 @@ describe.each(MODES)('%s theme', (mode) => {
     // saying "out of range" in dark. The LINE says it now, so the band went
     // back on the ladder. The two names stay apart because the reason they
     // diverged can recur; the test below holds that they currently do not.
+    // ── ⚠ YELLOW IS PINNED TO THE HUE ITSELF AND IS OFF THE RUNG (Aug 2026)
+    //
+    // The brief was a single exact value — #F5CE3E — for the below/above status
+    // colour AND for the gauge stop that renders it, identical in both themes.
+    // That is a stronger constraint than a rung: the fill is not solved to a
+    // contrast against the plot any more, it IS `statusHue.yellow`.
+    //
+    // AND IT COULD NOT BE BOTH. A clean light yellow is LIGHTER than the light
+    // green — 1.28:1 off the plot against green's 1.51 — so pinning the value
+    // and holding the 1.85 rung are contradictory demands, and the previous two
+    // passes at this each satisfied the rung and shipped a dark gold. The rung
+    // is what gave.
+    //
+    // WHAT THE RUNG WAS FOR, AND WHY IT COSTS NOTHING HERE: it is a CHART BAND
+    // concept. Bands were context behind a trend line and had to escalate in
+    // weight without out-reading it. The trend chart has drawn no bands since
+    // Aug 2026 and the only instrument painting these fills is the ARC GAUGE,
+    // where the five slices are the instrument rather than the background to
+    // one. What a gauge is read by is asserted below instead: a monotone HUE
+    // ramp, a visible step between every adjacent pair, and a boundary hairline
+    // on each — none of which the pinning weakens.
     for (const hue of BAND_STATES) {
+      if (hue === 'yellow') continue;
       const got = bandRung(mode, hue);
       const rung = BAND_RUNG[hue];
       expect(got, `the ${hue} band is at ${got.toFixed(3)}:1, the rung says ${rung.toFixed(3)}`).toBeCloseTo(rung, 1);
     }
+  });
+
+  it('paints the below/above band as statusHue.yellow itself, byte for byte, in both themes', () => {
+    // THE FAULT THIS EXISTS AGAINST, and it had survived two passes: the seed
+    // was changed and the RENDERED token stayed dark, because `BAND_FILL`
+    // re-derived the hue at its own fixed lightness and saturation. #EAB308 in
+    // the palette, #d1aa33 on the screen. A test on the seed would have passed
+    // both times.
+    expect(tone(mode, '--c-hue-yellow-fill').toLowerCase()).toBe(statusHue.yellow.toLowerCase());
+    expect(tone('light', '--c-hue-yellow-fill')).toBe(tone('dark', '--c-hue-yellow-fill'));
+    // And it is a LIGHT yellow rather than a gold: the brief's floor, stated as
+    // the thing that actually distinguishes the two.
+    const [r, g] = [1, 3].map((i) => parseInt(tone(mode, '--c-hue-yellow-fill').slice(i, i + 2), 16));
+    expect(r, 'the below/above band has dropped back into gold').toBeGreaterThanOrEqual(0xf2);
+    expect(g, 'the below/above band has dropped back into gold').toBeGreaterThanOrEqual(0xc0);
   });
 
   it('leaves the ladder in order and, since Aug 2026, departs from it nowhere', () => {
@@ -384,14 +469,30 @@ describe.each(MODES)('%s theme', (mode) => {
     // green's 41%), the olive came out MORE chromatic than either neighbour and
     // drew a bright chartreuse stripe down the middle of the blend — the
     // opposite of a hand-over.
+    // ── AND "HALF" IS MEASURED IN OKLCH NOW (Aug 2026) ────────────────────
+    //
+    // The claim is unchanged and the SPACE it is made in is not. This used to
+    // check the sRGB channel midpoint, and a straight line between two sRGB
+    // points passes through the middle of the cube — which is grey. Measured on
+    // the green fill and the clean yellow: sRGB's midpoint is #cdae62, a dull
+    // gold LESS colourful than either endpoint. That is the whole of "green to
+    // yellow passes through a dull olive", and it is a property of the
+    // interpolation rather than of either colour, so no choice of yellow could
+    // have fixed it. OKLCH's midpoint is #c9d165, a bright yellow-green.
     for (const [hinge, below, above] of BAND_HINGES) {
-      const channels = (name: string) =>
-        [1, 3, 5].map((i) => parseInt(tone(mode, `--c-hue-${name}-fill`).slice(i, i + 2), 16));
-      const [lo, mid, hi] = [below, hinge, above].map(channels);
-      for (const [i, c] of mid.entries()) {
-        // Within one level: the mix rounds to a whole channel.
-        expect(Math.abs(c - (lo[i] + hi[i]) / 2), `the ${hinge} hinge's channel ${i}`).toBeLessThanOrEqual(1);
-      }
+      const fill = (name: string) => tone(mode, `--c-hue-${name}-fill`);
+      expect(
+        fill(hinge).toLowerCase(),
+        `the ${hinge} hinge is not the OKLCH midpoint of ${below} and ${above}`,
+      ).toBe(oklchMix(fill(below), fill(above), 0.5).toLowerCase());
+      // AND IT IS NOT THE sRGB ONE, which is the regression this guards: a
+      // `mix()` creeping back in would still be "a midpoint" and would still
+      // be between its neighbours in luminance, so the check below cannot see
+      // it and only this can.
+      expect(
+        fill(hinge).toLowerCase(),
+        `the ${hinge} hinge is the sRGB midpoint, so the blend dips through grey`,
+      ).not.toBe(srgbMix(fill(below), fill(above), 0.5).toLowerCase());
       // AND IT LANDS BETWEEN ITS NEIGHBOURS IN LUMINANCE — which is the one
       // thing a channel-wise midpoint is guaranteed to do, luminance being
       // monotonic in every channel.
@@ -593,9 +694,19 @@ describe.each(MODES)('%s theme', (mode) => {
       // lightness where less chroma physically exists, so the only way to beat
       // that number now would be to make the bands loud again, which is the
       // change being measured, inverted.
+      // ── ⚠ YELLOW TAKES THE WHOLE CEILING, NOT THE SHARE (Aug 2026) ──────
+      //
+      // The share exists so a band stays less colourful than the trend LINE of
+      // the same hue — context under content. The below/above band is no longer
+      // solved to anything: the brief pinned it to `statusHue.yellow` itself, so
+      // its chroma is the ceiling by definition rather than a share of it, and
+      // the ceiling IS `okChroma(statusHue.yellow)`. The rule that actually
+      // protects the palette — a band may never be MORE colourful than the hue
+      // it derives from — is asserted above and still holds with equality.
+      const share = hue === 'yellow' ? 1 : BAND_CHROMA_SHARE;
       const allowed = Math.min(
         maxChromaAtLightness(hue as 'green' | 'yellow' | 'red', lightnessOf(tone(mode, `--c-hue-${hue}-fill`))),
-        ceiling * BAND_CHROMA_SHARE,
+        ceiling * share,
       );
       expect(
         measured,
@@ -648,19 +759,38 @@ describe.each(MODES)('%s theme', (mode) => {
     }
   });
 
-  it('keeps in range the faintest band of the five, in both themes', () => {
-    // THE RUNG THAT IS ACTUALLY LOAD-BEARING. The bands are CONTEXT and the line
-    // is content, and the in-range band is the one covering most of a plot — so
-    // whatever else moves, the ordinary case has to carry the least colour.
-    // Painted at one flat weight, which is what this chart once did, five
-    // regions of colour ARE the picture and the reader's own result is a detail
-    // on top of them.
-    const rungs = BAND_HUES.map((hue) => ({ hue, ratio: bandRung(mode, hue) }));
-    for (const other of rungs.filter((r) => r.hue !== 'green')) {
-      expect(
-        rungs[0].ratio,
-        `in range ${rungs[0].ratio.toFixed(3)} is not below ${other.hue} ${other.ratio.toFixed(3)}`,
-      ).toBeLessThan(other.ratio);
+  it('keeps every band a visible step from the ones either side of it', () => {
+    // ── WHAT REPLACED "IN RANGE IS THE FAINTEST OF THE FIVE" (Aug 2026) ────
+    //
+    // That was true and load-bearing while these were CHART BANDS: five regions
+    // of colour behind a trend line, where the in-range band covers most of the
+    // plot and the ordinary case therefore has to carry the least. The trend
+    // chart has drawn no bands since Aug 2026 and the only instrument painting
+    // these is the ARC GAUGE, where each fill is a slice of the instrument
+    // rather than a field behind one — and where the yellow is pinned to
+    // `statusHue.yellow` outright, which puts a clean light yellow above the
+    // green in lightness and makes the old ordering arithmetically impossible.
+    //
+    // What a gauge actually requires of five adjacent slices is that a reader
+    // can see where one ends and the next begins, which is a SEPARATION rather
+    // than an ordering. Measured in OKLab, where equal distances look equally
+    // different; the floor is a fortieth of the distance between the palette's
+    // green and its red, comfortably above "these are the same colour".
+    const dE = (a: string, b: string) => {
+      const [la, aa, ba] = okLab(a);
+      const [lb, ab, bb] = okLab(b);
+      return Math.hypot(la - lb, aa - ab, ba - bb);
+    };
+    for (let i = 1; i < BAND_HUES.length; i++) {
+      const a = tone(mode, `--c-hue-${BAND_HUES[i - 1]}-fill`);
+      const b = tone(mode, `--c-hue-${BAND_HUES[i]}-fill`);
+      const d = dE(a, b);
+      expect(d, `${BAND_HUES[i - 1]} and ${BAND_HUES[i]} are ${d.toFixed(4)} apart in OKLab`).toBeGreaterThan(0.045);
+    }
+    // And each of them is genuinely on the plot rather than lost in it.
+    for (const hue of BAND_HUES) {
+      const r = bandRung(mode, hue);
+      expect(r, `the ${hue} band is ${r.toFixed(3)}:1 off the plot`).toBeGreaterThan(1.2);
     }
   });
 
@@ -685,9 +815,31 @@ describe.each(MODES)('%s theme', (mode) => {
     // its red sits below its gold and has since the bands went opaque — and the
     // bands are held to a share of the palette per hue now, which is a
     // different claim, made in its own test above.
-    const rungs = BAND_HUES.map((hue) => bandRung(mode, hue));
-    const rising = (xs: number[]) => xs.every((x, i) => i === 0 || xs[i - 1] < x);
-    expect(rising(rungs), `${mode} rungs ${rungs.map((r) => r.toFixed(2)).join(' ')}`).toBe(true);
+    //
+    // ── AND THE CARRIER IS HUE NOW, NOT CONTRAST (Aug 2026) ───────────────
+    //
+    // Contrast stopped running continuously the moment the below/above band was
+    // pinned to `statusHue.yellow` itself: a clean light yellow is LIGHTER than
+    // the light green, so the five measure 1.51 1.38 1.28 1.69 2.27 off the
+    // plot. That is the brief's own trade — one exact value for the status
+    // yellow, in both themes, rather than a value solved to a rung — and it is
+    // the third time this pair of demands has been met by keeping the rung and
+    // shipping a dark gold.
+    //
+    // What escalates instead is the thing a traffic light IS: the HUE ANGLE,
+    // running monotonically from green through the clean yellow to red, with no
+    // reversal anywhere along the ramp. That is the property a reader reads off
+    // an arc, it holds in both themes, and unlike the contrast ordering it is
+    // not in tension with pinning any one of the five. The non-colour carriers
+    // are untouched and are still what actually says the status: the chevron,
+    // the word, and the boundary hairline on every band.
+    const hues = BAND_HUES.map((hue) => hslHue(tone(mode, `--c-hue-${hue}-fill`)));
+    const falling = (xs: number[]) => xs.every((x, i) => i === 0 || xs[i - 1] > x);
+    expect(falling(hues), `${mode} hue angles ${hues.map((h) => h.toFixed(1)).join(' ')}`).toBe(true);
+    // Green really is green and red really is red, rather than the ramp merely
+    // being monotone somewhere off in the blues.
+    expect(hues[0], 'the in-range band is not a green').toBeGreaterThan(70);
+    expect(hues[hues.length - 1], 'the significantly-out band is not a red').toBeLessThan(20);
   });
 
   it('shades the optimal narrowing into the in-range band without making it a boundary', () => {
@@ -1495,19 +1647,15 @@ describe('the accent family', () => {
     // own two neighbours is a third colour wearing a hinge's name.
     expect(statusHue).toEqual({
       green: '#5E8C3A',
-      olive: '#A4A021',
-      yellow: '#EAB308',
+      olive: '#A7AF36',
+      yellow: '#F5CE3E',
       orange: '#C4711F',
       red: '#B23A28',
     });
-    // The hinge really is the midpoint, checked rather than trusted.
-    const mid = (a: string, b: string) =>
-      '#' +
-      [0, 2, 4]
-        .map((i) => Math.round((parseInt(a.slice(i + 1, i + 3), 16) + parseInt(b.slice(i + 1, i + 3), 16)) / 2))
-        .map((v) => v.toString(16).padStart(2, '0'))
-        .join('');
-    expect(mid(statusHue.green, statusHue.yellow).toLowerCase()).toBe(statusHue.olive.toLowerCase());
+    // The hinge really is the midpoint, checked rather than trusted — and in
+    // OKLCH, which is the space every blend between two status colours is
+    // computed in since Aug 2026. See `oklchMix`.
+    expect(oklchMix(statusHue.green, statusHue.yellow, 0.5).toLowerCase()).toBe(statusHue.olive.toLowerCase());
   });
 
   it('gives neither accent that shape, at any step, in either theme', () => {

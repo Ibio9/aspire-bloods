@@ -76,33 +76,84 @@ dark surface, so warming it is a dark-mode change wearing a light-mode label.
 active nav); note that it is a cool slate today rather than a warm bronze, and the
 key is a role name.
 
-## The yellow status colour was replaced (Aug 2026)
+## The status yellow is #F5CE3E and the gauge paints it, byte for byte (Aug 2026)
 
-`statusHue.yellow` **#C79A16 → #EAB308**, and `olive` **#939328 → #A4A021** with
-it. Two faults, and only one of them was the hue:
+**IT TOOK THREE PASSES AND THE FIRST TWO CHANGED THE WRONG THING.** There are two
+yellows and only one of them renders. `statusHue.yellow` is the SEED; the gauge
+paints `--c-hue-yellow-fill`, which `BAND_FILL` **re-derived from the seed at its
+own fixed lightness and saturation**. So the seed went #C79A16 → #EAB308 and the
+screen went #cbab4c → #d1aa33 — still a dark gold, both times, and a test on the
+seed would have passed both times.
 
-- **THE HUE.** Every band fill is bounded by `bandChromaCeiling` — the
-  colourfulness of the brand hue it derives from — so a dull seed caps how clean
-  the band can ever be, and no re-solve of the BAND could lift it. 0.1405 →
-  0.1617 of OKLab chroma at the same 45° angle. `BAND_FILL.yellow` re-solved to
-  `{ saturation: 0.63, lightness: 0.508 }`: **#cbab4c → #d1aa33**, +15% chroma,
-  **the rung unchanged at 1.85:1**, so the ladder and the boundary hairline over
-  it are where they were.
-- **THE GEOMETRY, IN `ArcGauge`.** `NOMINAL` **0.2 → 0.045**. At 0.2 the nominal
-  was wider than every gap, so each blend was clamped to half the distance to its
-  neighbour — which sounds conservative and is the opposite: it made every blend
-  as wide as it could be. The green→gold transition spanned **19% of the arc**
-  with olive at its centre, and the midpoint of green and gold is olive by
-  arithmetic. At 0.045 each blend is 9% of the arc and each band has a long flat
-  stretch. The boundary is still at the exact CENTRE of its own blend.
+**THE FILL IS PINNED TO THE HUE ITSELF NOW.** `BAND_FILL.yellow` is
+`{ saturation: 0.902, lightness: 0.602 }`, which is #F5CE3E's own saturation and
+lightness, so `reLightness` returns it unchanged: **`--c-hue-yellow-fill` ===
+`statusHue.yellow`, byte for byte, identical in both themes**, and
+`tokenContrast.test.ts` asserts that identity rather than a derived value. It also
+holds a floor — r ≥ 0xF2, g ≥ 0xC0 — so a future solve cannot walk it back into
+gold without failing.
 
-**OLIVE IS THE MIDPOINT AND IS ASSERTED AS ONE.** A hinge that is not the exact
-RGB midpoint of its own two neighbours is a third colour wearing a hinge's name —
-that is what drew a chartreuse stripe along a reference bound the one time a hinge
-was solved independently. `tokenContrast.test.ts` computes it rather than trusting
-the literal. Orange is untouched. **The chevron shape layer is untouched on every
-status**, and the new yellow drives the "Below range" / "Above range" labels
-(light #635013, dark #e6ae00) as well as the band.
+**⚠ AND PINNING IT COST THE CONTRAST RUNG, DELIBERATELY.** A clean light yellow is
+LIGHTER than the light green: 1.28:1 off the plot against green's 1.51, where the
+rung asked for 1.85. Pinning the value and holding the rung are contradictory, and
+the rung is what gave — because `BAND_CONTRAST` is a CHART BAND concept (bands were
+context behind a trend line and had to escalate in weight without out-reading it),
+the trend chart has drawn no bands since Aug 2026, and the only instrument left
+painting these fills is the ARC GAUGE, where the five slices are the instrument
+rather than the background to one. Three assertions moved with it:
+
+- "in range is the faintest of the five" → **every adjacent pair is a visible
+  step**, measured in OKLab (floor 0.045, all five ≥ 0.0567), and every band
+  stands off the plot.
+- "escalates continuously by contrast" → **escalates continuously by HUE ANGLE**:
+  93.3° 64.4° 47.2° 29.5° 7.8°, strictly falling, green through clean yellow to
+  red. That is what a traffic light IS, it holds in both themes, and unlike the
+  contrast ordering it is not in tension with pinning any one of the five.
+- the chroma SHARE → yellow takes the whole ceiling rather than 85% of it, because
+  it IS the hue. The rule that protects the palette — a band may never be MORE
+  colourful than the hue it derives from — holds with equality.
+
+**EVERY BLEND BETWEEN TWO STATUS COLOURS IS OKLCH NOW, NOT sRGB.** This is the
+other half of "green to yellow olives out", and it is a fact about the
+INTERPOLATION rather than about either endpoint — no choice of yellow could have
+fixed it. A straight line between two sRGB points passes through the middle of the
+cube and the middle of the cube is grey: sRGB's midpoint of the green fill and
+#F5CE3E is **#cdae62**, a dull gold LESS colourful than either endpoint. OKLCH's is
+**#c9d165**, a bright yellow-green. `oklchMix` in tokens.ts is the one blend
+operation (lightness and chroma linear, hue along the SHORTER arc), the hinges are
+computed with it, and the test asserts the hinge equals the OKLCH midpoint AND is
+NOT the sRGB one — because a `mix()` creeping back would still be "a midpoint" and
+would still pass the luminance check.
+
+**AND THE GRADIENT ITSELF INTERPOLATES `in oklch`, WITH AN sRGB FALLBACK.** The
+component emits two ramps with identical stops as `--ring-paint` /
+`--ring-paint-oklch`, and `@supports` in globals.css picks. ⚠ It cannot be done as
+`background: var(--a); background: var(--b)`: a `var()` resolving to something
+unparseable is invalid at COMPUTED-VALUE time, which falls back to the property's
+initial value — no gradient at all — rather than to the declaration above it. The
+fallback is not degraded either: every boundary carries a stop at its own OKLCH
+midpoint, so even in sRGB the browser interpolates across half a blend with the
+correct colour pinned at the centre.
+
+**NOTHING DARKENS THE ARC AT RENDER, AND THAT WAS AUDITED RATHER THAN ASSUMED.**
+No alpha on any stop, no `opacity`, no blend mode, no filter, no track showing
+through (the mask's interior is opaque white), and no overlay — the page grain and
+the pane grain are both `z-index: -1`, behind content. `ArcGauge.test.tsx` reads
+the ring's own inline style and fails on any of them.
+
+**WHAT COULD NOT BE #F5CE3E, AND THE NUMBER.** The status WORD. `#F5CE3E` as text
+on the light card measures **1.50:1** — illegible, and the status word is the one
+piece of text in the product that carries a status colour. It stays solved from the
+new hue against the surfaces it lands on: **light #675a27, dark #dbad00** (6.73:1
+and 7.59:1 on their own cards). Every FIELD of colour is the exact value; the one
+piece of TYPE is derived from it.
+
+`statusHue.olive` **#939328 → #A7AF36**, the OKLCH midpoint of green and the new
+yellow. Orange is untouched as a seed; the gauge's orange hinge is the OKLCH
+midpoint of the yellow and red FILLS (#fca24b). `DARK_FILL_HUE` yellow 0.82 → 0.7
+and olive 0.9 → 0.8, because both key swatches came up with their hues and the
+boundary hairline across them fell under its 1.3:1 greyscale floor. **The chevron
+shape layer is untouched on every status.**
 
 ## Every card in a row is the height of the tallest card in it (Aug 2026)
 
