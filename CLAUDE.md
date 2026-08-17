@@ -11,145 +11,20 @@ Deploy: Vercel (web) + Railway (api, db)
 Live: blood.aspireshield.com · api.blood.aspireshield.com
 
 # Design
-accent #8A5E45 · ink #191512 · surface #E4DED1 · border #C9BCA9
-(the token keys are `bronze` / `espresso` / `cream` / `taupe`, and now mean it again)
+accent #5A6472 · ink #14161A · surface #E7E9ED · border #C7CBD3
+(the token keys are still named `bronze` / `espresso` / `cream` / `taupe`)
 
-⚠ **THE PALETTE IS WARM. IT WENT NEUTRAL FOR A WHILE IN Aug 2026 AND CAME BACK.**
-The section "The palette is warm again" below is the current one and wins over
-any colour claim anywhere else in this file, INCLUDING the section under it
-titled "The palette went neutral", which is kept because its reasoning about
-what is derived and what is not is the reason the return was four hexes again.
-Where a note says brown, bronze, cream, taupe, espresso, gold or "warm", read it
-literally; where a note says slate, cool grey or blue-white, read it as the ROLE
-it names.
+⚠ **THE PALETTE IS NEUTRAL AND COOL. IT WAS WARM UNTIL Aug 2026, AND MOST OF
+THIS FILE STILL DESCRIBES THE WARM ONE.** Where a note below says brown, bronze,
+cream, taupe, espresso, gold or "warm", read it as the ROLE it names — the
+reasoning is almost always still correct and only the hue has moved. The
+retheme is written up under "The palette went neutral" below; that section wins
+over any colour claim anywhere else in this file.
 Match the Aspire Rota sign-in for craft level. No default browser styling anywhere —
 no native selects, no Chrome autofill blue, no native focus rings.
 Reference theaspireclinic.com for register: dark, atmospheric, spacious, restrained.
 
-## The palette is warm again, and the dark page did not come with it (Aug 2026)
-
-**THE COMPLAINT WAS ABOUT LIGHT MODE AND IT WAS A MEASUREMENT.** Light had
-drifted to a flat cool grey theme sitting beside a rich dark one. It is cream,
-warm off-white cards, espresso text and taupe borders again:
-
-    accent    #8A5E45   was slate   #5A6472    warm bronze; carries WHITE at 5.57:1
-    ink       #191512   was         #14161A    warm NEAR-BLACK, ⚠ not the old espresso
-    surface   #E4DED1   was         #E7E9ED    cream; ⚠ its LUMINANCE is load-bearing
-    border    #C9BCA9   was         #C7CBD3    taupe
-
-**THE INK IS THE ONE THAT DID NOT GO BACK, AND THAT IS THE WHOLE DESIGN.**
-`nightBase` is the ink taken 45% to black, so the ink decides whether the dark
-PAGE is a near-black or a brown — and a warm brown ink at 26% luminance
-(`#423c36`) is exactly what produced the viewport Raheel rejected. #191512 is a
-warm near-black: r > g > b, so everything derived from it inherits the warmth,
-and the page lands at **#0F0D0B**, which reads black at a glance and warm on
-inspection. `nightLift` points at the BORDER, so a warm taupe warms every raised
-dark surface (card #24201C) without touching the page. That separation is what
-lets this be had both ways, and it is the thing the neutral section below spends
-its length arguing for.
-
-**THE SURFACE'S LUMINANCE IS THE LOAD-BEARING PART OF IT, NOT ITS HUE.** A card
-is the surface taken 90% to white, so the page→card step IS the gap between this
-and white. #E4DED1 lands it at 1.30:1, where it has always been. The failure
-recorded below at #F3F4F6 (the whole light ladder collapsing to 1.05:1) is
-hue-independent and would happen again at a lighter cream.
-
-**THE STATUS COLOURS ARE STILL UNTOUCHED, AND `PLOT_SURFACE` IS STILL PINNED.**
-`statusHue` is literals, the five band fills are byte-identical in both themes,
-and every ratio in `BAND_CONTRAST` is arithmetically unchanged. Everything in
-`SOLVED` moved and NOTHING in it was picked — a wash is mixed from the card and a
-label solved against the page, all of which moved, and `tokenContrast.test.ts`
-re-runs `solveTokens()` and asserts the literals equal it.
-
-**THREE THINGS OUTSIDE `brand` HAD TO MOVE WITH IT, AND EACH IS ONE THE NEUTRAL
-PASS ALREADY NAMED:**
-
-1. **THE GLOWS ARE DERIVED AGAIN RATHER THAN NAMED.** `--c-glow` was two literal
-   hexes and was therefore the one thing a palette change could not reach — which
-   is how a gold glow survived the neutral retheme and a blue-white glow survived
-   this one, each time as the most visible contradiction on the screen. Both are
-   `reHsl(brand.bronze, …)` / `mix(brand.bronze, brand.cream, …)` now, so the
-   ambient light follows the accent by construction. Light's peaks went 0.10/0.095
-   → **0.13/0.11**, which is as high as the 15% contrast budget allows; the two
-   `theme-color` metas in index.html moved to #E4DED1 / #0e0c0a.
-2. **THE FILL LIGHT IS TEAL IN DARK AND PLUM IN LIGHT AGAIN.** `accent.slate`
-   holds **#6B4260** — the key did not change, exactly as `bronze`/`espresso`/
-   `cream`/`taupe` did not. A cool hue over CREAM desaturates rather than tints,
-   so a teal fill on this page is a grey corner rather than a second lamp; the
-   plum is red-dominant like the key and 69° off it. The two-sources test asserts
-   the SEPARATION per theme rather than a hue, so this is checked, not asserted.
-3. **THE CHART'S BOUNDARY HAIRLINE WAS RE-SWEPT: 0.37 → 0.33.** Same solve, new
-   border tone. The taupe is twice as chromatic as the neutral grey it replaced
-   (23% saturation against 12%) and a more chromatic line at the same lightness
-   carries more weight against a coloured band, so the window moved to 0.32–0.34.
-   ⚠ Re-sweep rather than nudge whenever `brand.taupe` moves.
-
-## Glass, equal rows, the gauge's ground, and the aesthetic pass (Aug 2026)
-
-**THE PANES ARE GLASSIER, AND THE FILL IS NO LONGER WHAT SEPARATES THEM.**
-`GLASS.blur` 20 → **28px** (free — the cost is the EXISTENCE of the backdrop
-pass, not the radius, and that is measured), `GLASS.panel` 0.46/0.42 →
-**0.36/0.34**, and every one of the three sheen effects up with it. Light moved
-furthest because light had the least: a pane's fill and the page under it are
-1.3:1 apart at most, so at 0.46 it was painting half of a colour nearly identical
-to the one it was painting over. **THE PANE HAS TWO SPECULAR STREAKS NOW**, at
-208° and its reciprocal 28°, because the page is lit by two lamps and a pane
-catching only one is lit by a room the reader can see is lit by two. They cannot
-compound: each peaks at 14% of its own axis and is gone by 62%, from opposite
-corners. The marker result cards are still excluded — a status tint refuses the
-pane material in `Card.tsx`.
-
-**⚠ EVERY CARD IN A ROW IS THE HEIGHT OF THE TALLEST CARD IN THAT ROW, WHICH
-REVERSES A RULE THIS FILE ARGUED FOR IN TWO PLACES.** `.card-row` in globals.css
-is the whole of it and it is applied to every card grid. The old rule was
-`items-start` and ragged bottoms, on the reasoning that a stretched short card
-draws its slack as empty card. That is a real failure with a real cause, and the
-cause is not the stretching: it is a card whose CONTENT is pinned to the top of a
-box that grew. `.card-row` makes the card a flex column, so the space lands
-between its blocks. A row of visibly unequal cards reads as a layout that did not
-finish.
-
-**AND THE CLASS IS NOT ONE DECLARATION, WHICH IS THE PART WORTH KNOWING.** A grid
-already stretches its items; what fails is the chain of PASS-THROUGH WRAPPERS
-between the item and the card — an `<li>`, a `Reveal`, and the `<a>` that makes a
-card its own click target. Each sizes to its own content, so the cell is full
-height and the card in it is not, and `align-items: stretch` looks like it is
-doing nothing. Each wrapper is named in the selector rather than reached with a
-descendant, because `height: 100%` on everything inside a card is a different
-bug. ⚠ **DO NOT PUT `.card-row` ON A GRID OF CONTROLS** — it stretches an Input's
-wrapper to the tallest cell.
-
-**THE ARC GAUGE DRAWS ITS RING IN A WELL OF `PLOT_SURFACE`, IN BOTH THEMES.**
-The complaint was that the ramp reads muddied and dark in dark mode, especially
-the gold. The five fills are byte-identical in the two themes and always have
-been — what differed was the GROUND: an arc floating on a near-black card is the
-same gold read against a surface five stops darker than the one it was solved on,
-and a yellow's apparent lightness is most of what identifies it as yellow. It is
-the range bar's own track restored (`chart.plotSurface`, `GEO.well`). The well is
-a conic gradient rather than a flat annulus so it stops where the arc stops; a
-full ring would close the 90° gap and say the scale wraps.
-
-**THE AESTHETIC PASS, AND ALL OF IT IS TOKENS.** Both surface radii up one step
-(card 1rem → **1.25rem**, input 0.625 → **0.75rem**; `mark` is untouched and must
-stay 0.25rem, because an 18px square at 12px of radius is a radio button). Card
-shadows are **three layers now and the third is light**: `inset 0 1px 0` in
-`--c-sheen` at `--card-lip`, so a card catches the ambient light on its own top
-edge — the statement `.glass-panel` makes with its inset edges and the one thing
-an opaque card had no way to make. Per theme (0.6 light / 0.085 dark / 0 in
-print), on the shadow token, so every card gets it and no call site changes;
-tinted cards included, where it is a highlight and carries no status. The
-interactive card lift went from 150ms/half a step to **260ms/a full step** on a
-decelerating curve, with the press still instant.
-
 ## The palette went neutral, and it is four hexes (Aug 2026)
-
-⚠ **SUPERSEDED BY THE TWO SECTIONS ABOVE. THE FOUR HEXES IN HERE ARE NOT THE
-CURRENT ONES** and neither are `--c-glow`, the second accent, the two
-`theme-color` metas or the hairline figure. It is kept in full because its
-ARGUMENT is what made the return to warmth four hexes again rather than a sweep,
-and because the four re-solved numbers at the foot of it are the list of things
-that have to be re-solved whenever the palette moves in either direction.
-Read every number here as history and every reason as current.
 
 **Raheel rejected the warm theme.** The brief was explicit: a clean black/dark
 theme, no brown, no amber, no tan, cool whites and greys, one clean accent,
@@ -447,11 +322,8 @@ which is the fontkit case above and the reason that decision stands.
 tests/pdfGeneration.test.ts pins all of it over real HTTP.
 
 ## Two radii, and only two
-The rule governs SURFACES: `rounded-card` (1.25rem) for surfaces, `rounded-input`
-(0.75rem) for controls, and nothing else. (Both went up one step in Aug 2026: a
-16px corner is the default radius of every framework built since 2020, which is
-the templated reading the aesthetic pass was asked to get away from. The RULE is
-untouched and so is the relationship between the two.) Tailwind's `borderRadius` is
+The rule governs SURFACES: `rounded-card` (1rem) for surfaces, `rounded-input`
+(0.625rem) for controls, and nothing else. Tailwind's `borderRadius` is
 replaced rather than extended, so `rounded-sm`, bare `rounded` and arbitrary
 radii do not exist.
 
@@ -621,9 +493,8 @@ defaults to `glass`; what is opaque is named: **anything carrying a status tint*
 (refused in Card.tsx rather than by convention), the auth card, the mobile
 drawer, and the two CHART cards.
 
-**THE EFFECT IS HARDER.** blur 10 → 20 → **28px**, saturate 1.08 → **1.55**, fill
-0.68/0.62 → 0.46/0.42 → **0.36/0.34** (the second pass, and the pane's two
-specular streaks, are in the glass section near the top of this file). The blur is free — what a backdrop filter costs is the
+**THE EFFECT IS HARDER.** blur 10 → **20px**, saturate 1.08 → **1.55**, fill
+0.68/0.62 → **0.46/0.42**. The blur is free — what a backdrop filter costs is the
 EXISTENCE of the pass, not the radius (2px measured the same as 14px), so the
 only argument for 10px was about a number that turns out not to depend on it.
 The lower fill means **the fill is no longer what separates a pane**: the streak
@@ -2968,12 +2839,7 @@ it: at four rows in the two-line arrangement it overflowed.
   marker IS before they are told who to ring about it — the definition is
   context for the prompt, not a footnote to it.
 
-# "What's changed" is two cards across (Aug 2026)
-
-⚠ **THE "EACH ITS OWN HEIGHT" HALF OF THIS IS REVERSED** — see `.card-row` near
-the top of this file. The WIDTH argument below is untouched and is still the
-reason this section is two across; what changed is that the row is equalised and
-the hole it used to open is closed by the card being a flex column instead.
+# "What's changed" is two cards across, each its own height (Aug 2026)
 
 Three columns inside a section that already gives 144px of its width to the
 rail left each card about 270px at 1440 — narrow enough that a marker's name

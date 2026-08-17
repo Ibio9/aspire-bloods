@@ -89,28 +89,11 @@ function printedNumbers(html: string): string[] {
   return [...html.matchAll(/<span[^>]*\bclass="numeric[^"]*"[^>]*>([^<]*)<\/span>/g)].map((m) => m[1]);
 }
 
-/**
- * The conic gradient THE RING is painted with — selected off the ring's own
- * element rather than by taking the first `conic-gradient` in the markup.
- *
- * ⚠ AND THAT IS THE POINT RATHER THAN TIDINESS. The gauge paints two conic
- * gradients since Aug 2026: the plot-surface WELL the ring sits in, which is
- * drawn first so it lands underneath, and the ring itself. "The first one" was
- * the ring for as long as there was only one, and the moment there were two it
- * silently became a test about the wrong element that went on passing on four of
- * its five assertions.
- */
+/** The conic gradient the ring is painted with. */
 function ringGradientFrom(html: string): string {
-  const ring = html.match(/class="arc-gauge__ring[^"]*"[^>]*?style="[^"]*?(conic-gradient\([^;"]*\))/);
-  expect(ring, 'the gauge did not paint a conic ring').not.toBeNull();
-  return ring![1];
-}
-
-/** The same, for the plot-surface well the ring is drawn in. */
-function wellGradientFrom(html: string): string {
-  const well = html.match(/class="arc-gauge__well[^"]*"[^>]*?style="[^"]*?(conic-gradient\([^;"]*\))/);
-  expect(well, 'the gauge did not paint its plot-surface well').not.toBeNull();
-  return well![1];
+  const m = html.match(/conic-gradient\([^;"]*\)/);
+  expect(m, 'the gauge did not paint a conic ring').not.toBeNull();
+  return m![0];
 }
 
 /**
@@ -176,29 +159,6 @@ describe('the ring', () => {
     // than reaching for the tokens the trend chart and both PDFs already use.
     expect(gradients[0]).not.toMatch(/#[0-9a-f]{3,8}/i);
     expect(gradients[0]).toMatch(/var\(--c-hue-\w+-fill\)/);
-  });
-
-  /**
-   * ── THE WELL: THE GROUND THE FIVE FILLS WERE SOLVED AGAINST (Aug 2026) ────
-   *
-   * The five fills are byte-identical in the two themes and always have been;
-   * what differed was what surrounded them, and an arc floating on a near-black
-   * card is the same gold read against a ground it was never measured on. The
-   * gauge draws its ring in a groove of `PLOT_SURFACE` in BOTH themes, which is
-   * the range bar's own track restored.
-   *
-   * Two things are asserted and both are the failure modes: the well must be
-   * that one token and nothing else (a hue here would be a decorative colour on
-   * a status surface), and it must STOP where the arc stops — a well that ran
-   * the whole turn would close the 90° gap and say the scale wraps.
-   */
-  it('sits in a well of the plot surface, in both themes, and only where the arc is', () => {
-    const well = wellGradientFrom(renderToStaticMarkup(<ArcGauge value={4.8} low={3.8} high={5.8} status="IN_RANGE" />));
-    expect(well).not.toMatch(/#[0-9a-f]{3,8}/i);
-    expect(well).toContain('var(--c-chart-plot-surface)');
-    expect(well).not.toMatch(/var\(--c-hue-/);
-    expect(well).toContain('conic-gradient(from 225deg');
-    expect(well, 'the well does not stop at the foot of the arc').toContain('75.000%, transparent 75.000%');
   });
 });
 

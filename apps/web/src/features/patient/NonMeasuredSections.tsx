@@ -359,7 +359,7 @@ function CategorisedSection({
           <EmptyState title="Nothing matches that search" />
         </div>
       ) : (
-        <div className="card-row mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
           {shownAreas.map(({ c, members }) => (
             // A SECTION CONTAINER, not a result card — a handful per section,
             // each holding many rows, and none of them status-tinted.

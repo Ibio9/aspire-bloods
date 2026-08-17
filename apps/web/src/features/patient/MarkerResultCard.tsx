@@ -87,7 +87,7 @@ import type { MarkerNavState } from './markerNavState';
  * because the bar needs enough width for its segments to be told apart and the
  * panel/date stack below it is three lines rather than one.
  */
-export const MARKER_GRID_CLASS = 'card-row grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-5';
+export const MARKER_GRID_CLASS = 'grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-5';
 
 /** What the card needs, and the intersection of what both views already carry. */
 export interface MarkerCardResult {

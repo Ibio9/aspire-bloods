@@ -108,13 +108,6 @@ const GEO = {
   stroke: 5.5,
   /** How far outside the ring a label's centre sits. */
   labelGap: 3.5,
-  /**
-   * How far the plot-surface well stands proud of the ring, on each side. Wide
-   * enough that the ground round the colour is unambiguously the ground the
-   * colour was solved on, narrow enough that the instrument is still a ring
-   * rather than a disc: 1.2 of the box's 100 units, against a 5.5 stroke.
-   */
-  well: 1.2,
 } as const;
 const RING_INNER = GEO.outer - GEO.stroke;
 /** The centreline of the ring — where the mark rides and where the optimal arc is stroked. */
@@ -316,32 +309,6 @@ export function ArcGauge({
       role="img"
       aria-label={label}
     >
-      {/* ── THE WELL. The ring sits in a groove of `PLOT_SURFACE`, in BOTH
-          THEMES, and this is a correctness fix rather than a decorative one.
-
-          The five band fills are solved against that one surface and are
-          byte-identical in the two themes. What was NOT identical was the ground
-          around them: an arc floating on a near-black card is the same gold read
-          against a ground five stops darker than the one it was measured on, and
-          the eye takes most of the difference out of the gold — which is exactly
-          "the yellow reads as a dark, off yellow in dark mode".
-
-          It is the range bar's own track, restored. The bar drew its five
-          segments on `PLOT_SURFACE` in both themes for this reason and the arc
-          dropped it along with the rectangle. Slightly wider than the ring on
-          both sides, so the colour sits IN it rather than on it, and drawn as
-          the same masked annulus so the two are concentric by construction. */}
-      <div
-        className="arc-gauge__well absolute"
-        aria-hidden="true"
-        style={{
-          inset: `${GEO.c - GEO.outer - GEO.well}%`,
-          background: WELL_GRADIENT,
-          WebkitMaskImage: WELL_MASK,
-          maskImage: WELL_MASK,
-        }}
-      />
-
       {/* THE RING. One conic gradient, cut to an annulus by a radial mask. The
           gap at the bottom is a hard stop inside the gradient rather than a
           second mask, so nothing here depends on `mask-composite`. */}
@@ -672,33 +639,6 @@ const RING_MASK = [
   '#000 99%,',
   'transparent 100%)',
 ].join(' ');
-
-/**
- * The WELL's own annulus — the same construction one step wider on each side,
- * so the two are concentric by arithmetic rather than by two numbers agreeing.
- */
-const WELL_OUTER = GEO.outer + GEO.well;
-const WELL_INNER = RING_INNER - GEO.well;
-const WELL_MASK = [
-  'radial-gradient(closest-side circle at 50% 50%,',
-  `transparent ${(((WELL_INNER - 0.4) / WELL_OUTER) * 100).toFixed(2)}%,`,
-  `#000 ${(((WELL_INNER + 0.4) / WELL_OUTER) * 100).toFixed(2)}%,`,
-  '#000 99%,',
-  'transparent 100%)',
-].join(' ');
-
-/**
- * The well is a conic gradient rather than a flat colour for one reason: it has
- * to STOP where the arc stops. A flat annulus would close the 90° gap at the
- * bottom and turn the arc into a full circle in a pale ring — which says the
- * scale wraps, the one thing the arc's shape exists to deny. Same hard stop at
- * the same fraction of the turn as `RING_GRADIENT`, so the two ends line up.
- */
-const WELL_GRADIENT = (() => {
-  const end = (ARC_SHARE * 100).toFixed(3);
-  const ground = chartTokens.plotSurface;
-  return `conic-gradient(from ${CONIC_FROM_DEG}deg, ${ground} 0%, ${ground} ${end}%, transparent ${end}%, transparent 100%)`;
-})();
 
 /** A hairline crossing the ring at `at` percent of the scale. */
 function radialLine(at: number): { x1: number; y1: number; x2: number; y2: number } {

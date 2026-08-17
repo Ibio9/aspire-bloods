@@ -93,15 +93,13 @@ function MovementArrow({ direction }: { direction: 'UP' | 'DOWN' }) {
 function ChangeCard({ change }: { change: ChangeItem }) {
   const copy = MOVEMENT_COPY[change.movement];
   return (
-    /* ── EQUAL HEIGHTS AGAIN, AND THE OLD ARGUMENT IS ANSWERED RATHER THAN
-       REVERSED (Aug 2026). This card used to refuse `h-full` on the grounds
-       that a stretched short card draws its slack as empty card. That was true
-       of a card whose content was pinned to the top of a box that grew — and it
-       is `.card-row` that fixes it, by making the card a flex column so the
-       space lands between its blocks instead of in one slab under the last one.
-       A row of cards at visibly different heights reads as a layout that did
-       not finish; a row of equal cards with a little more air in the short ones
-       does not read as anything at all, which is the point. */
+    /* NO `h-full`, and that is the fix rather than an omission (Aug 2026).
+       Three cards in a row, each stretched to the tallest of the three, left
+       the short ones with a hand's width of nothing under "In range" — an
+       empty half-card that reads as content that failed to load. A card's
+       height is its own content's; the row is allowed to be ragged along the
+       bottom, which is what a row of unequal things looks like. `items-start`
+       on the grid is the other half of it. */
     <Link to={`/markers/${change.markerId}`} className="rounded-card">
       <Card interactive>
         {/* No `break-words` anywhere on a marker's name — see MarkerResultCard
@@ -315,7 +313,7 @@ export function PatientOverview() {
         <Skeleton className="h-4 w-40" />
         <Skeleton className="mt-4 h-12 w-80" />
         <Skeleton className="mt-4 h-4 w-64" />
-        <div className="card-row mt-10 grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-3">
           {[0, 1, 2].map((i) => (
             <Card key={i}>
               <Skeleton className="h-3 w-24" />
@@ -425,7 +423,7 @@ export function PatientOverview() {
           <h2 id="whats-coming" className="section-heading">
             What happens next
           </h2>
-          <div className="card-row mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
             <Card>
               <p className="eyebrow mb-3">Your account is ready</p>
               <p className="max-w-measure text-reading leading-relaxed text-espresso">
@@ -553,12 +551,11 @@ export function PatientOverview() {
               id={ATTENTION_REGION_ID}
               className={`collapse-region ${attentionOpen ? 'is-open' : ''}`}
             >
-            {/* `.card-row`: every card in a row is the height of the tallest
-                card in it, and the card is a flex column so the extra space
-                falls between its own blocks rather than under the last one. See
-                the class in globals.css for why the ragged version was the
-                wrong answer to a real problem. */}
-            <ul className="card-row grid grid-cols-1 gap-5 lg:grid-cols-2">
+            {/* `items-start`, for the same reason "What's changed" carries it: a
+                card whose marker name wraps to two lines must not set the height
+                of the one beside it and have the difference drawn as empty
+                card. */}
+            <ul className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
               {data.attention.map((item, i) => (
                 <li key={item.markerId}>
                   <Reveal delay={staggerDelay(i)}>
@@ -736,7 +733,7 @@ export function PatientOverview() {
           <h2 id="explore-heading" className="section-heading">
             Go deeper
           </h2>
-          <div className="card-row mt-8 grid grid-cols-1 gap-6 md:grid-cols-3">
+          <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-3">
             {QUICK_ROUTES.map(({ to, label, body, icon: Icon }, i) => (
               <Reveal key={to} delay={staggerDelay(i)} className="h-full">
                 <Link to={to} className="block h-full rounded-card">
@@ -788,12 +785,12 @@ export function PatientOverview() {
               a wide, short shape, and forcing it into a third of the column
               made it a tall, thin one with a hole in it.
 
-              THE ROW IS EQUALISED NOW (`.card-row`) AND THE HOLE IS STILL
-              CLOSED, which is what the ragged version could not manage at the
-              same time: the card is a flex column, so one shorter than its
-              neighbour spends the difference on the gaps between its own blocks
-              rather than on a slab of empty card under the last one. */}
-          <div className="card-row mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2">
+              `items-start` is the half that fixes the hole. A grid stretches
+              its items by default, so the tallest card in a row — the one whose
+              name wrapped — was setting the height of every card beside it, and
+              the space that bought was drawn as empty card rather than as
+              nothing at all. */}
+          <div className="mt-8 grid grid-cols-1 items-start gap-6 sm:grid-cols-2">
             {data.changes.map((change, i) => (
               <Reveal key={change.markerId} delay={staggerDelay(i)}>
                 <ChangeCard change={change} />
