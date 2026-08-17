@@ -133,7 +133,7 @@
      One light gives a page a DIRECTION. Two give it DEPTH — and the second has
      to differ in hue, or the pair reads as one wash that happens to be wide,
      which is exactly the failure the original two radials had. So there is a
-     warm KEY at the top right and a cooler, quieter FILL at the bottom left:
+     warm KEY at the top right and a cooler, quieter FILL at the middle left:
      teal in dark, slate in light. See `--c-glow-2` in tokens.ts for why the hue
      changes between the themes and why teal is refused on cream.
 
@@ -144,15 +144,22 @@
      source per theme (`--glow-1` / `--glow-2`, from GLOW in tokens.ts). Four
      hand-written gradients would drift; this cannot.
 
-     ── THE FILL IS AT 20%, NOT AT THE CORNER, AND THAT WAS MEASURED ───────
+     ── THE FILL IS AT 20% 50%: BESIDE THE SIDEBAR, NOT UNDER THE PAGE ─────
 
      It was at 4% 99%, which is where a light in the bottom-left corner belongs
      — and on a screenshot of the signed-in shell it was INVISIBLE. The patient
      sidebar is 288px wide, which at 1440 is 20% of the viewport, and it is a
      pane at 78% of an opaque colour: so the only genuinely bright part of the
      ramp, the core, was behind a column and the second light existed nowhere
-     the reader could see it. Anchored at 20% 98% the core sits just clear of
-     the sidebar's edge and the ellipse spills across the content.
+     the reader could see it. Anchored at 20% the core sits just clear of the
+     sidebar's edge and the ellipse spills across the content.
+
+     ── AND THE Y MOVED TO THE MIDDLE (Aug 2026): 98% → 50% ────────────────
+     Same colour, same radii, same peak; only the anchor. A source in the
+     bottom-left CORNER reads as light coming from under the page, which is not
+     something a room does — at the vertical centre it reads as light standing
+     BESIDE the navigation rail, which is what that column looks lit by. The x
+     is untouched and is still the load-bearing half of the position.
 
      Moving it inward puts more of the page in the TAIL of the ramp rather than
      near its head, which is why `GLOW.secondary` in dark is 0.26 rather than
@@ -215,7 +222,7 @@
         rgb(var(--c-glow) / 0) 100%
       ),
       radial-gradient(
-        88% 80% at 20% 98%,
+        88% 80% at 20% 50%,
         rgb(var(--c-glow-2) / var(--glow-2)) 0%,
         rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.7)) 9%,
         rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.4125)) 19%,
@@ -370,12 +377,14 @@
 
      ── AND THE VIGNETTE WAS EASED WHEN THE SECOND LAMP ARRIVED (Aug 2026) ──
      It is anchored to the PRIMARY source, so the place it darkens hardest is
-     the bottom-left corner — which is now where the second source is. At its
-     old terminal 0.34 the two were cancelling: the teal came up and the
-     vignette took it straight back down, and the corner read as the shadow
-     tone with a cast on it rather than as a second light. 0.20 leaves the
-     unlit diagonal (top-left, bottom-right) still visibly falling away, which
-     is the whole job, and lets the fill be a fill.
+     the bottom-left corner — which is the far end of the second source's own
+     ramp. At its old terminal 0.34 the two were cancelling: the fill came up
+     and the vignette took it straight back down, and that corner read as the
+     shadow tone with a cast on it rather than as a second light. 0.20 leaves
+     the unlit diagonal still visibly falling away, which is the whole job, and
+     lets the fill be a fill. (The fill's core moved up the side in Aug 2026,
+     which eases this further — its brightest part is now further from the
+     vignette's hardest corner than it was.)
 
      Kept anchored to the primary rather than re-centred: a centred vignette is
      a photographic effect applied to a document, which is the reason it was
@@ -395,7 +404,7 @@
         rgb(var(--c-glow) / 0) 100%
       ),
       radial-gradient(
-        88% 80% at 20% 98%,
+        88% 80% at 20% 50%,
         rgb(var(--c-glow-2) / var(--glow-2)) 0%,
         rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.7)) 9%,
         rgb(var(--c-glow-2) / calc(var(--glow-2) * 0.4125)) 19%,

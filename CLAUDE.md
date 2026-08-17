@@ -96,7 +96,7 @@ argument and the "a light must be a SOURCE" reasoning there are all still
 correct and still the reason this works; the count, the hues and the peaks moved.
 
     key      96% 1%    #DDF0F4 dark · #6CB6C6 light   0.40 / 0.13
-    fill     20% 98%   #7BA6F2 dark · #5E7FD6 light   0.38 / 0.11
+    fill     20% 50%   #7BA6F2 dark · #5E7FD6 light   0.38 / 0.11
     green    99% 99%   #8FE3AE dark · #57B584 light   0.32 / 0.10
     ribbon   diagonal  #DCEAFF dark · #8FB0D8 light   0.15 / 0.055
 
@@ -111,9 +111,18 @@ lowest channel, so no alpha of it over any surface can arrive at the shape of a
 STATUS colour. An ambient green in the corner of a results page is the one
 ambient decision capable of being read as a finding. Asserted.
 
-**THE GREEN IS AT ITS CORNER AND THE FILL IS NOT**, and the asymmetry is the
-sidebar and nothing else: 288px of opaque column sits over the bottom left, so a
-light there has its core behind it. Nothing covers the bottom right.
+**THE GREEN IS AT ITS CORNER AND THE FILL IS NOT, IN EITHER AXIS.** The x is the
+sidebar: 288px of opaque column sits over the left edge, which at 1440 is 20% of
+the viewport, so a light anchored there has its core behind it. Nothing covers
+the bottom right, so the green is where it looks like it is.
+
+**⚠ AND THE FILL'S Y MOVED 98% → 50% (Aug 2026).** Same colour, same radii, same
+peak; only the anchor. A source in the bottom-left CORNER reads as light coming
+from under the page, which is not something a room does; at the vertical centre
+it reads as light standing BESIDE the navigation rail, which is what that column
+looks lit by. Nothing derived from the token moved, and the viewport sampler
+re-found the worst ground at the new position on its own — which is the check
+that makes moving a source cheap.
 
 **THE RIBBON IS FIVE BLOBS ON A BOWED DIAGONAL, ON `html::before`.** A slow
 curved sweep from the top left to the bottom right, in the spirit of the XMB
@@ -172,22 +181,37 @@ mis-solved; the card being dark was the problem.
 
 **SO THE CARD STOPS BEING DARK.** One family, five entries, no theme branch:
 
-    status                plate      light ink   status word
-    In range              #d2f9b3    15.2:1      6.91:1
-    Below / Above range   #f9eab3    14.8:1      5.69:1
-    Significantly out     #f9bcb3    10.9:1      4.86:1
+    status                plate      chroma / hue's own   light ink   status word
+    In range              #c9f9a4    0.121 / 0.124        14.9:1      6.76:1
+    Below / Above range   #f9e7a4    0.087 / 0.158        14.4:1      5.54:1
+    Significantly out     #f9afa4    0.089 / 0.159         9.9:1      4.50:1
 
-**⚠ DEEPENED ONE STEP (Aug 2026), AND THE STATUS WORD IS WHAT BOUNDS IT.** The
-first setting was 0.82 / 0.895 and read as faint pastels — #e2face, #faf1ce,
-#fad4ce, chroma 0.044–0.063. At 0.86 / 0.84 the family carries 0.061–0.100 and
-reads as a tint somebody chose. **There is about one more step in the whole
-family and no more**: the light red status word measures 4.86:1 on the red plate
-against a floor of 4.5, and it fails before the ink does. Deepen these by eye
-without checking the WORD and the one piece of type in the product that carries
-a status colour goes under AA on its own ground.
+**⚠ DEEPENED TWICE, AND IT IS NOW AT THE WALL — 0.82/0.895 → 0.86/0.84 →
+0.88/0.81.** The first setting read as faint pastels (chroma 0.044–0.063), the
+second as a tint somebody chose. **THE THIRD IS AS DEEP AS THIS FAMILY GOES, and
+the thing that stops it is the palette's own rule rather than a number somebody
+picked**: a plate may never be MORE COLOURFUL THAN THE STATUS HUE IT DERIVES
+FROM — the same `bandChromaCeiling` the chart bands answer to. The GREEN plate
+now sits at 0.121 against green's own 0.124. One more uniform step makes it more
+colourful than `statusHue.green`, which is refused.
 
-`STATUS_PLATE` in tokens.ts, from TWO numbers (`PLATE.saturation` 0.86,
-`PLATE.lightness` 0.84) at each hue's own angle, so the five read as one family
+**AND THE SECOND BOUND MOVED THE STATUS WORD, WHICH IS WORTH KNOWING BEFORE
+TOUCHING EITHER.** The word stands ON the plate, so the plate is one of the
+surfaces it has to clear — and it is the tightest by a distance (red: 4.50:1 on
+its plate against 8.9:1 on the card). `solveTokens` takes the authored
+`statusTextHex` where it clears every surface and continues the SAME derivation —
+further toward the light ink, in hundredths — only where it does not. Green and
+gold are byte-identical to what they always were; **light's red label went
+#8f3225 → #8d3125, two hundredths**. `statusHue` is untouched, and so is
+`status.*.hex`, which is what both PDFs print.
+
+⚠ Deepen `PLATE` by eye without re-running that solve and the one piece of type
+in the product carrying a status colour goes under AA on its own ground —
+silently, because every other measurement on the card IMPROVES as the plate
+darkens.
+
+`STATUS_PLATE` in tokens.ts, from TWO numbers (`PLATE.saturation` 0.88,
+`PLATE.lightness` 0.81) at each hue's own angle, so the five read as one family
 and the pair to tune by eye is two numbers rather than ten hexes. This is the
 composition the gauge already draws — its five fills are solved against
 `PLOT_SURFACE`, a light ground, and are byte-identical in both themes. A light

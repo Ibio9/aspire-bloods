@@ -950,7 +950,7 @@ const TINT_MIX = {
  * as five separately-chosen colours — and so the pair somebody will want to tune
  * by eye afterwards is two numbers rather than ten hexes.
  */
-const PLATE = { saturation: 0.86, lightness: 0.84 } as const;
+const PLATE = { saturation: 0.88, lightness: 0.81 } as const;
 
 /** The plate for a hue: the hue's own angle at the family's lightness. */
 function statusPlate(hue: StatusHue): string {
@@ -2214,9 +2214,46 @@ export function solveTokens(mode: 'light' | 'dark'): SolvedTokens {
    * 6.73:1). Every FIELD of the colour is the exact hex in both themes; the one
    * piece of TYPE is the exact hex wherever it can be read.
    */
+  /**
+   * ── AND LIGHT ANSWERS TO THE PLATE NOW, WHICH IS A SURFACE IT LANDS ON ───
+   *
+   * The status word stands on the marker card and on the at-a-glance strip, and
+   * since Aug 2026 both of those are the PLATE — a clean status tint rather than
+   * a near-white card. So the plate is one of the surfaces this colour has to
+   * clear, and it is the tightest of them by a distance: at the plate's current
+   * depth the light RED label measures 4.58:1 on the red plate against 8.9:1 on
+   * the card.
+   *
+   * ⚠ THIS IS WHAT BOUNDS HOW DEEP A PLATE CAN GO, and it is why the pair moves
+   * together. Deepen `PLATE` by eye without this and the one piece of type in
+   * the product that carries a status colour goes under AA on its own ground —
+   * silently, because every other measurement on the card gets BETTER as the
+   * plate darkens.
+   *
+   * THE RULE IS THE SAME ONE DARK ANSWERS TO: take the authored value where it
+   * clears every surface, and move only where it does not. The move is the
+   * authored derivation continued — further toward the light ink, in hundredths
+   * — rather than a fresh solve, so the three labels stay a family and a hue
+   * that still clears comes back byte-identical. Measured at the current plate:
+   * green and gold are untouched, red goes two hundredths.
+   */
+  const lightLabelOn = (hue: 'green' | 'yellow' | 'red'): string => {
+    const authored = statusTextHex(hue);
+    const surfaces = [statusPlate(hue), lightNeutral.surface, lightCard, brand.white, wash[hue]];
+    const clears = (hex: string) => surfaces.every((s) => contrastRatio(hex, s) >= 4.5);
+    if (clears(authored)) return authored;
+    for (let extra = 0.01; extra <= 0.6; extra += 0.01) {
+      const hex = mix(authored, lightNeutral.ink, extra);
+      if (clears(hex)) return hex;
+    }
+    // Unreachable for any plate this palette can produce: the ink itself clears
+    // 10:1 on the deepest of them, so the walk always terminates well before it.
+    return mix(authored, lightNeutral.ink, 0.6);
+  };
+
   const label = Object.fromEntries(
     (['green', 'yellow', 'red'] as const).map((hue) => {
-      if (!dark) return [hue, statusTextHex(hue)];
+      if (!dark) return [hue, lightLabelOn(hue)];
       const surfaces = [wash[hue], darkPage, darkScales.cream[50], darkWhite];
       // The literal rather than `WCAG_AA_TEXT`, which is a `const` declared far
       // below this — a temporal-dead-zone throw at module load, not a lint nit.
@@ -2270,7 +2307,7 @@ const SOLVED: Record<'light' | 'dark', SolvedTokens> = {
     line: { green: '#507e2c', olive: '#717816', yellow: '#917200', orange: '#a95d1b', red: '#c14836' },
     wash: { green: '#dce6d4', olive: '#ecedd3', yellow: '#fcf4d5', orange: '#f2e0ce', red: '#eed5d0' },
     track: { green: '#a1bc8c', olive: '#ccd08a', yellow: '#f9e28e', orange: '#dcac7c', red: '#d28c81' },
-    label: { green: '#3d572c', yellow: '#675a27', red: '#8f3225' },
+    label: { green: '#3d572c', yellow: '#675a27', red: '#8d3125' },
     bound: '#b49c81',
   },
   dark: {
@@ -3142,7 +3179,7 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * happens to be wide — which is precisely the failure the original pair of
    * radials had, recorded above.
    *
-   * It is anchored at the OPPOSITE corner (bottom-left; see globals.css) and it
+   * It is anchored down the OPPOSITE side (middle-left; see globals.css) and it
    * is the cooler, quieter of the two in both themes: a key light and a fill,
    * which is what a room actually has. It never approaches the primary's
    * strength — `GLOW.secondary` is half of `GLOW.primary` in dark and a little
@@ -3467,10 +3504,19 @@ export const GLOW = {
    */
   primary: { light: 0.13, dark: 0.4 },
   /**
-   * The cool fill, bottom left. Teal in dark, slate in light — see `--c-glow-2`.
+   * The cool fill, middle left — beside the sidebar rather than under it.
+   *
+   * ── AND IT MOVED UP THE SIDE (Aug 2026): 20% 98% → 20% 50% ──────────────
+   * Same colour, same radii, same peak; only the anchor moved. At the bottom
+   * corner it read as light coming from UNDER the page, which is not a thing a
+   * room does; at the vertical centre it reads as light standing beside the
+   * navigation rail. The x is unchanged and is the load-bearing half — see
+   * below. Nothing derived from this token moved, and the viewport sampler in
+   * `tokenContrast.test.ts` re-found the worst ground at the new position on
+   * its own, which is the check that makes moving a source cheap.
    *
    * DARK IS HIGHER THAN IT LOOKS BECAUSE IT IS FURTHER AWAY. The fill is
-   * anchored at 20% 98% rather than at the literal corner (see globals.css: the
+   * anchored at 20% rather than at the literal edge (see globals.css: the
    * patient shell's sidebar is 288px, which is 20% of a 1440 viewport, so a
    * light in the corner has its core behind an opaque column and exists nowhere
    * the reader can see it) — and moving the anchor inward puts most of the

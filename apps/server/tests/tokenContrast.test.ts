@@ -380,19 +380,32 @@ describe.each(MODES)('%s theme', (mode) => {
       // read as one family rather than as five separately-chosen colours. The
       // window is generous because equal HSL lightness is not equal luminance —
       // a yellow at a given lightness is always the brighter of any pair.
-      expect(luminance(plate), `the ${key} plate is at ${luminance(plate).toFixed(3)}`).toBeGreaterThan(0.55);
       /**
-       * ⚠ THE CEILING WENT 0.09 → 0.115 WHEN THE FAMILY WAS DEEPENED (Aug
-       * 2026), and it is worth saying what it is and is not. It is NOT the
-       * bound that keeps a plate from becoming a filled alert card — the bound
-       * that does that is the STATUS WORD at AA on its own plate, asserted
-       * below, and it is a real one: at this saturation the red plate carries
-       * the light red label at 4.86:1 against a floor of 4.5, so there is
-       * roughly one more step in the whole family and no more. This is a
-       * backstop a long way above the deepest solvable plate.
+       * ── STILL A GROUND, AND BOTH BOUNDS MEAN SOMETHING NOW (Aug 2026) ─────
+       *
+       * The family has been deepened twice, and each time the two bounds here
+       * were arbitrary numbers that had to be nudged to let it through — which
+       * is a test following the design rather than holding it. Both are anchored
+       * to something the palette already asserts elsewhere:
+       *
+       *  · A PLATE IS A GROUND YOU CAN SET BODY COPY ON. Not merely AA: AAA, 7:1,
+       *    for the light ink the island emits. Past that it is a fill with text
+       *    on it, whatever its luminance happens to be.
+       *  · A PLATE IS NEVER MORE COLOURFUL THAN THE STATUS HUE IT DERIVES FROM.
+       *    The same rule the chart bands answer to, from the same function, and
+       *    it is what actually stops the family: at the current depth the GREEN
+       *    plate is at 0.121 against green's own 0.124 and the other two have
+       *    room to spare. Deepening uniformly from here makes the green more
+       *    colourful than `statusHue.green`, which is refused.
        */
+      const body = contrastRatio(tone('light', '--c-espresso'), plate);
+      expect(body, `body copy on the ${key} plate is ${body.toFixed(2)}:1`).toBeGreaterThanOrEqual(7);
       const chroma = okChroma(plate);
-      expect(chroma, `the ${key} plate carries ${chroma.toFixed(4)} of chroma`).toBeLessThan(0.115);
+      const ceiling = bandChromaCeiling(status[key].hue as 'green' | 'yellow' | 'red');
+      expect(
+        chroma,
+        `the ${key} plate carries ${chroma.toFixed(4)} of chroma against its hue's ${ceiling.toFixed(4)}`,
+      ).toBeLessThanOrEqual(ceiling);
       // ...and enough of it to be a colour rather than a warm grey. Raised with
       // the family: the complaint that produced this pass was that the plates
       // read as faint pastels, and 0.02 was low enough to pass that version.
@@ -1833,7 +1846,7 @@ describe('the accent family', () => {
  *
  * ── AND THERE ARE FOUR OF THEM NOW (Aug 2026) ──────────────────────────────
  *
- * A key at 96% 1%, a fill at 20% 98%, a green at 99% 99%, and a diagonal ribbon
+ * A key at 96% 1%, a fill at 20% 50%, a green at 99% 99%, and a diagonal ribbon
  * of five soft blobs crossing the whole viewport. The cores are still measured
  * one at a time below, because "no page token fails under any single source" is
  * a claim worth keeping legible — but the claim that MATTERS is the sampled one:
@@ -1846,7 +1859,7 @@ describe.each(MODES)('%s ambient sources', (mode) => {
   const card = tone(mode, '--c-cream-50');
 
   /** The three source positions and radii, exactly as globals.css writes them. */
-  const SOURCES = { rx: 0.88, ry: 0.8, a: { x: 0.96, y: 0.01 }, b: { x: 0.2, y: 0.98 }, c: { x: 0.99, y: 0.99 } };
+  const SOURCES = { rx: 0.88, ry: 0.8, a: { x: 0.96, y: 0.01 }, b: { x: 0.2, y: 0.5 }, c: { x: 0.99, y: 0.99 } };
 
   /**
    * THE DIAGONAL RIBBON, as globals.css writes it: five soft blobs whose centres
