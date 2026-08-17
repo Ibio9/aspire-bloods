@@ -135,6 +135,45 @@ fallback is not degraded either: every boundary carries a stop at its own OKLCH
 midpoint, so even in sRGB the browser interpolates across half a blend with the
 correct colour pinned at the centre.
 
+**THE ARC IS DRAWN IN A CHANNEL OF `PLOT_SURFACE`, IN BOTH THEMES, AND THAT WAS
+THE LAST LEVER (Aug 2026).** Everything else had been ruled out: the token is
+#f5ce3e and byte-identical in the two themes, the arc is opaque with no alpha, no
+blend and no filter, and nothing paints over it. What was left is SIMULTANEOUS
+CONTRAST, which is not a bug in anything: the identical #f5ce3e read against a
+near-black card looks darker and dirtier than the same colour against cream, and a
+yellow shows it worst of the five because a yellow's apparent lightness is most of
+what identifies it as yellow. `PLOT_SURFACE` (#ebebeb) is the surface every one of
+the five fills was SOLVED against, so painting the ring in a channel of it makes
+the ground the reader sees the ground the arithmetic assumed. It is the range bar's
+own track, restored.
+
+**ONE COLOUR, BOTH THEMES.** A step DOWN from a near-white light card (1.17:1, a
+recessed channel) and a long step UP from a near-black one (13.38:1, a lit
+channel). The dark instrument carries a light channel now and that is the intended
+change: one component rather than two that resemble each other. ⚠ **IT CARRIES NO
+STATUS MEANING AND MUST NEVER BE GIVEN ANY** — the moment it takes a hue it is a
+sixth colour on an instrument whose whole job is that five colours mean five
+things. It is a CONIC gradient rather than a flat annulus so it stops at the foot
+of the arc; a full ring would close the 90° gap and say the scale wraps. Geometry:
+ring 33.5–39 of the box, track 32.3–40.2, so the channel is 7.9 wide and the arc
+fills 70% of it. Nothing else about the gauge moved.
+
+**AND THE VALUE IN THE MIDDLE IS SIZED BY THE RING, NOT THE PAGE.** The marker
+page's gauge carried `.hero-value`, a clamp that runs on the VIEWPORT — so at 1440
+it was 52px inside a ring whose interior is a fixed share of a 300px instrument,
+and "24.6 mIU/L" arrived at the arc with nothing between the two. `.gauge-frame`
+makes every gauge a `container-type: inline-size` query container and `cqw` is then
+a share of THE GAUGE: `.gauge-value` (Fraunces, the marker page) and
+`.gauge-numeric` (mono, everything else) each fit their own ring with no second set
+of numbers to keep in step. Measured: 300px ring → 38px Fraunces in a 168px well;
+176px card ring → 20px mono in a 99px well. **The clamp bounds are steps of the
+type scale** — fluid type between two steps is the pattern `.display-heading`
+already uses; what is new is that the middle term is the container rather than the
+viewport. `GaugeValue`'s `size` prop is gone with it: a size chosen by the caller is
+a size chosen by somebody who cannot see the space. ⚠ A REFUSAL renders its value
+with no ring round it, so both refusal roots carry `.gauge-frame` too and the clamp
+holds the result inside the same two steps either way.
+
 **NOTHING DARKENS THE ARC AT RENDER, AND IT IS MEASURED OFF THE PAGE NOW.** No
 alpha on any stop, no `opacity`, no blend mode, no filter, no track showing through
 (the mask's interior is opaque white), and nothing above it. `.arc-gauge__ring`

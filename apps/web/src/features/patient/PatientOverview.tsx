@@ -635,7 +635,7 @@ export function PatientOverview() {
                           unit={item.unit}
                           maxWidth={260}
                         >
-                          <GaugeValue value={item.value} unit={item.unit} size="section" />
+                          <GaugeValue value={item.value} unit={item.unit} />
                           <StatusBadge status={item.status} className="mt-2" />
                         </ArcGauge>
                       </div>

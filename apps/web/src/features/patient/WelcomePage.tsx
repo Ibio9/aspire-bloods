@@ -126,7 +126,7 @@ const STEPS: WelcomeStep[] = [
             severityThreshold={(EXAMPLE.high - EXAMPLE.low) * 1.5}
             unit={EXAMPLE.unit}
           >
-            <GaugeValue value={EXAMPLE.value} unit={EXAMPLE.unit} size="section" />
+            <GaugeValue value={EXAMPLE.value} unit={EXAMPLE.unit} />
             <StatusBadge status="IN_RANGE" className="mt-2" />
           </ArcGauge>
           <p className="numeric mt-4 text-center text-xs text-espresso/80">

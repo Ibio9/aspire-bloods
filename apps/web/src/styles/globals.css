@@ -1246,6 +1246,83 @@
      so even in sRGB the browser only interpolates across half a blend — 4.5% of
      the arc — with the correct colour pinned at the centre of it. `in oklch`
      makes the whole ramp exact rather than three-point-sampled. */
+  /* ── THE VALUE IN A GAUGE IS SIZED BY THE RING, NOT BY THE PAGE (Aug 2026)
+     ────────────────────────────────────────────────────────────────────────
+
+     THE FAULT: the marker page's gauge carried `.hero-value`, a PAGE-scale
+     clamp that runs on the viewport — so at 1440 it was 52px inside a ring
+     whose interior is a fixed share of a 300px instrument, and "24.6 mIU/L"
+     arrived at the arc with no air between the two. The number was sized
+     against the wrong thing entirely: a gauge's centre is 56% of the gauge, and
+     a gauge is `width: 100%` under its own maximum, so the only sensible unit
+     is a share of THE GAUGE.
+
+     `container-type: inline-size` on the gauge makes `cqw` exactly that, and it
+     is the whole mechanism: one declaration, and the 300px detail gauge and the
+     176px grid gauge each fit their own ring with no second set of numbers to
+     keep in step.
+
+     ⚠ THE CLAMP BOUNDS ARE STEPS OF THE TYPE SCALE, which is what keeps this
+     inside the type system rather than an exception to it. Fluid type between
+     two scale steps is the pattern `.display-heading` and `.hero-value` already
+     use; what is new is that the middle term is the CONTAINER rather than the
+     viewport.
+
+     ⚠ AND A REFUSAL RENDERS ITS VALUE OUTSIDE THE RING. `UnavailableGauge` and
+     `MiniArcGauge`'s refusal branch draw the value with no arc round it, so
+     there is no ring to scale against — they carry `.gauge-frame` too, which
+     makes the card the container instead, and the clamp holds the result inside
+     the same two scale steps either way. */
+  .gauge-frame {
+    container-type: inline-size;
+  }
+
+  /* The one hero value on a marker detail page, at the middle of its gauge.
+     Fraunces at the hero optical size, and still the largest thing on the page:
+     the marker's name is a `.section-heading` at 38px and this tops out there
+     too, having been 52px inside a ring that could not hold it. */
+  .gauge-value {
+    @apply font-display opsz-hero font-semibold text-espresso;
+    font-size: clamp(1.3125rem, 13cqw, 2.375rem);
+    line-height: 1;
+    letter-spacing: -0.028em;
+  }
+
+  /* The same idea in mono, for every gauge that is not the marker page's one
+     hero value: a result card, the Overview's attention cards, the walkthrough.
+     IBM Plex Mono, because every number in the product is mono and the marker
+     page's hero is the one deliberate exception in the whole type system.
+
+     11.5cqw puts a 176px card gauge at 20px and holds everything from about
+     245px up at the 28px step, so the small and the large each fill their own
+     ring rather than one of them being sized for the other. */
+  .gauge-numeric {
+    font-size: clamp(1.125rem, 11.5cqw, 1.75rem);
+  }
+
+  /* The unit beside it, as a share of the number rather than a step of its own —
+     which is what keeps the pair looking like one object at every gauge size.
+     `em` and not `cqw`: the unit is a property of the value it sits against, so
+     it has to move WITH it and not merely alongside it. It still bottoms out at
+     the scale's 12px floor, which the smallest gauge reaches. */
+  .gauge-unit {
+    font-size: max(0.75rem, 0.42em);
+  }
+
+  /* ── THE TRACK THE ARC SITS IN ──────────────────────────────────────────
+     One opaque light neutral, the SAME in both themes, and the same one the
+     five band fills were solved against — see TRACK_PAINT in ArcGauge.tsx. It
+     is here rather than inline for one reason: `opacity`, `mix-blend-mode` and
+     `filter` are declared on it for exactly the reason they are declared on the
+     ring below, and a ground that has quietly gone translucent puts the card
+     back under the colours and undoes the whole change. */
+  .arc-gauge__track {
+    background: var(--track-paint);
+    opacity: 1;
+    mix-blend-mode: normal;
+    filter: none;
+  }
+
   .arc-gauge__ring {
     background: var(--ring-paint);
     /* ── STRIPPED TO ONE FLAT OPAQUE PAINT, AND STATED RATHER THAN ASSUMED ──

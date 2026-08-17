@@ -89,12 +89,23 @@ function printedNumbers(html: string): string[] {
   return [...html.matchAll(/<span[^>]*\bclass="numeric[^"]*"[^>]*>([^<]*)<\/span>/g)].map((m) => m[1]);
 }
 
-/** The conic gradient the ring is painted with. */
-function ringGradientFrom(html: string): string {
-  const m = html.match(/conic-gradient\([^;"]*\)/);
-  expect(m, 'the gauge did not paint a conic ring').not.toBeNull();
-  return m![0];
+/**
+ * The conic gradient a named element is painted with.
+ *
+ * ⚠ SELECTED ON THE ELEMENT, NOT AS "THE FIRST conic-gradient IN THE MARKUP",
+ * and that is the point rather than tidiness. The gauge paints TWO of them since
+ * Aug 2026 — the plot-surface TRACK, drawn first so it lands underneath, and the
+ * coloured RING — and "the first one" was the ring for exactly as long as there
+ * was only one. The moment the track arrived it silently became a helper about
+ * the wrong element that went on passing three of its five assertions.
+ */
+function gradientOf(html: string, part: 'ring' | 'track'): string {
+  const m = html.match(new RegExp(`class="arc-gauge__${part}[^"]*"[^>]*?style="[^"]*?(conic-gradient\\([^;"]*\\))`));
+  expect(m, `the gauge did not paint its ${part}`).not.toBeNull();
+  return m![1];
 }
+
+const ringGradientFrom = (html: string) => gradientOf(html, 'ring');
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -237,6 +248,41 @@ describe('the ring', () => {
     // globals.css can choose between them; an inline `background` could not be
     // overridden by a stylesheet without `!important`.
     expect(style, 'the ring paints from an inline background again').not.toMatch(/(^|;)\s*background:/);
+  });
+
+  /**
+   * ═══ THE TRACK: THE GROUND THE FIVE COLOURS WERE SOLVED ON (Aug 2026) ═══
+   *
+   * The last lever on "the yellow is muddy in dark mode", after the token was
+   * proved identical in both themes and the arc proved opaque with nothing over
+   * it. What was left is SIMULTANEOUS CONTRAST — #f5ce3e against a near-black
+   * card looks darker than the same colour against cream — so the ring is drawn
+   * in a channel of `PLOT_SURFACE`, which is the surface every one of the five
+   * fills was solved against and is therefore, by construction, the ground at
+   * which they read true.
+   *
+   * Three things are asserted and each is a way this could go wrong quietly: it
+   * must be that one token and no hue (a ground that takes a colour is a sixth
+   * colour on a five-colour instrument), it must stop where the arc stops (a
+   * full ring would close the 90° gap and say the scale wraps), and it must be
+   * the same in both themes, which is what makes the instrument one component
+   * rather than two that resemble each other.
+   */
+  it('draws the arc in a channel of the plot surface, and only where the arc is', () => {
+    const track = gradientOf(renderToStaticMarkup(<ArcGauge value={4.8} low={3.8} high={5.8} status="IN_RANGE" />), 'track');
+    expect(track).not.toMatch(/#[0-9a-f]{3,8}/i);
+    expect(track).toContain('var(--c-chart-plot-surface)');
+    expect(track, 'the ground carries a status hue').not.toMatch(/var\(--c-hue-/);
+    expect(track, 'the ground carries an alpha').not.toMatch(/rgba\(|\/\s*0?\.\d/);
+    expect(track).toContain('conic-gradient(from 225deg');
+    expect(track, 'the track does not stop at the foot of the arc').toContain('75.000%, transparent 75.000%');
+  });
+
+  it('paints the track under the arc, never over it', () => {
+    // Document order IS paint order for two positioned siblings at the same
+    // z-index, so this is the assertion that the ground stays a ground.
+    const html = renderToStaticMarkup(<ArcGauge value={4.8} low={3.8} high={5.8} status="IN_RANGE" />);
+    expect(html.indexOf('arc-gauge__track')).toBeLessThan(html.indexOf('arc-gauge__ring'));
   });
 
   it('cuts the annulus with a stroked circle rather than a feathered radial', () => {

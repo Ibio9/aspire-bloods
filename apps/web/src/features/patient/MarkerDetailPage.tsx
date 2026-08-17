@@ -322,9 +322,19 @@ export function MarkerDetailPage() {
               unit={detail.latest.unit}
               className="mt-2"
             >
-              <p className="hero-value flex flex-wrap items-baseline justify-center gap-x-2">
+              {/* `.gauge-value`, NOT `.hero-value` (Aug 2026). The hero clamp
+                  runs on the VIEWPORT, so at 1440 it was 52px inside a ring whose
+                  interior is a fixed share of a 300px instrument, and "24.6
+                  mIU/L" arrived at the arc with nothing between the two. This
+                  one is a share of the GAUGE, so the number fits whatever ring
+                  it is put in. Still Fraunces, still the largest thing on the
+                  page: it tops out at 38px, which is where the marker's name
+                  sits, and the name is a heading rather than the answer. The
+                  unit rides on it in `em` so the pair stays one object at every
+                  gauge size. */}
+              <p className="gauge-value flex flex-wrap items-baseline justify-center gap-x-2">
                 <span className="tabular">{detail.latest.value}</span>
-                <span className="numeric text-sm font-normal text-espresso/80">{detail.latest.unit}</span>
+                <span className="gauge-unit numeric font-normal text-espresso/80">{detail.latest.unit}</span>
               </p>
               <div className="mt-2">
                 <StatusBadge status={latestStatus} />

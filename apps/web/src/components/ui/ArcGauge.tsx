@@ -124,6 +124,15 @@ const GEO = {
   stroke: 5.5,
   /** How far outside the ring a label's centre sits. */
   labelGap: 3.5,
+  /**
+   * How far the track stands proud of the coloured ring, on each side.
+   *
+   * Wide enough that the ground round the colour is unambiguously the ground the
+   * colour was solved on, narrow enough that the instrument is still a ring
+   * sitting in a channel rather than a disc: 1.2 of the box's 100 units against
+   * a 5.5 stroke, so the channel is 7.9 wide and the arc fills 70% of it.
+   */
+  track: 1.2,
 } as const;
 const RING_INNER = GEO.outer - GEO.stroke;
 /** The centreline of the ring — where the mark rides and where the optimal arc is stroked. */
@@ -320,11 +329,33 @@ export function ArcGauge({
 
   return (
     <div
-      className={`arc-gauge relative mx-auto w-full ${className}`}
+      className={`arc-gauge gauge-frame relative mx-auto w-full ${className}`}
       style={{ maxWidth, aspectRatio: '1 / 1' }}
       role="img"
       aria-label={label}
     >
+      {/* THE TRACK. Painted first, so it is under everything — the arc, the
+          hairlines, the optimal narrowing and the mark. See TRACK_PAINT for why
+          a ground the reader can see is what makes #f5ce3e the same yellow on a
+          dark card as on a light one, and why it stops at the foot of the arc
+          rather than closing the gap. It carries no status meaning. */}
+      <div
+        className="arc-gauge__track absolute"
+        aria-hidden="true"
+        style={{
+          inset: `${GEO.c - TRACK_OUTER}%`,
+          // Through a custom property for the same reason the ring's paint is —
+          // see `.arc-gauge__track` in globals.css.
+          ['--track-paint' as string]: TRACK_PAINT,
+          WebkitMaskImage: TRACK_MASK,
+          maskImage: TRACK_MASK,
+          WebkitMaskSize: '100% 100%',
+          maskSize: '100% 100%',
+          WebkitMaskRepeat: 'no-repeat',
+          maskRepeat: 'no-repeat',
+        }}
+      />
+
       {/* THE RING. One conic gradient, cut to an annulus by a radial mask. The
           gap at the bottom is a hard stop inside the gradient rather than a
           second mask, so nothing here depends on `mask-composite`. */}
@@ -509,32 +540,22 @@ export function ArcGauge({
  * The unit is still unambiguously the junior of the pair: smaller, `font-normal`
  * against `font-semibold`, and at /80 against full tone.
  */
-const GAUGE_VALUE_SIZE = {
-  /** A result card's gauge, at 176px. */
-  card: 'text-lg',
-  /** The Overview's attention cards and the walkthrough, at 260–300px. */
-  section: 'text-xl',
-} as const;
-
-export function GaugeValue({
-  value,
-  unit,
-  size = 'card',
-}: {
-  value: ReactNode;
-  unit?: string | null;
-  size?: keyof typeof GAUGE_VALUE_SIZE;
-}) {
+export function GaugeValue({ value, unit }: { value: ReactNode; unit?: string | null }) {
   return (
     // `flex-wrap`: a textual result at this size must wrap under itself rather
     // than push its unit out of the ring. `items-baseline` so the unit sits on
     // the number's baseline rather than floating beside its cap height, and
     // `justify-center` because the gauge's centre well is centred.
-    <p
-      className={`numeric tabular flex flex-wrap items-baseline justify-center gap-x-1.5 font-semibold leading-none text-espresso ${GAUGE_VALUE_SIZE[size]}`}
-    >
+    //
+    // ⚠ THE `size` PROP IS GONE (Aug 2026). It was `card` / `section`, two fixed
+    // steps for three call sites, which is a size chosen by whoever is rendering
+    // rather than by the space it has to fit. The gauge is a query container
+    // now, so `.gauge-numeric` is a share of the RING and the same component
+    // fits a 176px grid gauge and a 260px attention card without being told
+    // which it is in. See `.gauge-frame` in globals.css.
+    <p className="gauge-numeric numeric tabular flex flex-wrap items-baseline justify-center gap-x-1.5 font-semibold leading-none text-espresso">
       <span className="break-words">{value}</span>
-      {unit && <span className="text-xs font-normal text-espresso/80">{unit}</span>}
+      {unit && <span className="gauge-unit font-normal text-espresso/80">{unit}</span>}
     </p>
   );
 }
@@ -571,7 +592,7 @@ export function MiniArcGauge({
   // is a card with a hole in it.
   if (!placement.drawable) {
     return (
-      <div role="img" aria-label={label}>
+      <div role="img" aria-label={label} className="gauge-frame">
         {children}
         <p className={`text-xs leading-snug text-espresso/85 ${children ? 'mt-2' : ''}`}>
           {RANGE_BAR_UNAVAILABLE[placement.undrawable].short}
@@ -634,7 +655,7 @@ function UnavailableGauge({
   const hasValue = isNumber(value);
   const hasRange = isNumber(low) && isNumber(high);
   return (
-    <div role="img" aria-label={label}>
+    <div role="img" aria-label={label} className="gauge-frame">
       {children}
       <p className={`text-xs leading-relaxed text-espresso/85 ${children ? 'mt-3' : ''}`}>
         {RANGE_BAR_UNAVAILABLE[reason].long}
@@ -785,6 +806,61 @@ const RING_MASK =
   `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'` +
   ` preserveAspectRatio='none'%3E%3Ccircle cx='50' cy='50' r='${MASK_RADIUS}' fill='none'` +
   ` stroke='%23ffffff' stroke-width='${MASK_STROKE}'/%3E%3C/svg%3E")`;
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  THE TRACK: THE GROUND THE FIVE COLOURS WERE SOLVED ON (Aug 2026)
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * ── THE ONE LEVER LEFT, AFTER EVERYTHING ELSE WAS RULED OUT ───────────────
+ *
+ * The gauge's yellow read muddy in dark mode through three passes at it. The
+ * token was ruled out: `--c-hue-yellow-fill` is #f5ce3e and is byte-identical in
+ * the two themes. The compositing was ruled out: the arc is opaque, carries no
+ * alpha, no blend mode and no filter, and nothing paints over it but its own
+ * four hairlines. What was left is the only remaining explanation, and it is not
+ * a bug in anything — it is SIMULTANEOUS CONTRAST. The identical #f5ce3e read
+ * against a near-black card looks darker and dirtier than the same colour read
+ * against cream, and a yellow shows it worst of the five because a yellow's
+ * apparent lightness is most of what identifies it AS yellow.
+ *
+ * ── SO THE GROUND STOPS CHANGING UNDER THE COLOURS ────────────────────────
+ *
+ * `PLOT_SURFACE` is the surface every one of the five fills is SOLVED against —
+ * `BAND_CONTRAST`'s whole ladder was measured on it and it is pinned in tokens.ts
+ * for exactly that reason. Painting the ring in a channel of it, in BOTH themes,
+ * makes the ground the reader sees the ground the arithmetic assumed. It is the
+ * range bar's own track, restored: the bar drew its five segments on this in both
+ * themes and the arc dropped it along with the rectangle.
+ *
+ * IT IS NOT WHITE AND IT IS NOT A BAND OF LIGHT. #ebebeb is a light neutral that
+ * reads as a recessed channel cut into a light card (it is a step DOWN from a
+ * near-white card) and as a lit channel on a dark one. Same colour, same
+ * treatment, both themes — so the instrument is one component rather than two
+ * that resemble each other.
+ *
+ * IT IS A CONIC GRADIENT RATHER THAN A FLAT ANNULUS, and that is the one thing
+ * about it that is not obvious: a flat ring would close the 90° gap at the foot
+ * and turn the arc into a full circle in a pale ring, which says the scale WRAPS
+ * — the single thing the arc's shape exists to deny. Same hard stop at the same
+ * fraction of the turn as `RING_GRADIENT`, so the two ends line up exactly.
+ *
+ * ⚠ IT CARRIES NO STATUS MEANING AND MUST NEVER BE GIVEN ANY. It is a ground.
+ * The moment it takes a hue it becomes a sixth colour on an instrument whose
+ * whole job is that five colours mean five things.
+ */
+const TRACK_OUTER = GEO.outer + GEO.track;
+const TRACK_INNER = RING_INNER - GEO.track;
+const TRACK_MASK_SCALE = 100 / (2 * TRACK_OUTER);
+const TRACK_MASK =
+  `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'` +
+  ` preserveAspectRatio='none'%3E%3Ccircle cx='50' cy='50' r='${(((TRACK_OUTER + TRACK_INNER) / 2) * TRACK_MASK_SCALE).toFixed(3)}'` +
+  ` fill='none' stroke='%23ffffff' stroke-width='${((TRACK_OUTER - TRACK_INNER) * TRACK_MASK_SCALE).toFixed(3)}'/%3E%3C/svg%3E")`;
+const TRACK_PAINT = (() => {
+  const end = (ARC_SHARE * 100).toFixed(3);
+  const ground = chartTokens.plotSurface;
+  return `conic-gradient(from ${CONIC_FROM_DEG}deg, ${ground} 0%, ${ground} ${end}%, transparent ${end}%, transparent 100%)`;
+})();
 
 /** A hairline crossing the ring at `at` percent of the scale. */
 function radialLine(at: number): { x1: number; y1: number; x2: number; y2: number } {
