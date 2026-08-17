@@ -1900,21 +1900,52 @@ export function solveTokens(mode: 'light' | 'dark'): SolvedTokens {
       : solveAgainst(statusHue[hue], [card], LINE_FILL_TARGET, bandChromaCeiling(hue as 'green' | 'yellow' | 'red')),
   );
   const wash = byHue((hue) => matchLight(hue, TINT_MIX.wash));
+  /**
+   * ═══ THE STATUS WORD, AND IT IS THE HUE ITSELF WHERE THE HUE WILL DO ═══
+   *
+   * ── THE COMPLAINT: "Below range" READ MUDDY IN DARK (Aug 2026) ──────────
+   *
+   * It did, and the cause is the objective rather than a stale number. The dark
+   * label is solved for the MOST CHROMATIC rendering of the hue that clears AA
+   * on every surface it lands on — and with the search free to move lightness,
+   * "most chromatic" for a yellow is a DARKER, denser gold than the palette's
+   * own: it returned **#dbad00** where `statusHue.yellow` is **#F5CE3E**. Both
+   * clear the floor; the solver had no reason to prefer the one a reader
+   * recognises as the status colour, because nothing told it to.
+   *
+   * ── SO THE HUE ITSELF WINS WHENEVER IT CAN ─────────────────────────────
+   *
+   * A search is for the case where the palette colour does NOT clear the floor.
+   * Where it does, solving is spending chroma to arrive somewhere else for no
+   * reason — and it costs the one thing a status word is for: being the same
+   * colour as the band it names. So: take `statusHue[hue]` if it clears AA on
+   * the wash, the page, the card and an input; solve only if it does not.
+   *
+   * MEASURED on the dark surfaces, which is why only the yellow qualifies —
+   * this is a general rule rather than a yellow-shaped exception:
+   *
+   *     yellow #F5CE3E   8.19 – 13.53:1   → taken, unchanged, byte for byte
+   *     green  #5E8C3A   under the floor  → solved, as before
+   *     red    #B23A28   under the floor  → solved, as before
+   *
+   * ⚠ AND LIGHT CANNOT DO THIS, WHICH IS NOT AN INCONSISTENCY. The same
+   * #F5CE3E measures **1.50:1 on the light card**, 1.37 on its own wash and
+   * 1.32 on the page. A light yellow on a near-white surface is not a legible
+   * word at any size, and the status word is the ONE piece of text in the
+   * product that carries a status colour. Light stays derived (#675a27,
+   * 6.73:1). Every FIELD of the colour is the exact hex in both themes; the one
+   * piece of TYPE is the exact hex wherever it can be read.
+   */
   const label = Object.fromEntries(
-    (['green', 'yellow', 'red'] as const).map((hue) => [
-      hue,
-      dark
-        ? solveAgainst(
-            statusHue[hue],
-            [wash[hue], darkPage, darkScales.cream[50], darkWhite],
-            // The literal rather than `WCAG_AA_TEXT`, which is a `const`
-            // declared far below this — a temporal-dead-zone throw at module
-            // load, not a lint nit.
-            4.5,
-            bandChromaCeiling(hue),
-          )
-        : statusTextHex(hue),
-    ]),
+    (['green', 'yellow', 'red'] as const).map((hue) => {
+      if (!dark) return [hue, statusTextHex(hue)];
+      const surfaces = [wash[hue], darkPage, darkScales.cream[50], darkWhite];
+      // The literal rather than `WCAG_AA_TEXT`, which is a `const` declared far
+      // below this — a temporal-dead-zone throw at module load, not a lint nit.
+      const floor = 4.5;
+      const worst = surfaces.reduce((lowest, s) => Math.min(lowest, contrastRatio(statusHue[hue], s)), Infinity);
+      return [hue, worst >= floor ? statusHue[hue] : solveAgainst(statusHue[hue], surfaces, floor, bandChromaCeiling(hue))];
+    }),
   ) as Record<'green' | 'yellow' | 'red', string>;
 
   return {
@@ -1969,7 +2000,8 @@ const SOLVED: Record<'light' | 'dark', SolvedTokens> = {
     line: { green: '#6b9948', olive: '#a3a324', yellow: '#dbad00', orange: '#de8929', red: '#e06452' },
     wash: { green: '#2f362a', olive: '#2d2f1b', yellow: '#2e2811', orange: '#3e3124', red: '#483431' },
     track: { green: '#435931', olive: '#424601', yellow: '#3f3200', orange: '#73471c', red: '#905248' },
-    label: { green: '#80ae5b', yellow: '#dbad00', red: '#fa7d6b' },
+    // ⚠ The yellow is `statusHue.yellow` UNCHANGED — see the label solve above.
+    label: { green: '#80ae5b', yellow: '#F5CE3E', red: '#fa7d6b' },
     bound: '#5a6272',
   },
 };

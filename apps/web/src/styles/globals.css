@@ -1248,6 +1248,27 @@
      makes the whole ramp exact rather than three-point-sampled. */
   .arc-gauge__ring {
     background: var(--ring-paint);
+    /* ── STRIPPED TO ONE FLAT OPAQUE PAINT, AND STATED RATHER THAN ASSUMED ──
+       (Aug 2026)
+
+       None of these three was set on this element. They are declared anyway,
+       and that is the point: the arc paints five clinical colours that are
+       byte-identical in the two themes, and the whole of that identity is a
+       claim about what a READER sees rather than about what a token holds. Any
+       one of these arriving later — from a utility class, a global rule, a
+       hover state, an animation somebody adds to the ring — would break it
+       silently and in opposite directions in the two themes, because a
+       translucent yellow over a near-black card resolves toward black and the
+       same yellow over cream resolves toward white.
+
+       ⚠ WHAT THIS CANNOT DEFEND AGAINST, and it is worth knowing which is
+       which: `opacity`, `filter` and `mix-blend-mode` on an ANCESTOR reach down
+       and cannot be undone from here. The audit for those is in
+       `e2e/arc-gauge.spec.ts`, which walks from the ring to the document root
+       and fails on any of the three. */
+    opacity: 1;
+    mix-blend-mode: normal;
+    filter: none;
   }
 
   @supports (background: conic-gradient(in oklch, red, blue)) {

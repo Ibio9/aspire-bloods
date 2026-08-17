@@ -433,6 +433,35 @@ describe.each(MODES)('%s theme', (mode) => {
     // both times.
     expect(tone(mode, '--c-hue-yellow-fill').toLowerCase()).toBe(statusHue.yellow.toLowerCase());
     expect(tone('light', '--c-hue-yellow-fill')).toBe(tone('dark', '--c-hue-yellow-fill'));
+    /**
+     * ── AND THE STATUS WORD IS THE SAME HEX WHEREVER IT CAN BE READ ────────
+     *
+     * "Below range" is the one piece of text in the product that carries a
+     * status colour, and in dark it was solved to **#dbad00** — a denser, darker
+     * gold than the band it names, because the solver maximises chroma subject
+     * to AA and nothing told it to prefer the palette's own colour. It reads as
+     * muddy for the same reason the band did.
+     *
+     * The rule is now "take the hue itself where it clears the floor, solve only
+     * where it does not", which is general rather than a yellow-shaped
+     * exception — green and red are both still solved, because neither clears
+     * 4.5:1 on a near-black card.
+     *
+     * ⚠ AND LIGHT CANNOT, WHICH IS MEASURED RATHER THAN CONCEDED: #F5CE3E is
+     * 1.50:1 on the light card. Asserted here as the reason, so nobody
+     * "corrects" the asymmetry without meeting the number first.
+     */
+    if (mode === 'dark') {
+      expect(tone('dark', '--c-status-high').toLowerCase()).toBe(statusHue.yellow.toLowerCase());
+      expect(tone('dark', '--c-status-low').toLowerCase()).toBe(statusHue.yellow.toLowerCase());
+      // Same colour as the band it names, which is the whole of the point.
+      expect(tone('dark', '--c-status-high').toLowerCase()).toBe(tone('dark', '--c-hue-yellow-fill').toLowerCase());
+    } else {
+      const asText = contrastRatio(statusHue.yellow, tone('light', '--c-cream-50'));
+      expect(asText, `#F5CE3E on the light card is ${asText.toFixed(2)}:1, so the word cannot take it`).toBeLessThan(
+        WCAG_AA_TEXT,
+      );
+    }
     // And it is a LIGHT yellow rather than a gold: the brief's floor, stated as
     // the thing that actually distinguishes the two.
     const [r, g] = [1, 3].map((i) => parseInt(tone(mode, '--c-hue-yellow-fill').slice(i, i + 2), 16));

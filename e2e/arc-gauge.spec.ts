@@ -202,7 +202,7 @@ for (const theme of ['light', 'dark'] as const) {
       const [g] = await readGauges(page);
       expect(g, 'no arc gauge rendered on the marker page').toBeTruthy();
 
-      // eslint-disable-next-line no-console
+       
       console.log(
         `\n  ${theme} ${size.at}: ${Math.round(g.box.width)}x${Math.round(g.box.height)}, ` +
           `mark at ${((g.markAt ?? 0) * 100).toFixed(1)}%, ${g.hairlines.length} hairlines, figures [${g.figures.join(', ')}]`,
@@ -300,7 +300,7 @@ for (const size of SIZES) {
     expect(gauges.length, 'the marker list drew no gauges').toBeGreaterThan(20);
 
     const statuses = new Set(gauges.map((g) => (g.label.match(/status:\s*(.+)$/i)?.[1] ?? '').trim().toLowerCase()));
-    // eslint-disable-next-line no-console
+     
     console.log(
       `\n  ${size.at}: ${gauges.length} gauges across ${statuses.size} distinct states ` +
         `(${[...statuses].join(', ')}), first is ${Math.round(gauges[0].box.width)}px`,
@@ -333,6 +333,122 @@ for (const size of SIZES) {
       expect(g.figures, `a card gauge printed ${g.figures.length} figures`).toEqual([]);
       expect(g.hairlines.length, 'a card gauge lost its boundary hairlines').toBeGreaterThanOrEqual(4);
     }
+
+    await ctx.close();
+  });
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  NOTHING DIMS THE ARC, AND IT IS MEASURED RATHER THAN REASONED (Aug 2026)
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * THE COMPLAINT THIS ANSWERS: the gauge's yellow reads darker in dark mode than
+ * its token says, and the suspicion was an overlay. The five fills are
+ * byte-identical in the two themes and `tokenContrast.test.ts` asserts that at
+ * the token layer — but a token is not a pixel, and every previous pass at this
+ * argued about the value when the fault could have been anywhere between the
+ * value and the paint.
+ *
+ * So the whole chain is checked, in both themes, off the rendered page:
+ *
+ *  1. THE RING'S OWN STYLE. `opacity`, `mix-blend-mode`, `filter`, and no alpha
+ *     in any gradient stop.
+ *  2. EVERY ANCESTOR UP TO THE DOCUMENT ROOT. `opacity`, `filter` and
+ *     `mix-blend-mode` on an ancestor reach down and CANNOT be undone from the
+ *     ring, so a declaration on the ring itself proves nothing on its own. This
+ *     is the half that a component test structurally cannot see.
+ *  3. WHAT IS ACTUALLY ON TOP OF ITS PIXELS. `elementsFromPoint` at four points
+ *     around the ring returns the real hit-test stack, which is the browser's
+ *     own answer to "what is above this" rather than an inference from z-index
+ *     and stacking contexts. The page grain, the two ambient glows, the vignette
+ *     and the panes' streak and grain are all `z-index: -1` and should therefore
+ *     be nowhere in it.
+ *
+ * ⚠ THE FOUR BOUNDARY HAIRLINES ARE ALLOWED ABOVE IT and are the only things
+ * that are. They are marks ON the arc rather than a layer over it — the
+ * greyscale carrier the status rules require, one theme-independent colour over
+ * one theme-independent band, so their composite is identical in both themes
+ * too. They are 1px lines: four of them across a ring some 460px long and 9.7px
+ * wide is under 1% of its area.
+ */
+for (const theme of ['light', 'dark'] as const) {
+  test(`nothing dims or overlays the arc in ${theme}`, async ({ browser }) => {
+    test.setTimeout(180_000);
+    const ctx = await context(browser, theme, SIZES[0]);
+    const page = await ctx.newPage();
+    await aMarkerWithAGauge(page, ctx.request);
+
+    const audit = await page.evaluate(() => {
+      const ring = document.querySelector('.arc-gauge__ring') as HTMLElement | null;
+      if (!ring) return null;
+      const own = getComputedStyle(ring);
+
+      // Every ancestor, because these three are not the ring's to control.
+      const inherited: { tag: string; cls: string; opacity: string; filter: string; blend: string }[] = [];
+      for (let el = ring.parentElement; el; el = el.parentElement) {
+        const s = getComputedStyle(el);
+        if (s.opacity !== '1' || s.filter !== 'none' || s.mixBlendMode !== 'normal') {
+          inherited.push({
+            tag: el.tagName.toLowerCase(),
+            cls: el.className?.toString().slice(0, 60) ?? '',
+            opacity: s.opacity,
+            filter: s.filter,
+            blend: s.mixBlendMode,
+          });
+        }
+      }
+
+      // WHAT IS ACTUALLY ABOVE THE PAINTED RING. Four points on its centreline,
+      // clear of the 90° gap at the bottom and of the four hairlines.
+      const box = ring.getBoundingClientRect();
+      const cx = box.left + box.width / 2;
+      const cy = box.top + box.height / 2;
+      const r = box.width / 2 - 5;
+      const above: string[] = [];
+      for (const deg of [160, 225, 290, 20]) {
+        const rad = (deg * Math.PI) / 180;
+        const stack = document.elementsFromPoint(cx + r * Math.cos(rad), cy + r * Math.sin(rad));
+        const i = stack.indexOf(ring);
+        if (i < 0) continue;
+        for (const el of stack.slice(0, i)) {
+          above.push(`${el.tagName.toLowerCase()}.${el.className?.toString().split(/\s+/)[0] ?? ''}`);
+        }
+      }
+
+      return {
+        opacity: own.opacity,
+        filter: own.filter,
+        blend: own.mixBlendMode,
+        background: own.backgroundImage,
+        inherited,
+        above: [...new Set(above)],
+      };
+    });
+
+    expect(audit, 'no arc gauge rendered').toBeTruthy();
+     
+    console.log(`\n  ${theme}: ring opacity ${audit!.opacity}, filter ${audit!.filter}, blend ${audit!.blend}`);
+    console.log(`  ${theme}: above the ring → ${audit!.above.length ? audit!.above.join(', ') : 'nothing'}`);
+
+    expect(audit!.opacity, 'the ring is not fully opaque').toBe('1');
+    expect(audit!.filter, 'the ring carries a filter').toBe('none');
+    expect(audit!.blend, 'the ring carries a blend mode').toBe('normal');
+    // No alpha in any stop, as the browser resolved them. `rgb(a, b, c)` is
+    // what Chromium serialises an opaque colour to; a fourth component or an
+    // `rgba(` is a stop somebody put an alpha on.
+    const stops = audit!.background.match(/rgba?\([^)]*\)/g) ?? [];
+    for (const s of stops) {
+      expect(s, `a gradient stop carries an alpha: ${s}`).not.toMatch(/rgba\(|\/\s*0?\.\d/);
+    }
+    expect(
+      audit!.inherited,
+      `an ancestor dims the ring: ${JSON.stringify(audit!.inherited)}`,
+    ).toEqual([]);
+    expect(
+      audit!.above,
+      `something paints over the arc: ${audit!.above.join(', ')}`,
+    ).toEqual([]);
 
     await ctx.close();
   });

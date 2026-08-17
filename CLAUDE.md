@@ -135,18 +135,40 @@ fallback is not degraded either: every boundary carries a stop at its own OKLCH
 midpoint, so even in sRGB the browser interpolates across half a blend with the
 correct colour pinned at the centre.
 
-**NOTHING DARKENS THE ARC AT RENDER, AND THAT WAS AUDITED RATHER THAN ASSUMED.**
-No alpha on any stop, no `opacity`, no blend mode, no filter, no track showing
-through (the mask's interior is opaque white), and no overlay — the page grain and
-the pane grain are both `z-index: -1`, behind content. `ArcGauge.test.tsx` reads
-the ring's own inline style and fails on any of them.
+**NOTHING DARKENS THE ARC AT RENDER, AND IT IS MEASURED OFF THE PAGE NOW.** No
+alpha on any stop, no `opacity`, no blend mode, no filter, no track showing through
+(the mask's interior is opaque white), and nothing above it. `.arc-gauge__ring`
+DECLARES `opacity: 1; mix-blend-mode: normal; filter: none` even though none of
+them was set — those three are the only ways this identity can be broken silently,
+and in opposite directions in the two themes.
 
-**WHAT COULD NOT BE #F5CE3E, AND THE NUMBER.** The status WORD. `#F5CE3E` as text
-on the light card measures **1.50:1** — illegible, and the status word is the one
-piece of text in the product that carries a status colour. It stays solved from the
-new hue against the surfaces it lands on: **light #675a27, dark #dbad00** (6.73:1
-and 7.59:1 on their own cards). Every FIELD of colour is the exact value; the one
-piece of TYPE is derived from it.
+**⚠ AND THE HALF A COMPONENT TEST CANNOT SEE IS THE ANCESTORS.** `opacity`,
+`filter` and `mix-blend-mode` on an ancestor reach down and cannot be undone from
+the ring, so a declaration on the ring proves nothing on its own.
+`e2e/arc-gauge.spec.ts` walks from the ring to the document root and fails on any
+of the three, and calls `elementsFromPoint` at four places on the ring to get the
+BROWSER's own answer to "what is above this" rather than an inference from z-index.
+Audited and clear: the page grain, both ambient glows, the vignette and the panes'
+streak and grain are all `z-index: -1`, i.e. painted before content. **The only
+things above the arc are its four boundary hairlines**, which are marks ON it — the
+greyscale carrier the status rules require, one theme-independent colour over one
+theme-independent band, under 1% of the arc's area.
+
+**AND THE STATUS WORD IN DARK IS THE HUE ITSELF NOW.** It had been solved to
+**#dbad00** — a denser, darker gold than the band it names — because the solver
+maximises chroma subject to AA and nothing told it to prefer the palette's own
+colour. The rule is now "take the hue where it clears the floor, solve only where
+it does not", which is general: yellow clears 8.19–13.53:1 on every dark surface
+and is taken unchanged; green and red do not and are still solved.
+
+**⚠ LIGHT CANNOT, AND THE NUMBER IS THE REASON.** `#F5CE3E` measures **1.50:1 on
+the light card**, 1.37 on its own wash, 1.32 on the page. A light yellow on a
+near-white surface is not a legible word at any size, and this is the ONE piece of
+text in the product carrying a status colour. Light stays derived (#675a27,
+6.73:1); dark is #F5CE3E (10.46:1). Every FIELD of the colour is the exact hex in
+both themes; the one piece of TYPE is the exact hex wherever it can be read, and
+the test asserts the light ratio as the reason so nobody "corrects" the asymmetry
+without meeting the number first.
 
 `statusHue.olive` **#939328 → #A7AF36**, the OKLCH midpoint of green and the new
 yellow. Orange is untouched as a seed; the gauge's orange hinge is the OKLCH
