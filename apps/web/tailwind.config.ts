@@ -18,7 +18,7 @@ import {
   GLOW,
   PANEL_SHEEN,
   SPARK,
-  statusPlateLabelCssVars,
+  STATUS_OUTLINE_WIDTH,
   type TypeStep,
 } from '../../packages/shared/src/tokens';
 
@@ -254,18 +254,21 @@ export default {
           'significantHigh-edge': v('--c-tint-significant-high-edge'),
           'significantLow-edge': v('--c-tint-significant-low-edge'),
         },
-        // The MARKER CARD's status ground, and a different thing from the wash
-        // above — see STATUS_PLATE in tokens.ts. One soft pastel family at a
-        // single lightness, identical in both themes, because a status hue at a
-        // dark card's lightness is a brown however it is solved. A plated card
-        // carries `.card-status-plate` with it, which re-emits the light token
-        // set inside itself so the ink and the status word come with the ground.
-        plate: {
-          inRange: v('--c-plate-in-range'),
-          high: v('--c-plate-high'),
-          low: v('--c-plate-low'),
-          significantHigh: v('--c-plate-significant-high'),
-          significantLow: v('--c-plate-significant-low'),
+        // The MARKER CARD's and the at-a-glance strip's status OUTLINE. It
+        // replaced a filled ground: the body of both surfaces is neutral glass
+        // now and the status is a 2px border in a deep rendering of its own hue.
+        // Per theme, unlike the ground it replaced, because a border is thin and
+        // what matters is how it stands off the pane it is drawn on.
+        //
+        // ⚠ THE WIDTH IS NOT HERE. It is `--status-outline-width`, emitted
+        // below, because one number has to serve every surface that takes an
+        // outline or the strip and the cards stop reading as one system.
+        outline: {
+          inRange: v('--c-outline-in-range'),
+          high: v('--c-outline-high'),
+          low: v('--c-outline-low'),
+          significantHigh: v('--c-outline-significant-high'),
+          significantLow: v('--c-outline-significant-low'),
         },
         // The result mark on a range bar, and the ring around it. Deliberately
         // NOT one of the status colours: the mark says where the result sits,
@@ -440,6 +443,10 @@ export default {
       addBase({
         ':root': {
           ...asBaseVars('light'),
+          // The status outline's weight. Theme-independent and emitted once: a
+          // hairline reads as the card's ordinary border and a slab reads as a
+          // filled alert with a hole in it. See STATUS_OUTLINE_WIDTH.
+          '--status-outline-width': STATUS_OUTLINE_WIDTH,
           // The three families and Fraunces' fixed axis settings. Same
           // reasoning as the colours: one place decides, and no component
           // writes a font name.
@@ -598,49 +605,6 @@ export default {
             'color-scheme': 'light',
           },
         },
-        /**
-         * ── A PLATED SURFACE IS A LIGHT ISLAND, AND IT HAS TO BE (Aug 2026) ─
-         *
-         * The marker result card's status ground is one soft pastel family at a
-         * single lightness, identical in both themes — see STATUS_PLATE in
-         * tokens.ts for why a dark card can never carry a clean yellow. In dark
-         * mode that puts near-white cream type, a #F5CE3E status word and a dark
-         * hairline on a pale pastel: unreadable, and unreadable in the one place
-         * a wrong colour is a clinical statement.
-         *
-         * So the ink comes with the ground. This is the SAME mechanism the print
-         * block above uses and for the same reason: every colour in the product
-         * already resolves through these custom properties, so re-emitting the
-         * light set at a selector that beats `.dark` turns everything inside the
-         * card light in one place (the value, the marker name, the status word,
-         * the border, the meta lines) and anything added to that card later is
-         * covered by construction rather than by remembering.
-         *
-         * ⚠ COLOURS ONLY. The shadow alphas, the glass alphas and the sheens are
-         * NOT re-emitted: they are the DARK page's numbers and this card is still
-         * sitting on the dark page. A light card wants dark mode's deeper shadow,
-         * not light mode's.
-         *
-         * ⚠ AND THE STATUS WORD IS ITS OWN VALUE ON BOTH RULES, WHICH IS WHY THE
-         * PLAIN `.status-plate` EXISTS AT ALL. The plate is deep enough that the
-         * ordinary light label measures 3.4:1 on it, so the word is re-solved for
-         * this ground alone (`STATUS_PLATE_LABEL`) rather than every status word
-         * in light mode being dragged toward a near-black to clear a surface most
-         * of them never touch.
-         *
-         * ⚠ BOTH RULES SIT AFTER THE PRINT BLOCK ON PURPOSE. A media query adds
-         * no specificity, so `:root, .dark` inside `@media print` and
-         * `.status-plate` are equally specific and SOURCE ORDER decides. Declared
-         * earlier, the print block would put the ordinary label back on a plate a
-         * printed page still paints, since `--c-plate-*` is theme-identical and
-         * survives into print.
-         *
-         * ⚠ AND THE GAUGE INSIDE IT DOES NOT MOVE. `--c-hue-*-fill` and
-         * `--c-rangemark` are theme-identical already, so the arc paints the same
-         * five bytes it always did whether or not this rule exists.
-         */
-        '.status-plate': statusPlateLabelCssVars(),
-        '.dark .status-plate': { ...asBaseVars('light'), ...statusPlateLabelCssVars() },
       });
     }),
     // Fraunces' optical-size axis, as three utilities rather than an inline

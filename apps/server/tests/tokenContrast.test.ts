@@ -12,8 +12,6 @@ import {
   BAND_CONTRAST,
   BAND_RUNG,
   bandChromaCeiling,
-  PLATE_SEED,
-  STATUS_PLATE_LABEL,
   BAND_CHROMA_SHARE,
   statusHue,
   CONTRAST_AT_BOUND,
@@ -351,119 +349,95 @@ describe.each(MODES)('%s theme', (mode) => {
   });
 
   /**
-   * ═══ THE MARKER CARD'S PLATE ═══════════════════════════════════════════════
+   * ═══ THE STATUS OUTLINE ════════════════════════════════════════════════════
    *
-   * A different token from the wash above and a different thing on screen. The
-   * wash is the hue mixed INTO the surface, so in dark it is the hue at a
-   * near-black card's lightness — a brown for gold and a maroon for red, at any
-   * chroma, in any colour space. The plate is a soft pastel at one lightness,
-   * IDENTICAL IN BOTH THEMES, and the surface carries the light token set with
-   * it (`.status-plate` in tailwind.config.ts). Two surfaces take it: the marker
-   * result card and the at-a-glance strip's segments, which is what makes those
-   * two read as one system.
+   * The marker result card and the at-a-glance strip carried a filled status
+   * GROUND through three settings and four deepenings. Both are neutral glass
+   * now and the status is a 2px border, which changes what has to be measured:
+   * an outline is a thin graphical object on a translucent pane, so what matters
+   * is how far it stands off THAT pane rather than what text can sit on it.
    *
-   * So every floor here is measured against LIGHT's ink and LIGHT's status word
-   * in both modes, because that is what is painted inside a plated surface in
-   * both modes. Measuring dark's cream against the plate would be measuring a pairing
-   * that never renders.
+   * ⚠ AND THE FLOOR IS 3:1, THE GRAPHICAL ONE. Status is carried by the gauge
+   * arc, the chevron and the word as well, so the outline is reinforcement and
+   * answers to WCAG 1.4.11 rather than to 1.4.3. It is measured against the pane
+   * AS COMPOSITED, because a border drawn on glass stands on the page showing
+   * through the glass and not on the token.
    */
-  it('grounds the marker card in a plate that is the same colour in both themes', () => {
+  const pane = blend(tone(mode, '--c-glass-panel'), tone(mode, '--c-cream'), GLASS.panel[mode]);
+
+  it('stands every status outline off the glass it is drawn on', () => {
     for (const key of Object.keys(status) as StatusKey[]) {
-      expect(tone('light', `--c-plate-${kebab(key)}`), `${key} plate differs between the themes`).toBe(
-        tone('dark', `--c-plate-${kebab(key)}`),
+      const outline = tone(mode, `--c-outline-${kebab(key)}`);
+      const ratio = contrastRatio(outline, pane);
+      expect(ratio, `the ${key} outline is ${ratio.toFixed(2)}:1 on the ${mode} pane`).toBeGreaterThanOrEqual(
+        WCAG_AA_LARGE_TEXT,
       );
     }
   });
 
-  it('keeps the plate light and low in chroma rather than a filled alert card', () => {
+  /**
+   * ⚠ THE TWO THEMES ARE NOT THE SAME VALUES AND MUST NOT BE. The ground is a
+   * near-white pane in one and a near-black one in the other, so a rendering
+   * deep enough to read on the first is a black line on the second. Asserted as
+   * an inequality rather than left to the comment: dark is LIFTED, every hue.
+   */
+  it('lifts every outline in dark rather than reusing the light one', () => {
     for (const key of Object.keys(status) as StatusKey[]) {
-      const plate = tone(mode, `--c-plate-${kebab(key)}`);
-      // Light: every plate sits within a hair of the same luminance, so the five
-      // read as one family rather than as five separately-chosen colours. The
-      // window is generous because equal HSL lightness is not equal luminance —
-      // a yellow at a given lightness is always the brighter of any pair.
-      /**
-       * ── STILL A GROUND, AND BOTH BOUNDS MEAN SOMETHING (Aug 2026) ─────────
-       *
-       * The family has been deepened three times, and the first two times these
-       * bounds were arbitrary numbers nudged to let it through, which is a test
-       * following the design rather than holding it. Both are anchored now:
-       *
-       *  · A PLATE IS A GROUND YOU CAN SET BODY COPY ON, comfortably rather than
-       *    at the AA line: 6:1 for the light ink the island emits, and the /80
-       *    step of the opacity ladder still at AA on top of that. The ladder is
-       *    the tighter of the two and is what the meta lines actually use.
-       *  · A PLATE IS NEVER MORE COLOURFUL THAN ITS OWN REFERENCE SEED. The
-       *    plate hues come from a reference ramp now rather than from
-       *    `statusHue`, and the brief for that ramp was to adopt its hues and
-       *    refuse its brightness. This is that refusal as a number: deepening
-       *    may take chroma up toward the seed and may never pass it.
-       */
-      const body = contrastRatio(tone('light', '--c-espresso'), plate);
-      expect(body, `body copy on the ${key} plate is ${body.toFixed(2)}:1`).toBeGreaterThanOrEqual(6);
-      const quiet = contrastRatio(blend(tone('light', '--c-espresso'), plate, 0.8), plate);
-      expect(quiet, `an /80 line on the ${key} plate is ${quiet.toFixed(2)}:1`).toBeGreaterThanOrEqual(WCAG_AA_TEXT);
-      const chroma = okChroma(plate);
-      const seed = PLATE_SEED[status[key].hue as 'green' | 'yellow' | 'red'];
-      expect(
-        chroma,
-        `the ${key} plate carries ${chroma.toFixed(4)} of chroma against its seed's ${okChroma(seed).toFixed(4)}`,
-      ).toBeLessThanOrEqual(okChroma(seed));
-      // ...and enough of it to be a colour rather than a warm grey. Raised with
-      // the family: the complaint that produced this pass was that the plates
-      // read as faint pastels, and 0.02 was low enough to pass that version.
-      expect(chroma, `the ${key} plate carries only ${chroma.toFixed(4)} of chroma`).toBeGreaterThan(0.04);
+      const light = tone('light', `--c-outline-${kebab(key)}`);
+      const dark = tone('dark', `--c-outline-${kebab(key)}`);
+      expect(dark, `the ${key} outline is the same value in both themes`).not.toBe(light);
+      expect(luminance(dark), `the ${key} outline was not lifted in dark`).toBeGreaterThan(luminance(light));
     }
   });
 
-  it('reads every plated card in the light ink, which is what the island emits', () => {
+  it('keeps the outline rich rather than a grey line at 2px', () => {
     for (const key of Object.keys(status) as StatusKey[]) {
-      const plate = tone(mode, `--c-plate-${kebab(key)}`);
-      const body = contrastRatio(tone('light', '--c-espresso'), plate);
-      expect(body, `body copy on the ${key} plate is ${body.toFixed(2)}:1`).toBeGreaterThanOrEqual(WCAG_AA_TEXT);
-      /**
-       * THE STATUS WORD, which is the one piece of type in the product carrying
-       * a status colour and stands on this exact ground.
-       *
-       * ⚠ IT IS `STATUS_PLATE_LABEL` AND NOT `--c-status-*`, AND THE DIFFERENCE
-       * IS THE POINT. The plate is deep enough that the ordinary light label
-       * measures 3.4:1 on it; the answer is a value solved for THIS ground and
-       * emitted only inside `.status-plate`, rather than every status word in
-       * light mode being darkened to clear a surface most of them never touch.
-       * The two are asserted separately so neither can quietly become the other.
-       */
-      const label = contrastRatio(STATUS_PLATE_LABEL[key], plate);
-      expect(label, `the ${key} status word on its own plate is ${label.toFixed(2)}:1`).toBeGreaterThanOrEqual(
-        WCAG_AA_TEXT,
-      );
-      expect(tone('light', `--c-status-${kebab(key)}`), `the ordinary ${key} label moved with the plate`).toBe(
-        status[key].hex,
-      );
-      // And the ORDINARY light label did NOT move with the plate: it is still the
-      // authored `statusTextHex`, byte for byte, which is what stops a deeper
-      // ground quietly darkening every status word in the product. Its own AA is
-      // covered against the surfaces it actually lands on by `sets every status
-      // label at AA on every surface` above.
+      const chroma = okChroma(tone(mode, `--c-outline-${kebab(key)}`));
+      expect(chroma, `the ${key} outline carries only ${chroma.toFixed(4)} of chroma`).toBeGreaterThan(0.1);
     }
   });
 
-  it('tells the three plate hues apart, which is the whole reason it is coloured', () => {
-    const green = tone(mode, '--c-plate-in-range');
-    const gold = tone(mode, '--c-plate-high');
-    const red = tone(mode, '--c-plate-significant-high');
+  it('tells the three outline hues apart, which is what the colour is for', () => {
+    const green = tone(mode, '--c-outline-in-range');
+    const gold = tone(mode, '--c-outline-high');
+    const red = tone(mode, '--c-outline-significant-high');
     for (const [a, b, names] of [
       [green, gold, 'in range vs high'],
       [gold, red, 'high vs significantly out'],
       [green, red, 'in range vs significantly out'],
     ] as const) {
-      expect(a, names).not.toBe(b);
-      // In OKLab, because two pastels of one lightness differ in hue and chroma
-      // and barely at all in contrast — a ratio check here would pass on three
-      // identical greys.
       const apart = deltaOk(a, b);
-      expect(apart, `${names}: the two plates are ${apart.toFixed(4)} apart in OKLab`).toBeGreaterThan(0.03);
+      expect(apart, `${names}: the two outlines are ${apart.toFixed(4)} apart in OKLab`).toBeGreaterThan(0.08);
     }
+    // Both golds are one colour, by construction rather than by two records
+    // agreeing: direction is the chevron and the word.
+    expect(tone(mode, '--c-outline-low')).toBe(gold);
+    expect(tone(mode, '--c-outline-significant-low')).toBe(red);
   });
+
+  /**
+   * ── THE STRIP'S RING, AND THE HINGE IS THE HALF THAT CAN GO WRONG ────────
+   *
+   * The at-a-glance strip's outline is one gradient: gold, olive, green, olive,
+   * gold. The hinge stops are the OKLCH midpoints of the two outlines either
+   * side, because a straight sRGB line between a green and a gold passes through
+   * the middle of the cube and the middle of the cube is grey. That is the same
+   * fact recorded against the gauge's own ramp, one ring further out, and it is
+   * asserted the same way: the hinge equals the OKLCH midpoint AND is not the
+   * sRGB one, so a `mix()` creeping back fails here rather than being noticed as
+   * a dull patch at 25% of a strip.
+   */
+  it('hinges the strip ring on the OKLCH midpoint and not the sRGB one', () => {
+    const green = tone(mode, '--c-outline-green');
+    const gold = tone(mode, '--c-outline-yellow');
+    const olive = tone(mode, '--c-outline-olive');
+    expect(olive).toBe(oklchMix(green, gold, 0.5));
+    expect(olive, 'the strip hinge is the sRGB midpoint, which olives out').not.toBe(srgbMix(green, gold, 0.5));
+    // And it is a real step from both ends rather than one of them rounded.
+    expect(deltaOk(olive, green)).toBeGreaterThan(0.02);
+    expect(deltaOk(olive, gold)).toBeGreaterThan(0.02);
+  });
+
 
   it('keeps each tint distinguishable from the untinted card it replaces', () => {
     // Not an accessibility threshold — a sanity one. A wash that measures

@@ -169,7 +169,91 @@ asserts every text token clears its floor at the worst ground it finds — light
 leave that measurement describing a page nobody is looking at, so the test also
 asserts the ribbon resolves to something at its own brightest blob.
 
+## Status is an OUTLINE on a glass card now (Aug 2026)
+
+⚠ **THIS SUPERSEDES "The marker card's status ground is a PLATE" BELOW**, and it
+ends a sequence rather than continuing it. The card's surface carried the status
+as a translucent wash, then an opaque plate, then the plate deepened three times.
+Every round improved the COLOUR and none of them touched what was wrong: **a grid
+of 165 cards, each a large field of green or gold or red, is a page shouting a
+summary at somebody who came to read one result.**
+
+**THE BODY IS GLASS AND THE BORDER IS THE STATUS.** The marker result card and
+the at-a-glance strip are the same frosted translucent material as every other
+pane in the product: same backdrop blur, same specular streak, same inset
+hairline, identical whatever the result. The status is a **2px outline** in a
+deep rendering of its own hue.
+
+    status                light      dark       on its own pane
+    In range              #347b0f    #56b823    4.51:1 / 6.94:1
+    Below / Above range   #ae7809    #d59615    3.28:1 / 6.88:1
+    Significantly out     #912312    #d95845    7.33:1 / 4.56:1
+
+**⚠ TWO RULES IN THIS FILE ARE REVERSED AND BOTH ARE WORTH NAMING.** "NO COLOURED
+CARD OUTLINES" was written when an out-of-range card carried a red ring AND a red
+fill AND a red word, which is one statement made three times in the loudest
+available register; a single confident outline on an otherwise neutral card is
+the opposite of that. "A TINTED CARD IS NEVER A PANE" was about a translucent
+sheet with a moving highlight over a coloured FIELD, where the material and the
+meaning fight for the same pixels. An outlined card has no field. **The two CHART
+cards are still opaque**, for the measured reason on `GLASS.panel` that has
+nothing to do with either.
+
+**THE VALUES ARE PER THEME, WHICH THE GROUND THEY REPLACED WAS NOT.** A border is
+thin, so what matters is how far it stands off the pane it is drawn on, and the
+two panes are nothing like each other: on the light pane a deep colour has
+3.3–7.3:1 to spend, and the identical value on the dark pane is a black line on a
+near-black card. Dark is LIFTED per hue, red furthest, because red is the darkest
+hue in the palette at any lightness and the first to disappear.
+
+**⚠ THE FLOOR IS 3:1 AND THAT IS THE GRAPHICAL ONE.** The gauge arc, the chevron
+and the word all stay, so the outline is reinforcement rather than the sole
+carrier, and it answers to WCAG 1.4.11 rather than 1.4.3.
+
+**THE AMBER SEED IS 40 DEGREES, NOT THE STATUS YELLOW'S 45.** Deep is where an
+outline lives, and a deep 45-degree yellow is an OLIVE while a deep 40-degree one
+is still an amber. Five degrees is the whole difference between the colour asked
+for and the failure this file has recorded five times. Green takes the leaf seed;
+red is `statusHue.red` itself, already warm at 8 degrees.
+
+**AND THE STRIP'S RING IS ONE GRADIENT MAPPING ITS OWN GEOMETRY.** Gold, olive,
+green, olive, gold, left to right across below / in range / above. Symmetric,
+because the two golds ARE one colour and direction is the chevron and the word.
+The hinge stops are the **OKLCH midpoints of the two outlines** (light #807a00,
+dark #ada600), the same `oklchMix` the gauge's ramp uses and for the same reason:
+a straight sRGB line between a green and a gold goes through the middle of the
+cube, and the middle of the cube is grey.
+
+**⚠ THE RING IS A MASKED PSEUDO-ELEMENT ON A WRAPPER, AND TWO SIMPLER THINGS DO
+NOT WORK.** `border-image` ignores `border-radius` outright and squares off a
+1.5rem corner. `background-clip: border-box, padding-box` looks right and renders
+as a strip filled edge to edge, because the clip list is matched to BACKGROUND
+LAYERS and `background-image` there is one layer, so the second value is dropped
+and the colour takes the first; the trick needs two image layers and the top one
+would have to be opaque, which paints over the backdrop blur. So it is a masked
+`::before`, on a WRAPPER rather than on the pane, because `.glass-panel` has
+already spent both of its pseudo-elements on the streak and the grain. The
+wrapper carries the radius and the ring inherits it, so there is no inner-radius
+arithmetic to keep in step.
+
+**THE WIDTH IS ONE NUMBER** (`STATUS_OUTLINE_WIDTH`, emitted as
+`--status-outline-width`) shared by the cards and the strip, or the two stop
+reading as one system. `.status-outline` is in `@layer utilities` because `.card`
+sets a 1px border through `@apply`, which lands in components, and a rule that
+has to beat it cannot rely on file order in the same layer.
+
+**⚠ `--c-tint-*` AND THE `bg-tint-*` UTILITIES ARE UNTOUCHED** and still paint the
+alert cards and the toasts. What went with the plate is `--c-plate-*`, the
+`.status-plate` light-token island and `STATUS_PLATE_LABEL`: with the word back
+on glass, which is within a rounding of the card it was always solved against,
+none of them had a caller.
+
 ## The marker card's status ground is a PLATE, not a wash (Aug 2026)
+
+⚠ **SUPERSEDED, ENTIRELY, BY THE SECTION ABOVE.** Kept for the diagnosis, which
+is still correct and still the reason a filled ground was never going to work in
+dark: a status hue rendered at a dark surface's lightness is a brown for gold and
+a maroon for red, in any colour space, at any chroma.
 
 ⚠ **THIS SUPERSEDES "The dark card status tint is solved for colour now" BELOW.**
 

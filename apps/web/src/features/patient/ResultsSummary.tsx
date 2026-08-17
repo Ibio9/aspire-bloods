@@ -1,15 +1,19 @@
-import type { ReactNode } from 'react';
-import { countable, type MarkerStatus, type MarkerStatusInput } from '@aspire-bloods/shared';
+import type { ReactNode } from "react";
+import {
+  countable,
+  type MarkerStatus,
+  type MarkerStatusInput,
+} from "@aspire-bloods/shared";
 import {
   filterCountLabel,
   statusBarClass,
   statusLabel,
-  statusPlateClass,
+  statusOutlineClass,
   STRIP_FILTER,
   STRIP_STATE,
   type StatusFilter,
-} from '../../lib/markerCopy';
-import { StatusBadge } from '../../components/ui/StatusBadge';
+} from "../../lib/markerCopy";
+import { StatusBadge } from "../../components/ui/StatusBadge";
 
 /**
  * How a set of results is summarised: the counts strip over a whole report, and
@@ -68,24 +72,41 @@ export interface SummaryMarker {
  *
  * BOTH GOLD SEGMENTS ARE THE SAME COLOUR, by construction rather than by two
  * records agreeing: `low` and `high` resolve to the same hue in tokens.ts, so
- * `statusPlateClass('LOW')` and `statusPlateClass('HIGH')` paint one ground.
+ * `statusOutlineClass('LOW')` and `statusOutlineClass('HIGH')` resolve to one
+ * colour, and the strip's own ring is symmetric for the same reason.
  * Direction is the chevron and the word, which is what the shape layer is for.
  */
-const STRIP_ORDER: ('LOW' | 'IN_RANGE' | 'HIGH')[] = ['LOW', 'IN_RANGE', 'HIGH'];
+const STRIP_ORDER: ("LOW" | "IN_RANGE" | "HIGH")[] = [
+  "LOW",
+  "IN_RANGE",
+  "HIGH",
+];
 
 /** The order a proportion bar stacks in, so every bar reads the same way left to right. */
-const BAR_ORDER: MarkerStatus[] = ['IN_RANGE', 'LOW', 'HIGH', 'SIGNIFICANT_LOW', 'SIGNIFICANT_HIGH'];
+const BAR_ORDER: MarkerStatus[] = [
+  "IN_RANGE",
+  "LOW",
+  "HIGH",
+  "SIGNIFICANT_LOW",
+  "SIGNIFICANT_HIGH",
+];
 
 function countByStatus(markers: SummaryMarker[]): Record<MarkerStatus, number> {
   const counts: Record<MarkerStatus, number> = {
-    IN_RANGE: 0, HIGH: 0, LOW: 0, SIGNIFICANT_HIGH: 0, SIGNIFICANT_LOW: 0,
+    IN_RANGE: 0,
+    HIGH: 0,
+    LOW: 0,
+    SIGNIFICANT_HIGH: 0,
+    SIGNIFICANT_LOW: 0,
   };
   for (const m of countable(markers)) counts[m.status] += 1;
   return counts;
 }
 
 /** The same tally, folded onto the strip's three states. */
-function countByStripState(markers: SummaryMarker[]): Record<'LOW' | 'IN_RANGE' | 'HIGH', number> {
+function countByStripState(
+  markers: SummaryMarker[],
+): Record<"LOW" | "IN_RANGE" | "HIGH", number> {
   const counts = { LOW: 0, IN_RANGE: 0, HIGH: 0 };
   for (const m of countable(markers)) counts[STRIP_STATE[m.status]] += 1;
   return counts;
@@ -127,11 +148,11 @@ function countedTotal(markers: SummaryMarker[]): number {
  */
 export function CountsStrip({
   markers,
-  title = 'This report at a glance',
+  title = "This report at a glance",
   activeStatus,
   onSelectStatus,
   action,
-  className = '',
+  className = "",
 }: {
   markers: SummaryMarker[];
   /** What this is a summary OF — one report, or every marker on record. */
@@ -162,60 +183,80 @@ export function CountsStrip({
           repeating object. `overflow-hidden` clips the pane’s own streak and
           grain to the radius along with the segments’ tinted fills, which is
           why the radius still lives here and nowhere inside. */}
-      <ul className="glass-panel card-glass grid w-full max-w-3xl grid-cols-1 divide-y divide-taupe overflow-hidden rounded-card border border-taupe shadow-card sm:auto-cols-fr sm:grid-flow-col sm:divide-x sm:divide-y-0">
-        {shown.map((status) => {
-          // The segment selects the DIRECTIONAL filter, not the specific state
-          // — its number counts the significant one too, and a segment reading
-          // "4" that filtered to three would be the strip contradicting itself.
-          const filter = STRIP_FILTER[status];
-          const selected = activeStatus === filter;
-          const Wrapper = onSelectStatus ? 'button' : 'div';
-          return (
-            <li key={status} className="flex">
-              <Wrapper
-                {...(onSelectStatus
-                  ? {
-                      type: 'button' as const,
-                      onClick: () => onSelectStatus(selected ? 'ALL' : filter),
-                      'aria-pressed': selected,
-                    }
-                  : {})}
-                // Shorter stacked than side by side: five segments at the
-                // desktop height is most of a phone screen spent on a summary
-                // of the markers it is delaying.
-                //
-                // py-4 / sm:py-5, down from py-5 / sm:py-7. A segment was 147px
-                // tall to hold a two-line number-and-label pair about 44px
-                // high, so two thirds of each box was empty and the five of
-                // them read as a large hollow object rather than a dense one.
-                // The unit still has generous space AROUND it — that is where
-                // the room belongs, and it is untouched.
-                className={`flex w-full flex-col items-center justify-center gap-2 px-4 py-4 text-center transition duration-150 ease-out sm:py-5 ${statusPlateClass(status)} ${
-                  // Selection is a bronze inset ring, not a border: a border
-                  // would push the segment's contents by a pixel and shunt the
-                  // whole row. Bronze rather than the status hue, so the ring
-                  // says "you are filtering by this" and never doubles as a
-                  // second, louder statement of the status itself.
-                  selected ? 'ring-2 ring-inset ring-bronze' : ''
-                } ${
-                  // Hover is a ring rather than a background, because a
-                  // background here would REPLACE the status wash — the one
-                  // thing this segment exists to show — for as long as the
-                  // pointer was on it.
-                  onSelectStatus
-                    ? 'cursor-pointer hover:ring-1 hover:ring-inset hover:ring-bronze/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-bronze'
-                    : ''
-                }`}
-              >
-                <p className="tabular font-display opsz-section text-2xl font-semibold leading-none text-espresso">
-                  {counts[status]}
-                </p>
-                <StatusBadge status={status} />
-              </Wrapper>
-            </li>
-          );
-        })}
-      </ul>
+      {/* ── GLASS BODY, GRADIENT RING (Aug 2026) ────────────────────────────
+          The segments used to be filled with the status colour, which put three
+          large coloured fields at the top of every report. The strip is the same
+          neutral glass as every other pane now, and the status is the RING: gold
+          at both ends, green through the middle, symmetric, mapping the strip's
+          own left-to-right meaning. Same weight and the same deep values as the
+          marker cards, so the two read as one system.
+
+          THE WRAPPER EXISTS FOR THE RING AND FOR NOTHING ELSE. A gradient border
+          that keeps a 1.5rem radius has to be a masked pseudo-element, and
+          `.glass-panel` has already spent both of its own on the streak and the
+          grain. The wrapper carries the radius; the ring inherits it, so there is
+          no inner-radius arithmetic to keep in step. See `.status-outline-ring`
+          in globals.css, where the two approaches that do NOT work are recorded.
+
+          `border-taupe` is gone from the pane because the ring IS its border now.
+          The dividers are untouched. */}
+      <div className="status-outline-ring w-full max-w-3xl rounded-card">
+        <ul className="glass-panel card-glass grid grid-cols-1 divide-y divide-taupe overflow-hidden rounded-card shadow-card sm:auto-cols-fr sm:grid-flow-col sm:divide-x sm:divide-y-0">
+          {shown.map((status) => {
+            // The segment selects the DIRECTIONAL filter, not the specific state
+            // — its number counts the significant one too, and a segment reading
+            // "4" that filtered to three would be the strip contradicting itself.
+            const filter = STRIP_FILTER[status];
+            const selected = activeStatus === filter;
+            const Wrapper = onSelectStatus ? "button" : "div";
+            return (
+              <li key={status} className="flex">
+                <Wrapper
+                  {...(onSelectStatus
+                    ? {
+                        type: "button" as const,
+                        onClick: () =>
+                          onSelectStatus(selected ? "ALL" : filter),
+                        "aria-pressed": selected,
+                      }
+                    : {})}
+                  // Shorter stacked than side by side: five segments at the
+                  // desktop height is most of a phone screen spent on a summary
+                  // of the markers it is delaying.
+                  //
+                  // py-4 / sm:py-5, down from py-5 / sm:py-7. A segment was 147px
+                  // tall to hold a two-line number-and-label pair about 44px
+                  // high, so two thirds of each box was empty and the five of
+                  // them read as a large hollow object rather than a dense one.
+                  // The unit still has generous space AROUND it — that is where
+                  // the room belongs, and it is untouched.
+                  className={`flex w-full flex-col items-center justify-center gap-2 px-4 py-4 text-center transition duration-150 ease-out sm:py-5 ${
+                    // Selection is a bronze inset ring, not a border: a border
+                    // would push the segment's contents by a pixel and shunt the
+                    // whole row. Bronze rather than the status hue, so the ring
+                    // says "you are filtering by this" and never doubles as a
+                    // second, louder statement of the status itself.
+                    selected ? "ring-2 ring-inset ring-bronze" : ""
+                  } ${
+                    // Hover is a ring rather than a background, and it stays one
+                    // now that the segment has no fill of its own: a background
+                    // here would paint over the glass and, with it, over both
+                    // ambient sources the pane is transmitting.
+                    onSelectStatus
+                      ? "cursor-pointer hover:ring-1 hover:ring-inset hover:ring-bronze/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-bronze"
+                      : ""
+                  }`}
+                >
+                  <p className="tabular font-display opsz-section text-2xl font-semibold leading-none text-espresso">
+                    {counts[status]}
+                  </p>
+                  <StatusBadge status={status} />
+                </Wrapper>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
       {action && <div className="mt-5">{action}</div>}
     </div>
   );
@@ -251,7 +292,7 @@ export interface SummaryCategory {
 export function StatusBreakdown({
   markers,
   label,
-  className = '',
+  className = "",
 }: {
   markers: SummaryMarker[];
   /** Names the bar for a screen reader — the health area it belongs to. */
@@ -265,7 +306,9 @@ export function StatusBreakdown({
   if (counted.length === 0) return null;
   const counts = countByStatus(counted);
   const segments = BAR_ORDER.filter((s) => counts[s] > 0);
-  const spoken = segments.map((s) => `${counts[s]} ${statusLabel(s).toLowerCase()}`).join(', ');
+  const spoken = segments
+    .map((s) => `${counts[s]} ${statusLabel(s).toLowerCase()}`)
+    .join(", ");
 
   return (
     <div className={className}>
@@ -275,15 +318,24 @@ export function StatusBreakdown({
         aria-label={`${label}: ${spoken}.`}
       >
         {segments.map((s) => (
-          <span key={s} className={statusBarClass(s)} style={{ width: `${(counts[s] / counted.length) * 100}%` }} />
+          <span
+            key={s}
+            className={statusBarClass(s)}
+            style={{ width: `${(counts[s] / counted.length) * 100}%` }}
+          />
         ))}
       </div>
       {/* The same breakdown in words, always present — the bar is the quick
           read, this is the actual answer. */}
-      <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-espresso/80" aria-hidden="true">
+      <p
+        className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-espresso/80"
+        aria-hidden="true"
+      >
         {segments.map((s) => (
           <span key={s} className="tabular inline-flex items-center gap-1.5">
-            <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-input border border-taupe ${statusBarClass(s)}`} />
+            <span
+              className={`inline-block h-2.5 w-2.5 shrink-0 rounded-input border border-taupe ${statusBarClass(s)}`}
+            />
             {counts[s]} {statusLabel(s).toLowerCase()}
           </span>
         ))}
@@ -323,10 +375,15 @@ export function AreaGroupHeading({
   return (
     <div className="mb-5 border-b border-taupe pb-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 id={id} className="font-display text-xl leading-tight text-espresso">
+        <h2
+          id={id}
+          className="font-display text-xl leading-tight text-espresso"
+        >
           {name}
         </h2>
-        <p className="tabular text-xs text-espresso/80">{filterCountLabel(markers.length, total)}</p>
+        <p className="tabular text-xs text-espresso/80">
+          {filterCountLabel(markers.length, total)}
+        </p>
       </div>
       <StatusBreakdown markers={markers} label={name} className="mt-3" />
       {note && <p className="mt-2 text-xs italic text-espresso/80">{note}</p>}

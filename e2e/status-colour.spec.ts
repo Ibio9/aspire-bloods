@@ -90,10 +90,17 @@ test.describe('traffic-light status', () => {
        * The five states themselves are untouched, and the cards are where they
        * live. So the washes are read off the marker cards, which is also the
        * surface a patient actually reads a status on: `Card`'s `tint` prop is
-       * what `statusPlateClass` paints, and it is the thing this spec exists to
+       * what `statusOutlineClass` paints, and it is the thing this spec exists to
        * stop turning into beige.
        *
-       * Each card carries its status in words, so the label and the wash are
+       * ⚠ AND IT IS THE BORDER THAT IS READ, NOT THE BACKGROUND (Aug 2026). The
+       * card's SURFACE used to carry the status and does not any more: the body
+       * is neutral glass, identical whatever the result, and the status is a 2px
+       * outline. Reading `backgroundColor` here would now return the same glass
+       * for all five states, and this spec would fail while nothing was wrong,
+       * which is the failure a spec pinned to a mechanism always has.
+       *
+       * Each card carries its status in words, so the label and the outline are
        * read off the SAME element and cannot be matched up wrongly.
        */
       const washes = await page.evaluate(() => {
@@ -107,17 +114,17 @@ test.describe('traffic-light status', () => {
               ),
             );
           if (!status) continue;
-          out.push({ label: status, bg: getComputedStyle(card).backgroundColor });
+          out.push({ label: status, bg: getComputedStyle(card).borderTopColor });
         }
         return out;
       });
-      expect(washes.length, 'expected tinted result cards on the report').toBeGreaterThan(0);
+      expect(washes.length, 'expected outlined result cards on the report').toBeGreaterThan(0);
 
       const seen = new Map<string, string>();
       for (const { label, bg } of washes) {
-        // The failure mode this whole spec exists for: a wash that is
-        // indistinguishable from the untinted card it replaces.
-        expect(chroma(bg), `${theme}: "${label}" wash ${bg} has no colour in it`).toBeGreaterThanOrEqual(4);
+        // The failure mode this whole spec exists for: a status colour that is
+        // indistinguishable from the neutral hairline it replaces.
+        expect(chroma(bg), `${theme}: "${label}" outline ${bg} has no colour in it`).toBeGreaterThanOrEqual(4);
         seen.set(label, bg);
       }
 
@@ -126,7 +133,7 @@ test.describe('traffic-light status', () => {
       // carried by the chevron and by the word, never by hue — so a test that
       // demanded five distinct colours would be demanding a regression.
       const distinct = new Set(seen.values());
-      expect(distinct.size, `${theme}: expected three hues, got ${distinct.size}`).toBe(3);
+      expect(distinct.size, `${theme}: expected three outline hues, got ${distinct.size}`).toBe(3);
 
       // And the right three: in range reads green, above/below read yellow,
       // significantly out reads red.
@@ -136,7 +143,7 @@ test.describe('traffic-light status', () => {
           : label.includes('In range')
             ? 'green'
             : 'yellow';
-        expect(hueOf(bg), `${theme}: "${label}" wash ${bg} reads as ${hueOf(bg)}, expected ${expected}`).toBe(expected);
+        expect(hueOf(bg), `${theme}: "${label}" outline ${bg} reads as ${hueOf(bg)}, expected ${expected}`).toBe(expected);
       }
       // All three are actually on screen — a report showing only in-range
       // results would pass every check above while proving nothing.

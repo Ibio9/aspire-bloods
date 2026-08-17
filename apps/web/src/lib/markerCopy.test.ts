@@ -24,7 +24,7 @@ import {
   statusFilterCounts,
   statusHex,
   statusLabel,
-  statusPlateClass,
+  statusOutlineClass,
   statusToken,
   matchesStatusFilter,
   byAttentionThenName,
@@ -196,7 +196,7 @@ describe('every lookup keyed on status is total', () => {
       expect(() => statusLabel(s), where).not.toThrow();
       expect(() => statusColor(s), where).not.toThrow();
       expect(() => statusHex(s), where).not.toThrow();
-      expect(() => statusPlateClass(s), where).not.toThrow();
+      expect(() => statusOutlineClass(s), where).not.toThrow();
       expect(() => statusBarClass(s), where).not.toThrow();
       expect(() => attentionRank(s), where).not.toThrow();
       expect(() => statusPaint(s), where).not.toThrow();
@@ -210,10 +210,10 @@ describe('every lookup keyed on status is total', () => {
     for (const s of MARKER_STATUSES) {
       expect(statusToken(s), s).not.toBeNull();
       expect(statusLabel(s), s).not.toBe(NO_STATUS_LABEL);
-      // The ground AND the light-token island that has to travel with it —
-      // a plate colour on its own would put dark mode's near-white cream type
-      // on a light tint. See statusPlateClass.
-      expect(statusPlateClass(s), s).toMatch(/^status-plate bg-plate-/);
+      // The WIDTH and the COLOUR, and neither is useful alone: the width is one
+      // number for every surface that takes an outline, so the cards and the
+      // at-a-glance strip read as one system. See statusOutlineClass.
+      expect(statusOutlineClass(s), s).toMatch(/^status-outline border-outline-/);
       expect(statusBarClass(s), s).toMatch(/^bg-tint-.*-bar/);
     }
     // Five states, three hues: direction is carried by the word and the mark,
@@ -229,8 +229,8 @@ describe('every lookup keyed on status is total', () => {
       const where = `status=${String(s)}`;
       expect(statusToken(s), where).toBeNull();
       expect(statusLabel(s), where).toBe(NO_STATUS_LABEL);
-      // No ground and no bar segment — the surface keeps its ordinary tone.
-      expect(statusPlateClass(s), where).toBe('');
+      // No outline and no bar segment: the card keeps its ordinary hairline.
+      expect(statusOutlineClass(s), where).toBe('');
       expect(statusBarClass(s), where).toBe('');
       // A colour it can actually paint with, and not one of the three hues.
       expect(statusColor(s), where).toMatch(/^rgb\(var\(--c-[a-z0-9-]+\)\)$/);

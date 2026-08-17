@@ -1,6 +1,6 @@
 import type { HTMLAttributes } from 'react';
 import type { MarkerStatusInput } from '@aspire-bloods/shared';
-import { statusPlateClass } from '../../lib/markerCopy';
+import { statusOutlineClass } from '../../lib/markerCopy';
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
   /**
@@ -19,34 +19,32 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
   /** Roomier internal padding for the primary content surface on a page. */
   padding?: 'default' | 'roomy' | 'tight' | 'none';
   /**
-   * A result's status, applied as a soft background wash instead of the
-   * default card surface. Surface only — the border, the text and the shadow
-   * are untouched, and the status label and its icon shape inside the card
-   * still carry the meaning on their own.
+   * A result's status, applied as a coloured OUTLINE. The card's surface is
+   * untouched by it, and so are the text and the shadow; the status label and
+   * its icon shape inside the card still carry the meaning on their own.
    *
    * Only ever set from a MEASURED marker's status. Genetic risk categories,
    * food sensitivity and microbiome composition have no reference range, so
-   * there is no status to tint by and no tint is applied to them.
+   * there is no status to outline by and none is applied to them.
    *
-   * ⚠ IT IS A PLATE RATHER THAN A WASH SINCE Aug 2026, AND THAT IS THE FIX FOR
-   * "the card tint reads muddy". A wash is the hue mixed INTO the card, so on a
-   * near-black surface it is the hue at a near-black LIGHTNESS — and a yellow
-   * there is a brown and a red is a maroon, whatever chroma is spent on it. The
-   * ground is a soft pastel at one lightness now, byte-identical in both themes,
-   * which is the composition the gauge inside the card already draws.
+   * ⚠ IT IS AN OUTLINE RATHER THAN A GROUND SINCE Aug 2026, AND THAT ENDED A
+   * SEQUENCE RATHER THAN CONTINUING IT. This was a translucent wash, then an
+   * opaque plate, then the plate deepened three times. Every round improved the
+   * colour and none of them touched what was wrong: a grid of 165 cards, each a
+   * large field of green or gold or red, is a page shouting a summary at
+   * somebody who came to read one result. The body is neutral glass now,
+   * identical whatever the status, and the border carries it.
    *
-   * `statusPlateClass` therefore emits TWO classes: the plate colour, and
-   * `status-plate`, which re-emits the light token set inside the card so the
-   * ink, the hairline and the status word come with the ground. Neither is
-   * useful without the other, and the counts strip calls the same helper — which
-   * is what makes the strip and the cards one system by construction rather than
-   * by two call sites happening to agree.
+   * `statusOutlineClass` emits the WIDTH and the COLOUR, and neither is useful
+   * alone. The width is one number for every surface that takes an outline, so
+   * the cards and the at-a-glance strip read as one system rather than as two
+   * things that happen to be outlined.
    *
-   * The refusal below stays and matters more than before — a translucent sheet
-   * with a moving highlight over the one surface whose colour is a clinical
-   * statement is the least legible thing this product could draw. `surface` has
-   * to be stated explicitly where an opaque UNTINTED card is wanted: the plate
-   * incidentally forces the marker grid opaque, and glass is the default.
+   * ⚠ AND THE SURFACE REFUSAL IS GONE WITH THE GROUND IT PROTECTED. "A tinted
+   * card is never a pane" was about a translucent sheet with a moving highlight
+   * over a coloured FIELD, where the material and the meaning fight for the same
+   * pixels. An outlined card has no field, so `tint` no longer forces the opaque
+   * surface and a marker card is glass like everything else.
    */
   tint?: MarkerStatusInput;
   /**
@@ -66,13 +64,12 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
    *   `vellum-glass`  the same pane on the warm reading ground, for explanatory
    *                   prose and nothing else.
    *
-   * ⚠ AND A TINTED CARD IS NEVER A PANE. A status wash is a clinical statement
-   * about the result on that card, and a translucent sheet with a moving
-   * highlight over it makes the one surface in the product whose colour means
-   * something the least legible of the lot. That is refused below rather than
-   * left to a call site to remember — which is also what makes flipping the
-   * default safe: on a real report almost every measured card carries a status,
-   * so almost every one of them stays opaque without anybody deciding it.
+   * ⚠ A TINTED CARD USED TO BE REFUSED THE PANE MATERIAL, AND IS NOT ANY MORE.
+   * The refusal was about a status WASH: a translucent sheet with a moving
+   * highlight over a coloured field makes the one surface whose colour means
+   * something the least legible of the lot. Status is an outline now, so there
+   * is no field to fight the material and the two are orthogonal. The two CHART
+   * cards are still opaque and still for the measured reason on `GLASS.panel`.
    */
   surface?: 'card' | 'glass' | 'vellum-glass';
 }
@@ -94,11 +91,7 @@ const PADDING = {
   roomy: 'p-9 sm:p-14',
 };
 
-/**
- * A tinted card is never a pane — see the note on `surface`. Written here rather
- * than left to the call sites, because "remember not to combine these two" is
- * not a rule, it is a thing somebody eventually forgets on one screen.
- */
+/** The three materials. A status outline composes with any of them. */
 const SURFACE: Record<NonNullable<CardProps['surface']>, string> = {
   card: '',
   glass: 'glass-panel card-glass',
@@ -106,12 +99,11 @@ const SURFACE: Record<NonNullable<CardProps['surface']>, string> = {
 };
 
 export function Card({ interactive, inert, padding = 'default', tint, surface = 'glass', className = '', ...props }: CardProps) {
-  const material = tint ? SURFACE.card : SURFACE[surface];
   return (
     <div
-      className={`card ${PADDING[padding]} ${material} ${interactive && !inert ? 'card-interactive' : ''} ${
+      className={`card ${PADDING[padding]} ${SURFACE[surface]} ${interactive && !inert ? 'card-interactive' : ''} ${
         inert ? 'card-inert' : ''
-      } ${statusPlateClass(tint)} ${className}`}
+      } ${statusOutlineClass(tint)} ${className}`}
       {...props}
     />
   );

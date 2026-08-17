@@ -2400,3 +2400,91 @@
     }
   }
 }
+/* ═══ THE STATUS OUTLINE ════════════════════════════════════════════════════
+   Status used to be the marker card's whole SURFACE: a translucent wash, then
+   an opaque plate, deepened three times. The body of both surfaces that carried
+   it is neutral glass now, identical whatever the result, and the status is the
+   BORDER. See OUTLINE_SEED and OUTLINE_FILL in tokens.ts for the values and for
+   the two rules in CLAUDE.md this reverses.
+
+   In `utilities` rather than `components` on purpose. `.card` sets a 1px taupe
+   border through `@apply`, which lands in the components layer, and a rule that
+   has to beat it cannot live in the same layer and rely on file order. */
+@layer utilities {
+  /* THE WEIGHT, AND IT IS THE SAME ON EVERY SURFACE THAT TAKES ONE. A hairline
+     reads as the card's ordinary border and says nothing; a slab reads as a
+     filled alert with a hole punched in it. The colour arrives separately, as
+     `border-outline-*`, so a state is one lookup rather than five rules. */
+  .status-outline {
+    border-style: solid;
+    border-width: var(--status-outline-width);
+  }
+
+  /* ── THE STRIP'S RING IS ONE GRADIENT, MAPPING ITS OWN GEOMETRY ──────────
+     The at-a-glance strip reads left to right as below range, in range, above
+     range, so its outline does too: gold at both ends, green through the middle,
+     symmetric, because the two golds ARE one colour (`low` and `high` resolve to
+     one hue) and direction is carried by the chevron and the word.
+
+     ⚠ THE MIDPOINTS ARE STOPS OF THEIR OWN, AND THAT IS NOT DECORATION. A
+     straight line between a green and a gold in sRGB passes through the middle
+     of the cube, and the middle of the cube is grey: the ring would go olive at
+     25% and 75% and read as two colours with a dead patch between them. The
+     hinge colours are the OKLCH midpoints of the two outlines, computed in
+     tokens.ts by the same `oklchMix` the gauge's own ramp uses, and pinned here
+     as stops so the browser only ever interpolates across half a blend.
+
+     ── AND THE RING IS A MASKED PSEUDO-ELEMENT, WHICH TOOK THREE GOES ───────
+
+     `border-image` is the obvious answer and is wrong: it ignores
+     `border-radius` outright, which squares off a 1.5rem corner.
+
+     `background-clip: border-box, padding-box` LOOKS right and is wrong for a
+     reason worth writing down, because it renders as a strip filled edge to edge
+     with the gradient rather than as a ring. The clip list is matched to
+     BACKGROUND LAYERS, and `background-image` here is one layer, so the second
+     value is dropped and the colour takes the first. The trick only works with
+     two image layers, and the top one would have to be opaque to hide the
+     gradient behind it, which paints over the backdrop blur and the two ambient
+     sources the pane exists to transmit.
+
+     So the ring is drawn by a pseudo-element with the interior masked out, on a
+     WRAPPER rather than on the pane: `.glass-panel` has already spent both of
+     its pseudo-elements on the streak and the grain. The wrapper carries the
+     radius and the ring inherits it, so there is no inner-radius arithmetic to
+     keep in step with the outer one. */
+  .status-outline-ring {
+    position: relative;
+  }
+
+  .status-outline-ring::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    /* Above the pane it rings, below everything in it. The pane is not a
+       positioned box, so one positive index is the whole of what this needs. */
+    z-index: 1;
+    pointer-events: none;
+    border-radius: inherit;
+    padding: var(--status-outline-width);
+    background-image: linear-gradient(
+      90deg,
+      rgb(var(--c-outline-yellow)) 0%,
+      rgb(var(--c-outline-olive)) 25%,
+      rgb(var(--c-outline-green)) 50%,
+      rgb(var(--c-outline-olive)) 75%,
+      rgb(var(--c-outline-yellow)) 100%
+    );
+    /* The interior, cut out. Two masks over the same box, one stopping at the
+       CONTENT edge, composited so only the difference survives: that difference
+       is the padding, which is the ring. */
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+  }
+}

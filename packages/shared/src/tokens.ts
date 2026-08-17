@@ -903,114 +903,90 @@ const TINT_MIX = {
 } as const;
 
 /**
- * ═══ THE MARKER CARD'S STATUS GROUND — A PLATE, NOT A WASH (Aug 2026) ══════
+ * ═══ STATUS IS AN OUTLINE ON A GLASS CARD NOW (Aug 2026) ═══════════════════
  *
- * ── THE COMPLAINT: THE CARD TINT READS MUDDY. YELLOW IS DINGY, RED IS TOMATO ─
+ * ── WHAT THIS REPLACED, AND THE TWO RULES IT REVERSES ─────────────────────
  *
- * ── AND THE FIRST QUESTION HAD A DEFINITE ANSWER: IT IS NOT TRANSLUCENT ────
+ * The marker result card filled its whole surface with the status colour, and
+ * that idea was iterated to the end of its rope: a translucent wash first, then
+ * an opaque plate, deepened three times. Each round improved the colour and none
+ * of them changed the thing that was actually wrong, which is that a grid of 165
+ * cards, each a large field of green or gold or red, is a page shouting a
+ * summary at somebody who came to read one result.
  *
- * `bg-tint-*` resolves through `rgb(var(--c-tint-high) / <alpha-value>)` with no
- * modifier, so it paints at alpha 1. Nothing composites it, in either theme.
- * **A light plate placed behind the card would therefore have done nothing at
- * all** — it would have been covered, pixel for pixel, by an opaque colour. So
- * the tint itself had to move, which is the other half of the brief.
+ * The body is GLASS now, identical whatever the status: the same frosted
+ * translucent material, the same backdrop blur, the same specular streak, the
+ * same inset hairline as every other pane in the product. The status moves to
+ * the BORDER.
  *
- * ── WHY THE OPAQUE VALUE WAS STILL MUDDY, WHICH IS THE USEFUL PART ────────
+ * ⚠ TWO RULES IN CLAUDE.md ARE REVERSED BY THIS AND BOTH ARE WORTH NAMING.
+ * "NO COLOURED CARD OUTLINES" was written when an out-of-range card carried a
+ * red ring AND a red fill AND a red word, which is one statement made three
+ * times in the loudest available register; a single confident outline on an
+ * otherwise neutral card is the opposite of that. "A TINTED CARD IS NEVER A
+ * PANE" was about a translucent sheet with a moving highlight over a coloured
+ * FIELD, where the material and the meaning fight for the same pixels. Neither
+ * applies to a neutral pane with a coloured edge.
  *
- * `--c-tint-*` in dark is `solveWash`'s answer: the hue rendered at the
- * LIGHTNESS OF A DARK CARD. That is the wall this file has now recorded from
- * five directions — **a yellow at a dark lightness is a brown and a red at a
- * dark lightness is a maroon**, in any colour space, at any chroma. #453700 and
- * #5b2a23 are the most colourful renderings of gold and red that exist at 1.35:1
- * off a near-black card. Nothing was mis-solved; the LIGHTNESS was the problem,
- * and it was fixed by the card being dark.
+ * ── THE OUTLINE IS DEEP, AND IT IS SOLVED PER THEME ───────────────────────
  *
- * ── SO THE CARD STOPS BEING DARK, AND IT IS THE SAME PLATE IN BOTH THEMES ──
+ * A border is a thin object, so it needs contrast rather than area. The values
+ * are the status hues rendered deep and rich (`OUTLINE_FILL`), and the two
+ * themes get their own because the ground is not the same ground: on the light
+ * pane a deep colour has 3.3–7.3:1 to spend, and the identical value on the dark
+ * pane would be a black line on a near-black card. Dark is LIFTED, per hue, by
+ * as much as each needs and no more.
  *
- * One family, five entries, no theme branch: a soft pastel at ONE lightness with
- * the status hue's own angle, which is the composition the gauge already draws
- * (its five fills are solved against `PLOT_SURFACE`, a light ground, and are
- * byte-identical in both themes). A light plate under a light arc is one object;
- * a light arc on a near-black card was two.
- *
- * ⚠ AND A LIGHT PLATE IN DARK MODE NEEDS THE INK TO COME WITH IT. `--c-espresso`
- * is a near-white cream in dark and `--c-status-yellow` is #F5CE3E, so a card
- * that changed only its background would be unreadable. `.card-status-plate` in
- * tailwind.config.ts re-emits the LIGHT token set inside the card — the same
- * mechanism `@media print` already uses, at a selector that beats `.dark` — so
- * every `text-espresso`, every hairline and the status word inside a plated card
- * are light's own, by construction rather than by remembering.
- *
- * ⚠ `--c-tint-*` IS UNTOUCHED AND STILL PAINTS THE COUNTS STRIP AND THE ALERT
- * CARDS. Those are surfaces inside the ordinary theme with ordinary text on
- * them; a light plate there would need the island too, and neither was the
- * complaint. Two tokens because there are two jobs.
- *
- * ══ THE HUES COME FROM A REFERENCE RAMP NOW, AND THE DEPTH IS SOLVED ══════
- *
- * ── WHY THE PLATE HUE STOPPED BEING THE STATUS HUE ────────────────────────
- *
- * The family was `statusHue` rendered at one saturation and one lightness, and
- * it was deepened twice on that basis before it ran out of room: `statusHue
- * .green` is a muted leaf at 94 degrees, so every rendering of it at a light
- * lightness arrives washed out before it arrives rich.
- *
- * The brief is a vivid orange-yellow-green reference ramp, adopted for its
- * HUES and refused at its brightness. So the plate takes its angle from a seed
- * of its own and its depth from a solve, and the two decisions are separated:
- *
- *   green   `#63C132`, a bright leaf at 99 degrees, four degrees off the status
- *           green and a great deal fresher.
- *   yellow  `#F0B429`, a warm golden at 42 degrees. Four degrees warmer than
- *           `statusHue.yellow`, which is the whole difference between a lemon
- *           and a gold.
- *   red     `statusHue.red` ITSELF, at 8 degrees, and that is a refusal rather
- *           than an omission. The reference ramp ends in an ORANGE, and an
- *           orange ground under the words "Significantly above range" is the
- *           hue of ABOVE RANGE on the surface that means the opposite. Red is
- *           deepened and saturated instead, which is what makes it read warmer.
- *
- * ⚠ THE STATUS COLOURS THEMSELVES ARE UNTOUCHED. `statusHue` is unchanged and
- * still asserted as literals; the gauge, the chart and both PDFs are unaffected.
- * What is new is that a GROUND may be picked for how it reads as a ground.
- *
- * ── PER HUE, BECAUSE ONE LIGHTNESS CANNOT SERVE THREE ─────────────────────
- *
- * The same shape as `BAND_FILL` and for the same reason: at one HSL lightness a
- * green is a lime while a red is still a salmon, so a single pair of numbers
- * either leaves the green neon or the red pale. Each hue states its own, and
- * every one of them is bounded by the same three floors:
- *
- *   · the light ink at 6:1 or better on the plate, and its /80 step at AA;
- *   · the status word at AA on its own plate (see `STATUS_PLATE_LABEL`);
- *   · the plate never more colourful than its own seed, which is what keeps
- *     "deepened and slightly muted" from drifting into the raw reference.
- *
- * ⚠ RED SITS LOWER IN PERCEIVED LIGHTNESS THAN THE OTHER TWO (OKLab 0.71
- * against 0.83) AND CANNOT BE LIFTED TO MEET THEM. Reaching 0.83 at this chroma
- * puts red back at a pale coral, which is the thing being got away from. The set
- * is balanced by treatment rather than by a number: one operation, one bound,
- * each hue as deep as its own gamut allows.
+ * ⚠ AND THE FLOOR IS 3:1, WHICH IS A GRAPHICAL FLOOR AND NOT A TEXT ONE. Status
+ * is still carried by the gauge arc, the chevron and the word, so the outline is
+ * reinforcement rather than the sole carrier, and it answers to WCAG 1.4.11
+ * rather than to 1.4.3. `tokenContrast.test.ts` holds every one of them there,
+ * against the composited pane in its own theme.
  */
-export const PLATE_SEED: Record<'green' | 'yellow' | 'red', string> = {
+const OUTLINE_SEED: Record<'green' | 'yellow' | 'red', string> = {
+  /** A fresh leaf rather than the status green's muted one: an outline is thin and a muted hue reads as grey at 2px. */
   green: '#63C132',
-  yellow: '#F0B429',
+  /**
+   * ⚠ AN AMBER AT 40 DEGREES, NOT THE STATUS YELLOW AT 45. Deep is where an
+   * outline lives, and a deep 45-degree yellow is an OLIVE while a deep
+   * 40-degree one is still an amber. Five degrees is the whole difference
+   * between the colour asked for and the colour this file has recorded as the
+   * failure five times over.
+   */
+  yellow: '#E8A317',
+  /**
+   * `statusHue.red` itself. It is already a warm red at 8 degrees, and deepening
+   * it is all "rich" needs here.
+   */
   red: statusHue.red,
 };
 
 /**
- * The depth of each plate: its seed's hue angle at a stated saturation and
- * lightness. Solved against the floors above, then written down, exactly as
- * `BAND_FILL` is.
+ * How deep each outline is rendered, per theme. Same shape as `BAND_FILL` and
+ * for the same reason: one lightness cannot serve three hues, because at any
+ * given lightness a green is darker than an amber by a long way.
  */
-const PLATE_FILL: Record<'green' | 'yellow' | 'red', { saturation: number; lightness: number }> = {
-  green: { saturation: 0.6, lightness: 0.62 },
-  yellow: { saturation: 0.82, lightness: 0.65 },
-  red: { saturation: 0.82, lightness: 0.68 },
+const OUTLINE_FILL: Record<'light' | 'dark', Record<'green' | 'yellow' | 'red', { saturation: number; lightness: number }>> = {
+  light: {
+    green: { saturation: 0.78, lightness: 0.27 },
+    // The shallowest of the six, and the binding one: past about 0.37 an amber
+    // stops clearing 3:1 on the light pane. Everything else has room.
+    yellow: { saturation: 0.9, lightness: 0.36 },
+    red: { saturation: 0.78, lightness: 0.32 },
+  },
+  dark: {
+    green: { saturation: 0.68, lightness: 0.43 },
+    yellow: { saturation: 0.82, lightness: 0.46 },
+    // Lifted furthest of the three, because red is the darkest hue in the
+    // palette at any given lightness and it is the one that disappears first on
+    // a near-black pane. Measured rather than guessed: at 0.46 it is 3.4:1 and
+    // at 0.56 it is 4.6:1.
+    red: { saturation: 0.66, lightness: 0.56 },
+  },
 };
 
-/** Which of the three the five states resolve to. Both golds are one colour by construction. */
-const PLATE_HUE: Record<StatusKey, 'green' | 'yellow' | 'red'> = {
+/** Which of the three hues each of the five states resolves to. Both golds are one colour by construction. */
+const OUTLINE_HUE: Record<StatusKey, 'green' | 'yellow' | 'red'> = {
   inRange: 'green',
   high: 'yellow',
   low: 'yellow',
@@ -1018,67 +994,24 @@ const PLATE_HUE: Record<StatusKey, 'green' | 'yellow' | 'red'> = {
   significantLow: 'red',
 };
 
-/** The plate for a hue: its seed's own angle at that hue's stated depth. */
-function statusPlate(hue: 'green' | 'yellow' | 'red'): string {
-  return reHsl(PLATE_SEED[hue], PLATE_FILL[hue].saturation, PLATE_FILL[hue].lightness);
+/** The outline for a hue in one theme: its seed's own angle at that theme's stated depth. */
+function statusOutline(mode: 'light' | 'dark', hue: 'green' | 'yellow' | 'red'): string {
+  const fill = OUTLINE_FILL[mode][hue];
+  return reHsl(OUTLINE_SEED[hue], fill.saturation, fill.lightness);
 }
 
 /**
- * The five plates, resolved once. Theme-identical by construction, there is no
- * `mode` in this expression and there is not going to be one, and identical on
- * both surfaces that take one: the marker result card and the strip segments.
- */
-export const STATUS_PLATE = Object.fromEntries(
-  (Object.keys(PLATE_HUE) as StatusKey[]).map((key) => [key, statusPlate(PLATE_HUE[key])]),
-) as Record<StatusKey, string>;
-
-/**
- * ── THE STATUS WORD ON A PLATE IS ITS OWN TOKEN (Aug 2026) ────────────────
+ * ── THE WEIGHT, AND IT IS ONE NUMBER FOR EVERY SURFACE THAT TAKES ONE ─────
  *
- * A deeper ground costs the word that stands on it, and the word is the one
- * piece of type in the product carrying a status colour. On the deepest plate
- * the authored `statusTextHex` measures 3.4:1, which is not a legible label.
+ * A hairline reads as the card's ordinary border and says nothing; a slab reads
+ * as a filled alert with a hole in it. 2px is the weight at which a border is
+ * plainly a decision, and it is the SAME on every card and on the strip, so the
+ * two read as one system rather than as two things that happen to be outlined.
  *
- * ⚠ AND IT MUST NOT BE FIXED BY DARKENING THE ORDINARY LABEL, which was the
- * previous answer and was wrong in a way worth writing down: that token is also
- * the status word on a plain card, on the page, in a tooltip and in a table,
- * and dragging all of those down to clear a surface most of them never touch
- * makes every status word in light mode a near-black. The plate is a SURFACE
- * with its own requirement, so it gets its own value, emitted inside
- * `.status-plate` where it is the only place it applies.
- *
- * The move is the authored derivation continued, further toward the light ink
- * in hundredths, so the three stay a family and a hue that already clears comes
- * back byte-identical. Green does; gold and red do not.
+ * A length rather than a colour, so it is emitted by tailwind.config.ts beside
+ * the other non-colour theme values rather than through `themeCssVars`.
  */
-export const STATUS_PLATE_LABEL = Object.fromEntries(
-  (Object.keys(PLATE_HUE) as StatusKey[]).map((key) => {
-    const hue = PLATE_HUE[key];
-    const plate = statusPlate(hue);
-    const authored = statusTextHex(hue);
-    if (contrastRatio(authored, plate) >= 4.5) return [key, authored];
-    for (let extra = 0.01; extra <= 0.8; extra += 0.01) {
-      const hex = mix(authored, lightNeutral.ink, extra);
-      if (contrastRatio(hex, plate) >= 4.5) return [key, hex];
-    }
-    // Unreachable: the light ink clears 6:1 on the deepest plate in the family,
-    // so the walk always terminates a long way before the end of its range.
-    return [key, lightNeutral.ink];
-  }),
-) as Record<StatusKey, string>;
-
-/**
- * The status word's own variables, ready for the `.status-plate` rule in
- * tailwind.config.ts. Emitted from here rather than assembled there, so the
- * name of a status custom property is decided in exactly one place.
- */
-export function statusPlateLabelCssVars(): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const [key, hex] of Object.entries(STATUS_PLATE_LABEL)) {
-    out[`--c-status-${kebab(key)}`] = hexToRgbChannels(hex);
-  }
-  return out;
-}
+export const STATUS_OUTLINE_WIDTH = '2px';
 
 /**
  * The point fill, per hue, as a distance from the hue itself — toward espresso
@@ -2328,13 +2261,12 @@ export function solveTokens(mode: 'light' | 'dark'): SolvedTokens {
   /**
    * ⚠ AND LIGHT IS THE AUTHORED VALUE AGAIN, BECAUSE THE PLATE HAS ITS OWN.
    *
-   * For one revision this solved against the PLATE as well, which is a surface
-   * the status word genuinely lands on. It was the wrong place to answer it:
-   * this token is also the status word on a plain card, on the page, in a
-   * tooltip and in a table, so clearing a ground most of those never touch
-   * dragged every status word in light mode toward a near-black. The plate is a
-   * surface with its own requirement and it gets its own value, which is
-   * `STATUS_PLATE_LABEL`, emitted only inside `.status-plate`.
+   * For one revision this solved against the status PLATE as well, a filled
+   * ground the word used to stand on, and the plate then needed a second label
+   * of its own so that clearing it did not drag every status word in light mode
+   * toward a near-black. Both are gone with the plate: the word stands on GLASS
+   * now, which is within a rounding of the card this token was always solved
+   * against.
    */
   const label = Object.fromEntries(
     (['green', 'yellow', 'red'] as const).map((hue) => {
@@ -2960,12 +2892,33 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
       const source = role === 'bar' ? 'track' : role;
       out[`--c-tint-${kebab(key)}${name}`] = out[`--c-hue-${hue}-${source}`];
     }
-    // The marker card's ground. Emitted per theme like everything else in this
-    // map, and IDENTICAL in the two — see STATUS_PLATE, where the reason is that
-    // a status colour at a dark lightness is a brown whatever else is done to
-    // it. The card carries the light token island with it.
-    out[`--c-plate-${kebab(key)}`] = STATUS_PLATE[key];
+    // The marker card's status OUTLINE, aliased onto the state so a component
+    // asks for "the significantly-high outline" rather than having to know that
+    // significantly-high happens to be red. Per theme, unlike the plate it
+    // replaced: a border is thin, so what matters is how it stands off the pane
+    // it is drawn on, and the two panes are nothing like each other.
+    out[`--c-outline-${kebab(key)}`] = statusOutline(mode, OUTLINE_HUE[key]);
   }
+
+  /**
+   * The same outline per HUE rather than per state, which is the only way to
+   * reach the two HINGES. The at-a-glance strip's ring runs gold to green to
+   * gold across its own three segments, and the colour halfway between two
+   * status colours is a hinge: olive between green and gold, orange between gold
+   * and red, exactly as the gauge's own gradient uses them.
+   *
+   * ⚠ AND THE HINGE IS THE OKLCH MIDPOINT OF THE TWO OUTLINES, not `statusHue
+   * .olive` rendered at the same depth. A straight sRGB line between a green and
+   * a gold passes through the middle of the cube and the middle of the cube is
+   * grey, which is the fact this file records against the gauge's own ramp. Same
+   * blend, same reason, one ring further out.
+   */
+  const outlineHue = (hue: 'green' | 'yellow' | 'red') => statusOutline(mode, hue);
+  out['--c-outline-green'] = outlineHue('green');
+  out['--c-outline-yellow'] = outlineHue('yellow');
+  out['--c-outline-red'] = outlineHue('red');
+  out['--c-outline-olive'] = oklchMix(outlineHue('green'), outlineHue('yellow'), 0.5);
+  out['--c-outline-orange'] = oklchMix(outlineHue('yellow'), outlineHue('red'), 0.5);
 
   // Charts. The bands and the point fills now take the status hues above (see
   // `--c-tint-*-band`); everything structural — axes, gridlines, the trend

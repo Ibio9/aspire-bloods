@@ -82,44 +82,37 @@ export function statusColor(status: MarkerStatusInput): string {
 }
 
 /**
- * ── THE STATUS GROUND, AND `statusTintClass` IS GONE WITH THE LAST CALLER ──
+ * ── THE STATUS OUTLINE, WHICH REPLACED A SEQUENCE OF FILLED GROUNDS ────────
  *
- * There used to be a `bg-tint-*` helper here and it was the surface wash: the
- * status hue mixed INTO whatever it sat on, which in dark mode means the hue
- * rendered at a near-black surface's lightness — a brown for gold and a maroon
- * for red, in any colour space, at any chroma. That is what "the card tint
- * reads muddy" was, and the counts strip carried the identical colours.
+ * There used to be a `bg-tint-*` helper here, then a `bg-plate-*` one, and both
+ * painted the card's whole surface in the status colour. That idea was iterated
+ * to the end of its rope: a translucent wash, then an opaque plate, deepened
+ * three times, each round improving the colour and none of them changing the
+ * thing that was wrong, which is that a grid of 165 large coloured fields is a
+ * page shouting a summary at somebody who came to read one result.
  *
- * Both surfaces take the PLATE now, so the helper had no callers left and is
- * deleted rather than left dormant. `bg-tint-*` itself is untouched and is
- * still written directly by the alert cards and the toasts, which are ordinary
- * surfaces inside the ordinary theme with ordinary text on them.
+ * The card is neutral GLASS now, identical whatever the status, and the status
+ * is a 2px outline in a deep rendering of its own hue. See `OUTLINE_SEED` and
+ * `OUTLINE_FILL` in tokens.ts for the values and for the two CLAUDE.md rules
+ * this reverses.
  *
- * `bg-plate-*` is a clean status tint at ONE lightness, byte-identical in both
- * themes — the same composition the gauge already draws, since its five fills
- * are solved against a light ground and carry no theme branch either. See
- * STATUS_PLATE in tokens.ts.
- *
- * ⚠ IT TRAVELS WITH `status-plate`, WHICH IS NOT OPTIONAL. That class re-emits
- * the light token set inside the element, so the ink, the hairline and the
- * status word come with the ground; without it a dark-mode surface would put
- * near-white cream type on a light tint. This helper emits the pair together
- * and is the only thing that emits either — `Card` and the counts strip both
- * call it, which is what makes the two read as one system by construction
- * rather than by two call sites agreeing.
+ * TWO CLASSES, AND NEITHER IS USEFUL ALONE: the WIDTH, which is one number for
+ * every surface that takes an outline so the cards and the strip read as one
+ * system, and the COLOUR. `bg-tint-*` itself is untouched and is still written
+ * directly by the alert cards and the toasts.
  */
-const STATUS_PLATE_CLASS: Record<MarkerStatus, string> = {
-  IN_RANGE: 'bg-plate-inRange',
-  HIGH: 'bg-plate-high',
-  LOW: 'bg-plate-low',
-  SIGNIFICANT_HIGH: 'bg-plate-significantHigh',
-  SIGNIFICANT_LOW: 'bg-plate-significantLow',
+const STATUS_OUTLINE_CLASS: Record<MarkerStatus, string> = {
+  IN_RANGE: 'border-outline-inRange',
+  HIGH: 'border-outline-high',
+  LOW: 'border-outline-low',
+  SIGNIFICANT_HIGH: 'border-outline-significantHigh',
+  SIGNIFICANT_LOW: 'border-outline-significantLow',
 };
 
-/** No plate where there is no status: the surface keeps its ordinary ground. */
-export function statusPlateClass(status: MarkerStatusInput): string {
+/** No outline where there is no status: the card keeps its ordinary hairline. */
+export function statusOutlineClass(status: MarkerStatusInput): string {
   const known = asMarkerStatus(status);
-  return known ? `status-plate ${STATUS_PLATE_CLASS[known]}` : '';
+  return known ? `status-outline ${STATUS_OUTLINE_CLASS[known]}` : '';
 }
 
 /** The stronger fill, for the category summary bars where a 12% wash would simply vanish. */
@@ -255,7 +248,7 @@ export function matchesStatusFilter(status: MarkerStatusInput, filter: StatusFil
  *
  * Expressed as a fold onto a REPRESENTATIVE status rather than as three new
  * keys, so the segment can go on rendering through StatusBadge (chevron down /
- * level mark / chevron up) and `statusPlateClass` (gold / green / gold) with no
+ * level mark / chevron up) and `statusOutlineClass` (gold / green / gold) with no
  * second vocabulary anywhere. The two gold segments are the same colour by
  * construction — `low` and `high` resolve to the same hue — and are told apart
  * by the chevron and the word, which is the shape layer doing its usual job.
