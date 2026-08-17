@@ -27,6 +27,21 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
    * Only ever set from a MEASURED marker's status. Genetic risk categories,
    * food sensitivity and microbiome composition have no reference range, so
    * there is no status to tint by and no tint is applied to them.
+   *
+   * ⚠ AND THE MARKER RESULT CARD NO LONGER PASSES ONE (Aug 2026), which is
+   * worth knowing before reading the rest of this file: it was the overwhelming
+   * majority of the tinted cards in the product. A wash is the hue mixed INTO
+   * the card, so on a near-black surface it is a MUDDIER version of that hue by
+   * construction rather than a quieter one, and the above-range cards read as
+   * dark olive-brown. The status is carried by the gauge arc, the chevron and
+   * the word, which is where the rules always said it lived.
+   *
+   * The prop stays, the refusal below stays, and every word of the reasoning
+   * stays — the counts strip still paints these washes through
+   * `statusTintClass`, and a tinted card must still never be a pane. What
+   * changed is that almost nothing now asks for one, so `surface` has to be
+   * stated explicitly where an opaque card is wanted: the tint was incidentally
+   * forcing the marker grid opaque, and glass is the default.
    */
   tint?: MarkerStatusInput;
   /**

@@ -135,28 +135,20 @@ fallback is not degraded either: every boundary carries a stop at its own OKLCH
 midpoint, so even in sRGB the browser interpolates across half a blend with the
 correct colour pinned at the centre.
 
-**THE ARC IS DRAWN IN A CHANNEL OF `PLOT_SURFACE`, IN BOTH THEMES, AND THAT WAS
-THE LAST LEVER (Aug 2026).** Everything else had been ruled out: the token is
-#f5ce3e and byte-identical in the two themes, the arc is opaque with no alpha, no
-blend and no filter, and nothing paints over it. What was left is SIMULTANEOUS
-CONTRAST, which is not a bug in anything: the identical #f5ce3e read against a
-near-black card looks darker and dirtier than the same colour against cream, and a
-yellow shows it worst of the five because a yellow's apparent lightness is most of
-what identifies it as yellow. `PLOT_SURFACE` (#ebebeb) is the surface every one of
-the five fills was SOLVED against, so painting the ring in a channel of it makes
-the ground the reader sees the ground the arithmetic assumed. It is the range bar's
-own track, restored.
+**⚠ A LIGHT TRACK ROUND THE ARC WAS TRIED AND REMOVED IN THE SAME WEEK (Aug
+2026). DO NOT ADD IT BACK.** The reasoning that produced it stands and is the
+reason this note exists: the arc's hexes are byte-identical in both themes and
+nothing composites them, so the remaining explanation for "the yellow looks dark
+in dark mode" is SIMULTANEOUS CONTRAST, and the only lever left is the ground.
+`PLOT_SURFACE` is the surface the five fills were solved against, so a channel of
+it under the ring is the principled ground.
 
-**ONE COLOUR, BOTH THEMES.** A step DOWN from a near-white light card (1.17:1, a
-recessed channel) and a long step UP from a near-black one (13.38:1, a lit
-channel). The dark instrument carries a light channel now and that is the intended
-change: one component rather than two that resemble each other. ⚠ **IT CARRIES NO
-STATUS MEANING AND MUST NEVER BE GIVEN ANY** — the moment it takes a hue it is a
-sixth colour on an instrument whose whole job is that five colours mean five
-things. It is a CONIC gradient rather than a flat annulus so it stops at the foot
-of the arc; a full ring would close the 90° gap and say the scale wraps. Geometry:
-ring 33.5–39 of the box, track 32.3–40.2, so the channel is 7.9 wide and the arc
-fills 70% of it. Nothing else about the gauge moved.
+**The cure was worse than the complaint.** A pale ring round the arc reads as a
+SECOND RING, part of the instrument rather than its ground, and it took the space
+the value in the middle needs. The arc is the single opaque coloured stroke again,
+at its original thickness and diameter (33.5–39 of the box). `ArcGauge.test.tsx`
+asserts the absence rather than merely not testing for it, because "add a subtle
+ground behind the arc" is a reasonable-sounding idea that has now been tried.
 
 **AND THE VALUE IN THE MIDDLE IS SIZED BY THE RING, NOT THE PAGE.** The marker
 page's gauge carried `.hero-value`, a clamp that runs on the VIEWPORT — so at 1440
@@ -856,7 +848,26 @@ both significants share one.
    hue); direction is the chevron and the word. A segment selects the
    DIRECTIONAL filter (`BELOW_ANY` / `ABOVE_ANY`), never the specific state, or
    a segment reading 4 would filter to 3.
-1. Result cards and rows — soft background wash (`bg-tint-*`).
+1. ⚠ **THE MARKER RESULT CARD'S BACKGROUND CARRIES NO STATUS (Aug 2026).**
+   It was a soft wash (`bg-tint-*`) and it is the product's ordinary card
+   surface now: `bg-cream-50`, ONE ground for every card whatever the result
+   (light #fdfdfe, dark #202225). A wash is the hue mixed INTO the card, so on a
+   near-black surface it is a MUDDIER version of that hue by construction rather
+   than a quieter one — above range read as dark olive-brown and below range as
+   another muted tone, and the wash was working hardest on exactly the results a
+   patient cares most about.
+   **NO STATUS SIGNAL WAS LOST, WHICH IS WHAT MAKES IT SAFE.** Three carriers
+   remain on the card and all three survive greyscale and a colourblind reader:
+   the GAUGE ARC (the five colours at full strength on the one surface where
+   they are solved rather than washed), the CHEVRON, and the WORD. The wash was
+   the fourth statement of a fact already made three times, and the only one of
+   the four that was ever ambiguous.
+   ⚠ **`surface="card"` HAS TO BE STATED NOW.** Glass is `Card`'s default and
+   the tint was incidentally forcing the marker grid opaque; without both, 165
+   translucent streaked panes appear on one grid, with a moving highlight over
+   the one instrument on the card whose colours are solved.
+   `statusTintClass` and `bg-tint-*` are untouched and still paint the counts
+   strip; a tinted card still refuses the pane material in `Card.tsx`.
 2. **THE RANGE BAR IS AN ARC GAUGE, AND ITS RING IS FIXED (Aug 2026).**
 
    **THE GRADIENT IS ALLOCATED BY BAND, SYMMETRICALLY, AND NEVER BY THE VALUE.**

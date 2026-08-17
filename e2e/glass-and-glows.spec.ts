@@ -199,6 +199,25 @@ for (const theme of ['light', 'dark'] as const) {
  * A narrower rule and a better one — it names the reason rather than the count,
  * and `Card` enforces it rather than forty call sites remembering it.
  */
+/**
+ * ⚠ AND THE MARKER CARDS STOPPED CARRYING A TINT ALTOGETHER (Aug 2026), which
+ * changes what this can be measured on rather than whether the rule holds.
+ *
+ * A wash is the hue mixed INTO the card, so on a near-black surface it is a
+ * muddier version of that hue by construction rather than a quieter one: the
+ * above-range cards read as dark olive-brown. The tint came off the card
+ * background; the status is carried by the gauge arc, the chevron and the word,
+ * which is where the rules always said it lived.
+ *
+ * So the RULE is unchanged and still enforced in `Card.tsx` — a tinted card
+ * refuses the pane material outright — and what this test can no longer do is
+ * find an example of one on the marker list. It asserts both halves instead:
+ * that no card anywhere in the product pairs a tint with the pane material, and
+ * that the marker list's own cards are opaque. The second is the part that
+ * would otherwise have been lost silently, because with the tint gone `Card`'s
+ * default surface is GLASS, and 165 translucent streaked panes on one grid is
+ * exactly what the tint had been incidentally preventing.
+ */
 test('a card carrying a status tint is never a pane', async ({ browser }) => {
   test.setTimeout(120_000);
   const ctx = await context(browser, 'dark');
@@ -231,12 +250,16 @@ test('a card carrying a status tint is never a pane', async ({ browser }) => {
   );
 
   expect(counts.cards, 'the marker list drew no cards').toBeGreaterThan(20);
-  expect(counts.tinted, 'no card on the marker list carried a status tint at all').toBeGreaterThan(10);
-  // ⚠ THE WHOLE RULE. Glass is the default surface now, so what is asserted is
-  // not "result cards are opaque" — most of them are, because most of them carry
-  // a status — but the thing that actually matters: a clinical colour is never
-  // read through a translucent sheet with a moving highlight on it.
+  // ⚠ THE RULE ITSELF, and it holds vacuously on this screen now that the marker
+  // cards carry no tint: a clinical colour is never read through a translucent
+  // sheet with a moving highlight on it.
   expect(counts.tintedPanes, 'a status-tinted card became a pane').toBe(0);
+  // ⚠ AND THE PART THAT WOULD OTHERWISE HAVE BEEN LOST WITH THE TINT. `Card`'s
+  // default surface is GLASS, and the tint was the thing incidentally forcing
+  // these opaque. A grid of 165 translucent streaked panes is a texture rather
+  // than a set of surfaces, and it puts a moving highlight over the one
+  // instrument on the card whose colours are solved rather than washed.
+  expect(counts.untintedPanes, 'the marker list turned into a grid of glass panes').toBe(0);
 
   await ctx.close();
 });

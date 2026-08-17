@@ -1309,20 +1309,17 @@
     font-size: max(0.75rem, 0.42em);
   }
 
-  /* ── THE TRACK THE ARC SITS IN ──────────────────────────────────────────
-     One opaque light neutral, the SAME in both themes, and the same one the
-     five band fills were solved against — see TRACK_PAINT in ArcGauge.tsx. It
-     is here rather than inline for one reason: `opacity`, `mix-blend-mode` and
-     `filter` are declared on it for exactly the reason they are declared on the
-     ring below, and a ground that has quietly gone translucent puts the card
-     back under the colours and undoes the whole change. */
-  .arc-gauge__track {
-    background: var(--track-paint);
-    opacity: 1;
-    mix-blend-mode: normal;
-    filter: none;
-  }
+  /* ── AND THERE IS NO TRACK. REMOVED (Aug 2026), ONE RUN AFTER IT ARRIVED ──
+     A light channel of `PLOT_SURFACE` was drawn round the arc, to give the five
+     colours the ground they were solved against in both themes. The diagnosis
+     behind it stands and is worth keeping: the arc's hexes are byte-identical
+     across the themes and nothing composites them, so what remained was
+     simultaneous contrast. The CURE was worse than the complaint. A pale ring
+     round the arc is a second ring, it reads as part of the instrument rather
+     than as its ground, and it ate the space the value in the middle needs.
 
+     The arc is the single opaque coloured stroke again, at its original
+     thickness and diameter. The value's own sizing fix stayed. */
   .arc-gauge__ring {
     background: var(--ring-paint);
     /* ── STRIPPED TO ONE FLAT OPAQUE PAINT, AND STATED RATHER THAN ASSUMED ──

@@ -80,71 +80,85 @@ test.describe('traffic-light status', () => {
       await page.waitForSelector('text=This report at a glance');
 
       /**
-       * ── MEASURED ON THE RESULT CARDS, NOT ON THE COUNTS STRIP (Aug 2026) ──
+       * ── THE CARD BACKGROUND CARRIES NO STATUS AT ALL NOW (Aug 2026) ───────
        *
-       * This used to read the strip, on the reasoning that it is the one place
-       * all five states appear together and can be compared. That stopped
-       * being true: the strip folds to THREE segments now — below range, in
-       * range, above range — with significantly-out counted into its neighbour.
+       * This measured the WASH on each result card and asserted three hues with
+       * real colour in them. The tint is gone from the card background: a wash
+       * is the hue mixed into the card, and a hue mixed into a near-black
+       * surface is a MUDDIER version of that hue by construction rather than a
+       * quieter one, so the above-range cards read as dark olive-brown and the
+       * below-range ones as another muted tone.
        *
-       * The five states themselves are untouched, and the cards are where they
-       * live. So the washes are read off the marker cards, which is also the
-       * surface a patient actually reads a status on: `Card`'s `tint` prop is
-       * what `statusTintClass` paints, and it is the thing this spec exists to
-       * stop turning into beige.
+       * So the claim inverts, and both halves are asserted because either alone
+       * would be satisfied by a regression:
        *
-       * Each card carries its status in words, so the label and the wash are
-       * read off the SAME element and cannot be matched up wrongly.
+       *  1. EVERY card is the SAME ground, whatever its status. A tint creeping
+       *     back on one state fails here.
+       *  2. THE STATUS IS STILL ON THE CARD, three times over, in the places
+       *     the rules have always said carry it: the gauge ARC (the five
+       *     colours at full strength), the CHEVRON, and the WORD. The colour
+       *     assertions moved onto the arc and the word below rather than being
+       *     dropped.
+       *
+       * Each card carries its status in words, so the label and the background
+       * are read off the SAME element and cannot be matched up wrongly.
        */
-      const washes = await page.evaluate(() => {
-        const out: { label: string; bg: string }[] = [];
+      const cards = await page.evaluate(() => {
+        const NAMES = [
+          'In range',
+          'Above range',
+          'Below range',
+          'Significantly above range',
+          'Significantly below range',
+        ];
+        const out: { label: string; bg: string; word: string; arcs: number; chevrons: number }[] = [];
         for (const card of [...document.querySelectorAll('.card')]) {
-          const status = [...card.querySelectorAll('span')]
-            .map((s) => (s.textContent ?? '').trim())
-            .find((t) =>
-              ['In range', 'Above range', 'Below range', 'Significantly above range', 'Significantly below range'].includes(
-                t,
-              ),
-            );
-          if (!status) continue;
-          out.push({ label: status, bg: getComputedStyle(card).backgroundColor });
+          const badge = [...card.querySelectorAll('span')].find((s) => NAMES.includes((s.textContent ?? '').trim()));
+          if (!badge) continue;
+          // The BADGE is the <span> carrying the word; its colour is taken from
+          // the element the colour is set on, which is its parent — the same
+          // element the chevron inherits `currentColor` from.
+          const holder = (badge.closest('[style*="color"]') ?? badge.parentElement ?? badge) as HTMLElement;
+          out.push({
+            label: (badge.textContent ?? '').trim(),
+            bg: getComputedStyle(card).backgroundColor,
+            word: getComputedStyle(holder).color,
+            arcs: card.querySelectorAll('.arc-gauge__ring').length,
+            chevrons: card.querySelectorAll('svg path').length,
+          });
         }
         return out;
       });
-      expect(washes.length, 'expected tinted result cards on the report').toBeGreaterThan(0);
+      expect(cards.length, 'expected result cards on the report').toBeGreaterThan(0);
 
-      const seen = new Map<string, string>();
-      for (const { label, bg } of washes) {
-        // The failure mode this whole spec exists for: a wash that is
-        // indistinguishable from the untinted card it replaces.
-        expect(chroma(bg), `${theme}: "${label}" wash ${bg} has no colour in it`).toBeGreaterThanOrEqual(4);
-        seen.set(label, bg);
-      }
-
-      // Five states, THREE colours, on purpose: above and below share yellow,
-      // and significantly-above and significantly-below share red. Direction is
-      // carried by the chevron and by the word, never by hue — so a test that
-      // demanded five distinct colours would be demanding a regression.
-      const distinct = new Set(seen.values());
-      expect(distinct.size, `${theme}: expected three hues, got ${distinct.size}`).toBe(3);
-
-      // And the right three: in range reads green, above/below read yellow,
-      // significantly out reads red.
-      for (const [label, bg] of seen) {
-        const expected = label.includes('Significantly')
-          ? 'red'
-          : label.includes('In range')
-            ? 'green'
-            : 'yellow';
-        expect(hueOf(bg), `${theme}: "${label}" wash ${bg} reads as ${hueOf(bg)}, expected ${expected}`).toBe(expected);
-      }
-      // All three are actually on screen — a report showing only in-range
-      // results would pass every check above while proving nothing.
+      // ── ONE GROUND, WHATEVER THE RESULT ─────────────────────────────────
+      const grounds = new Set(cards.map((c) => c.bg));
       expect(
-        new Set(
-          [...seen.keys()].map((l) => (l.includes('Significantly') ? 'red' : l.includes('In range') ? 'green' : 'yellow')),
-        ).size,
-      ).toBe(3);
+        grounds.size,
+        `${theme}: result cards drew ${grounds.size} different backgrounds: ${[...grounds].join(', ')}`,
+      ).toBe(1);
+      const ground = [...grounds][0];
+      // And it is a NEUTRAL ground rather than a very faint tint of one status.
+      expect(chroma(ground), `${theme}: the card ground ${ground} carries a hue`).toBeLessThan(4);
+
+      // ── AND THE STATUS IS STILL THERE, THREE TIMES ──────────────────────
+      const states = new Set(
+        cards.map((c) => (c.label.includes('Significantly') ? 'red' : c.label.includes('In range') ? 'green' : 'yellow')),
+      );
+      expect(states.size, `${theme}: the report shows only ${[...states].join(', ')}`).toBe(3);
+      for (const c of cards) {
+        expect(c.arcs, `${theme}: "${c.label}" has no gauge arc, so nothing on it is coloured`).toBeGreaterThan(0);
+        expect(c.chevrons, `${theme}: "${c.label}" has no shape mark`).toBeGreaterThan(0);
+        // THE WORD CARRIES THE HUE, which is where the three colours went when
+        // they came off the background. In range reads green, above/below read
+        // yellow, significantly out reads red — five states, three hues, with
+        // direction on the chevron rather than in the colour.
+        const expected = c.label.includes('Significantly') ? 'red' : c.label.includes('In range') ? 'green' : 'yellow';
+        expect(
+          hueOf(c.word),
+          `${theme}: "${c.label}" is set in ${c.word}, which reads as ${hueOf(c.word)} rather than ${expected}`,
+        ).toBe(expected);
+      }
 
       /**
        * ── AND THE STRIP ITSELF IS THREE, WHICH IS THE NEW FACT ──────────────

@@ -3505,28 +3505,6 @@ export const chart = {
    */
   sparkCore: 'rgb(var(--c-chart-spark-core))',
   sparkHalo: 'rgb(var(--c-chart-spark-halo))',
-  /**
-   * ── THE GROUND THE FIVE BAND FILLS ARE SOLVED AGAINST (Aug 2026) ─────────
-   *
-   * `PLOT_SURFACE`, exposed so the ARC GAUGE can draw its ring in a channel of
-   * it. This is NOT the chart's plot panel coming back — that is gone and stays
-   * gone. It is the one surface `BAND_CONTRAST`'s whole ladder was measured on,
-   * made available to the one instrument still painting those five fills.
-   *
-   * WHY THE GAUGE NEEDS IT, STATED AS THE THING THAT WAS RULED OUT. The five
-   * fills are byte-identical in the two themes, the arc is opaque and carries no
-   * alpha, no blend and no filter, and nothing paints over it. What was left is
-   * SIMULTANEOUS CONTRAST: the identical #f5ce3e read against a near-black card
-   * looks darker and dirtier than the same colour read against cream, and a
-   * yellow shows it worst of the five because a yellow's apparent lightness is
-   * most of what identifies it as yellow. Painting the ring in a channel of this
-   * makes the ground the reader sees the ground the arithmetic assumed.
-   *
-   * ⚠ IT IS A GROUND AND CARRIES NO STATUS MEANING. The moment it takes a hue it
-   * is a sixth colour on an instrument whose whole job is that five colours mean
-   * five things.
-   */
-  plotSurface: 'rgb(var(--c-chart-plot-surface))',
 } as const;
 
 /**
