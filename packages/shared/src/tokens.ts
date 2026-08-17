@@ -79,6 +79,61 @@ export const brand = {
 } as const;
 
 /**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  LIGHT MODE HAS ITS OWN SURFACE AND HAIRLINE (Aug 2026)
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * THE BRIEF: light mode is a bright, modern, premium light theme. White cards
+ * on a soft near-white page, separation from tone steps, shadow and the glass
+ * rather than from a grey fill, light neutral hairlines, and the accent as the
+ * one interactive thread with everything structural around it neutral.
+ *
+ * ── WHY THESE ARE NOT `brand.cream` / `brand.taupe` ───────────────────────
+ *
+ * Because those two are the DARK theme's seeds as well, and the brief is
+ * explicit that no dark-mode surface moves. `nightLift` is `mix(espresso,
+ * taupe, …)`, so the border decides the hue of every raised dark surface;
+ * `darkText` is `mix(cream, white, …)` and `darkBronze` is `mix(bronze, cream,
+ * …)`, so the surface decides the dark theme's body copy and its accent. One
+ * pair of hexes cannot be both "the light page" and "the direction dark lifts
+ * in" and be changed for one of those reasons only.
+ *
+ * So the light SURFACE family and the light HAIRLINE family are built from
+ * these, and `brand.cream` / `brand.taupe` go on seeding dark and are untouched.
+ * `brand.bronze` and `brand.espresso` are shared by both themes on purpose: the
+ * accent is the one thread that runs through both, and the ink is a near-black
+ * in light and the seed of the page in dark, which are the same decision.
+ *
+ * ── THE TWO VALUES, AND WHAT DECIDED THEM ─────────────────────────────────
+ *
+ *   surface  #EDEFF3  The PAGE. A card is this taken 90% to white, so the whole
+ *                     light ladder lives in the gap between this and white and
+ *                     this value IS that gap. Measured: card #FDFDFE at 1.132:1
+ *                     off the page, the pane at 1.056 and the sidebar at 1.113 —
+ *                     page, then pane, then panel, then card, in order, with the
+ *                     hairline and the shadow carrying what the tone step no
+ *                     longer does. It was #E7E9ED, which is a mid light grey
+ *                     rather than a near-white; body copy gains contrast in the
+ *                     move (14.90 → 15.73:1).
+ *                     ⚠ THERE IS A FLOOR AND IT IS NOT FAR BELOW. At #F4F6F9 the
+ *                     card is 1.073:1 off the page and the sidebar cannot fit
+ *                     between them at all. Brighter than this and the ladder has
+ *                     nowhere to stand.
+ *   border   #DCE0E7  The HAIRLINE. 1.30:1 on a card, against the 1.60:1 the old
+ *                     one measured — a light neutral line rather than a grey
+ *                     rule, which is the difference between a card that is drawn
+ *                     and a card that is outlined. The 900 step is still body
+ *                     copy on the sidebar and still clears AA, because the
+ *                     shades run toward the ink rather than away from it.
+ */
+export const lightNeutral = {
+  /** The light page, and the base of the whole light surface family. */
+  surface: '#EDEFF3',
+  /** Every hairline and divider in light. */
+  border: '#DCE0E7',
+} as const;
+
+/**
  * The four by what they ARE, for anything written after the retheme. Same
  * values, same objects — this is a second set of names and never a second set
  * of colours.
@@ -353,11 +408,17 @@ function buildScale(baseHex: string): Record<number, string> {
   return scale;
 }
 
+/**
+ * THE LIGHT THEME'S FAMILIES. `cream` and `taupe` are built from `lightNeutral`
+ * rather than from `brand` — see the note there: those two brand hexes are the
+ * DARK theme's seeds and do not move when light mode is redesigned. The accent
+ * and the ink are shared with dark on purpose and are built from `brand`.
+ */
 export const scales = {
   bronze: buildScale(brand.bronze),
   espresso: buildScale(brand.espresso),
-  cream: buildScale(brand.cream),
-  taupe: buildScale(brand.taupe),
+  cream: buildScale(lightNeutral.surface),
+  taupe: buildScale(lightNeutral.border),
 } as const;
 
 /**
@@ -447,13 +508,39 @@ export const statusHue = {
    *
    * The exact RGB midpoint of green and yellow, written out rather than
    * computed so the palette stays a list of hexes somebody can read: (0x5E +
-   * 0xC7)/2 = 0x93, (0x8C + 0x9A)/2 = 0x93, (0x3A + 0x16)/2 = 0x28. It has to
+   * 0xEA)/2 = 0xA4, (0x8C + 0xB3)/2 = 0xA0, (0x3A + 0x08)/2 = 0x21. It has to
    * be the midpoint, because the whole claim the gradient makes is that a
    * result sitting exactly on the limit is drawn exactly half in each colour.
+   *
+   * Recomputed when the yellow was replaced (Aug 2026) — a hinge that is not
+   * the midpoint of its own two neighbours is a third colour with a hinge's
+   * name on it, which is what drew a chartreuse stripe along a reference bound
+   * the last time one was chosen independently.
    */
-  olive: '#939328',
-  /** Warm gold. Yellow at this luminance, not lemon and not brown. */
-  yellow: '#C79A16',
+  olive: '#A4A021',
+  /**
+   * ── A CLEAN YELLOW, SET DELIBERATELY (Aug 2026) ──────────────────────────
+   *
+   * It was #C79A16, and the complaint was that it read as a muddy, dingy
+   * mustard — worst where the green transitions into it and the blend olives
+   * out. That is two faults and only one of them is the hue.
+   *
+   * THE HUE: #C79A16 carries 0.1405 of OKLab chroma at 43% HSL lightness, which
+   * is a dark gold. Every band fill is bounded by `bandChromaCeiling` — the
+   * colourfulness of the brand hue it derives from — so a dull seed puts a
+   * ceiling on how clean the band can ever be, and no amount of re-solving the
+   * BAND could lift it. #EAB308 is 0.1617: the same 45° gold at nearly full
+   * saturation, which is a clean yellow rather than a brown with a yellow name.
+   * Blue is still strictly the lowest channel, so the accent-separation rule
+   * that keeps a decorative hue from reading as a state is untouched.
+   *
+   * THE OTHER FAULT IS GEOMETRY AND IT IS FIXED IN `ArcGauge`: the green→gold
+   * blend spanned 19% of the arc, so a fifth of the ring was the midpoint of
+   * two colours rather than either of them. Narrowing it is what stops the
+   * gauge reading green, olive, gold; the hue is what stops the gold reading
+   * brown. Neither alone was enough, which is why this had come back twice.
+   */
+  yellow: '#EAB308',
   /** The hinge at a SIGNIFICANTLY-OUT THRESHOLD — never a state. */
   orange: '#C4711F',
   /** Warm brick-red. Unmistakably red, never a web #f00 alert. */
@@ -1086,7 +1173,14 @@ const BAND_FILL: Record<'green' | 'yellow' | 'red' | 'optimal', BandFill> = {
   // solved to the rung (BAND_CONTRAST) against PLOT_SURFACE; the saturation to
   // BAND_CHROMA_SHARE of the palette's own ceiling for that hue.
   green: { saturation: 0.415, lightness: 0.663 }, // #a5cd85, 1.50:1, okC 0.1058
-  yellow: { saturation: 0.55, lightness: 0.548 }, // #cbab4c, 1.84:1, okC 0.1194
+  // ── RE-SOLVED FOR THE CLEAN YELLOW (Aug 2026) ────────────────────────────
+  // The rung did not move — 1.85:1 off the plot, so the band sits exactly where
+  // it sat in the ladder and the boundary hairline over it is unchanged. What
+  // moved is the CHROMA: the seed's ceiling went 0.1405 → 0.1617, so 85% of it
+  // is 0.1374 rather than 0.1194, and holding that at the same contrast costs
+  // four points of HSL lightness. Measured: #d1aa33, 1.85:1, okC 0.1377 — a 15%
+  // gain in colourfulness with no change to where it lands on the ladder.
+  yellow: { saturation: 0.63, lightness: 0.508 }, // #d1aa33, 1.85:1, okC 0.1377
   red: { saturation: 0.75, lightness: 0.678 }, // #ea7f6f, 2.25:1, okC 0.1348
   // The optimal narrowing: the same green, one small step deeper. 1.15:1 off
   // the in-range band — a visible shading-in, nothing like a boundary.
@@ -1732,7 +1826,7 @@ export function solveTokens(mode: 'light' | 'dark'): SolvedTokens {
     wash,
     track: byHue((hue) => matchLight(hue, TINT_MIX.track)),
     label,
-    bound: solveNeutral(brand.taupe, card, 2.6),
+    bound: solveNeutral(dark ? brand.taupe : lightNeutral.border, card, 2.6),
   };
 }
 
@@ -1769,17 +1863,17 @@ const SOLVED: Record<'light' | 'dark', SolvedTokens> = {
    * old value's exact luminance for precisely this reason. See the note there.
    */
   light: {
-    line: { green: '#507e2c', olive: '#72771a', yellow: '#947008', orange: '#ab5c1f', red: '#c14836' },
-    wash: { green: '#dce5d4', olive: '#e7e7d0', yellow: '#f2e8cc', orange: '#f1e0ce', red: '#edd4d0' },
-    track: { green: '#a1bb8c', olive: '#c0c081', yellow: '#dec477', orange: '#dcac7c', red: '#d28c81' },
-    label: { green: '#3d572c', yellow: '#564719', red: '#8f3225' },
-    bound: '#98a0ae',
+    line: { green: '#507e2c', olive: '#727716', yellow: '#947000', orange: '#ab5c1b', red: '#c14836' },
+    wash: { green: '#dce5d5', olive: '#eae9d0', yellow: '#f9edca', orange: '#f1e0cf', red: '#edd4d1' },
+    track: { green: '#a1bb8c', olive: '#c9c77e', yellow: '#f2d26f', orange: '#dcac7d', red: '#d28c82' },
+    label: { green: '#3d572c', yellow: '#635013', red: '#8f3225' },
+    bound: '#93a0b5',
   },
   dark: {
-    line: { green: '#6b9948', olive: '#959424', yellow: '#bf8f00', orange: '#d07a29', red: '#e06452' },
-    wash: { green: '#2e3628', olive: '#333321', yellow: '#372f18', orange: '#3f3123', red: '#483431' },
-    track: { green: '#435931', olive: '#4f4f0f', yellow: '#594300', orange: '#74471a', red: '#905248' },
-    label: { green: '#80ae5b', yellow: '#bf8f00', red: '#fa7d6b' },
+    line: { green: '#6b9948', olive: '#a9a424', yellow: '#e6ae00', orange: '#e38929', red: '#e06452' },
+    wash: { green: '#2f362a', olive: '#32311e', yellow: '#362c0e', orange: '#3e3124', red: '#483431' },
+    track: { green: '#435931', olive: '#4c4a01', yellow: '#4d3a00', orange: '#73471c', red: '#905248' },
+    label: { green: '#80ae5b', yellow: '#e6ae00', red: '#fa7d6b' },
     bound: '#5a6272',
   },
 };
@@ -1798,7 +1892,7 @@ const GLASS_ACCENT_TINT = 0.08;
 function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
   const dark = mode === 'dark';
   const s = dark ? darkScales : scales;
-  const surface = dark ? darkScales.cream[500] : brand.cream;
+  const surface = dark ? darkScales.cream[500] : lightNeutral.surface;
   // A tint washes toward the surface it sits on: the card in light mode, the
   // card in dark mode too — both are `cream-50`, which is what a tinted card
   // actually replaces.
@@ -1842,12 +1936,13 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
 
   for (const family of ['bronze', 'espresso', 'cream', 'taupe'] as const) {
     const scale = s[family];
-    out[`--c-${family}`] = dark
-      ? scale[500]
-      : family === 'bronze' ? brand.bronze
-      : family === 'espresso' ? brand.espresso
-      : family === 'cream' ? brand.cream
-      : brand.taupe;
+    // `scale[500]` IS the family's own base in both themes — `buildScale` and
+    // both dark builders return the base untouched at 500 — so this is one
+    // expression rather than a branch that has to name four hexes and be kept in
+    // step with where each of them now comes from. Light's `cream` and `taupe`
+    // are seeded from `lightNeutral` and its `bronze` and `espresso` from
+    // `brand`; the scale knows which without this line being told.
+    out[`--c-${family}`] = scale[500];
     for (const step of [50, 100, 200, 300, 400, 500, 600, 700, 800, 900]) {
       out[`--c-${family}-${step}`] = scale[step];
     }
@@ -1909,7 +2004,7 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * pane above the page and below a card and leaves the highlight somewhere to
    * land.
    */
-  const glassColour = dark ? darkScales.cream[50] : mix(brand.white, brand.cream, 0.5);
+  const glassColour = dark ? darkScales.cream[50] : mix(brand.white, lightNeutral.surface, 0.4);
   // The two ambient sources, resolved here because three tokens further down
   // are derived from them (`--c-glass-edge`, `--c-sheen`, and the glows
   // themselves) and a colour computed twice is a colour that can differ from
@@ -1977,7 +2072,36 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * above. `tokenContrast.test.ts` asserts the material is shared and no longer
    * asserts the colour is.
    */
-  out['--c-panel'] = dark ? mix(nightBase, '#000000', 0.72) : glassColour;
+  /**
+   * ── AND LIGHT IS A RECESSED RAIL NOW TOO, WHICH IS THE SAME IDEA (Aug 2026)
+   *
+   * It was `glassColour` — the CARD tone — so on a bright page the column was a
+   * near-white sheet on a near-white page. Two things went wrong at once and
+   * both are arithmetic rather than taste:
+   *
+   *  1. There was no room left for it to separate. A card is 1.13:1 off this
+   *     page and a panel has to sit inside that, under it.
+   *  2. THE SPECULAR HAD NOWHERE TO GO. A white highlight on a 0.946-luminance
+   *     pane lifted it by 1%, where the material's own test asks for 2% — and
+   *     the alpha that would have bought 2% is 0.625, which is not a highlight,
+   *     it is white paint. That is the identical failure recorded on
+   *     `glassColour` when light's pane sat at 96% white, arriving from the
+   *     other side.
+   *
+   * So the light column goes DOWN off the page rather than up — the page taken
+   * three quarters of the way to the hairline tone — and that is the same change
+   * of idea dark made: a panel darker than the page is a thing the page is lit
+   * IN FRONT OF, which is what a navigation rail beside a lit room is. Measured:
+   * 1.09:1 off the page (floor 1.08, card 1.13), the sheen lifts it 5.2% where
+   * the floor is 2%, and every label on it gains contrast rather than losing it.
+   *
+   * ⚠ IT IS NO LONGER `--c-glass`, IN EITHER THEME. The MATERIAL is still shared
+   * — same blur, saturation, streak, lit edge and grain, and the contrast suite
+   * asserts that — and only the colour is the surface's own.
+   */
+  out['--c-panel'] = dark
+    ? mix(nightBase, '#000000', 0.72)
+    : mix(lightNeutral.surface, lightNeutral.border, 0.75);
   // The alpha itself is PANEL_WASH_ALPHA below rather than a variable here,
   // because it is an opacity and not a colour: everything in this map is a hex
   // that themeCssVars turns into channels.
@@ -2100,7 +2224,7 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * carried toward the same warm mid-brown the surface scale already lifts
    * with. Both are inside bronze / espresso / cream / taupe.
    */
-  out['--c-vellum'] = dark ? mix(nightBase, nightLift, 0.36) : mix(brand.cream, brand.white, 0.45);
+  out['--c-vellum'] = dark ? mix(nightBase, nightLift, 0.36) : mix(scales.cream[50], lightNeutral.surface, 0.5);
 
   /**
    * Text and icons on a FILLED accent — a bronze button, a selected option, an
@@ -2378,10 +2502,10 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * a near-black dark card measures about 1.1:1, which is the identical
    * failure with the themes swapped. They follow the theme.
    */
-  out['--c-chart-axis-line'] = dark ? darkScales.taupe[500] : mix(brand.taupe, brand.espresso, 0.15);
-  out['--c-chart-axis-text'] = dark ? darkScales.espresso[600] : mix(brand.espresso, brand.cream, 0.25);
-  out['--c-chart-gridline'] = dark ? darkScales.taupe[400] : mix(brand.cream, brand.taupe, 0.5);
-  out['--c-chart-cursor'] = dark ? darkScales.taupe[700] : mix(brand.taupe, brand.espresso, 0.35);
+  out['--c-chart-axis-line'] = dark ? darkScales.taupe[500] : mix(lightNeutral.border, brand.espresso, 0.22);
+  out['--c-chart-axis-text'] = dark ? darkScales.espresso[600] : mix(brand.espresso, lightNeutral.surface, 0.25);
+  out['--c-chart-gridline'] = dark ? darkScales.taupe[400] : mix(lightNeutral.surface, lightNeutral.border, 0.5);
+  out['--c-chart-cursor'] = dark ? darkScales.taupe[700] : mix(lightNeutral.border, brand.espresso, 0.42);
   // The card the chart is drawn on — what a point mark is filled with so the
   // line passes behind it. One expression with `tintTowards`, which is the
   // same card every wash is mixed from.

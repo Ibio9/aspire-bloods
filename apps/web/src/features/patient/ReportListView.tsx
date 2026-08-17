@@ -133,7 +133,7 @@ export function ReportListView() {
   if (reports === null) {
     return (
       <div
-        className="grid grid-cols-1 items-start gap-7 sm:grid-cols-2 lg:grid-cols-3"
+        className="card-row grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3"
         aria-busy="true"
         aria-label="Loading your results"
       >
@@ -182,7 +182,7 @@ export function ReportListView() {
    * one-line title, which is a few pixels rather than a hole.
    */
   return (
-    <div className="grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="card-row grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3">
       {reports.map((r, i) => (
         <Reveal key={r.reportId} delay={staggerDelay(i)}>
           {r.patientStatus === 'RELEASED' ? <ReleasedReportCard report={r} /> : <PendingReportCard report={r} />}

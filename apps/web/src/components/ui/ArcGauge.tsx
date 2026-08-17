@@ -830,12 +830,31 @@ const RING_GRADIENT = (() => {
   );
   const b = GAUGE_BOUNDARIES;
   /**
-   * How wide a blend would be if nothing bound it, as a fraction of the arc.
-   * Wider than any gap here, so every one of the four is decided by its
-   * neighbours rather than by this — which is the harmless direction: it means
-   * each blend is as wide as it can be without two of them touching.
+   * ── HOW WIDE A BLEND IS, AND IT IS 0.2 → 0.045 (Aug 2026) ────────────────
+   *
+   * THE COMPLAINT: "green to yellow passes through a dull olive band". It did,
+   * and this constant is why. At 0.2 the nominal was wider than every gap, so
+   * each blend was clamped to HALF THE DISTANCE TO ITS NEIGHBOUR — which sounds
+   * conservative and is the opposite: it makes every blend as wide as it can
+   * possibly be without two of them touching. The green→gold transition spanned
+   * 0.34 ± 0.095, i.e. **19% of the arc**, with olive at its centre. A fifth of
+   * the ring was the midpoint of two colours rather than either of them, and
+   * the midpoint of green and gold is olive by arithmetic — there is no yellow
+   * that fixes that.
+   *
+   * At 0.045 every blend is 9% of the arc, about 24° of a 270° sweep. That is
+   * still a soft transition rather than a step, the boundary is still at the
+   * exact CENTRE of its own blend (which is the claim the whole construction
+   * makes — a result one unit inside a bound and one unit outside it are drawn a
+   * hair apart), and each of the five bands now has a long flat stretch that
+   * reads as its own colour: green 24% of the arc, each gold 11%.
+   *
+   * ⚠ THE `min()` CLAMP STAYS AND IS NOT REDUNDANT. It is what makes two blends
+   * unable to overlap whatever this number is, so `GAUGE_BOUNDARIES` can move
+   * without this having to be re-derived. What changed is which of the three
+   * terms binds: the nominal does now, and the neighbours did before.
    */
-  const NOMINAL = 0.2;
+  const NOMINAL = 0.045;
   const edges = [0, b.lowThreshold, b.low, b.high, b.highThreshold, 1];
   const halfWidth = (i: number) => Math.min(NOMINAL, (edges[i] - edges[i - 1]) / 2, (edges[i + 1] - edges[i]) / 2);
 

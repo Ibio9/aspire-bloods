@@ -11,8 +11,14 @@ Deploy: Vercel (web) + Railway (api, db)
 Live: blood.aspireshield.com · api.blood.aspireshield.com
 
 # Design
-accent #5A6472 · ink #14161A · surface #E7E9ED · border #C7CBD3
-(the token keys are still named `bronze` / `espresso` / `cream` / `taupe`)
+shared:  accent #5A6472 · ink #14161A   (`bronze` / `espresso`, both themes)
+light:   surface #EDEFF3 · border #DCE0E7   (`lightNeutral`, light only)
+dark:    surface #E7E9ED · border #C7CBD3   (`brand.cream` / `brand.taupe`, the dark seeds)
+
+⚠ **THE SURFACE AND THE BORDER ARE PER THEME SINCE Aug 2026** — see "Light mode
+is bright" below. `brand.cream` and `brand.taupe` are the DARK theme's seeds and
+nothing else; the light page and the light hairline are `lightNeutral`. The
+accent and the ink are shared by both themes on purpose.
 
 ⚠ **THE PALETTE IS NEUTRAL AND COOL. IT WAS WARM UNTIL Aug 2026, AND MOST OF
 THIS FILE STILL DESCRIBES THE WARM ONE.** Where a note below says brown, bronze,
@@ -24,7 +30,105 @@ Match the Aspire Rota sign-in for craft level. No default browser styling anywhe
 no native selects, no Chrome autofill blue, no native focus rings.
 Reference theaspireclinic.com for register: dark, atmospheric, spacious, restrained.
 
+## Light mode is bright, and it has its own two hexes (Aug 2026)
+
+**THE BRIEF: a bright, modern, premium light theme.** White cards on a soft
+near-white page, separation from tone steps, shadow and the glass rather than
+from a grey fill, light neutral hairlines, and the accent as the one interactive
+thread with everything structural around it neutral. **No dark-mode surface moves.**
+
+**SO THE SURFACE AND THE BORDER ARE PER THEME NOW, AND THAT IS THE WHOLE
+STRUCTURAL CHANGE.** `nightLift` is `mix(espresso, taupe, …)`, `darkText` is
+`mix(cream, white, …)` and `darkBronze` is `mix(bronze, cream, …)` — so one pair
+of hexes cannot be both "the light page" and "the direction dark lifts in" and be
+changed for one of those reasons only. `lightNeutral` in tokens.ts holds the light
+pair; `scales.cream` / `scales.taupe` (light-only families) build from it and
+`brand.cream` / `brand.taupe` go on seeding dark, untouched.
+
+    surface  #EDEFF3   was #E7E9ED, a mid light grey. Card #FDFDFE at 1.13:1 off
+                       the page (was 1.20), pane 1.06, sidebar 1.09 — page, pane,
+                       panel, card, in order. Body copy GAINS contrast, 14.90 →
+                       15.73:1. ⚠ THERE IS A FLOOR JUST BELOW: at #F4F6F9 a card
+                       is 1.07:1 off the page and the sidebar cannot fit between
+                       the two at all.
+    border   #DCE0E7   1.30:1 on a card against the old 1.60 — a light hairline
+                       rather than a grey rule.
+
+**THE LIGHT SIDEBAR IS A RECESSED RAIL NOW, WHICH IS DARK'S OWN IDEA.** It was
+the card tone, so on a bright page it was a near-white sheet on a near-white
+page — and the white specular lifted it **1% where the material's own test asks
+for 2%**, with the alpha that would buy 2% being 0.625, i.e. white paint. It goes
+DOWN off the page instead (the page taken three quarters toward the hairline):
+1.09:1 off the page, sheen lift 5.2%, every label on it gaining contrast.
+`--c-panel` is now its own colour in BOTH themes; the MATERIAL is still shared and
+is still asserted.
+
+**SHADOWS CARRY MORE IN LIGHT** (`--shadow-diffuse` 0.08 → 0.11, and the diffuse
+layer's blur 8 → 16px, 24 → 36 on hover). The tone step between page and card
+nearly halved; the separation moved onto the hairline, the glass and this. A short
+shadow under a card on a near-white page reads as an outline; a long one reads as
+height.
+
+**THE INK AND THE ACCENT ARE SHARED AND WERE NOT TOUCHED.** `espresso` #14161A is
+already a near-black — a hair cool rather than warm — and it is the seed of every
+dark surface, so warming it is a dark-mode change wearing a light-mode label.
+`bronze` #5A6472 stays the single interactive accent (buttons, links, focus rings,
+active nav); note that it is a cool slate today rather than a warm bronze, and the
+key is a role name.
+
+## The yellow status colour was replaced (Aug 2026)
+
+`statusHue.yellow` **#C79A16 → #EAB308**, and `olive` **#939328 → #A4A021** with
+it. Two faults, and only one of them was the hue:
+
+- **THE HUE.** Every band fill is bounded by `bandChromaCeiling` — the
+  colourfulness of the brand hue it derives from — so a dull seed caps how clean
+  the band can ever be, and no re-solve of the BAND could lift it. 0.1405 →
+  0.1617 of OKLab chroma at the same 45° angle. `BAND_FILL.yellow` re-solved to
+  `{ saturation: 0.63, lightness: 0.508 }`: **#cbab4c → #d1aa33**, +15% chroma,
+  **the rung unchanged at 1.85:1**, so the ladder and the boundary hairline over
+  it are where they were.
+- **THE GEOMETRY, IN `ArcGauge`.** `NOMINAL` **0.2 → 0.045**. At 0.2 the nominal
+  was wider than every gap, so each blend was clamped to half the distance to its
+  neighbour — which sounds conservative and is the opposite: it made every blend
+  as wide as it could be. The green→gold transition spanned **19% of the arc**
+  with olive at its centre, and the midpoint of green and gold is olive by
+  arithmetic. At 0.045 each blend is 9% of the arc and each band has a long flat
+  stretch. The boundary is still at the exact CENTRE of its own blend.
+
+**OLIVE IS THE MIDPOINT AND IS ASSERTED AS ONE.** A hinge that is not the exact
+RGB midpoint of its own two neighbours is a third colour wearing a hinge's name —
+that is what drew a chartreuse stripe along a reference bound the one time a hinge
+was solved independently. `tokenContrast.test.ts` computes it rather than trusting
+the literal. Orange is untouched. **The chevron shape layer is untouched on every
+status**, and the new yellow drives the "Below range" / "Above range" labels
+(light #635013, dark #e6ae00) as well as the band.
+
+## Every card in a row is the height of the tallest card in it (Aug 2026)
+
+`.card-row` in globals.css, on every card grid. This REVERSES the `items-start`
+ragged-bottom rule this file used to argue for in three places. That rule was
+answering a real failure — a stretched short card drawing its slack as empty card
+— and the cause is not the stretching, it is a card whose CONTENT is pinned to the
+top of a box that grew. The card is a flex column, so the slack falls between its
+blocks.
+
+**⚠ `align-items: stretch` ON ITS OWN DOES NOTHING HERE.** A grid already
+stretches its items; what breaks is the chain of PASS-THROUGH WRAPPERS between
+the item and the card — an `<li>`, a `Reveal`, and the `<a>` that makes a card its
+own click target. Each sizes to its own content, so the cell is full height and
+the card in it is not. Each wrapper is NAMED in the selector rather than reached
+with a descendant, because `height: 100%` on everything inside a card is a
+different bug. ⚠ **NOT ON A GRID OF CONTROLS** — it stretches an Input's wrapper
+to the tallest cell.
+
 ## The palette went neutral, and it is four hexes (Aug 2026)
+
+⚠ **THE LIGHT HALF OF THIS IS SUPERSEDED** by "Light mode is bright" above: the
+light surface and border are `lightNeutral` now and the two hexes named here are
+the DARK seeds. The reasoning about what is derived and what is not is why that
+split was two lines rather than a sweep, and the four re-solved numbers at the
+foot of it are still the list of things that move whenever a palette does.
 
 **Raheel rejected the warm theme.** The brief was explicit: a clean black/dark
 theme, no brown, no amber, no tan, cool whites and greys, one clean accent,
@@ -2874,7 +2978,12 @@ it: at four rows in the two-line arrangement it overflowed.
   marker IS before they are told who to ring about it — the definition is
   context for the prompt, not a footnote to it.
 
-# "What's changed" is two cards across, each its own height (Aug 2026)
+# "What's changed" is two cards across (Aug 2026)
+
+⚠ **THE "EACH ITS OWN HEIGHT" HALF IS REVERSED** — see `.card-row` near the top
+of this file. The WIDTH argument below is untouched and is still why this section
+is two across; the row is equalised now and the hole it used to open is closed by
+the card being a flex column instead.
 
 Three columns inside a section that already gives 144px of its width to the
 rail left each card about 270px at 1440 — narrow enough that a marker's name

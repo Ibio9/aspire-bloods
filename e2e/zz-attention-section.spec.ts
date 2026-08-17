@@ -26,12 +26,17 @@ import path from 'node:path';
  * screen and this was their third appearance on one page — so the grid is gone
  * with it and the list is full width.
  *
- * What replaced those assertions is the thing the card's removal could actually
- * break: the non-diagnostic framing. It used to sit in a card BELOW the list
- * (as `outOfRangeNotice`) and it is now two sentences inside the section, above
- * the results and outside the collapsing region. "This is not a diagnosis" must
- * be on screen whether the list is open or shut, and that is what is checked in
- * both states.
+ * AND THE FRAMING PARAGRAPH CAME OFF THIS SCREEN (Aug 2026). It had moved out of
+ * a card below the list into two sentences above it; it is removed outright now.
+ * The COUNT LINE is what has to survive a fold — collapsing hides the cards, not
+ * the fact that there are results outside the range — so that is what is checked
+ * in both states, and the paragraph's absence is asserted rather than merely no
+ * longer looked for, because a string that quietly returns is how this section
+ * grew three copies of the clinic's contact details in the first place.
+ *
+ * ⚠ THE NON-DIAGNOSTIC RULE IS NOT THIS PARAGRAPH. The seeded copy block still
+ * carries the whole framing, word for word, on the marker detail page and in the
+ * "Next steps" block of both PDFs.
  *
  * SKIPPED UNLESS ASKED FOR. `E2E_SCREENSHOTS=1`.
  */
@@ -105,13 +110,14 @@ test.describe('worth a conversation', () => {
         // reintroduce it silently.
         await expect(page.getByText('Talk to someone')).toHaveCount(0);
 
-        // BOTH LINES ARE OUTSIDE THE REGION, so both are on screen open AND
-        // shut. The count is the fact; the framing is how the fact is to be
-        // read, and hiding either behind a fold is what collapsing must not do.
+        // THE COUNT IS OUTSIDE THE REGION, so it is on screen open AND shut:
+        // collapsing hides the CARDS, not the fact that there are results
+        // outside the range.
         const count = page.getByText(/of your markers sit|One of your markers sits/);
-        const framing = page.getByText(/This is not a diagnosis/);
         await expect(count).toBeVisible();
-        await expect(framing).toBeVisible();
+        // And the framing paragraph is gone from this screen — asserted rather
+        // than simply unlooked-for. See the note at the top of this file.
+        await expect(page.getByText(/This is not a diagnosis/)).toHaveCount(0);
 
         await toggle.click();
         // Past the 220ms height transition.
@@ -119,7 +125,6 @@ test.describe('worth a conversation', () => {
         await expect(toggle).toHaveAttribute('aria-expanded', 'false');
 
         await expect(count, 'the count line went with the list').toBeVisible();
-        await expect(framing, 'the non-diagnostic framing went with the list').toBeVisible();
 
         // The list is the section's full width now that there is no second
         // column beside it — which is also what the range bars inside it

@@ -336,10 +336,10 @@ export async function getPatientOverview(patientId: string) {
    * `outOfRangeNotice` was the seeded `out_of_range_prompt` block, rendered on
    * the Overview in a card below the list — where its opening sentence restated
    * the count line above it and the contact details under it were the third
-   * copy of the same four lines on one screen. The non-diagnostic framing it
-   * carried has NOT gone anywhere: it is two sentences inside the section now,
-   * above the results rather than after them (`ATTENTION_FRAMING` in
-   * PatientOverview.tsx).
+   * copy of the same four lines on one screen. The framing it carried moved
+   * into the section as two sentences and, in Aug 2026, came off the Overview
+   * altogether — see the note where `ATTENTION_FRAMING` used to be in
+   * PatientOverview.tsx.
    *
    * THE COPY BLOCK ITSELF IS UNTOUCHED and is still read, in full, by the two
    * surfaces where nothing else on the page says it — the marker detail page

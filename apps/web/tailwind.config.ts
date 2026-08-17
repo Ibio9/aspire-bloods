@@ -360,9 +360,13 @@ export default {
         // edge contact, one wide diffuse one that describes the distance
         // from the surface below. That pairing is what separates "floating"
         // from "outlined".
-        card: '0 1px 2px 0 rgb(var(--c-shadow) / var(--shadow-tight)), 0 2px 8px -2px rgb(var(--c-shadow) / var(--shadow-diffuse))',
+        // The diffuse layer reaches further than it did (8px → 16px of blur,
+        // 24 → 36 on hover). A short shadow under a card on a near-white page
+        // reads as an outline; a long one reads as height, and height is the
+        // whole of what separates a white card from a near-white page.
+        card: '0 1px 2px 0 rgb(var(--c-shadow) / var(--shadow-tight)), 0 4px 16px -4px rgb(var(--c-shadow) / var(--shadow-diffuse))',
         'card-hover':
-          '0 2px 4px 0 rgb(var(--c-shadow) / var(--shadow-tight)), 0 10px 24px -6px rgb(var(--c-shadow) / calc(var(--shadow-diffuse) * 1.75))',
+          '0 2px 4px 0 rgb(var(--c-shadow) / var(--shadow-tight)), 0 16px 36px -10px rgb(var(--c-shadow) / calc(var(--shadow-diffuse) * 1.75))',
         // Auth form card — deliberately the heaviest surface in the product;
         // it has to genuinely float off the page, not sit flush on it.
         float:
@@ -425,8 +429,16 @@ export default {
           ...typographyCssVars(),
           // Shadow opacity is part of the theme too: the same alpha that reads
           // as a soft warm shadow on cream disappears entirely on near-black.
-          '--shadow-tight': '0.06',
-          '--shadow-diffuse': '0.08',
+          // ── LIGHT'S SHADOWS CARRY MORE NOW (Aug 2026) ──────────────────
+          // The light page went from a mid grey to a soft near-white, so the
+          // TONE STEP between the page and a card halved: 1.20:1 → 1.13:1. The
+          // separation did not go anywhere, it moved — onto the hairline, the
+          // glass and this. A brighter theme needs a slightly deeper shadow for
+          // a card to sit above its page, which is the opposite of the instinct
+          // and is what "separation from shadow rather than from a fill" means
+          // as a number. Tighter contact, wider spread.
+          '--shadow-tight': '0.05',
+          '--shadow-diffuse': '0.11',
           // How much of `--c-panel` survives on the sidebar. Per theme for the
           // same reason the shadow alphas are: the wash DIMS a cream page and
           // LIFTS a near-black one, and the two directions do not need the same

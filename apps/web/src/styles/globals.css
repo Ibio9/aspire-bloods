@@ -1195,6 +1195,52 @@
     @apply bg-cream-50 border border-taupe rounded-card shadow-card;
   }
 
+  /* ── EVERY CARD IN A ROW IS THE HEIGHT OF THE TALLEST CARD IN THAT ROW ───
+     (Aug 2026, and it reverses a rule this stylesheet used to argue for.)
+
+     THE OLD RULE WAS `items-start` AND RAGGED BOTTOMS, on the reasoning that a
+     card stretched past its own content draws the difference as empty card.
+     That is a real failure with a real cause, and the cause is not the
+     stretching: it is a card whose CONTENT is pinned to the top of a box that
+     grew. A row of cards at visibly different heights reads as a layout that
+     did not finish, and on a grid of a hundred and sixty-five marker cards it
+     is the loudest thing on the page.
+
+     ⚠ AND `align-items: stretch` ON ITS OWN DOES NOTHING HERE, WHICH IS THE
+     PART THAT MAKES THIS FOUR SELECTORS RATHER THAN ONE. A grid already
+     stretches its items; what breaks is the chain of PASS-THROUGH WRAPPERS
+     between the item and the card — an `<li>`, a `Reveal`, and the `<a>` that
+     makes a card its own click target. Every one of those sizes to its own
+     content, so the cell is full height and the card inside it is not, and the
+     stretch looks like it was never applied. Each wrapper in that chain is
+     NAMED here rather than reached with a descendant selector, because
+     `height: 100%` on everything inside a card is a different bug.
+
+     THE CARD IS A FLEX COLUMN, so the slack lands between its blocks rather
+     than as a slab under the last one — which is the half that answers the old
+     rule rather than merely overruling it. A call site that wants a specific
+     block to take the slack says so with `mt-auto` on that block; nothing here
+     decides that for it.
+
+     ⚠ NOT FOR A GRID OF CONTROLS. It stretches an Input's wrapper to the
+     tallest cell, which is a taller label, not a taller field. */
+  .card-row {
+    align-items: stretch;
+  }
+
+  .card-row > *,
+  .card-row .reveal,
+  .card-row > * > a,
+  .card-row > * > * > a,
+  .card-row .card {
+    height: 100%;
+  }
+
+  .card-row .card {
+    display: flex;
+    flex-direction: column;
+  }
+
   /* ── A CARD ON GLASS ────────────────────────────────────────────────────
      The hairline, the radius and the shadow are the card's; the SURFACE is the
      pane's. It has to come after `.card` in this stylesheet and it is the only

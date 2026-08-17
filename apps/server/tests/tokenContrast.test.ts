@@ -1276,20 +1276,23 @@ describe.each(MODES)('%s sidebar panel', (mode) => {
    * near-black page, which is precisely the register `nightBase`'s own note
    * warns against. Dark takes a near-black of its own now.
    *
-   * Light is unchanged and is still the glass colour, so the assertion is per
-   * theme rather than dropped.
+   * ── AND LIGHT FOLLOWED IT (Aug 2026), FOR A DIFFERENT REASON WITH THE SAME
+   *    SHAPE ────────────────────────────────────────────────────────────────
+   *
+   * The light page is a soft near-white now, so the card tone on it was a
+   * near-white sheet on a near-white page: 1.13:1 of total headroom for the
+   * whole ladder, and a white specular that lifted the pane by 1% where the
+   * material's own test asks for 2%. Light's column goes DOWN off the page too.
+   *
+   * So the claim is the same in both themes and is stated once: the sidebar is
+   * its own colour, and it is BELOW the page rather than above it. The material
+   * is asserted where it lives — the blur, the saturation and the sheen are one
+   * record shared with `.glass`, and `e2e/patient-sidebar.spec.ts` reads them
+   * off the element.
    */
-  it('is the same material as every other translucent surface', () => {
-    if (mode === 'light') {
-      expect(wash).toBe(tone(mode, '--c-glass'));
-    } else {
-      // Its own colour, and DARKER than the page rather than lighter — see the
-      // note on `--c-panel`. The material is asserted where it lives: the blur,
-      // the saturation and the sheen are one record shared with `.glass`, and
-      // `e2e/patient-sidebar.spec.ts` reads them off the element.
-      expect(wash).not.toBe(tone(mode, '--c-glass'));
-      expect(luminance(wash), 'the dark sidebar is not below the page').toBeLessThan(luminance(page));
-    }
+  it('is its own colour, below the page, and the material is still the shared one', () => {
+    expect(wash).not.toBe(tone(mode, '--c-glass'));
+    expect(luminance(wash), 'the sidebar is not below the page').toBeLessThan(luminance(page));
   });
 
   /**
@@ -1476,17 +1479,35 @@ describe('the accent family', () => {
     }
   });
 
-  it('leaves the status hues untouched by the retheme', () => {
-    // The brief that neutralised the chrome said to keep the status colours as
-    // they are. Pinned as literals, so a future palette change cannot quietly
-    // take the clinical layer with it.
+  it('pins the status hues as literals, so nothing changes them by accident', () => {
+    // Pinned so a palette change cannot quietly take the clinical layer with it.
+    // Every edit to this list is deliberate and is argued at `statusHue`.
+    //
+    // ── THE YELLOW WAS REPLACED (Aug 2026), AND THE OLIVE WITH IT ──────────
+    //
+    // #C79A16 → #EAB308: the old seed read as a dingy mustard, and because a
+    // band fill is bounded by `bandChromaCeiling` — the colourfulness of the
+    // brand hue it derives from — a dull seed capped how clean the band could
+    // ever be. 0.1405 → 0.1617 of OKLab chroma at the same 45° hue angle.
+    //
+    // Olive follows by construction rather than by choice: it is the exact RGB
+    // midpoint of green and yellow, and a hinge that is not the midpoint of its
+    // own two neighbours is a third colour wearing a hinge's name.
     expect(statusHue).toEqual({
       green: '#5E8C3A',
-      olive: '#939328',
-      yellow: '#C79A16',
+      olive: '#A4A021',
+      yellow: '#EAB308',
       orange: '#C4711F',
       red: '#B23A28',
     });
+    // The hinge really is the midpoint, checked rather than trusted.
+    const mid = (a: string, b: string) =>
+      '#' +
+      [0, 2, 4]
+        .map((i) => Math.round((parseInt(a.slice(i + 1, i + 3), 16) + parseInt(b.slice(i + 1, i + 3), 16)) / 2))
+        .map((v) => v.toString(16).padStart(2, '0'))
+        .join('');
+    expect(mid(statusHue.green, statusHue.yellow).toLowerCase()).toBe(statusHue.olive.toLowerCase());
   });
 
   it('gives neither accent that shape, at any step, in either theme', () => {
