@@ -503,8 +503,8 @@ export default {
           // The peak of each ambient source. The RAMP is written once in
           // globals.css as multiples of these, so two sources across two themes
           // are one curve at four strengths rather than four hand-written
-          // gradients. See GLOW in tokens.ts for why light's are a quarter of
-          // dark's — it is a contrast bound, not a taste.
+          // gradients. See GLOW in tokens.ts for how far light's peaks sit above
+          // dark's now — a taste bound since the fourth pass, not a contrast one.
           '--glow-1': String(GLOW.primary.light),
           '--glow-2': String(GLOW.secondary.light),
           // The green at the bottom right and the diagonal ribbon, both added
@@ -512,6 +512,14 @@ export default {
           // globals.css as multiples of these.
           '--glow-3': String(GLOW.tertiary.light),
           '--streak': String(GLOW.streak.light),
+          // THE SIZE OF EACH SOURCE (Aug 2026, fourth pass). Shared by the base
+          // rule AND `.dark`'s full override of it in globals.css, so the radius
+          // this file decides is the radius that paints in both places — see
+          // `GLOW.radius` for why light is drawn larger than dark now.
+          '--glow-rx': GLOW.radius.light.x,
+          '--glow-ry': GLOW.radius.light.y,
+          '--streak-rx': GLOW.streakRadius.light.x,
+          '--streak-ry': GLOW.streakRadius.light.y,
           // What makes the sidebar read as a PANE rather than as a wash. The
           // blur cannot do it on its own — there is nothing behind the column
           // but a flat colour and a smooth gradient, and blurring a smooth
@@ -551,6 +559,12 @@ export default {
           '--glow-2': String(GLOW.secondary.dark),
           '--glow-3': String(GLOW.tertiary.dark),
           '--streak': String(GLOW.streak.dark),
+          // Unmoved — the figures this file has always used. See the light
+          // block for why they are now variables instead of two literals.
+          '--glow-rx': GLOW.radius.dark.x,
+          '--glow-ry': GLOW.radius.dark.y,
+          '--streak-rx': GLOW.streakRadius.dark.x,
+          '--streak-ry': GLOW.streakRadius.dark.y,
           '--panel-sheen': String(PANEL_SHEEN.peak.dark),
           '--panel-sheen-top': String(PANEL_SHEEN.edge.top.dark),
           '--panel-sheen-right': String(PANEL_SHEEN.edge.right.dark),

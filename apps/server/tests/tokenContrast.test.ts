@@ -1849,8 +1849,23 @@ describe.each(MODES)('%s ambient sources', (mode) => {
   const page = tone(mode, '--c-cream');
   const card = tone(mode, '--c-cream-50');
 
-  /** The three source positions and radii, exactly as globals.css writes them. */
-  const SOURCES = { rx: 0.88, ry: 0.8, a: { x: 0.5, y: 0 }, b: { x: 0, y: 0.5 }, c: { x: 0.99, y: 0.99 } };
+  /**
+   * The three source positions and radii, exactly as globals.css writes them.
+   *
+   * ⚠ THE RADII ARE PER MODE NOW (Aug 2026, fourth pass) — `GLOW.radius[mode]`,
+   * read from tokens.ts rather than restated as a number, so a change to the
+   * size in the token layer cannot silently stop being the size this sampler
+   * measures. Stored there as CSS percentage strings (`'112%'`), parsed back to
+   * the fraction this geometry works in.
+   */
+  const pct = (s: string) => parseFloat(s) / 100;
+  const SOURCES = {
+    rx: pct(GLOW.radius[mode].x),
+    ry: pct(GLOW.radius[mode].y),
+    a: { x: 0.5, y: 0 },
+    b: { x: 0, y: 0.5 },
+    c: { x: 0.99, y: 0.99 },
+  };
 
   /**
    * THE DIAGONAL RIBBON, as globals.css writes it: five soft blobs whose centres
@@ -1859,8 +1874,8 @@ describe.each(MODES)('%s ambient sources', (mode) => {
    * — this block is only worth anything if it is sampling the thing that paints.
    */
   const STREAK = {
-    rx: 0.3,
-    ry: 0.24,
+    rx: pct(GLOW.streakRadius[mode].x),
+    ry: pct(GLOW.streakRadius[mode].y),
     blobs: [
       { x: 0.04, y: 0.08, share: 0.45 },
       { x: 0.32, y: 0.2, share: 0.85 },
@@ -2137,12 +2152,15 @@ describe.each(MODES)('%s ambient sources', (mode) => {
    *
    * LIGHT had no glow at all, so there is no prior source to compare with and a
    * comparative test there would be measuring one new thing against another.
-   * (It also fails, by a hair and in the harmless direction: slate is a much
-   * darker hue than the gold, so at 0.075 it costs marginally more contrast than
-   * the key does at 0.10 — which is a fact about the two hues, not about one of
-   * them being too strong.) What is asserted instead is a BUDGET: between them
-   * the two sources may spend at most 15% of the bare page's own body-copy
-   * contrast. Measured at 10.2%.
+   * What is asserted instead is a BUDGET, and it is PER SOURCE rather than
+   * combined: each of the three point sources may spend at most a sixth of the
+   * bare page's own body-copy contrast, measured at its own core alone.
+   *
+   * ⚠ THIS IS WHAT ACTUALLY BOUNDS THE FILL'S PEAK (Aug 2026, fourth pass) —
+   * see the note on `GLOW.secondary` in tokens.ts. Measured at the current
+   * values: key 7.0%, green 8.0%, fill 14.8% — the fill is a genuine mid blue
+   * rather than a near-white tint like the other two, so it is the one this
+   * budget actually binds.
    */
   if (mode === 'dark') {
     it('never makes a ground harsher than the source that was already there', () => {

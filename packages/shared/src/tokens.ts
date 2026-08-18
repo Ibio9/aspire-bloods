@@ -604,8 +604,43 @@ function buildScale(baseHex: string): Record<number, string> {
  * own 1.122:1 step, which is a window roughly [0.090, 0.105] wide at these
  * constants — swept, exactly as before, and the middle of it is what is used.
  * Move the base and this number has to be swept again.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  ⚠ PUSHED WHITER AGAIN, AND THE PANE PULLED BACK (Aug 2026, fourth pass)
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * THE COMPLAINT: the MAIN CONTENT AREA still read as the pastel secondary tint
+ * rather than white. Two things were true at once. First, #EFF1F5 carried six
+ * levels of blue-lean (r<g<b) — a deliberate, small amount, but on the page's
+ * own body colour it was the largest channel spread anywhere in the neutral
+ * family. Second, and the bigger of the two: `Card`'s default surface is
+ * `glass`, which on the main content area means `.glass-panel` — and its fill
+ * IS the pastel (`--c-glass-panel` = `lightNeutral.pastel` outright, see the
+ * note there), painted at `GLASS.panel.light`. At 0.60 that fill was 60% of
+ * every pixel of every section, tile and card wrapper on the page — which is
+ * most of the visible area on a screen built almost entirely out of panes.
+ * Two panels, one hairline apart, both carrying the same faint cool cast, read
+ * as a filter over the page rather than as two white surfaces with a hairline
+ * between them.
+ *
+ * SO BOTH MOVED, AND NEITHER MOVED FAR. The base is whiter — #F1F2F5, four
+ * levels of blue-lean rather than six, a hair brighter — which is the point
+ * FIRST asked for. The pane's fill came down hard, in the section on
+ * `GLASS.panel` below: **not** because the pastel is wrong, but because a fill
+ * painted on nearly everything on screen has to be quiet enough that it never
+ * reads as a filter, and a value tuned to look right on ONE panel was never
+ * going to survive being multiplied across a whole page of them. What the pane
+ * keeps is a trace — depth from the streak, the lit edge and the shadow behind
+ * it, not from a wash of colour in front of it. See the note on `GLASS.panel`
+ * for the number and for where the colour comes from instead: the four ambient
+ * sources, raised in the same pass.
+ *
+ * ⚠ AND THE RAIL WINDOW MOVED AGAIN WITH THE BASE, AND HAD TO BE RESWEPT A
+ * SECOND TIME. Same two floors — 1.08:1 off the page, under the card's own
+ * step — at a card now measuring 1.111:1. The window is roughly
+ * [0.0725, 0.0875]; 0.08 is the middle.
  */
-const LIGHT_BASE = '#EFF1F5';
+const LIGHT_BASE = '#F1F2F5';
 /**
  * ⚠ THE PASTEL IS A WHISPER NOW, NOT A PASTEL (Aug 2026). It was a genuine
  * light teal (#e1f2f4 at s 0.45 / l 0.92) because the page was warm and the
@@ -634,9 +669,13 @@ const LIGHT_PASTEL_LIGHTNESS = 0.975;
  *
  * ⚠ THE WINDOW MOVED WHEN THE PAGE WENT WHITE and it is half as wide as it was:
  * a card on a near-white page is a 1.12:1 step rather than a 1.18 one, and the
- * rail has to fit under it. 0.09 is the middle, measured at 1.10:1.
+ * rail has to fit under it.
+ *
+ * ⚠ AND IT MOVED AGAIN WHEN THE PAGE WENT WHITER STILL (fourth pass) — see the
+ * note on `LIGHT_BASE`. 0.08 is the new middle, measured at 1.10:1 off the page
+ * and clear of the card's own 1.111:1 step.
  */
-const LIGHT_RAIL_DROP = 0.09;
+const LIGHT_RAIL_DROP = 0.08;
 const LIGHT_HAIRLINE = 0.075;
 /** Light's own near-black. See `lightNeutral.ink`, which is the only place it is explained. */
 const LIGHT_INK = '#15171C';
@@ -2436,23 +2475,23 @@ const SOLVED: Record<'light' | 'dark', SolvedTokens> = {
     track: { green: '#a1bc8c', olive: '#ccd08a', yellow: '#f9e28e', orange: '#dcac7c', red: '#d28c81' },
     label: { green: '#3d572c', yellow: '#675a27', red: '#8f3225' },
     /**
-     * ⚠ #b49c81 → #9aa0ad WHEN LIGHT WENT WHITE (Aug 2026), and it is the ONE
-     * value in this block the retheme was allowed to move.
+     * ⚠ #b49c81 → #9aa0ad → #9da0aa, ONCE PER LIGHT-BASE MOVE (Aug 2026), and it
+     * is the ONE value in this block either retheme was allowed to move.
      *
      * It is the trend chart's four boundary rules, and it is the only entry
      * here that is not a status colour: `solveNeutral(lightNeutral.border, card,
-     * 2.6)`, a NEUTRAL hairline solved to stand at a fixed ratio off the card
-     * it is drawn on. It was warm because light's border was warm; light's
-     * border is neutral now, so a stale literal would leave a beige hairline on
-     * a chart sitting on a white card — the exact wash this pass removes,
-     * surviving in the one place nobody photographs.
+     * 2.6)`, a NEUTRAL hairline solved to stand at a fixed ratio off the card it
+     * is drawn on — so it re-solves whenever `LIGHT_BASE` does, by design, and
+     * this literal exists only to cache that solve rather than repeat a grid
+     * search on every render. #9da0aa is the fourth pass's own card and border.
      *
-     * Nothing clinical moved with it. The line colours, the washes, the tracks,
-     * the labels, the five band fills, `--c-chart-reference-edge` and every
-     * dark value in this file are byte-identical: the chart's ratio target is
-     * unchanged and the solve re-ran against the same card at the same 2.6:1.
+     * Nothing clinical moves with it, either time. The line colours, the
+     * washes, the tracks, the labels, the five band fills,
+     * `--c-chart-reference-edge` and every dark value in this file stay
+     * byte-identical: the chart's ratio target is unchanged and the solve
+     * re-runs against whatever the current card is, at the same 2.6:1.
      */
-    bound: '#9aa0ad',
+    bound: '#9da0aa',
   },
   dark: {
     line: { green: '#6b9948', olive: '#a3a324', yellow: '#dbad00', orange: '#de8929', red: '#e06452' },
@@ -3598,11 +3637,37 @@ export const GLASS = {
    * to get rid of. It is the alpha that decides how much of a colour reaches the
    * screen, so a pane asked to carry a colour needs a higher one.
    *
-   * Still the most transparent of the three glass surfaces, which is the claim
-   * that matters and is asserted: 0.60 < the control bar's 0.62 < the sidebar's
-   * 0.75.
+   * ═══════════════════════════════════════════════════════════════════════════
+   *  ⚠ AND IT CAME STRAIGHT BACK DOWN, 0.60 → 0.24 (Aug 2026, fourth pass) ────
+   * ═══════════════════════════════════════════════════════════════════════════
+   *
+   * That 0.60 was tuned looking at ONE pane. `Card`'s default surface is glass,
+   * so on the main content area — Overview's sections, the Results containers,
+   * every Documents card — `.glass-panel` is not an occasional surface, it is
+   * almost everything on screen. A fill that reads as "a trace of colour" on
+   * one card reads as a FILTER OVER THE PAGE once it is the fill of every
+   * section, one hairline apart, all carrying the same cast. That was the
+   * complaint: the main content area read as the pastel, not as white.
+   *
+   * ⚠ THE FIX IS THE ALPHA, NOT THE HUE. `lightNeutral.pastel` is unmoved — it
+   * is still what a pane is made of, and it is still what a section that wants
+   * to say "this is a distinct region" reaches for. What changed is how much of
+   * it survives onto the screen BY DEFAULT: enough to read as glass with a
+   * whisper of colour and a lit edge, not enough to read as a wash. The colour
+   * the brief asks for now comes from the four ambient sources instead, which
+   * cannot be everywhere at once the way a card fill is — a glow has a
+   * position, and a page it crosses reads as lit rather than tinted.
+   *
+   * ⚠ AND THE FLOOR IS WHY IT STOPS AT 0.24, NOT LOWER. `tokenContrast.test.ts`
+   * holds the pane's own flat fill above 1.01:1 off the page — a pane the same
+   * colour as the page is one somebody set to zero — and on the current base
+   * that floor is crossed at just under 0.18. 0.24 clears it with margin rather
+   * than sitting on the line.
+   *
+   * Still the most transparent of the three glass surfaces: 0.24 < the control
+   * bar's 0.62 < the sidebar's 0.75, which is asserted below and unchanged.
    */
-  panel: { light: 0.6, dark: 0.42 },
+  panel: { light: 0.24, dark: 0.42 },
   /**
    * How much of the theme's SECOND ACCENT is mixed into a page pane's tint.
    *
@@ -3747,6 +3812,38 @@ export const GLASS = {
  * 4.5 — there is a great deal of room above these numbers and taking it would
  * be wrong. The brief is a page with depth and colour in it that nobody
  * notices AS colour. If a source reads as a shape, it is too strong.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  ⚠ RAISED AGAIN, AND GIVEN A SIZE OF THEIR OWN (Aug 2026, fourth pass) ─────
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * THE COMPLAINT: still too subtle, still too dim — "barely-there whispers"
+ * rather than colour and depth. The third pass measured against a 15% contrast
+ * budget that was real for the old MID-TONE sources and stopped being the
+ * binding constraint the moment they became tints; nobody went back and asked
+ * how much of that new headroom the numbers were actually using. Not much: at
+ * 0.42/0.36/0.30/0.14 the sampled worst point was still north of 13:1 against a
+ * 4.5 floor, i.e. most of the room this pass opened up was never spent.
+ *
+ * So the four peaks are up again, the key by the most (0.42→0.58) down to the
+ * fill by the least (0.36→0.40) — NOT an equal percentage each, because the
+ * fill's own hue is more costly per unit of alpha than the other three's (see
+ * the note on `secondary`) and the ordering key > fill > green > streak is
+ * still asserted below. Each source is now drawn LARGER as well as brighter,
+ * which is new: `radius` and
+ * `streakRadius`, sized in the theme it belongs to and left exactly as they
+ * were in the other. A brighter core with an unchanged radius reads as a more
+ * intense SPOT; a brighter core with a wider radius reads as more of the room
+ * being lit, which is the "real atmosphere" the brief asks for. Light's radii
+ * are roughly a quarter larger than dark's per axis; dark's are the exact
+ * figures this file has always used (88% / 80%, 30% / 24%), unmoved.
+ *
+ * ⚠ STILL TASTE, NOT CONTRAST, AND STILL MEASURED ANYWAY. Bigger AND brighter
+ * compounds — more of the viewport now sits inside the strong part of each
+ * ramp, at a higher peak — so `tokenContrast.test.ts`'s whole-viewport sampler
+ * is what decided how far these could move rather than a target picked in
+ * advance. The floor is unchanged (AA body copy at the worst point the sampler
+ * finds); what moved is how much of the room above that floor gets used.
  */
 export const GLOW = {
   /**
@@ -3769,8 +3866,12 @@ export const GLOW = {
    * 7.84:1, taupe-900 5.32:1. And the room is not darker for it — there are two
    * lamps now, so the key no longer has to carry the whole page on its own, and
    * the total light on a dark viewport goes UP rather than down.
+   *
+   * ⚠ LIGHT WENT 0.42 → 0.58 IN THE FOURTH PASS. Dark is untouched — it was
+   * already at its own measured ceiling (the 2.94:1-on-bronze wall above), and
+   * this section is the record of that ceiling holding.
    */
-  primary: { light: 0.42, dark: 0.4 },
+  primary: { light: 0.58, dark: 0.4 },
   /**
    * The cool fill, at the left edge, vertically centred.
    *
@@ -3798,17 +3899,26 @@ export const GLOW = {
    * is what makes it visible where it now lands. Bronze measures 4.3:1 against
    * that core, against the 3:1 floor.
    *
-   * LIGHT IS BOUNDED BY SOMETHING ELSE ENTIRELY, and it is the tighter of the
-   * two constraints in this whole record: slate is a far darker hue than the
-   * key's gold, so it costs more contrast per unit of alpha, and light mode's
-   * two sources both DARKEN cream where dark mode's add light to near-black.
-   * 0.095 is as strong as it goes with the page still inside the 15% contrast
-   * budget `tokenContrast.test.ts` holds the pair to — 12.5% of the bare page's
-   * own body-copy ratio, measured. It is deliberately as high as that allows
-   * rather than as low as looks safe: light mode was flat cream with nothing
-   * happening in it, which is the complaint this exists to answer.
+   * ⚠ THE PARAGRAPH THAT USED TO BE HERE ("0.095 is as strong as it goes with
+   * the page inside the 15% contrast budget...") described the OLD mid-tone
+   * slate fill and was never rewritten when the source became a tint — it was
+   * stale from the third pass onward. Retired rather than corrected in place:
+   * the constraint it named stopped applying the moment the colour did.
+   *
+   * ⚠ AND THE FILL IS STILL THE TIGHTEST-BOUND OF THE FOUR IN THE FOURTH PASS,
+   * FOR A REASON THAT SURVIVED THE RETHEME: it is a genuine mid blue
+   * (`glowSecondary`, #AFC8F5) rather than a near-white tint like the key's, and
+   * a more saturated hue spends more of its alpha on luminance and less on hue
+   * — the identical fact the old slate-vs-gold paragraph was making, one colour
+   * later. `tokenContrast.test.ts` holds each of the three point sources to
+   * spending at most a sixth of the page's own body-copy contrast MEASURED AT
+   * ITS OWN CORE, alone — a stricter, simpler check than the whole-viewport
+   * sampler, and the one that actually binds here: the key and the green each
+   * cost under 8% at their new peaks, the fill costs 14.8% at 0.40 and crosses
+   * the line above about 0.41. LIGHT WENT 0.36 → 0.40 rather than matching the
+   * other two's roughly 35-40% lift, because 0.40 is where this floor is.
    */
-  secondary: { light: 0.36, dark: 0.38 },
+  secondary: { light: 0.4, dark: 0.38 },
   /**
    * ── THE GREEN, BOTTOM RIGHT (Aug 2026) ────────────────────────────────────
    *
@@ -3819,15 +3929,68 @@ export const GLOW = {
    * It is anchored at the corner rather than pulled inward the way the fill was,
    * because nothing opaque covers the bottom right: the sidebar is on the left,
    * which is the whole reason the fill had to move.
+   *
+   * ⚠ LIGHT WENT 0.30 → 0.34 IN THE FOURTH PASS, LESS THAN THE OTHER TWO'S
+   * ROUGHLY 35-40% LIFT — because the ordering key > fill > green is asserted
+   * below, and the fill's own peak is bound to 0.40 by the single-source budget
+   * documented on `secondary`. Green has to clear that ceiling with room, not
+   * approach it.
    */
-  tertiary: { light: 0.3, dark: 0.32 },
+  tertiary: { light: 0.34, dark: 0.32 },
   /**
    * The diagonal ribbon's own peak, at the brightest point of its brightest
    * blob. Lowest of the four in both themes and deliberately so — it crosses the
    * whole viewport, so it is the source with the most of the page inside it, and
    * anything a reader notices AS a streak is too strong.
+   *
+   * LIGHT WENT 0.14 → 0.20 IN THE FOURTH PASS, still the quietest of the four —
+   * "more visible" for a source that covers the whole page has a lower ceiling
+   * than one confined to a corner, which is why it moved the least in absolute
+   * terms even though the brief named it explicitly.
    */
-  streak: { light: 0.14, dark: 0.15 },
+  streak: { light: 0.2, dark: 0.15 },
+  /**
+   * ═══════════════════════════════════════════════════════════════════════════
+   *  THE SIZE OF THE THREE POINT SOURCES (Aug 2026, fourth pass) ─────────────
+   * ═══════════════════════════════════════════════════════════════════════════
+   *
+   * One radius, shared by the key, the fill and the green — the same sharing
+   * `RAMP SHAPE` already does for the falloff curve, so "make the glows bigger"
+   * is one number per theme rather than three that can drift apart.
+   *
+   * ⚠ STORED AS THE CSS PERCENTAGE STRING ITSELF, not a fraction multiplied out
+   * at the call site — the same reason `GLASS.blur` is `'20px'` rather than
+   * `20`. A radial-gradient's size takes a `<length-percentage>` pair directly;
+   * formatting a fraction into one is a second place the unit could be dropped
+   * or the multiplier could drift from what globals.css actually consumes.
+   *
+   * DARK IS THE FIGURE THIS FILE HAS ALWAYS USED (88% / 80%), BYTE FOR BYTE,
+   * now threaded through a custom property instead of typed twice in
+   * globals.css — once in the base rule, once in `.dark`'s full override of it.
+   * Two literals are two chances to drift; one token read from both places
+   * cannot.
+   *
+   * LIGHT IS ROUGHLY A QUARTER LARGER ON EACH AXIS. Bigger, not just brighter:
+   * a brighter core at the OLD radius is a more intense spot in the same place;
+   * a wider one puts more of the page inside the ramp's strong part, which is
+   * what "real atmosphere" asks for rather than a louder corner.
+   */
+  radius: {
+    light: { x: '112%', y: '102%' },
+    dark: { x: '88%', y: '80%' },
+  },
+  /**
+   * The five ribbon blobs' own radius — separate from the point sources' above
+   * because the ribbon is a different shape (30% × 24% ellipses strung along a
+   * bowed diagonal, not one wide bloom), so "bigger" means something different
+   * for it: fatter blobs that overlap their neighbours by more, reading as a
+   * thicker band rather than a wider glow. Dark unmoved, at the figure the
+   * ribbon has always used.
+   */
+  streakRadius: {
+    light: { x: '40%', y: '32%' },
+    dark: { x: '30%', y: '24%' },
+  },
 } as const;
 
 /**

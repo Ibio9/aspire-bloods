@@ -189,7 +189,13 @@ for (const theme of ['light', 'dark'] as const) {
     // would paint over both sources, which is the thing glass exists to avoid.
     const alpha = Number(pane!.background.match(/rgba?\([^)]*?,\s*([\d.]+)\)$/)?.[1] ?? '1');
     expect(alpha, `the pane is opaque (${pane!.background})`).toBeLessThan(1);
-    expect(alpha, `the pane is barely there (${pane!.background})`).toBeGreaterThan(0.4);
+    // ⚠ LIGHT'S FLOOR CAME DOWN WITH `GLASS.panel.light` (Aug 2026, fourth
+    // pass): 0.6 → 0.24, because `Card`'s default surface is glass and a fill
+    // strong enough to read as "present" on one card read as a filter over the
+    // page once it was the fill of nearly every section on the main content
+    // area. 0.15 is comfortably under the new value and still rules out the
+    // fill having been silently zeroed. Dark is untouched and stays above 0.4.
+    expect(alpha, `the pane is barely there (${pane!.background})`).toBeGreaterThan(theme === 'dark' ? 0.4 : 0.15);
 
     // ⚠ THE SILENT FAILURE. One missing custom property invalidates the whole
     // declaration and the browser drops it to `none` with no warning at all.

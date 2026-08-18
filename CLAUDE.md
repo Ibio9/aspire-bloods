@@ -12,7 +12,7 @@ Live: blood.aspireshield.com · api.blood.aspireshield.com
 
 # Design
 shared:  accent #5A6472   (`bronze`, both themes)
-light:   surface #EFF1F5 · border #dfe1e5 · ink #15171C   (`lightNeutral`, light only)
+light:   surface #F1F2F5 · border #e1e2e5 · ink #15171C   (`lightNeutral`, light only)
 dark:    surface #E7E9ED · border #C7CBD3 · ink #14161A   (`brand.*`, the dark seeds)
 
 ⚠ **THE SURFACE AND THE BORDER ARE PER THEME SINCE Aug 2026** — see "Light mode
@@ -29,6 +29,79 @@ over any colour claim anywhere else in this file.
 Match the Aspire Rota sign-in for craft level. No default browser styling anywhere —
 no native selects, no Chrome autofill blue, no native focus rings.
 Reference theaspireclinic.com for register: dark, atmospheric, spacious, restrained.
+
+## The main content area is white, and the glows carry the atmosphere (Aug 2026, fourth pass)
+
+⚠ **THIS SUPERSEDES THE THIRD PASS BELOW ON TWO NUMBERS AND LEAVES THE REST OF
+IT STANDING.** The third pass moved the colour off the surfaces and into the
+four ambient sources; this pass is what happened when that move was checked
+against the MAIN CONTENT AREA rather than one card at a time, and it turned out
+both halves of the move were only half finished — the pane still carried too
+much of the old colour and the light hadn't been let carry enough of the new
+one. Scope is unchanged: light mode's main content area, token layer only, dark
+untouched.
+
+**THE COMPLAINT, TWICE OVER: the page still reads like the pastel, not white —
+and the glows are barely-there whispers.** Both true, and both traced to the
+same fact: `Card`'s default surface is `glass`, so on Overview, Results and
+Documents `.glass-panel` is not an occasional surface, it is almost everything
+on screen. A fill (`GLASS.panel.light`) tuned to read as "a trace of colour" on
+ONE card is a FILTER OVER THE PAGE once it is the fill of every section, one
+hairline apart, all carrying the same cast — and meanwhile the four sources that
+were supposed to be where the colour lives were still bound by a 15% contrast
+budget written for their old, costlier mid-tone colours, and were spending only
+a third of the headroom the third pass had actually opened up.
+
+**SO THE PANE'S FILL CAME DOWN HARD, AND THE GLOWS WENT UP.**
+`GLASS.panel.light` **0.60 → 0.24** — not a hue change, `lightNeutral.pastel` is
+untouched, just far less of it reaching the screen by default. The floor is
+`tokenContrast.test.ts`'s own: the pane's flat fill must clear 1.01:1 off the
+page, which on the current base happens at ~0.18; 0.24 clears it with margin
+rather than sitting on the line.
+
+    source   peak (light)      radius (light)   dark, unmoved
+    key      0.42 → 0.58       88%80% → 112%102%   0.40, 88%×80%
+    fill     0.36 → 0.40       88%80% → 112%102%   0.38, 88%×80%
+    green    0.30 → 0.34       88%80% → 112%102%   0.32, 88%×80%
+    streak   0.14 → 0.20       30%24% → 40%32%     0.15, 30%×24%
+
+**⚠ THE FILL DID NOT GET THE SAME LIFT AS THE OTHER TWO, AND THAT IS A REAL
+CONSTRAINT RATHER THAN AN OVERSIGHT.** `glowSecondary` (#AFC8F5) is a genuine
+mid blue where the key is a near-white tint, and a more saturated hue spends
+more of its alpha on luminance and less on colour — the identical fact the old
+"slate is a far darker hue than the gold" paragraph recorded, one colour later.
+`tokenContrast.test.ts` holds each of the three point sources to spending at
+most a sixth of the page's own body-copy contrast **measured at its own core,
+alone** — a stricter, simpler check than the whole-viewport sampler, and the one
+that actually binds: key and green cost under 8% at their new peaks, the fill
+costs 14.8% at 0.40 and crosses the line above about 0.41. The green's own lift
+is smaller than the key's for the same reason one level down: the ordering
+key > fill > green is asserted and green has to clear the fill's ceiling with
+room, not approach it.
+
+**⚠ AND EACH SOURCE IS DRAWN LARGER NOW AS WELL AS BRIGHTER, WHICH IS NEW.** A
+brighter core at the OLD radius is a more intense SPOT in the same place; a
+wider one puts more of the page inside the ramp's strong part, which is what
+"real atmosphere" asks for rather than a louder corner. `GLOW.radius` /
+`GLOW.streakRadius` are new tokens — one radius shared by the three point
+sources, a second for the five ribbon blobs — stored as the CSS percentage
+string itself (`'112%'`, the same reasoning as `GLASS.blur: '20px'`) so nothing
+has to reformat a fraction into a unit at the call site. **Dark's values are the
+exact figures this file has always used, unmoved, now read from the same token
+instead of typed out twice** (once in the base rule, once in `.dark`'s full
+override of it in globals.css) — two literals were two chances to drift; one
+token read from both places cannot.
+
+**STILL TASTE, NOT CONTRAST, AND STILL MEASURED ANYWAY.** Bigger and brighter
+compounds — more of the viewport now sits inside the strong part of each ramp,
+at a higher peak — so the whole-viewport sampler is what decided how far these
+could move rather than a figure picked in advance. Measured worst point: body
+copy 13.6:1 against a floor of 4.5, still a wide margin, spent on depth rather
+than banked.
+
+**THE RAIL'S WINDOW MOVED AGAIN AND WAS RESWEPT.** `LIGHT_RAIL_DROP` **0.09 →
+0.08**, same two floors (1.08:1 off the page, under the card's own step, now
+1.111:1) at the new base.
 
 ## Light is WHITE, and the colour is the light (Aug 2026, third pass)
 
