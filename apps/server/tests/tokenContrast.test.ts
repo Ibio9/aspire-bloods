@@ -2093,18 +2093,66 @@ describe.each(MODES)('%s ambient sources', (mode) => {
   });
 
   /**
-   * ⚠ THE GREEN MAY NOT BE A STATUS GREEN, AND THIS IS THE MACHINE-CHECKABLE
-   * FORM OF THAT. Every status hue in this palette has blue strictly lowest;
-   * that is the rule the two brand accents already answer to, for the reason
-   * that a decorative hue with a state's channel shape reads as a state. An
-   * ambient green in the corner of a results page is the one ambient decision
-   * capable of being read as a finding, so it is a MINT — red lowest — and no
-   * alpha of it over any surface can reorder the channels.
+   * ⚠ THE THIRD SOURCE MAY NOT BE A STATUS GREEN, AND THIS IS THE
+   * MACHINE-CHECKABLE FORM OF THAT. Every status hue in this palette has blue
+   * strictly lowest; that is the rule the two brand accents already answer to,
+   * for the reason that a decorative hue with a state's channel shape reads as
+   * a state. An ambient green in the corner of a results page is the one
+   * ambient decision capable of being read as a finding, so dark's third source
+   * is a MINT — red lowest — and no alpha of it over any surface can reorder
+   * the channels.
+   *
+   * ⚠ LIGHT'S PALETTE WENT WARM (Aug 2026, fifth pass) AND THIS STILL HOLDS,
+   * WHICH IS WORTH NOTING RATHER THAN ASSUMING. Blue-lowest is what warm means
+   * in sRGB, so a bronze-and-gold palette could easily have failed this
+   * outright — it does not, because the one hue placed in the THIRD role (the
+   * only one this test reads) is the rose, chosen specifically to sit outside
+   * the crowded warm band and out past red toward magenta, where there is
+   * enough blue that blue is never the lowest channel either. See `GLOW` in
+   * tokens.ts for the palette's own account of why. `--c-glow` and `--c-glow-2`
+   * were never bound by this rule and are not checked by it, in either theme.
    */
-  it('keeps the green source out of the shape of a status colour', () => {
+  it('keeps the third source out of the shape of a status colour', () => {
     const [r, g, b] = chan(tone(mode, '--c-glow-3'));
-    expect(b, `the green source is ${tone(mode, '--c-glow-3')}, which has blue lowest`).toBeGreaterThan(Math.min(r, g));
+    expect(b, `the third source is ${tone(mode, '--c-glow-3')}, which has blue lowest`).toBeGreaterThan(Math.min(r, g));
   });
+
+  /**
+   * ⚠ AND THE WARM PALETTE NEEDS A SECOND, MORE GENERAL CHECK ALONGSIDE THE
+   * ONE ABOVE (Aug 2026, fifth pass). The channel-order test above reads one
+   * custom property; a palette built from bronze, gold and rose sits, by
+   * definition, in the same hue neighbourhood the clinical reds, oranges and
+   * yellows already occupy — "warm" and "close to a status hue's own angle"
+   * are close to the same request. So every LIGHT point source is measured by
+   * hue DISTANCE against every status hue directly: none may land within 5° of
+   * one. Measured at the values in this palette, the closest pair is the fill
+   * against red at 6.1° — the floor is set with a point of margin under that
+   * rather than exactly on it.
+   *
+   * DARK IS UNCHECKED HERE ON PURPOSE. Its three sources are the cool blues and
+   * mint this file has always used, nowhere near the 0-90° arc the five status
+   * hues occupy, and asserting a floor neither theme's palette was designed
+   * against would be pinning a coincidence rather than a decision.
+   */
+  if (mode === 'light') {
+    it("is well clear of every status hue's own angle", () => {
+      const sources = {
+        key: tone(mode, '--c-glow'),
+        fill: tone(mode, '--c-glow-2'),
+        third: tone(mode, '--c-glow-3'),
+      };
+      for (const [name, hex] of Object.entries(sources)) {
+        for (const [statusName, statusHex] of Object.entries(statusHue)) {
+          const apart = Math.abs(hueOf(hex) - hueOf(statusHex));
+          const separation = Math.min(apart, 360 - apart);
+          expect(
+            separation,
+            `${name} (${hex}) is ${separation.toFixed(1)}° from statusHue.${statusName} (${statusHex})`,
+          ).toBeGreaterThan(5);
+        }
+      }
+    });
+  }
 
   it('is a fill rather than a second key', () => {
     // Equal sources cancel each other's direction and the page goes flat again

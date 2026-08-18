@@ -639,8 +639,44 @@ function buildScale(baseHex: string): Record<number, string> {
  * SECOND TIME. Same two floors — 1.08:1 off the page, under the card's own
  * step — at a card now measuring 1.111:1. The window is roughly
  * [0.0725, 0.0875]; 0.08 is the middle.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  ⚠ AND THEN THE CHANNEL BIAS ITSELF CAME OUT (Aug 2026, fifth pass)
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * THE COMPLAINT: the page still read as a pastel wash, not white. Fair — six
+ * levels of blue-lean, then four, is still a LEAN. "Enough to read as cool
+ * rather than warm and too little to read as blue" was true and was still a
+ * TINT: the whole argument up to this point had been about how MUCH bias the
+ * page could carry, never about whether it should carry one at all. The brief
+ * now is explicit — no pastel tint at all — which is a different question with
+ * a much simpler answer: r = g = b. A page with equal channels has no hue to
+ * name, whatever its luminance, and that is what "reads as white, not as a
+ * pale tinted wash" actually means as a number rather than as a smaller lean.
+ *
+ * ⚠ IT IS STILL NOT #FFFFFF, AND THAT IS STRUCTURE RATHER THAN TASTE. Pure
+ * white is refused twice already in this file for the same reason each time —
+ * harsh under near-black type, and a card mixed 95% toward white from an
+ * already-white page IS the page, which deletes the one ladder rung
+ * (`stays below a card, because a container must not out-read its contents`)
+ * every pane and panel in the product is measured against. `#F2F2F2` is the
+ * lightest neutral that keeps that rung real: at 242 the card lands at
+ * `#fefefe`, 1.11:1 off the page — comfortably clear of the 1.05:1 floor
+ * `tokenContrast.test.ts` holds it to. One level lighter (`#F4F4F4`) leaves
+ * only 1.09:1, and by `#F6F6F6` the card and the page have collapsed into the
+ * SAME rendered pixel (`#ffffff` both), which is a real distinction with
+ * nothing left to measure it by.
+ *
+ * NEUTRAL RATHER THAN NEAR-NEUTRAL, AND THE DIFFERENCE IS THE WHOLE FIX. Every
+ * earlier pass reasoned about how small a channel spread could get; this one
+ * asks for zero. #F2F2F2 is r = g = b exactly — no ordering for a reader's eye
+ * to pick up on at any distance, which is what a hue-based "wash" actually
+ * needs to register at all. The luminance step is close to identical to the
+ * pass before it (body copy 16.02:1 here against 16.02:1 on the old #F1F2F5) —
+ * this is the same brightness read as WHITE rather than as a slightly
+ * different pale colour.
  */
-const LIGHT_BASE = '#F1F2F5';
+const LIGHT_BASE = '#F2F2F2';
 /**
  * ⚠ THE PASTEL IS A WHISPER NOW, NOT A PASTEL (Aug 2026). It was a genuine
  * light teal (#e1f2f4 at s 0.45 / l 0.92) because the page was warm and the
@@ -674,6 +710,11 @@ const LIGHT_PASTEL_LIGHTNESS = 0.975;
  * ⚠ AND IT MOVED AGAIN WHEN THE PAGE WENT WHITER STILL (fourth pass) — see the
  * note on `LIGHT_BASE`. 0.08 is the new middle, measured at 1.10:1 off the page
  * and clear of the card's own 1.111:1 step.
+ *
+ * ⚠ RESWEPT A THIRD TIME FOR THE NEUTRAL BASE (fifth pass) AND LANDED ON THE
+ * SAME NUMBER. The window is [0.0725, 0.0875] at `#F2F2F2` — close enough to
+ * the fourth pass's own that 0.08 is still its middle. Coincidence rather than
+ * a rule: the two bases are close in luminance, only the channel bias moved.
  */
 const LIGHT_RAIL_DROP = 0.08;
 const LIGHT_HAIRLINE = 0.075;
@@ -681,7 +722,11 @@ const LIGHT_HAIRLINE = 0.075;
 const LIGHT_INK = '#15171C';
 
 export const lightNeutral = {
-  /** The light page: a soft warm off-white, and the base of the whole light surface family. */
+  /**
+   * The light page: a neutral near-white — r = g = b, no hue at any distance —
+   * and the base of the whole light surface family. See `LIGHT_BASE` above for
+   * why it is 242 rather than 255.
+   */
   surface: LIGHT_BASE,
   /**
    * The secondary register — section grounds, every pane, the sidebar rail.
@@ -2475,23 +2520,26 @@ const SOLVED: Record<'light' | 'dark', SolvedTokens> = {
     track: { green: '#a1bc8c', olive: '#ccd08a', yellow: '#f9e28e', orange: '#dcac7c', red: '#d28c81' },
     label: { green: '#3d572c', yellow: '#675a27', red: '#8f3225' },
     /**
-     * ⚠ #b49c81 → #9aa0ad → #9da0aa, ONCE PER LIGHT-BASE MOVE (Aug 2026), and it
-     * is the ONE value in this block either retheme was allowed to move.
+     * ⚠ #b49c81 → #9aa0ad → #9da0aa → #9da1a1, ONCE PER LIGHT-BASE MOVE (Aug
+     * 2026), and it is the ONE value in this block any of the four passes was
+     * allowed to move.
      *
      * It is the trend chart's four boundary rules, and it is the only entry
      * here that is not a status colour: `solveNeutral(lightNeutral.border, card,
      * 2.6)`, a NEUTRAL hairline solved to stand at a fixed ratio off the card it
      * is drawn on — so it re-solves whenever `LIGHT_BASE` does, by design, and
      * this literal exists only to cache that solve rather than repeat a grid
-     * search on every render. #9da0aa is the fourth pass's own card and border.
+     * search on every render. #9da1a1 is the fifth pass's own card and border —
+     * itself now neutral (r ≈ g ≈ b), which is what a hairline solved against a
+     * neutral card and a neutral border should be.
      *
-     * Nothing clinical moves with it, either time. The line colours, the
-     * washes, the tracks, the labels, the five band fills,
-     * `--c-chart-reference-edge` and every dark value in this file stay
-     * byte-identical: the chart's ratio target is unchanged and the solve
-     * re-runs against whatever the current card is, at the same 2.6:1.
+     * Nothing clinical moves with it, ever. The line colours, the washes, the
+     * tracks, the labels, the five band fills, `--c-chart-reference-edge` and
+     * every dark value in this file stay byte-identical: the chart's ratio
+     * target is unchanged and the solve re-runs against whatever the current
+     * card is, at the same 2.6:1.
      */
-    bound: '#9da0aa',
+    bound: '#9da1a1',
   },
   dark: {
     line: { green: '#6b9948', olive: '#a3a324', yellow: '#dbad00', orange: '#de8929', red: '#e06452' },
@@ -2665,67 +2713,113 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * The DARK values are untouched, all four of them. On near-black a glow is
    * light ADDED and the pale hue was always the right answer there; it is only
    * the light half that was solving the wrong problem.
+   *
+   * ═══════════════════════════════════════════════════════════════════════════
+   *  ⚠ AND LIGHT'S HUES WENT WARM (Aug 2026, fifth pass) — DARK'S ARE THE
+   *  PARAGRAPHS ABOVE, UNCHANGED, AND EVERYTHING BELOW IS LIGHT ONLY.
+   * ═══════════════════════════════════════════════════════════════════════════
+   *
+   * THE COMPLAINT: cool, corporate, generic. It was — a cyan key, a proper
+   * blue fill and a mint corner are a coherent DAYLIGHT palette and a page
+   * about a clinic's own results has no reason to borrow one from a weather
+   * app. The brief asks for something that reads as this brand: bronze, gold,
+   * warm cream, the register `theaspireclinic.com` and the auth split panel
+   * already carry, brought into the one place in light mode that had been
+   * exempted from it since the neutral retheme.
+   *
+   * ⚠ "MATCHING THE BRAND ACCENT" DOES NOT MEAN READING `brand.bronze`. That
+   * token is `#5A6472` — a cool slate, 215° round the wheel — because the Aug
+   * 2026 retheme deliberately took the warmth OUT of the structural accent.
+   * Reading it here would light the page in exactly the cool register this
+   * pass exists to leave. What "the brand accent" means for this palette is
+   * the WARMTH the retheme removed, put back where it does not have to answer
+   * to the neutral-palette rule the surfaces do — an ambient light is not a
+   * UI accent, and nothing about the retheme's reasoning (a slate accent that
+   * cannot be mistaken for a status hue at any step of its ladder) applies to
+   * four soft blooms behind everything at z-index -1.
+   *
+   * ⚠ AND THAT IS WHY THIS PALETTE CAN GO WHERE THE SECOND ACCENT NEVER COULD.
+   * `accent.teal` / `accent.slate` are forbidden from the whole 0–90° arc
+   * because they are PERSISTENT, FOREGROUND, UI-LEVEL colour — a button, a
+   * focus ring, a selected row — sitting beside status badges all day. A glow
+   * is background, diffuse and z-index -1, composited at the alphas measured
+   * below (worst case ~15% of the page's own contrast); nothing about it is a
+   * mark a reader compares against a status chevron. The three point sources
+   * are still held to the same pairwise-separation test as before — each at
+   * least 20° from the other two — and to a NEW one that replaces the old
+   * green-specific check: none of the three may land within a few degrees of
+   * an actual status hue's own angle, so warmth is deliberate and never a
+   * near-miss. See `is well clear of every status hue's own angle`, below.
+   *
+   * ⚠ ONE OLD RULE COULD EASILY HAVE STOPPED SURVIVING CONTACT WITH A WARM
+   * PALETTE, AND IT IS WORTH SAYING WHY IT DID. "Blue is never strictly the
+   * lowest channel" was the mechanism that kept the old mint tint from reading
+   * as `statusHue.green` — and blue-lowest is what warm MEANS in sRGB, so a
+   * palette built from bronze and gold could easily have failed it outright.
+   * It does not, and not by loosening the check: the THIRD source alone is what
+   * that test reads (`--c-glow-3`), and this palette put the one hue that sits
+   * OUTSIDE the crowded 0-50° warm band — the rose, out past red toward
+   * magenta — in exactly that role. A rose has enough blue in it that blue is
+   * never its lowest channel either (`#DFA4B4`: blue 180, green 164). The other
+   * two, `glowPrimary` and `glowSecondary`, were never bound by this rule and
+   * remain unbound by it — it names one custom property, not the palette.
+   *
+   * WHAT DOES CHANGE IS THE THREAT MODEL, so a SECOND check is added rather
+   * than the first one being weakened: `is well clear of every status hue's
+   * own angle`, below, checks all three point sources against all five
+   * clinical hues by hue-DISTANCE rather than by channel order — the more
+   * general question a warm palette actually has to answer, where the old
+   * check only ever asked it of one source and only ever in one specific way.
+   *
+   * THREE HUES, NOT FOUR — the streak takes a blend of two of the other three
+   * rather than a hue of its own, because "a cohesive set of two or three warm
+   * hues" was the brief and a fourth independent hue was never asked for.
    */
   /**
-   * ── THE KEY LIGHT IS COOL NOW, AND IT WAS THE LAST GOLD IN THE PRODUCT ────
+   * THE KEY: A WARM CHAMPAGNE, TOP CENTRE. Hue 37°, the palest and least
+   * saturated of the three — the role this source has always had is "the
+   * brightest, most legible source", and on a warm palette that is a warm
+   * near-white rather than a rich colour. Reads as the light itself rather
+   * than as a wash, which is what a key is for.
    *
-   * It was `mix(bronze, '#f0bd6a', …)` — an explicit warm gold, the one place in
-   * this file that named a hue rather than deriving one, and therefore the one
-   * thing that would have survived a retheme of the four brand tones untouched.
-   * A gold corner glow over a clean black interface is not a leftover, it is the
-   * single most visible warm thing on the screen.
-   *
-   * A cool white-blue in dark: light with a trace of blue in it reads as
-   * DAYLIGHT, where a dead-white glow reads as a blown highlight and a warm one
-   * reads as a lamp. In light it is the palest of the four tints, which is what
-   * a "white" source has to be on a white page: a bloom that is barely a colour
-   * at all and is unmistakably not the page.
+   * 7.3° off `statusHue.orange` (30°) and 10.1° off `statusHue.yellow`
+   * (47°) — the two nearest landmarks in a 50°-wide warm register that has
+   * three of them in it already (red, orange, yellow). Nothing here lands ON
+   * one; the whole register is close to all of them by construction, which
+   * is what asking for "warm" means, and the distance check below asserts
+   * none is closer than this.
    */
-  const glowPrimary = dark ? '#DDF0F4' : '#CDE9F2';
+  const glowPrimary = dark ? '#DDF0F4' : '#F0E8DB';
   /**
-   * ── THE FILL IS TEAL IN BOTH THEMES NOW (Aug 2026) ───────────────────────
+   * THE FILL, LEFT EDGE: A RICH BRONZE. Hue 14°, the deepest and most
+   * saturated of the three, sitting between `statusHue.red` (8°) and
+   * `statusHue.orange` (30°) — a genuine copper-bronze rather than either.
+   * 23° off the key, clear of the pairwise floor with room.
    *
-   * It was the slate accent in light, and the contrast suite caught what that
-   * actually produced once the key had gone cool with the retheme: a cool
-   * blue-grey key beside a blue-slate fill measured **4° apart in hue**. Two
-   * lights 4° apart are one light with a wide falloff, which is exactly the
-   * failure the original pair of viewport-sized radials had and exactly what a
-   * second source exists to avoid.
-   *
-   * Teal is 30° off the key and is already the fill in dark, so both themes are
-   * lit the same way now: a blue-white key and a green-blue fill. The reason
-   * light used to differ was that a cool hue over CREAM desaturates rather than
-   * tints — that was a fact about cream, and there is no cream any more.
+   * ⚠ AND THE MOST EXPENSIVE OF THE THREE, MEASURED THE SAME WAY THE OLD
+   * COOL FILL WAS: a saturated mid-tone spends more of its alpha on
+   * luminance than a pale tint does, so this is the source the single-source
+   * 15% budget actually binds — see its own peak below.
    */
+  const glowSecondary = dark ? '#7BA6F2' : '#D17B61';
   /**
-   * ── THE FILL IS A PROPER BLUE NOW, NOT A SECOND CYAN (Aug 2026) ──────────
+   * THE THIRD SOURCE, BOTTOM RIGHT: A DUSTY ROSE. Hue 344° — the one hue of
+   * the three that sits OUTSIDE the warm register's crowded 0–50° stretch
+   * entirely, which is what buys it the widest separation from both
+   * siblings (30° off the fill, 53° off the key) and from every status hue
+   * at once (nearest is `statusHue.red` at 24°). A rose-gold register is as
+   * on-brand as bronze and gold and it is the one colour in this palette
+   * that could never be mistaken for any of the five clinical hues.
    *
-   * It was the teal accent, which put it about 10° from the key once the key
-   * went cool — and 10° apart is one light with a wide falloff, the exact
-   * failure the second source exists to avoid and the one this file has already
-   * recorded once. The key is a near-white with a cyan cast, the fill is a
-   * genuine blue about 30° off it, and the third source below is green. Three
-   * hues that a reader can name separately is what makes a page read as lit
-   * rather than tinted.
+   * ⚠ IT REPLACES THE MINT, AND THE REASONING THAT PUT A MINT HERE IS GONE
+   * WITH IT. The mint's whole job was "reads as green without the exact
+   * channel-shape of `statusHue.green`" — a constraint about avoiding ONE
+   * specific colour family. Nothing here is trying to read as green any
+   * more, so there is no adjacent status hue for this one to dodge by
+   * construction; it dodges all five by distance instead, same as its
+   * siblings.
    */
-  const glowSecondary = dark ? '#7BA6F2' : '#AFC8F5';
-  /**
-   * ── THE THIRD SOURCE: A SOFT GREEN, BOTTOM RIGHT (Aug 2026) ──────────────
-   *
-   * The brief is a dark base with depth and colour in it — blue, white and a
-   * touch of green — rather than one flat dark field, and the two existing
-   * sources are both cool blues in the two LEFT-hand and TOP corners. The
-   * bottom right had nothing in it at all.
-   *
-   * ⚠ IT IS A MINT, AND THAT IS A CONSTRAINT RATHER THAN A PREFERENCE. The rule
-   * every non-status hue in this palette answers to is that blue is never
-   * strictly its lowest channel — a colour with blue at the floor is the shape
-   * of a STATE, and a status green in the corner of a results page is the one
-   * ambient decision that could be read as a finding. #8FE3AE has red lowest,
-   * so no alpha of it over any surface can arrive at the shape of `statusHue
-   * .green`. It also sits 47° off the key and 77° off the fill.
-   */
-  const glowTertiary = dark ? '#8FE3AE' : '#B6E8CB';
+  const glowTertiary = dark ? '#8FE3AE' : '#DFA4B4';
   /**
    * ── AND THE DIAGONAL STREAK, WHICH IS NOT A RADIAL AT ALL ────────────────
    *
@@ -2735,14 +2829,15 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * gradient` cannot curve and a `transform` on a fixed pseudo-element is a
    * containing-block change waiting to catch a modal.
    *
-   * ⚠ AND IT IS A TINT IN LIGHT NOW, like the other three. It used to be a mid
-   * slate on the reasoning that "on a warm off-white there is nothing to add,
-   * so what reads as a sweep of light is the ground taken very slightly down" —
-   * which produced a grey diagonal rather than a lit one. See the note on the
-   * key for why a light saturated tint carries the hue at a fraction of the
-   * luminance cost.
+   * A WARM BLUSH-AMBER, HUE 19° — between the fill's bronze and the key's
+   * champagne rather than a fourth independent hue, which is what makes the
+   * set read as "warm, three or so hues, cohesive" instead of four. It does
+   * not have to clear the pairwise-separation test (that is the three point
+   * sources only, and the streak is neither drawn at the same position nor
+   * on the same layer as any of them), so sitting between its two siblings
+   * costs nothing.
    */
-  const glowStreak = dark ? '#DCEAFF' : '#C9DCF4';
+  const glowStreak = dark ? '#DCEAFF' : '#E7C9BB';
   /**
    * ── AND IN DARK IT IS NEAR-BLACK AGAIN, NOT THE CARD TONE (Aug 2026) ────
    *
@@ -3870,8 +3965,15 @@ export const GLOW = {
    * ⚠ LIGHT WENT 0.42 → 0.58 IN THE FOURTH PASS. Dark is untouched — it was
    * already at its own measured ceiling (the 2.94:1-on-bronze wall above), and
    * this section is the record of that ceiling holding.
+   *
+   * ⚠ AND LIGHT CAME BACK DOWN TO 0.55 WHEN THE HUE CHANGED (fifth pass), for
+   * the most benign possible reason: it did not need to be that high. The old
+   * cool cyan was a pale tint costing about a twentieth of the page's own
+   * contrast even at 0.58; the new champagne is paler still on this hue, and
+   * 0.55 already reads as the brightest thing on the page. Raising it further
+   * would be spending headroom the source has no use for.
    */
-  primary: { light: 0.58, dark: 0.4 },
+  primary: { light: 0.55, dark: 0.4 },
   /**
    * The cool fill, at the left edge, vertically centred.
    *
@@ -3905,22 +4007,27 @@ export const GLOW = {
    * stale from the third pass onward. Retired rather than corrected in place:
    * the constraint it named stopped applying the moment the colour did.
    *
-   * ⚠ AND THE FILL IS STILL THE TIGHTEST-BOUND OF THE FOUR IN THE FOURTH PASS,
-   * FOR A REASON THAT SURVIVED THE RETHEME: it is a genuine mid blue
-   * (`glowSecondary`, #AFC8F5) rather than a near-white tint like the key's, and
-   * a more saturated hue spends more of its alpha on luminance and less on hue
-   * — the identical fact the old slate-vs-gold paragraph was making, one colour
-   * later. `tokenContrast.test.ts` holds each of the three point sources to
-   * spending at most a sixth of the page's own body-copy contrast MEASURED AT
-   * ITS OWN CORE, alone — a stricter, simpler check than the whole-viewport
-   * sampler, and the one that actually binds here: the key and the green each
-   * cost under 8% at their new peaks, the fill costs 14.8% at 0.40 and crosses
-   * the line above about 0.41. LIGHT WENT 0.36 → 0.40 rather than matching the
-   * other two's roughly 35-40% lift, because 0.40 is where this floor is.
+   * ⚠ THE FILL WAS THE TIGHTEST-BOUND OF THE FOUR IN THE FOURTH PASS, AND IT
+   * STILL IS IN THE FIFTH — THE COLOUR CHANGED AND THE REASON DID NOT. It was a
+   * genuine mid blue then; it is a genuine bronze now (`glowSecondary`,
+   * `#D17B61`), and a saturated mid-tone spends more of its alpha on luminance
+   * and less on hue whichever hue it is. `tokenContrast.test.ts` holds each of
+   * the three point sources to spending at most a sixth of the page's own
+   * body-copy contrast MEASURED AT ITS OWN CORE, alone — a stricter, simpler
+   * check than the whole-viewport sampler, and the one that actually binds
+   * here: the key and the rose each cost well under 15% at their own peaks, the
+   * fill costs 14.4% at 0.165 and crosses the line above about 0.175.
+   *
+   * ⚠ LIGHT WENT 0.40 → 0.165 WITH THE RECOLOUR, WHICH LOOKS LIKE A CUT AND
+   * ISN'T ONE. Bronze is a considerably richer, more saturated colour than the
+   * blue it replaced — measured, this alpha and the old one land within a
+   * couple of points of the SAME 15% ceiling; what changed is how much alpha a
+   * more expensive hue needs to get there. The visible presence of this source
+   * is the constant, not the number.
    */
-  secondary: { light: 0.4, dark: 0.38 },
+  secondary: { light: 0.165, dark: 0.38 },
   /**
-   * ── THE GREEN, BOTTOM RIGHT (Aug 2026) ────────────────────────────────────
+   * ── THE THIRD SOURCE, BOTTOM RIGHT (Aug 2026) ─────────────────────────────
    *
    * Quieter than the fill, which keeps the ordering key > fill > accent and
    * stops the page having three equal lamps in it — three equal sources cancel
@@ -3930,25 +4037,27 @@ export const GLOW = {
    * because nothing opaque covers the bottom right: the sidebar is on the left,
    * which is the whole reason the fill had to move.
    *
-   * ⚠ LIGHT WENT 0.30 → 0.34 IN THE FOURTH PASS, LESS THAN THE OTHER TWO'S
-   * ROUGHLY 35-40% LIFT — because the ordering key > fill > green is asserted
-   * below, and the fill's own peak is bound to 0.40 by the single-source budget
-   * documented on `secondary`. Green has to clear that ceiling with room, not
-   * approach it.
+   * ⚠ LIGHT WENT 0.34 → 0.13 WITH THE RECOLOUR (fifth pass). Rose is cheaper
+   * than bronze but nowhere near as cheap as champagne, and the binding
+   * constraint is the ORDERING rather than its own budget: it has to sit below
+   * the fill's 0.165, which leaves far less room than its individual 15%
+   * ceiling would allow on its own (that ceiling sits up near 0.27). The
+   * ordering is the tighter rule here, same as it was for green.
    */
-  tertiary: { light: 0.34, dark: 0.32 },
+  tertiary: { light: 0.13, dark: 0.32 },
   /**
    * The diagonal ribbon's own peak, at the brightest point of its brightest
    * blob. Lowest of the four in both themes and deliberately so — it crosses the
    * whole viewport, so it is the source with the most of the page inside it, and
    * anything a reader notices AS a streak is too strong.
    *
-   * LIGHT WENT 0.14 → 0.20 IN THE FOURTH PASS, still the quietest of the four —
-   * "more visible" for a source that covers the whole page has a lower ceiling
-   * than one confined to a corner, which is why it moved the least in absolute
-   * terms even though the brief named it explicitly.
+   * ⚠ LIGHT WENT 0.20 → 0.09 WITH THE RECOLOUR (fifth pass), tracking the third
+   * source down for the same reason: the blush-amber blend is a richer colour
+   * than the old pale-blue tint, ordering still has it below `tertiary`, and a
+   * source that crosses the whole viewport was never entitled to spend as much
+   * alpha per point as one confined to a corner.
    */
-  streak: { light: 0.2, dark: 0.15 },
+  streak: { light: 0.09, dark: 0.15 },
   /**
    * ═══════════════════════════════════════════════════════════════════════════
    *  THE SIZE OF THE THREE POINT SOURCES (Aug 2026, fourth pass) ─────────────

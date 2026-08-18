@@ -12,7 +12,7 @@ Live: blood.aspireshield.com · api.blood.aspireshield.com
 
 # Design
 shared:  accent #5A6472   (`bronze`, both themes)
-light:   surface #F1F2F5 · border #e1e2e5 · ink #15171C   (`lightNeutral`, light only)
+light:   surface #F2F2F2 · border #e1e2e2 · ink #15171C   (`lightNeutral`, light only)
 dark:    surface #E7E9ED · border #C7CBD3 · ink #14161A   (`brand.*`, the dark seeds)
 
 ⚠ **THE SURFACE AND THE BORDER ARE PER THEME SINCE Aug 2026** — see "Light mode
@@ -30,7 +30,96 @@ Match the Aspire Rota sign-in for craft level. No default browser styling anywhe
 no native selects, no Chrome autofill blue, no native focus rings.
 Reference theaspireclinic.com for register: dark, atmospheric, spacious, restrained.
 
+## Pure white, and warm bronze, gold and rose in the light (Aug 2026, fifth pass)
+
+⚠ **THIS SUPERSEDES THE FOURTH PASS BELOW ON THE PAGE'S CHANNEL BIAS AND ON ALL
+FOUR GLOW HUES. THE STRUCTURE IS UNCHANGED.** Scope stays light mode's page base
+and glows, token layer only, dark untouched.
+
+**THE COMPLAINT, TWICE OVER: the page still read as a tinted wash, and the
+glows read cool and corporate.** Both true, and unrelated to each other — this
+pass answers them separately rather than compounding one fix into two problems.
+
+**1. PURE WHITE, AS A NUMBER RATHER THAN AS A SMALLER LEAN.** Every earlier pass
+reasoned about how FEW levels of blue-lean the page could carry — six, then
+four — and every one of those was still a lean, still a hue a reader's eye could
+pick up on across a whole page. The brief now is explicit: no tint at all. That
+is a different question with a much simpler answer, `r = g = b`. `LIGHT_BASE`
+**#F1F2F5 → #F2F2F2** — neutral, no ordering to name — chosen as the LIGHTEST
+neutral that keeps the card a real step off the page: at 242 the card lands at
+`#fefefe`, 1.11:1 off the page, clear of the 1.05:1 floor `tokenContrast.test.ts`
+holds it to. One level lighter and that floor starts to go; by `#F6F6F6` card and
+page render as the identical pixel. `#FFFFFF` was refused for the same two
+reasons it always has been — harsh under near-black type, and a card mixed 95%
+toward an already-white page IS the page, deleting the one ladder rung every
+pane in the product is measured against.
+
+**2. THE GLOWS WENT WARM — BRONZE, CHAMPAGNE AND ROSE — BECAUSE THE COOL SET
+READ AS A DEFAULT RATHER THAN AS ASPIRE'S OWN.**
+
+    role      light hue            was (cool)
+    key       champagne  #F0E8DB  pale cyan   #CDE9F2
+    fill      bronze     #D17B61  proper blue #AFC8F5
+    third     rose       #DFA4B4  mint        #B6E8CB
+    streak    blush-amber #E7C9BB pale blue   #C9DCF4
+
+**⚠ "MATCHING THE BRAND ACCENT" DOES NOT MEAN READING `brand.bronze`.** That
+token is `#5A6472` — a cool slate, 215° round the wheel — because the neutral
+retheme deliberately took the warmth OUT of the structural accent. These four
+hexes are new literals, not derived from it; what "brand accent" means here is
+the warmth the retheme removed, put back where an ambient glow can carry it
+without answering to the rule that governs a persistent, foreground UI colour.
+
+**⚠ AND THAT IS PRECISELY WHY THIS PALETTE CAN SIT WHERE THE SECOND ACCENT
+NEVER COULD.** `accent.teal` / `accent.slate` are forbidden from the whole
+0–90° arc because they are buttons, focus rings, selected rows — persistent
+marks sitting beside status badges all day. A glow is background, diffuse,
+z-index -1, costing at most ~15% of the page's own contrast at its core. The
+three point sources still clear the existing pairwise test (each ≥20° from the
+other two: 23°, 30°, 53° apart) and a NEW one — `is well clear of every status
+hue's own angle` — checks all three against all five clinical hues directly,
+since "warm" and "close to a status hue" are close to the same request in a
+50°-wide register that already holds red, orange and yellow. None sits within
+5° of one; the closest pair (the bronze fill against status red) is 6.1°.
+
+**⚠ AND ONE OLD TEST SURVIVED BY CONSTRUCTION RATHER THAN BY LOOSENING.**
+`keeps the third source out of the shape of a status colour` requires blue not
+be the strictly-lowest channel — the mechanism that kept the old mint from
+reading as `statusHue.green`. Blue-lowest is what warm MEANS in sRGB, so a
+bronze-and-gold palette could easily have failed this outright. It doesn't,
+because the ONE hue placed in the third role — the only one that test reads —
+is the rose, deliberately parked outside the crowded 0–50° warm band and out
+past red toward magenta, where there is enough blue that it is never the lowest
+channel either. The other two hues were never bound by this rule and remain
+unbound by it.
+
+**THE PEAKS MOVED TO MATCH THE NEW COST OF EACH HUE, NOT TO A SHARED NUMBER.**
+Champagne is far cheaper than the old cool cyan on this exact hue (peak 0.55
+still costs under 5%), so it barely moved. Bronze is expensive — a saturated
+mid-tone always is — and is the source the individual 15% budget actually
+binds: **0.40 → 0.165**, the largest single move in the palette, purely because
+a richer colour needs far less alpha to arrive at the same visible presence.
+Rose and the streak both came down with it, tracking the ordering
+(key > fill > third > streak) rather than their own individual ceilings, which
+sit well above where the ordering already stops them.
+
+**RADII, POSITIONS AND EVERYTHING IN DARK MODE ARE UNTOUCHED.** Only the four
+hues and their four peaks moved; the enlarged light-mode radii from the fourth
+pass, the anchor points, and every dark value in `GLOW` are byte-identical.
+Verified on screenshot by pixel-diffing a stable page (Account & privacy) in
+dark mode before and after: zero difference. The Overview page's own diff was
+not zero on a first pass — traced to the "Worth a conversation" section
+occasionally serving its two cards in a different order between independent
+page loads, a pre-existing data-ordering fact with nothing to do with this
+change, confirmed by diffing two consecutive loads of the SAME code and seeing
+the identical swap.
+
 ## The main content area is white, and the glows carry the atmosphere (Aug 2026, fourth pass)
+
+⚠ **SUPERSEDED — see "Pure white, and warm bronze, gold and rose in the light"
+above.** The STRUCTURE here (pane fill separate from glow strength, both driven
+from the token layer) is unchanged; every hue and the page's own channel bias
+have moved on since.
 
 ⚠ **THIS SUPERSEDES THE THIRD PASS BELOW ON TWO NUMBERS AND LEAVES THE REST OF
 IT STANDING.** The third pass moved the colour off the surfaces and into the
