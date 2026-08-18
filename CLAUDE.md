@@ -11,9 +11,9 @@ Deploy: Vercel (web) + Railway (api, db)
 Live: blood.aspireshield.com · api.blood.aspireshield.com
 
 # Design
-shared:  accent #5A6472 · ink #14161A   (`bronze` / `espresso`, both themes)
-light:   surface #EDEFF3 · border #DCE0E7   (`lightNeutral`, light only)
-dark:    surface #E7E9ED · border #C7CBD3   (`brand.cream` / `brand.taupe`, the dark seeds)
+shared:  accent #5A6472   (`bronze`, both themes)
+light:   surface #EFF1F5 · border #dfe1e5 · ink #15171C   (`lightNeutral`, light only)
+dark:    surface #E7E9ED · border #C7CBD3 · ink #14161A   (`brand.*`, the dark seeds)
 
 ⚠ **THE SURFACE AND THE BORDER ARE PER THEME SINCE Aug 2026** — see "Light mode
 is bright" below. `brand.cream` and `brand.taupe` are the DARK theme's seeds and
@@ -30,7 +30,92 @@ Match the Aspire Rota sign-in for craft level. No default browser styling anywhe
 no native selects, no Chrome autofill blue, no native focus rings.
 Reference theaspireclinic.com for register: dark, atmospheric, spacious, restrained.
 
+## Light is WHITE, and the colour is the light (Aug 2026, third pass)
+
+⚠ **THIS SUPERSEDES BOTH LIGHT-MODE SECTIONS BELOW.** The structural half of them
+is unchanged and still correct — light's surfaces are `lightNeutral`,
+`brand.cream`/`taupe` are the DARK seeds, and five constants drive the whole
+family. What changed is the GROUND and where the colour comes from.
+
+**THE COMPLAINT: light still read as cream and beige.** It did, and the pass
+before this says why in as many words: the page was a WARM off-white ivory, on
+purpose, because the pass before THAT had produced a blue-grey and the answer at
+the time was to put the warmth in the ground and the colour on the panes.
+
+**SO THE GROUND IS NEUTRAL AND THE COLOUR MOVED INTO THE LIGHT.** The page is a
+soft near-white, the surfaces are subtle steps off it, and the four ambient
+sources — which light mode had been painting at strengths nobody could see — now
+carry the colour.
+
+    surface  #EFF1F5  THE PAGE. r < g < b by six levels out of 255: enough to
+                      read as a cool white, far too little to read as blue. It
+                      is the SIGN of the ordering doing the work, not the
+                      distance. Not #fff, which is harsh under near-black type
+                      and leaves a white card nowhere to go.
+    card     #fefeff  1.12:1 off the page, against the ivory's 1.18.
+    pastel   #f7fafa  THE SECOND REGISTER, panes and sections. A near-white with
+                      a trace of the accent's hue rather than a tint block.
+    rail     #dce6e8  THE SIDEBAR, 1.10:1 BELOW the page. A cool recess.
+    ink      #15171C  ⚠ NEUTRAL NOW, AND THE SHADOW IS WHY (see below).
+
+**⚠ THE INK WENT NEUTRAL BECAUSE OF THE SHADOW, NOT THE TYPE.** `--c-shadow` in
+light IS `lightNeutral.ink`, and the diffuse layer runs at 13% under every card
+on the page — so a warm near-black there paints a warm halo under every surface
+in the product, which on a white page is a beige wash by another name. That is
+the single largest thing that was still making light read warm.
+⚠ `brand.espresso` is untouched: it seeds `nightBase` and every dark surface.
+
+**AND THE HAIRLINE TAKES THE INK BY REFERENCE NOW.** The hex used to be written
+out a second time inside `lightNeutral.border`, so the neutral ink would have
+left a warm hairline behind it — a stale copy of a colour, invisible until
+somebody photographs a border.
+
+**⚠ TWO WINDOWS GOT NARROWER AND BOTH ARE SWEPT.** A card on a page this light
+can only ever be a subtle step, which is the brief ("separated by shadow and the
+glass rather than by a cream fill") and not a cost — but `LIGHT_RAIL_DROP` has
+to put the washed sidebar at least 1.08:1 below the page AND under the card's
+own 1.12:1, a window of roughly [0.085, 0.100]. It is 0.09. Move `LIGHT_BASE`
+and that has to be swept again.
+
+**AND THE PASTEL'S SATURATION CAME DOWN 0.30 → 0.20, OFF A SCREENSHOT.** The
+PANE was fine at 0.30; the RAIL was not. The sidebar is the same hue several
+steps down and is the largest single surface in the product, so it rendered as a
+mint COLUMN down the left of a white page — a colour block rather than a recess,
+and the loudest thing on a screen whose colour is supposed to be coming from the
+light. Saturation is the only lever that moves the rail without moving its place
+on the ladder.
+
+**⚠ ONE STATUS COLOUR MOVED AND IT WAS PUT BACK, WHICH IS THE INTERESTING
+PART.** Every status wash and track is "light's card with the hue mixed in", and
+DARK's is then solved to match that colour's chroma — so `scales.cream[50]` sat
+upstream of ten clinical colours in both themes. The moment the light page moved
+two levels of blue, the DARK green wash came out #2a3e1b where it had been
+#273d16: nothing about a status changed, a grid search simply landed on the next
+rung because its target moved in the sixth decimal place. **The reference is a
+LITERAL now (`lightCard` in `solveTokens`), for the same reason and in the same
+file as `PLOT_SURFACE`** — a light-mode retheme silently re-solving the colours a
+patient's results are printed in is exactly the coupling that pinning breaks. It
+is within two levels of the live card and a wash is 87% card, so nothing on
+screen can tell them apart.
+
+**WHAT DID MOVE, AND IT IS ONE VALUE: `SOLVED.light.bound` #b49c81 → #9aa0ad.**
+The trend chart's four boundary rules, which are the only entry in that block
+that is not a status colour: a NEUTRAL hairline solved at a fixed 2.6:1 off the
+card. It was warm because light's border was warm, and a stale literal would
+have left a beige hairline on a chart sitting on a white card. The line colours,
+the washes, the tracks, the labels, the five band fills,
+`--c-chart-reference-edge` and every dark value are byte-identical.
+
+**THE RADII, THE TYPE AND THE ACCENT ARE UNTOUCHED**, and so is every dark
+surface. What this pass is: the light ground, the light ink, the light ambient
+strengths and one new material.
+
 ## Light is a WARM ground with a COOL pastel on it (Aug 2026, second pass)
+
+⚠ **SUPERSEDED — see "Light is WHITE" above.** The ground described here is a
+warm ivory and is gone; the STRUCTURE (five constants, `lightNeutral`, the
+page → pane → card ladder) is unchanged and this note is still the best record
+of why the pastel exists at all.
 
 ⚠ **THIS SUPERSEDES "Light mode went pastel" BELOW**, which is the first pass and
 came back with the same complaint. Read this one first; the structural half of
@@ -95,10 +180,29 @@ Plex / Plex Mono are untouched — this pass is colour, surface, depth and shape
 argument and the "a light must be a SOURCE" reasoning there are all still
 correct and still the reason this works; the count, the hues and the peaks moved.
 
-    key      50% 0%    #DDF0F4 dark · #6CB6C6 light   0.40 / 0.13
-    fill     0% 50%    #7BA6F2 dark · #5E7FD6 light   0.38 / 0.11
-    green    99% 99%   #8FE3AE dark · #57B584 light   0.32 / 0.10
-    ribbon   diagonal  #DCEAFF dark · #8FB0D8 light   0.15 / 0.055
+    key      50% 0%    #DDF0F4 dark · #CDE9F2 light   0.40 / 0.42
+    fill     0% 50%    #7BA6F2 dark · #AFC8F5 light   0.38 / 0.36
+    green    99% 99%   #8FE3AE dark · #B6E8CB light   0.32 / 0.30
+    ribbon   diagonal  #DCEAFF dark · #C9DCF4 light   0.15 / 0.14
+
+**⚠ LIGHT'S FOUR ARE TINTS NOW, NOT SHADES, AND THAT IS WHY THEY ARE VISIBLE
+(Aug 2026).** They were mid-tones at about an eighth of dark's alpha, under the
+rule "a pale anything over a light page measures nothing, so take the hue DOWN".
+That is true of LUMINANCE and is the wrong target: what a glow has to deliver on
+white is HUE, and the two trade against each other, so every unit of alpha of a
+mid-tone spends most of itself darkening the page and only a little colouring
+it. What arrived was a grey smudge in a corner — and no strength would have
+fixed it, because a stronger stain is a darker stain.
+
+A LIGHT, SATURATED tint at a high alpha inverts that. Measured on the key:
+#CDE9F2 at 0.42 lands the page at #e1eef4, about three times the chroma of the
+old #6CB6C6 at 0.13 for about a fifth of the luminance. **So light's peaks are
+no longer a quarter of dark's; they are within a tenth of them, and the page is
+BRIGHTER under them than it was.** ⚠ **THE BOUND ON THESE IS NOW TASTE RATHER
+THAN CONTRAST**, which is a real change in what this record means: the viewport
+sampler finds body copy at 13.8:1 against a floor of 4.5, so there is a great
+deal of room above these numbers and taking it would be wrong. If a source reads
+as a shape, it is too strong. **The four DARK values are untouched.**
 
 **THE FILL IS A PROPER BLUE NOW.** It was the teal accent, which put it about
 10° from the key once the key went cool — and two lights 10° apart are one light
@@ -371,7 +475,7 @@ the colour — neither is useful without the other and nothing else applies eith
 
 ## Light mode went pastel, and it is three numbers (Aug 2026, first pass)
 
-⚠ **SUPERSEDED — see "Light is a WARM ground with a COOL pastel on it" above.**
+⚠ **SUPERSEDED TWICE — see "Light is WHITE, and the colour is the light" above.**
 
 **THE COMPLAINT: light read as flat grey and white and looked cheap.** The
 direction is a soft, modern, premium light theme: a calm pastel carrying the
@@ -464,10 +568,11 @@ and the wash reinforces them, which is the rule as it always was.
 
 ## Light mode is bright, and it has its own two hexes (Aug 2026)
 
-⚠ **SUPERSEDED BY "Light mode went pastel" ABOVE**, which keeps the structure
-described here (light's surface and border are `lightNeutral`, not `brand`) and
-changes the values: the surface is a soft teal pastel rather than a cool
-near-white grey, and there is a third entry, the warm ink.
+⚠ **SUPERSEDED THREE TIMES — see "Light is WHITE, and the colour is the light"
+above.** The STRUCTURE described here is unchanged and is the reason that split
+was two lines rather than a sweep: light's surface and border are `lightNeutral`
+and `brand.cream`/`taupe` are the dark seeds. Every value has moved, and the ink
+described below as "shared and untouched" is light's own and neutral now.
 
 **THE BRIEF: a bright, modern, premium light theme.** White cards on a soft
 near-white page, separation from tone steps, shadow and the glass rather than
@@ -997,6 +1102,59 @@ blur is a surface, and the light and the content behind it still come through.
 **One material, three numbers, one class.** `GLASS` in tokens.ts holds the blur
 radius, the saturation and the per-theme alpha; `.glass` in globals.css is the
 only place they are applied.
+
+## A control is a glass chip (Aug 2026)
+
+**Buttons and segmented controls were the last flat blocks in the product.** On
+the old cream page a near-white pill read as a surface because the ground sat
+several steps below it; on a white page the same pill is a white rectangle on a
+white field and the only thing saying it is an object is its hairline.
+
+So a control takes the panes' material at its own numbers — `GLASS.control`, and
+`.glass-control` / `.glass-control-quiet` in globals.css. Translucent fill,
+backdrop blur, a specular down the top edge, and the hairline and `shadow-btn`
+it already had.
+
+**⚠ THIS IS THE MATERIAL, NOT THE ACCENT.** Bronze is untouched and is still the
+one interactive colour: a FILLED control — a primary button, the selected
+segment of the appearance toggle — stays a solid bronze tile, which is what
+keeps the selected state the loudest thing in its group rather than one frosted
+chip among several. Glass is what an UNFILLED control is made of.
+
+**TWO LEVELS, ONE MATERIAL.** `wash` is an ordinary control (a secondary button,
+a picker track, the contact disclosure); `quiet` is half of it, for a control
+that must not out-read something filled beside it — a ghost button in a list of
+rows, an unselected segment inside a track that is already glass. One number
+apart rather than two materials.
+
+**⚠ THE BLUR IS 12px, NOT THE PANES' 20, AND THAT IS GEOMETRY.** A 20px backdrop
+blur samples a 20px neighbourhood, which on a 40px pill is most of the page
+around it: the chip fills with the average of its own surroundings and reads as
+a smudge rather than as glass. The SATURATION is shared, because what frost does
+to colour does not depend on the size of the pane.
+
+**⚠ AND THE SPECULAR IS A `background-image`, NOT AN INSET SHADOW.** That is a
+cascade fact: `shadow-btn` is a Tailwind UTILITY and this is a component class,
+so a `box-shadow` written in it loses and the sheen would silently vanish on
+every button carrying the depth recipe. A gradient composites over the
+translucent fill and nothing in `utilities` can take it away.
+
+**⚠ `hover:glass-control-quiet` DOES NOT WORK** and is the obvious thing to
+reach for. A Tailwind variant only applies to a Tailwind utility; these are
+component classes, so the rule emits nothing at all. Hover states use
+`hover:bg-espresso/[0.06]` instead, which follows the theme on its own — the ink
+is a near-white in dark, so one declaration lightens there and darkens here.
+
+**`Button.secondary` AND `Button.glass` ARE ONE MATERIAL NOW.** `glass` existed
+because `secondary` was an opaque near-white gradient that painted over the
+ambient light; both are translucent today, so the split would be two names for
+one thing waiting to drift. `glass` survives as a NAME because several call
+sites say it and it says what they mean.
+
+⚠ **IT REACHES DARK MODE, and that is the one place this light-mode pass does.**
+A material with per-theme alphas is how every other surface in this product
+works, and a light-only control material would be the first in the file. Dark's
+page, cards, sidebar, glows and status colours are untouched.
 
 **THE BLUR IS MEASURED, AND THE RADIUS IS NOT THE COST.** It was written down as
 "14px, a frame budget", which is a guess with a unit on it. Profiled over a

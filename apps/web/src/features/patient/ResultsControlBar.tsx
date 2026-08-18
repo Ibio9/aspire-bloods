@@ -60,7 +60,11 @@ function FilterChip({ value, onClear }: { value: string; onClear: () => void }) 
       type="button"
       onClick={onClear}
       aria-label={`${value}. Clear this filter`}
-      className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-taupe bg-cream-100 py-1.5 pl-3 pr-2.5 text-xs font-medium text-espresso transition duration-150 ease-out hover:border-bronze hover:text-bronze focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
+      // A filter chip is a control, so it is made of what controls are made of.
+      // `bg-cream-100` was the card tone, which on a white page is a white pill
+      // on a white field — and it sits on the glass control bar, where an
+      // opaque fill is a hole in the material it is travelling with.
+      className="glass-control-quiet inline-flex max-w-full items-center gap-1.5 rounded-full border border-taupe py-1.5 pl-3 pr-2.5 text-xs font-medium text-espresso transition duration-150 ease-out hover:border-bronze hover:text-bronze focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
     >
       <span aria-hidden="true" className="truncate">
         {value}

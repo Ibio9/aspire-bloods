@@ -412,8 +412,14 @@ export default {
         // at 55% keeps the gradient from looking like a two-tone band.
         'btn-primary':
           'linear-gradient(to bottom, rgb(255 255 255 / 0.16) 0%, rgb(255 255 255 / 0.04) 55%, rgb(var(--c-shadow) / 0.06) 100%)',
-        'btn-secondary':
-          'linear-gradient(to bottom, rgb(var(--c-white) / 0.85) 0%, rgb(var(--c-white) / 0.35) 55%, rgb(var(--c-shadow) / 0.03) 100%)',
+        // ⚠ `btn-secondary` IS GONE (Aug 2026). It was a painted near-white
+        // ramp over an opaque `bg-white` pill, and both went when every
+        // unfilled control became a glass chip — the chip's specular is the
+        // same idea made of light, in `.glass-control`, where it composites
+        // over a translucent fill instead of covering it. Deleting it rather
+        // than leaving it is the rule this file already keeps for a helper
+        // whose last caller a pass has just removed: one autocomplete would
+        // put an opaque gradient back on a control that is now a window.
         // Part Five's category summary bars have to survive greyscale, so each
         // status segment carries a distinct hatch on top of its tint rather
         // than relying on the tint alone.
@@ -485,6 +491,15 @@ export default {
           '--glass-sheen-top': String(GLASS.sheen.edge.top.light),
           '--glass-sheen-right': String(GLASS.sheen.edge.right.light),
           '--glass-grain': String(GLASS.sheen.grain.light),
+          // A CONTROL IS A GLASS CHIP (Aug 2026). The same material as the
+          // panes at its own alpha, its own smaller blur and a specular down
+          // its top edge — see GLASS.control for why a 40px pill cannot take a
+          // pane's 20px blur and why the sheen is a gradient rather than an
+          // inset shadow.
+          '--glass-control-blur': GLASS.control.blur,
+          '--glass-control-wash': String(GLASS.control.wash.light),
+          '--glass-control-quiet': String(GLASS.control.quiet.light),
+          '--glass-control-sheen': String(GLASS.control.sheen.light),
           // The peak of each ambient source. The RAMP is written once in
           // globals.css as multiples of these, so two sources across two themes
           // are one curve at four strengths rather than four hand-written
@@ -528,6 +543,10 @@ export default {
           '--glass-sheen-top': String(GLASS.sheen.edge.top.dark),
           '--glass-sheen-right': String(GLASS.sheen.edge.right.dark),
           '--glass-grain': String(GLASS.sheen.grain.dark),
+          '--glass-control-blur': GLASS.control.blur,
+          '--glass-control-wash': String(GLASS.control.wash.dark),
+          '--glass-control-quiet': String(GLASS.control.quiet.dark),
+          '--glass-control-sheen': String(GLASS.control.sheen.dark),
           '--glow-1': String(GLOW.primary.dark),
           '--glow-2': String(GLOW.secondary.dark),
           '--glow-3': String(GLOW.tertiary.dark),
@@ -576,6 +595,13 @@ export default {
             '--glass-sheen-top': '0',
             '--glass-sheen-right': '0',
             '--glass-grain': '0',
+            // A control on paper is a rectangle of ink round a word. The chip
+            // goes with every other translucent surface; what stays is the
+            // hairline and the label, which is what a printed button is.
+            '--glass-control-blur': '0px',
+            '--glass-control-wash': '0',
+            '--glass-control-quiet': '0',
+            '--glass-control-sheen': '0',
             '--glow-1': '0',
             '--glow-2': '0',
             '--glow-3': '0',

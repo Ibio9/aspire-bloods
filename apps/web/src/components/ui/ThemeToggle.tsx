@@ -54,7 +54,20 @@ export function ThemeToggle({ className = '', compact = false }: { className?: s
       <div
         role="radiogroup"
         aria-label="Appearance"
-        className={`inline-flex rounded-input border border-taupe bg-white shadow-inset ${compact ? 'w-full p-0.5' : 'p-1'}`}
+        // A GLASS TRACK WITH ONE FILLED CHIP IN IT (Aug 2026). The track was
+        // `bg-white`, which on a white page is a white rectangle on a white
+        // field. It takes the control material now — translucent, blurred, a
+        // specular down its top edge — and keeps `shadow-inset`, because a
+        // track is a recess and that is the one thing the glass does not say.
+        //
+        // ⚠ THE SELECTED SEGMENT IS UNCHANGED AND STAYS SOLID BRONZE. A track
+        // of frosted chips with a frosted chip selected inside it is a control
+        // with no state; the filled tile is what makes the choice legible at a
+        // glance, in greyscale, and against the accent the rest of the product
+        // uses for exactly this.
+        className={`glass-control inline-flex rounded-input border border-taupe shadow-inset ${
+          compact ? 'w-full p-0.5' : 'p-1'
+        }`}
       >
         {OPTIONS.map((o) => {
           const selected = preference === o.value;
@@ -70,7 +83,15 @@ export function ThemeToggle({ className = '', compact = false }: { className?: s
               } ${
                 selected
                   ? 'bg-bronze bg-btn-primary text-onaccent shadow-btn'
-                  : 'text-espresso/80 hover:bg-cream-200 hover:text-espresso'
+                  : // Hover is a translucent lift rather than an opaque tile: an
+                    // unselected segment that fills with a solid colour on
+                    // hover reads for a moment as the selected one. The ink at
+                    // 6% follows the theme on its own — it is a near-white in
+                    // dark, so the same declaration lightens there and darkens
+                    // here. ⚠ It cannot be `hover:glass-control-quiet`: a
+                    // Tailwind variant only applies to a Tailwind utility, and
+                    // that is a component class, so the rule would emit nothing.
+                    'text-espresso/80 hover:bg-espresso/[0.06] hover:text-espresso'
               }`}
             >
               <OptionIcon value={o.value} />

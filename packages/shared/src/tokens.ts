@@ -565,18 +565,81 @@ function buildScale(baseHex: string): Record<number, string> {
  * be softened without measuring, because `--c-panel-edge` is derived from it
  * and is the whole of the sidebar's separation where the light does not reach.
  */
-const LIGHT_BASE = '#F3EADF';
-const LIGHT_PASTEL_SATURATION = 0.45;
-const LIGHT_PASTEL_LIGHTNESS = 0.92;
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  ⚠ OFF CREAM, ONTO WHITE (Aug 2026, third pass) — THIS SUPERSEDES THE NOTE
+ *  ABOVE, WHOSE STRUCTURE IS UNCHANGED AND WHOSE GROUND IS NOT.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * THE COMPLAINT: light mode still read as cream and beige. It did, and the note
+ * above says why in as many words — the page was a WARM off-white ivory,
+ * deliberately, because the pass before it had produced a blue-grey and the
+ * answer at the time was to put the warmth in the ground and the colour on the
+ * panes.
+ *
+ * The brief now is a clean white base. So the ground is a soft NEUTRAL
+ * near-white, the surfaces are subtle steps off it, and THE COLOUR MOVES OFF
+ * THE SURFACES AND INTO THE LIGHT — the four ambient sources, which light mode
+ * now paints at strengths that are visible rather than theoretical. See GLOW.
+ *
+ * ── WHAT "READING AS WHITE, NOT CREAM" IS AS A NUMBER ─────────────────────
+ *
+ * #EFF1F5 is r < g < b by six levels out of 255. That is enough for the page to
+ * read as a cool white rather than a warm one and far too little for it to read
+ * as blue: it is the SIGN of the channel ordering doing the work, not the
+ * distance. Pure #fff was refused, and the reason is on the record twice
+ * already for other surfaces — a full-white page under near-black type is
+ * harsh, and it leaves a white card nowhere to go.
+ *
+ * ── THE LADDER IS TIGHTER, AND THAT IS THE POINT RATHER THAN THE COST ─────
+ *
+ * A card is the page taken 95% to white, so on a page this light the card can
+ * only ever be a subtle step: measured, 1.12:1 against the 1.18 it was on the
+ * ivory. The brief is explicit that the separation comes from SHADOW AND THE
+ * GLASS instead of from a fill, which is what the light shadow alphas and the
+ * pane material are for, and both were raised in the same pass.
+ *
+ * ⚠ AND THE RAIL'S WINDOW GOT NARROWER WITH IT. `LIGHT_RAIL_DROP` has to put
+ * the washed sidebar at least 1.08:1 below the page and still under the card's
+ * own 1.122:1 step, which is a window roughly [0.090, 0.105] wide at these
+ * constants — swept, exactly as before, and the middle of it is what is used.
+ * Move the base and this number has to be swept again.
+ */
+const LIGHT_BASE = '#EFF1F5';
+/**
+ * ⚠ THE PASTEL IS A WHISPER NOW, NOT A PASTEL (Aug 2026). It was a genuine
+ * light teal (#e1f2f4 at s 0.45 / l 0.92) because the page was warm and the
+ * COLOUR had to live on the panes. With the page neutral and the ambient
+ * sources carrying real colour, a saturated pane would be the loudest surface
+ * on a white page and a second, competing, answer to where the colour comes
+ * from. At s 0.20 / l 0.975 a pane is a near-white with a trace of the accent's
+ * hue in it — a step, not a tint block.
+ *
+ * ⚠ 0.30 WAS TRIED FIRST AND CAME BACK OFF A SCREENSHOT. The pane was fine at
+ * it; the RAIL was not. The sidebar is the same hue several steps down and is
+ * the largest single surface in the product, so at 0.30 it rendered as a mint
+ * COLUMN down the left of a white page — a colour block rather than a recess,
+ * and the loudest thing on a screen whose colour is supposed to be coming from
+ * the light. Saturation is the only lever that moves the rail without moving
+ * its place on the ladder.
+ */
+const LIGHT_PASTEL_SATURATION = 0.2;
+const LIGHT_PASTEL_LIGHTNESS = 0.975;
 /**
  * How far below the pastel the navigation rail sits. Swept rather than picked:
  * the window is narrow at both ends and both ends are asserted — under about
- * 0.09 the rail fails the 1.08:1 floor off the page, and past about 0.14 it
+ * 0.085 the rail fails the 1.08:1 floor off the page, and past about 0.100 it
  * overtakes the CARD's own step off the page, at which point the rail has
  * climbed past a card and the page → panel → card ladder is inverted.
+ *
+ * ⚠ THE WINDOW MOVED WHEN THE PAGE WENT WHITE and it is half as wide as it was:
+ * a card on a near-white page is a 1.12:1 step rather than a 1.18 one, and the
+ * rail has to fit under it. 0.09 is the middle, measured at 1.10:1.
  */
-const LIGHT_RAIL_DROP = 0.115;
+const LIGHT_RAIL_DROP = 0.09;
 const LIGHT_HAIRLINE = 0.075;
+/** Light's own near-black. See `lightNeutral.ink`, which is the only place it is explained. */
+const LIGHT_INK = '#15171C';
 
 export const lightNeutral = {
   /** The light page: a soft warm off-white, and the base of the whole light surface family. */
@@ -601,14 +664,35 @@ export const lightNeutral = {
    * anything.
    */
   rail: reHsl(accent.teal, LIGHT_PASTEL_SATURATION, LIGHT_PASTEL_LIGHTNESS - LIGHT_RAIL_DROP),
-  /** Type and structural accents in light. Warm near-black, never grey. */
-  ink: '#1A1714',
+  /**
+   * Type and structural accents in light. A near-black, never a grey.
+   *
+   * ⚠ IT WAS WARM (#1A1714) AND IS NEUTRAL-COOL NOW (Aug 2026), and the
+   * deciding argument is the SHADOW rather than the type. `--c-shadow` in light
+   * is this hex, and the diffuse layer runs at 13% under every card on the page
+   * — so a warm near-black here paints a warm halo under every surface in the
+   * product, which on a white page is a beige wash by another name and is
+   * precisely what this pass exists to remove.
+   *
+   * It follows the page's own channel ordering (r < g < b by a few levels), so
+   * the ink, the hairlines derived from it and the shadows cast by it all lean
+   * the same way the ground does. ⚠ `brand.espresso` is untouched: that one
+   * seeds `nightBase` and every dark surface, and moving it would be a
+   * dark-mode change wearing a light-mode label.
+   */
+  ink: LIGHT_INK,
   /**
    * Every hairline and divider in light. The page carried toward the ink rather
-   * than a grey of its own, so a hairline on a warm ground is that ground a few
-   * steps down instead of a foreign colour drawn across it.
+   * than a grey of its own, so a hairline is that ground a few steps down
+   * instead of a foreign colour drawn across it.
+   *
+   * ⚠ IT TAKES THE INK BY REFERENCE NOW. The hex was written out here a second
+   * time, so when the ink went neutral this line would have gone on mixing
+   * toward a warm near-black nothing else in the theme still used — a warm
+   * hairline under a neutral ink, which is the one place a stale copy of a
+   * colour is invisible until somebody photographs a border.
    */
-  border: mix(LIGHT_BASE, '#1A1714', LIGHT_HAIRLINE),
+  border: mix(LIGHT_BASE, LIGHT_INK, LIGHT_HAIRLINE),
 } as const;
 
 export const scales = {
@@ -2157,7 +2241,33 @@ function solveWash(hue: string, surface: string, targetChroma: number, floors: s
 export function solveTokens(mode: 'light' | 'dark'): SolvedTokens {
   const dark = mode === 'dark';
   const card = dark ? darkScales.cream[50] : scales.cream[50];
-  const lightCard = scales.cream[50];
+  /**
+   * ⚠ THE STATUS FAMILY'S LIGHT REFERENCE IS PINNED TO A LITERAL, AND IT IS THE
+   * SAME DECISION AS `PLOT_SURFACE` (Aug 2026).
+   *
+   * Every status wash and every status track is "light's card with the hue
+   * mixed into it", and in DARK the two are then solved to match that colour's
+   * chroma and presence. So this one hex is upstream of ten clinical colours in
+   * both themes — and it was `scales.cream[50]`, which moves whenever anybody
+   * redesigns the light page.
+   *
+   * That fired the first time it could: light went from a warm ivory to a
+   * neutral white, the card moved by two levels of blue, and the DARK green
+   * wash came out #2a3e1b where it had been #273d16. Nothing about a status
+   * changed and nothing was mismeasured; a grid search landed on the next rung
+   * because its target had moved in the sixth decimal place. A light-mode
+   * retheme silently re-solving the colours a patient's results are printed in
+   * is precisely the coupling `PLOT_SURFACE` was pinned to a literal to break,
+   * for the same reason, in the same file.
+   *
+   * ⚠ SO THIS IS A LITERAL AND IT IS NOT TO BE RE-DERIVED. It is the card tone
+   * the ten status colours were solved against and it stays that whatever the
+   * page does next. It is within two levels of `scales.cream[50]` today, which
+   * is the other half of why it is safe: a wash is 87% card, so the difference
+   * between this and the live card is under two levels in the applied colour
+   * and nothing on screen can tell them apart.
+   */
+  const lightCard = '#fefefd';
   const matchLight = (hue: StatusHue, weight: number): string => {
     const reference = mix(lightCard, statusHue[hue], weight);
     return dark ? solveTint(statusHue[hue], card, contrastRatio(reference, lightCard), okChroma(reference)) : reference;
@@ -2325,7 +2435,24 @@ const SOLVED: Record<'light' | 'dark', SolvedTokens> = {
     wash: { green: '#dce6d4', olive: '#ecedd3', yellow: '#fcf4d5', orange: '#f2e0ce', red: '#eed5d0' },
     track: { green: '#a1bc8c', olive: '#ccd08a', yellow: '#f9e28e', orange: '#dcac7c', red: '#d28c81' },
     label: { green: '#3d572c', yellow: '#675a27', red: '#8f3225' },
-    bound: '#b49c81',
+    /**
+     * ⚠ #b49c81 → #9aa0ad WHEN LIGHT WENT WHITE (Aug 2026), and it is the ONE
+     * value in this block the retheme was allowed to move.
+     *
+     * It is the trend chart's four boundary rules, and it is the only entry
+     * here that is not a status colour: `solveNeutral(lightNeutral.border, card,
+     * 2.6)`, a NEUTRAL hairline solved to stand at a fixed ratio off the card
+     * it is drawn on. It was warm because light's border was warm; light's
+     * border is neutral now, so a stale literal would leave a beige hairline on
+     * a chart sitting on a white card — the exact wash this pass removes,
+     * surviving in the one place nobody photographs.
+     *
+     * Nothing clinical moved with it. The line colours, the washes, the tracks,
+     * the labels, the five band fills, `--c-chart-reference-edge` and every
+     * dark value in this file are byte-identical: the chart's ratio target is
+     * unchanged and the solve re-ran against the same card at the same 2.6:1.
+     */
+    bound: '#9aa0ad',
   },
   dark: {
     line: { green: '#6b9948', olive: '#a3a324', yellow: '#dbad00', orange: '#de8929', red: '#e06452' },
@@ -2474,6 +2601,33 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
   // itself. See the long note on `--c-glow` / `--c-glow-2` below for what they
   // are and why each goes the other way per theme.
   /**
+   * ── ⚠ AND LIGHT'S FOUR SOURCES ARE TINTS NOW, NOT SHADES (Aug 2026) ──────
+   *
+   * This applies to all four and is the whole of what makes them read as light
+   * on a white page rather than as marks on one.
+   *
+   * The rule they were built under was "a pale anything over a light page
+   * measures nothing, so take the hue DOWN" — which is true of LUMINANCE and is
+   * the wrong target. What a glow has to deliver on white is HUE, and the two
+   * are traded against each other: every unit of alpha of a mid-tone spends
+   * most of itself darkening the page and only a little of itself colouring it,
+   * so what arrives is a grey-blue smudge. That is the "muddy stain" this pass
+   * was asked to remove, and no strength of it would have helped — a stronger
+   * stain is a darker stain.
+   *
+   * So each light source is a LIGHT, SATURATED tint of its own hue at a much
+   * higher alpha. Measured on the key: #CDE9F2 at 0.42 lands the page at
+   * #e1eef4, which carries about three times the chroma of the old #6CB6C6 at
+   * 0.13 while costing about a fifth as much luminance. Body copy stays at
+   * 15.1:1 and the whole composite is far inside every floor
+   * `tokenContrast.test.ts` samples the viewport against — the bound on these
+   * is that they stay QUIET, not that they stay legible.
+   *
+   * The DARK values are untouched, all four of them. On near-black a glow is
+   * light ADDED and the pale hue was always the right answer there; it is only
+   * the light half that was solving the wrong problem.
+   */
+  /**
    * ── THE KEY LIGHT IS COOL NOW, AND IT WAS THE LAST GOLD IN THE PRODUCT ────
    *
    * It was `mix(bronze, '#f0bd6a', …)` — an explicit warm gold, the one place in
@@ -2482,14 +2636,13 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * A gold corner glow over a clean black interface is not a leftover, it is the
    * single most visible warm thing on the screen.
    *
-   * It is a cool white-blue in dark: light with a trace of blue in it reads as
+   * A cool white-blue in dark: light with a trace of blue in it reads as
    * DAYLIGHT, where a dead-white glow reads as a blown highlight and a warm one
-   * reads as a lamp. In light it has to DARKEN the page to register at all (a
-   * pale anything over #F3F4F6 measures nothing), so it is the same hue taken
-   * down — the identical inversion the trend chart's spark halo makes, and for
-   * the identical reason.
+   * reads as a lamp. In light it is the palest of the four tints, which is what
+   * a "white" source has to be on a white page: a bloom that is barely a colour
+   * at all and is unmistakably not the page.
    */
-  const glowPrimary = dark ? '#DDF0F4' : '#6CB6C6';
+  const glowPrimary = dark ? '#DDF0F4' : '#CDE9F2';
   /**
    * ── THE FILL IS TEAL IN BOTH THEMES NOW (Aug 2026) ───────────────────────
    *
@@ -2516,7 +2669,7 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * hues that a reader can name separately is what makes a page read as lit
    * rather than tinted.
    */
-  const glowSecondary = dark ? '#7BA6F2' : '#5E7FD6';
+  const glowSecondary = dark ? '#7BA6F2' : '#AFC8F5';
   /**
    * ── THE THIRD SOURCE: A SOFT GREEN, BOTTOM RIGHT (Aug 2026) ──────────────
    *
@@ -2533,7 +2686,7 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * so no alpha of it over any surface can arrive at the shape of `statusHue
    * .green`. It also sits 47° off the key and 77° off the fill.
    */
-  const glowTertiary = dark ? '#8FE3AE' : '#57B584';
+  const glowTertiary = dark ? '#8FE3AE' : '#B6E8CB';
   /**
    * ── AND THE DIAGONAL STREAK, WHICH IS NOT A RADIAL AT ALL ────────────────
    *
@@ -2543,13 +2696,14 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * gradient` cannot curve and a `transform` on a fixed pseudo-element is a
    * containing-block change waiting to catch a modal.
    *
-   * The COLOUR goes in opposite directions per theme for the same reason every
-   * other ambient source in this file does: on near-black a ribbon of light is
-   * light ADDED and has to be lighter than the page; on a warm off-white there
-   * is nothing to add, so what reads as a sweep of light is the ground taken
-   * very slightly down and cool.
+   * ⚠ AND IT IS A TINT IN LIGHT NOW, like the other three. It used to be a mid
+   * slate on the reasoning that "on a warm off-white there is nothing to add,
+   * so what reads as a sweep of light is the ground taken very slightly down" —
+   * which produced a grey diagonal rather than a lit one. See the note on the
+   * key for why a light saturated tint carries the hue at a fraction of the
+   * luminance cost.
    */
-  const glowStreak = dark ? '#DCEAFF' : '#8FB0D8';
+  const glowStreak = dark ? '#DCEAFF' : '#C9DCF4';
   /**
    * ── AND IN DARK IT IS NEAR-BLACK AGAIN, NOT THE CARD TONE (Aug 2026) ────
    *
@@ -3493,6 +3647,62 @@ export const GLASS = {
     edge: { top: { light: 0.5, dark: 0.16 }, right: { light: 0.7, dark: 0.26 } },
     grain: { light: 0.022, dark: 0.038 },
   },
+  /**
+   * ═════════════════════════════════════════════════════════════════════════
+   *  THE FOURTH SURFACE: A CONTROL IS A GLASS CHIP (Aug 2026)
+   * ═════════════════════════════════════════════════════════════════════════
+   *
+   * Buttons and the segmented controls were the last flat blocks in the
+   * product. On the old cream page a near-white pill read as a surface because
+   * the ground was several steps below it; on a white page the same pill is a
+   * white rectangle on a white field, and the only thing saying it is an object
+   * is its hairline.
+   *
+   * So a control takes the same material as the panes — translucent fill,
+   * backdrop blur, a specular and a fine lit edge — at its own two numbers.
+   * ⚠ THIS IS THE MATERIAL, NOT THE ACCENT: bronze is untouched and is still
+   * the one interactive colour, so a FILLED control (a primary button, the
+   * selected segment of a toggle) stays a solid bronze tile and reads as the
+   * loudest thing in its group. Glass is what an UNFILLED control is made of.
+   *
+   * ── TWO LEVELS, AND THE QUIET ONE IS LOAD-BEARING ────────────────────────
+   *
+   * `wash` is an ordinary control: a secondary button, a picker track, the
+   * contact disclosure. `quiet` is half of it, for the controls that must not
+   * out-read something filled beside them — a ghost button in a list of rows,
+   * an unselected segment inside a track that is already glass. One number
+   * apart rather than two materials, so a chip is a chip everywhere and the
+   * only thing that varies is how much of it there is.
+   *
+   * ── THE BLUR IS SMALLER THAN A PANE'S AND THAT IS GEOMETRY ───────────────
+   *
+   * 20px of backdrop blur samples a 20px neighbourhood, which on a 40px pill is
+   * most of the page around it: the chip fills with the average of its own
+   * surroundings and reads as a smudge rather than as glass. 12px is the
+   * largest radius that still leaves a control looking like a window onto what
+   * is directly behind it. The SATURATION is shared with the panes — that one
+   * is about what frost does to colour, which does not depend on the size of
+   * the pane.
+   *
+   * ⚠ AND THE SHEEN IS A BACKGROUND-IMAGE RATHER THAN AN INSET SHADOW, which
+   * is a cascade fact rather than a preference: `shadow-btn` is a Tailwind
+   * UTILITY and this is a component class, so a `box-shadow` here loses to it
+   * and the specular would silently vanish on every button that carries the
+   * depth recipe. A gradient composites over the translucent fill instead and
+   * cannot be overridden by a shadow utility.
+   */
+  control: {
+    blur: '12px',
+    wash: { light: 0.55, dark: 0.42 },
+    quiet: { light: 0.26, dark: 0.2 },
+    /**
+     * The specular down the top of a chip, in `--c-glass-edge`. Far stronger in
+     * light than in dark for the same reason the pane's is: in light that token
+     * is white and it is lifting a near-white chip a couple of levels, and in
+     * dark it is lifting a near-black one, where the same alpha is a stripe.
+     */
+    sheen: { light: 0.8, dark: 0.14 },
+  },
 } as const;
 
 /**
@@ -3517,9 +3727,26 @@ export const GLASS = {
  * the safe direction, while light's two sources both DARKEN cream, which eats
  * into the espresso-on-cream ratio directly.
  *
- * Which is why light's peaks are a quarter of dark's. They are not "subtle
- * because light mode should be subtle" — they are as strong as they can be with
- * the AA floor intact under both of them at once.
+ * ⚠ AND LIGHT'S PEAKS ARE NO LONGER A QUARTER OF DARK'S (Aug 2026). They were,
+ * and the sentence that used to sit here — "they are as strong as they can be
+ * with the AA floor intact under both of them at once" — described a bound that
+ * was real for the colours they were. Those colours were MID-TONES, so every
+ * unit of alpha spent most of itself darkening the page; the AA floor was
+ * therefore reached at about an eighth of a unit, and what a reader saw at that
+ * strength was a faint grey smudge in a corner.
+ *
+ * The four light sources are LIGHT, SATURATED TINTS now (see `glowPrimary`), so
+ * an alpha buys hue almost for free: at 0.42 the key costs the page about a
+ * twentieth of its body-copy contrast where the old mid-tone cost about a
+ * fifteenth at 0.13. The peaks are up by roughly 3x and the page is BRIGHTER
+ * than it was under them.
+ *
+ * ⚠ SO THE BOUND ON THESE IS NOW TASTE, NOT CONTRAST, and that is a real change
+ * in what this record means. `tokenContrast.test.ts` samples the whole viewport
+ * with all four composited and finds body copy at about 13:1 against a floor of
+ * 4.5 — there is a great deal of room above these numbers and taking it would
+ * be wrong. The brief is a page with depth and colour in it that nobody
+ * notices AS colour. If a source reads as a shape, it is too strong.
  */
 export const GLOW = {
   /**
@@ -3543,7 +3770,7 @@ export const GLOW = {
    * lamps now, so the key no longer has to carry the whole page on its own, and
    * the total light on a dark viewport goes UP rather than down.
    */
-  primary: { light: 0.13, dark: 0.4 },
+  primary: { light: 0.42, dark: 0.4 },
   /**
    * The cool fill, at the left edge, vertically centred.
    *
@@ -3581,7 +3808,7 @@ export const GLOW = {
    * rather than as low as looks safe: light mode was flat cream with nothing
    * happening in it, which is the complaint this exists to answer.
    */
-  secondary: { light: 0.11, dark: 0.38 },
+  secondary: { light: 0.36, dark: 0.38 },
   /**
    * ── THE GREEN, BOTTOM RIGHT (Aug 2026) ────────────────────────────────────
    *
@@ -3593,14 +3820,14 @@ export const GLOW = {
    * because nothing opaque covers the bottom right: the sidebar is on the left,
    * which is the whole reason the fill had to move.
    */
-  tertiary: { light: 0.1, dark: 0.32 },
+  tertiary: { light: 0.3, dark: 0.32 },
   /**
    * The diagonal ribbon's own peak, at the brightest point of its brightest
    * blob. Lowest of the four in both themes and deliberately so — it crosses the
    * whole viewport, so it is the source with the most of the page inside it, and
    * anything a reader notices AS a streak is too strong.
    */
-  streak: { light: 0.055, dark: 0.15 },
+  streak: { light: 0.14, dark: 0.15 },
 } as const;
 
 /**

@@ -1141,6 +1141,70 @@
     }
   }
 
+  /* ── A CONTROL IS A GLASS CHIP (Aug 2026) ──────────────────────────────
+     Buttons and segmented controls were the last flat blocks in the product.
+     On the old cream page a near-white pill read as a surface because the
+     ground sat several steps below it; on a white page the same pill is a white
+     rectangle on a white field and the only thing saying it is an object is its
+     hairline.
+
+     So a control takes the panes' material at its own two numbers: a
+     translucent fill, a backdrop blur, a specular down its top edge and a fine
+     lit hairline just inside its border. See GLASS.control in tokens.ts for the
+     alphas and for why the blur is smaller here.
+
+     ⚠ THE SPECULAR IS A `background-image`, NOT AN INSET SHADOW, and that is a
+     cascade fact rather than a preference. `shadow-btn` is a Tailwind UTILITY
+     and this is a component class, so a `box-shadow` written here loses to it —
+     the sheen would silently disappear on every button carrying the depth
+     recipe, which is most of them. A gradient composites over the translucent
+     fill and nothing in `utilities` can take it away.
+
+     TWO LEVELS, ONE MATERIAL. `.glass-control` is an ordinary control;
+     `.glass-control-quiet` is the same chip at half the fill, for a control
+     that must not out-read something filled beside it — a ghost button in a
+     list of rows, an unselected segment inside a track that is already glass.
+     They differ by one custom property, so a chip is a chip everywhere.
+
+     ⚠ AND A FILLED CONTROL IS NOT MADE OF THIS. Bronze is still the one
+     interactive accent: a primary button and the selected segment of a toggle
+     stay solid bronze, which is what keeps the selected state the loudest thing
+     in its group rather than one frosted chip among several. */
+  .glass-control,
+  .glass-control-quiet {
+    background-color: rgb(var(--c-glass) / var(--glass-chip));
+    /* Lighter at the top, gone by just past halfway, and a whisper of the
+       shadow tone at the very bottom — the same "lit from above" reading the
+       filled buttons get from `bg-btn-primary`, made of light instead of paint
+       so the backdrop still comes through it. */
+    background-image: linear-gradient(
+      to bottom,
+      rgb(var(--c-glass-edge) / var(--glass-control-sheen)) 0%,
+      rgb(var(--c-glass-edge) / calc(var(--glass-control-sheen) * 0.28)) 52%,
+      rgb(var(--c-shadow) / 0.04) 100%
+    );
+    -webkit-backdrop-filter: blur(var(--glass-control-blur)) saturate(var(--glass-saturate));
+    backdrop-filter: blur(var(--glass-control-blur)) saturate(var(--glass-saturate));
+  }
+
+  .glass-control {
+    --glass-chip: var(--glass-control-wash);
+  }
+
+  .glass-control-quiet {
+    --glass-chip: var(--glass-control-quiet);
+  }
+
+  /* Same reasoning as `.glass`: a label legible straight THROUGH a control is
+     worse than losing the frost on one browser. The sheen is a background
+     image rather than a backdrop effect, so it is unaffected. */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass-control,
+    .glass-control-quiet {
+      background-color: rgb(var(--c-glass) / 0.96);
+    }
+  }
+
   /* ── THE PAGE-SURFACE PANE (Aug 2026) ──────────────────────────────────
      The same material as the sidebar and the pinned control bar, at a third
      alpha, on the big STRUCTURAL surfaces of a page: the Overview's sections,
@@ -2020,7 +2084,12 @@
      it, which is usually nothing. */
   .glass,
   .glass-panel,
+  .glass-control,
+  .glass-control-quiet,
   .panel-wash {
+    /* `background`, not `background-color` — the control chip carries its
+       specular as a background IMAGE, and a printed page with the fill removed
+       and the highlight still on it is a gradient floating where a button was. */
     background: none !important;
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;

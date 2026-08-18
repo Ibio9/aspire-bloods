@@ -401,7 +401,11 @@ export function CompareView({
                           type="button"
                           onClick={() => toggle(m.markerId)}
                           aria-label={`${m.name}. Remove from this chart`}
-                          className="inline-flex max-w-full items-center gap-2 rounded-full border border-taupe bg-cream-100 py-1.5 pl-2.5 pr-2.5 text-xs font-medium text-espresso transition duration-150 ease-out hover:border-bronze hover:text-bronze focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
+                          // The same chip as the results bar's filter pills —
+                          // one material for every dismissible control, rather
+                          // than a card-toned fill that reads as a white pill
+                          // on a white page.
+                          className="glass-control-quiet inline-flex max-w-full items-center gap-2 rounded-full border border-taupe py-1.5 pl-2.5 pr-2.5 text-xs font-medium text-espresso transition duration-150 ease-out hover:border-bronze hover:text-bronze focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bronze"
                         >
                           <SeriesMark index={i} />
                           <span aria-hidden="true" className="truncate">

@@ -240,7 +240,13 @@ export function ClinicContactPanel() {
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-controls="clinic-contact-details"
-        className="flex w-full shrink-0 items-center gap-2.5 rounded-input px-2.5 py-2 text-left text-sm font-medium text-taupe-900 transition-colors duration-150 ease-out hover:bg-cream-200/60 hover:text-espresso"
+        // A GLASS CHIP RATHER THAN A BARE ROW (Aug 2026). It sits at the foot
+        // of a glass sidebar and had no surface of its own at all, so on a
+        // white page it read as a line of text that happened to be clickable.
+        // The quiet level: it is a disclosure inside a panel, not a button on
+        // a page, and a full-strength chip there would out-read the nav above
+        // it.
+        className="glass-control-quiet flex w-full shrink-0 items-center gap-2.5 rounded-input border border-taupe/60 px-2.5 py-2 text-left text-sm font-medium text-taupe-900 transition duration-150 ease-out hover:border-bronze hover:text-espresso"
       >
         <PhoneIcon className="shrink-0 text-bronze-700" />
         <span className="min-w-0 flex-1 truncate">Contact the clinic</span>
@@ -250,7 +256,10 @@ export function ClinicContactPanel() {
       {open && (
         <div
           id="clinic-contact-details"
-          className="scroll-thin mt-2 min-h-0 flex-1 overflow-y-auto rounded-card border border-taupe bg-cream-100 p-4 motion-safe:animate-riseIn"
+          // The details take the same material as the chip that opens them, so
+          // the pair reads as one object rather than as a button above a filled
+          // box. `bg-cream-100` was the last opaque fill in the sidebar.
+          className="glass-control-quiet scroll-thin mt-2 min-h-0 flex-1 overflow-y-auto rounded-card border border-taupe p-4 motion-safe:animate-riseIn"
         >
           <ClinicContactLines size="compact" />
         </div>

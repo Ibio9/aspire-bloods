@@ -89,8 +89,15 @@ export function Segmented<T extends string>({
       // in it. It keeps the hairline: a segmented control genuinely is one
       // object, and that is what the rest of the bar being unboxed is measured
       // against.
+      // ⚠ THE TRACK IS GLASS IN BOTH FILLED TONES NOW (Aug 2026). `accent` was
+      // `bg-cream-50` — the card tone, which on a white page is a white
+      // rectangle on a white field — and `glass` was the control-bar material
+      // with no specular on it. Both take `.glass-control`: the panes' material
+      // at a control's alpha, so a picker reads as a chip of glass whether it
+      // is sitting on the page or on the pinned bar. `quiet` still carries no
+      // fill at all, which is what makes it quiet.
       className={`inline-flex max-w-full gap-1 overflow-x-auto rounded-input border border-taupe p-1 ${
-        tone === 'accent' ? 'bg-cream-50' : tone === 'glass' ? 'glass' : ''
+        tone === 'quiet' ? '' : 'glass-control'
       } ${className}`}
     >
       {options.map((o) => {
@@ -115,7 +122,11 @@ export function Segmented<T extends string>({
                 ? tone === 'accent'
                   ? 'bg-bronze font-semibold text-onaccent shadow-btn'
                   : 'bg-bronze/[0.14] font-semibold text-espresso'
-                : 'text-espresso/85 hover:bg-cream-200 hover:text-espresso'
+                : // A translucent lift rather than an opaque tile, for the same
+                  // reason as the appearance toggle's: a segment that fills
+                  // with a solid colour on hover reads for a moment as the
+                  // selected one. The ink at 6% follows the theme on its own.
+                  'text-espresso/85 hover:bg-espresso/[0.06] hover:text-espresso'
             }`}
           >
             {o.spoken ? <span className="sr-only">{o.spoken}</span> : null}

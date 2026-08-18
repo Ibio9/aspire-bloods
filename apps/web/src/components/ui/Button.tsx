@@ -42,30 +42,50 @@ const VARIANTS = {
     'hover:bg-bronze-600 hover:shadow-btn-hover motion-safe:hover:-translate-y-px',
     'active:bg-bronze-700 active:shadow-btn-active active:translate-y-0 active:before:opacity-0',
   ].join(' '),
-  secondary: [
-    'bg-white bg-btn-secondary text-espresso border border-taupe shadow-btn',
-    'before:pointer-events-none before:absolute before:inset-0 before:rounded-full before:content-[""]',
-    'before:shadow-[inset_0_1px_0_0_rgb(255_255_255_/_0.7)]',
-    'hover:border-bronze hover:shadow-btn-hover motion-safe:hover:-translate-y-px',
-    'active:bg-cream-200 active:shadow-btn-active active:translate-y-0 active:before:opacity-0',
-  ].join(' '),
-  // THE GLASS MATERIAL, as a button. Same blur, same saturation and the same
-  // per-surface alpha family as the pinned results control bar and the sidebar
-  // (see `.glass` in globals.css) — so a control sitting on a page over the
-  // corner glow is a surface without being an opaque one. `secondary` is a
-  // near-white gradient and paints straight over the light, which is fine on a
-  // card and wrong on the page itself.
+  // ── A SECONDARY BUTTON IS A GLASS CHIP (Aug 2026) ──────────────────────
   //
-  // It keeps `secondary`'s hairline and depth, because a button is an object
-  // you press and the shadow is what says so.
-  glass: [
-    'glass text-espresso border border-taupe shadow-btn',
+  // It was `bg-white bg-btn-secondary` — an opaque near-white pill with a
+  // painted gradient on it. That read as a surface on the old cream page
+  // because the ground sat several steps below it; on the white page it is a
+  // white rectangle on a white field, and the only thing left saying it is an
+  // object is its hairline.
+  //
+  // `.glass-control` is the panes' own material at a control's alpha, with the
+  // specular that used to be painted on now made of light. It keeps the
+  // hairline and the depth recipe: a button is an object you press, and the
+  // shadow is what says so.
+  secondary: [
+    'glass-control text-espresso border border-taupe shadow-btn',
     'hover:border-bronze hover:shadow-btn-hover motion-safe:hover:-translate-y-px',
     'active:shadow-btn-active active:translate-y-0',
   ].join(' '),
-  ghost: 'bg-transparent text-espresso hover:bg-cream-200 active:bg-cream-300 active:shadow-btn-active',
+  // ⚠ `glass` AND `secondary` ARE ONE MATERIAL NOW, and the difference that
+  // justified two is gone. `glass` existed because `secondary` was a near-white
+  // gradient that painted straight over the ambient light, which was fine on a
+  // card and wrong on the page itself; both are translucent today, so the split
+  // would be two names for one thing waiting to drift. Kept as a name because
+  // several call sites say it and it says what they mean.
+  glass: [
+    'glass-control text-espresso border border-taupe shadow-btn',
+    'hover:border-bronze hover:shadow-btn-hover motion-safe:hover:-translate-y-px',
+    'active:shadow-btn-active active:translate-y-0',
+  ].join(' '),
+  // The quiet chip: half the fill, no hairline, no drop shadow. It is the
+  // variant for one row's action — the Withdraw button beside each consent, a
+  // dismiss beside a heading — where a bordered chip on every row would make
+  // the loudest thing in the card the way to undo it. It is still a chip
+  // rather than a bare word, which is the change: `bg-transparent` gave a
+  // control nothing at all to sit on.
+  ghost: [
+    'glass-control-quiet text-espresso',
+    'hover:border-bronze hover:shadow-btn motion-safe:hover:-translate-y-px',
+    'border border-transparent active:shadow-btn-active active:translate-y-0',
+  ].join(' '),
+  // The same chip, with the status hue on the label and the hairline. It is a
+  // CONTROL rather than a card, which is the named exception to "no coloured
+  // outlines" — that border is the whole of its non-text state at rest.
   destructive: [
-    'bg-white text-status-significantHigh border border-status-significantHigh shadow-btn',
+    'glass-control text-status-significantHigh border border-status-significantHigh shadow-btn',
     'hover:bg-status-significantHigh hover:text-onaccent hover:shadow-btn-hover motion-safe:hover:-translate-y-px',
     'active:shadow-btn-active active:translate-y-0',
   ].join(' '),
