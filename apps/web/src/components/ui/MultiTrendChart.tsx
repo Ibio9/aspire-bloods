@@ -1,25 +1,34 @@
 import { useId } from 'react';
-import {
-  ComposedChart,
-  Line,
-  ReferenceArea,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
   formatDate,
   asMarkerStatus,
   chart as chartTokens,
-  bandRampStops,
-  TRANSITION_SHARE,
   severityThresholdFor,
-  type MarkerStatus,
+  type MarkerStatusInput,
 } from '@aspire-bloods/shared';
 import { statusColor, statusLabel } from '../../lib/markerCopy';
 import { formatAxisDate, type TrendSeries } from '../../lib/patientPortal';
+import { SeriesMark } from './SeriesMark';
+import {
+  axisGutter,
+  DAY_MS,
+  epochOf,
+  seriesStyle,
+  type LabelColumn,
+  type StatusLinePoint,
+} from '../../lib/chartGeometry';
+import {
+  BoundaryLabels,
+  RuleSwatch,
+  SparkDot,
+  SparkGradient,
+  SparkPoint,
+  SparkSwatch,
+  StatusLineGradient,
+  StatusLineSwatch,
+  statusLineCasing,
+} from './chartParts';
 
 /**
  * Two or three markers on one timeline. The problem this solves is that
@@ -28,10 +37,10 @@ import { formatAxisDate, type TrendSeries } from '../../lib/patientPortal';
  * floor or needs two y-axes nobody can read against each other.
  *
  * Instead every point is plotted at its position within its OWN reference
- * range: 0 is that marker's range floor, 1 is its ceiling, and the bands
+ * range: 0 is that marker's range floor, 1 is its ceiling, and the two rules
  * between them are "inside the usual range" for all series at once. That's the
- * comparison a patient actually wants — "my ferritin climbed while my
- * haemoglobin held steady" — without ever implying the two numbers are on the
+ * comparison a patient actually wants - "my ferritin climbed while my
+ * haemoglobin held steady" - without ever implying the two numbers are on the
  * same scale. Real values and units stay in the tooltip and the legend, which
  * is where they mean something.
  *
@@ -39,62 +48,65 @@ import { formatAxisDate, type TrendSeries } from '../../lib/patientPortal';
  * changes between sources moves the point correctly rather than being
  * silently held against a stale range.
  *
- * ═══ ONE BAND SYSTEM, NOT TWO (Aug 2026) ═════════════════════════════════
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  THE BANDS ARE GONE. THE LINES ARE THE CHART (Aug 2026).
+ * ═══════════════════════════════════════════════════════════════════════════
  *
- * This chart was the last thing in the product still drawing `bandGradientStops`
- * — the pre-mixed `hueTint.*.band` palette from before the bands went opaque.
- * So the product had two vocabularies for one idea, and they were visible on
- * one screen: the Compare view's pale sage-and-beige bands directly beside a
- * marker page's solved opaque ones. Two of its key entries were worse than
- * inconsistent — "Below the reference range" and "Above the reference range"
- * both resolved to `hueTint.yellow.band`, so the key printed two different
- * sentences beside two identical swatches.
+ * This supersedes everything this file used to say about band colour, the
+ * boundary-centred ramp and which band vocabulary it was drawing. There are NO
+ * FILLED REGIONS on this chart of any kind: no status bands, no ramp gradients,
+ * no inset panel. What is drawn, and this is the whole list:
  *
- * It draws `bandRampStops` now, exactly as the single-marker chart and both
- * range bars do. The geometry is the only thing that differs and it is the
- * simplest case in the system: this axis IS a reference range, so `low` is 0,
- * `high` is 1, and the threshold is the shared normalised one. Same five
- * fills, same two hinges, same blend centred on each boundary, same
- * `TRANSITION_SHARE`.
+ *   1. THE LINES, on the card itself, each carrying its own marker's status
+ *      along its own length.
+ *   2. THE BOUNDARY RULES - the two shared reference bounds solid, the two
+ *      significantly-out thresholds dashed and lighter - labelled on the axis.
+ *   3. THE POINTS, every one of them the same white spark.
+ *   4. THE AXIS.
  *
- * ── AND THE THREE SERIES SHARE ONE LINE COLOUR, WHICH IS MEASURED ─────────
+ * ── IT IS THE SINGLE-MARKER CHART, AND THAT IS THE CHANGE ─────────────────
  *
- * The three lines used to be bronze, espresso and bronze-800 — three warm
- * browns that were already near-indistinguishable in light, which is why the
- * dash pattern and the mark shape were introduced beside them in the first
- * place. Against OPAQUE bands two of the three stop being legible at all.
- * Measured, contrast against the five band fills:
+ * The marker page's chart removed its bands first, for reasons written up in
+ * TrendChart: the bands had to be legible enough to say where the range is and
+ * quiet enough that the reader's own result out-read them, every solve gained
+ * one and lost the other, and the LINE paid for all of it. This chart kept
+ * them, so the product had two answers to one question one press apart - a
+ * green-to-red field behind three lines here, nothing behind one line there.
  *
- *     light   bronze 3.33 / 2.94 / 2.66 / 2.39 / 2.18   ← fails AA-large on four
- *             bronze-800 4.96 / 4.38 / 3.96 / 3.55 / 3.25
- *     dark    bronze 3.73 / 2.15 / 1.25 / 1.79 / 2.42   ← 1.25 on gold: invisible
- *             bronze-800 6.62 / 3.82 / 2.21 / 3.19 / 4.30
+ * Everything a reader has to learn is now in chartParts.tsx and both charts
+ * import it: the gradient, the casing, the spark, the swatches, the boundary
+ * labels and the gutter arithmetic. Restating any of it here is how the last
+ * divergence started.
  *
- * `chart.line` is the one colour already solved to clear every band in both
- * themes (3.36 worst in light, 3.05 in dark — see LINE_LIFT), and in DARK
- * there is no second colour available: the gold band is light enough that only
- * the very top of the lightness range clears it, so three series cannot be
- * separated by hue there at all without one of them failing.
+ * ── WHAT THE NORMALISED AXIS CHANGES, AND IT IS ONLY THE UNITS ────────────
  *
- * So series identity is carried by DASH PATTERN and MARK SHAPE, which this
- * chart has always drawn and has always named in the legend and in the
- * screen-reader text. That is the layer that survives greyscale and colour
- * blindness, and it is now the layer doing the whole job rather than the
- * backup for a colour ladder that could not exist. The product's own rule —
- * if brighter bands bury the line, brighten the line, never dull the band —
- * has no third colour to offer, and three legible lines beat two pretty ones.
+ * `StatusLinePoint` is expressed in whatever the chart PLOTS in. On a marker
+ * page that is the marker's own unit and the bounds are the laboratory's; here
+ * it is position within the range, so `low` is 0, `high` is 1 and the threshold
+ * is that marker's own significantly-out distance as a share of its own range
+ * width. The gradient asks the same question of both and gets the right answer
+ * from each, which is why three markers with three different ranges each get a
+ * line that goes green in the middle and gold then red toward its own extremes.
+ *
+ * ⚠ ONE GRADIENT PER SERIES, NEVER ONE PER CHART. The gradients are laid out in
+ * USER SPACE, so their stops are at the plot's own pixels; two markers sampled
+ * on different dates put their stops at different x, and a shared gradient would
+ * paint each line with the other's history.
+ *
+ * ── AND THE THREE LINES ARE TOLD APART BY THEIR DASH ──────────────────────
+ *
+ * They used to be told apart by dash AND by mark shape, because they were all
+ * one colour (`chart.line`) - a colour chosen because no THREE hues could be
+ * separated against the old opaque bands in dark, where the gold band was light
+ * enough that only the top of the lightness range cleared it. That constraint
+ * died with the bands. What replaced it is not three identity hues but the
+ * status itself: each line now gradients through the traffic light on its own
+ * range, so a hue on this plot means a STATE and cannot also mean a marker.
+ *
+ * So identity is the DASH on the plot, and the shape survives as the legend
+ * token beside the marker's name - on the chip above the chart, the summary
+ * card below it, the legend row and the tooltip. See SeriesMark.
  */
-
-/**
- * The three series, distinguished by dash and by mark. One colour, for the
- * reason measured above; `dashLabel` is what a screen reader is told, so the
- * distinction is stated in words as well as drawn.
- */
-const SERIES_STYLES = [
-  { dash: undefined, shape: 'circle' as const, dashLabel: 'solid line, round markers' },
-  { dash: '7 4', shape: 'square' as const, dashLabel: 'dashed line, square markers' },
-  { dash: '2 4', shape: 'diamond' as const, dashLabel: 'dotted line, diamond markers' },
-];
 
 function normalise(value: number, low: number, high: number): number {
   const band = high - low;
@@ -104,59 +116,19 @@ function normalise(value: number, low: number, high: number): number {
 
 interface Row {
   sampleDate: string;
-  /** The sample date as an epoch value — see the time-axis note in MultiTrendChart. */
+  /** The sample date as an epoch value - see the time-axis note below. */
   t: number;
   [key: string]: string | number | undefined;
 }
-
-/** UTC midnight: a sample date is a calendar date, not an instant. Matches TrendChart. */
-function epochOf(sampleDate: string): number {
-  return Date.parse(`${sampleDate.slice(0, 10)}T00:00:00Z`);
-}
-
-const DAY_MS = 86_400_000;
 
 /**
  * THE INSET PANEL IS GONE HERE TOO (Aug 2026).
  *
  * It was added so the same drawing did not appear framed on a marker page and
  * unframed one press away. The single-marker chart's panel has now been removed
- * with its bands — the plot is the card — and the argument runs the same way in
+ * with its bands - the plot is the card - and the argument runs the same way in
  * reverse: two charts one press apart must not sit on two different grounds.
  */
-
-/**
- * A point: an OUTLINE on the card, filled with the card's own surface and
- * stroked in the line colour, so the line visibly passes behind it. Same
- * construction as the single-marker chart's marks.
- */
-function SeriesDot({ cx, cy, shape }: { cx?: number; cy?: number; shape: 'circle' | 'square' | 'diamond' }) {
-  if (cx == null || cy == null) return null;
-  const common = { fill: chartTokens.surface, stroke: chartTokens.line, strokeWidth: 1.8 };
-  return (
-    <g>
-      {/* Generous invisible hit area — the visible mark stays small. */}
-      <circle cx={cx} cy={cy} r={15} fill="transparent" />
-      {shape === 'circle' && <circle cx={cx} cy={cy} r={4.5} {...common} />}
-      {shape === 'square' && <rect x={cx - 4} y={cy - 4} width={8} height={8} {...common} />}
-      {shape === 'diamond' && <rect x={cx - 4.2} y={cy - 4.2} width={8.4} height={8.4} transform={`rotate(45 ${cx} ${cy})`} {...common} />}
-    </g>
-  );
-}
-
-/** The legend and tooltip swatch — the mark and its dash, as the plot draws them. */
-function SeriesSwatch({ index }: { index: number }) {
-  const style = SERIES_STYLES[index % SERIES_STYLES.length];
-  const common = { fill: chartTokens.surface, stroke: chartTokens.line, strokeWidth: 1.4 };
-  return (
-    <svg width="26" height="10" viewBox="0 0 26 10" aria-hidden="true" className="shrink-0">
-      <line x1="0" y1="5" x2="26" y2="5" stroke={chartTokens.line} strokeWidth="2" strokeDasharray={style.dash} />
-      {style.shape === 'circle' && <circle cx="13" cy="5" r="4" {...common} />}
-      {style.shape === 'square' && <rect x="9.5" y="1.5" width="7" height="7" {...common} />}
-      {style.shape === 'diamond' && <rect x="9.6" y="1.6" width="6.8" height="6.8" transform="rotate(45 13 5)" {...common} />}
-    </svg>
-  );
-}
 
 function ChartTooltip({ active, payload, series }: { active?: boolean; payload?: unknown[]; series: TrendSeries[] }) {
   if (!active || !payload?.length) return null;
@@ -167,14 +139,14 @@ function ChartTooltip({ active, payload, series }: { active?: boolean; payload?:
     // level: a reading OF the chart should diffuse the part it covers rather
     // than delete it.
     <div className="glass min-w-[11rem] rounded-card border border-taupe px-4 py-3 text-xs shadow-popover">
-      {/* The row's own sampleDate, not the axis label — the axis is a time
+      {/* The row's own sampleDate, not the axis label - the axis is a time
           scale now, so its label is an epoch number. */}
       <p className="numeric text-[11px] uppercase tracking-eyebrow text-espresso/80">{formatDate(row.sampleDate)}</p>
       <ul className="mt-2 flex flex-col gap-1.5">
         {series.map((s, i) => {
           const raw = row[`${s.markerId}__value`];
           // Narrowed, not cast. The row is a bag of dynamic keys, so whatever
-          // sits at `<id>__status` is genuinely unknown here — casting it to
+          // sits at `<id>__status` is genuinely unknown here - casting it to
           // MarkerStatus told the compiler otherwise and left statusColor to
           // find out at runtime.
           const st = asMarkerStatus(row[`${s.markerId}__status`]);
@@ -183,12 +155,12 @@ function ChartTooltip({ active, payload, series }: { active?: boolean; payload?:
             <li key={s.markerId} className="flex items-center gap-2">
               {/* The mark this series is drawn with, so the row can be matched
                   to the line without counting down the legend. */}
-              <SeriesSwatch index={i} />
+              <SeriesMark index={i} />
               <span className="tabular text-espresso">
                 {s.name}: {raw}
                 {/* The status word carries its own state's colour, as it does
-                    everywhere else. The swatch to its left is the series
-                    identity — that says WHICH marker, not how it is. */}
+                    everywhere else. The mark to its left is the series
+                    identity - that says WHICH marker, not how it is. */}
                 {st && (
                   <>
                     {', '}
@@ -206,7 +178,7 @@ function ChartTooltip({ active, payload, series }: { active?: boolean; payload?:
 
 /**
  * Where significantly-out sits for a series, expressed as a multiple of its
- * own reference-range width — i.e. in the same normalised units this chart
+ * own reference-range width - i.e. in the same normalised units this chart
  * plots in. Null where the series' own points disagree with each other,
  * which happens when a reference range changed between reports.
  */
@@ -222,18 +194,21 @@ function normalisedThreshold(s: TrendSeries): number | null {
 }
 
 export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
-  const gradId = `multi-band-${useId().replace(/:/g, '')}`;
+  // Ids are document-global; two Compare charts on one page sharing one would
+  // make the second chart's lines reference the first one's gradients.
+  const uid = useId().replace(/:/g, '');
+  /** ONE falloff for the whole chart - every point on every series is the same white spark. */
+  const sparkId = `spark-${uid}`;
+
   /**
    * The legend and the accessible summary both read points[0] and the last
    * point, so a series with none takes the whole screen down. The server no
    * longer sends one; this is the belt to that braces.
    *
    * Points with no status go the same way, and for the same reason as in the
-   * single-marker chart: the legend colours and names the last point's state,
-   * so a series whose last point was never compared against a range has nothing
-   * to put there. Dropping the point is the honest answer; the alternative was
-   * `statusColor(last.status as MarkerStatus)`, where the cast was the only
-   * thing making it compile and nothing at all made it work.
+   * single-marker chart: the line's colour at that point is that point's own
+   * state, so a point that was never compared against a range has nothing to
+   * put on the gradient and nothing to put in the legend.
    */
   const series = input
     .map((s) => ({ ...s, points: s.points.filter((p) => asMarkerStatus(p.status) !== null) }))
@@ -241,8 +216,10 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
   const dates = [...new Set(series.flatMap((s) => s.points.map((p) => p.sampleDate)))].sort();
   const hasData = dates.length > 0;
 
-  // One shared normalised threshold, or none. See the note at the top: a
-  // shared axis may only shade what every series on it actually shares.
+  // One shared normalised threshold, or none. A shared axis may only draw what
+  // every series on it actually shares: with two markers disagreeing about
+  // where significantly-out begins there is no single y at which to put the
+  // rule, and the note under the chart says so.
   const thresholds = series.map(normalisedThreshold);
   const sharedThreshold =
     thresholds.length > 0 && thresholds.every((k) => k !== null && Math.abs(k - (thresholds[0] as number)) < 1e-6)
@@ -265,6 +242,52 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
     return row;
   });
 
+  /**
+   * EACH SERIES, IN THE UNITS THIS CHART PLOTS IN.
+   *
+   * The gradient and the casing read this and nothing else, so a line's colour
+   * is derived from that marker's own points against that marker's own
+   * reference range - three markers, three independent traffic lights, one
+   * axis. `threshold` is normalised here rather than inside the shared
+   * gradient, because only this chart knows its axis is a ratio.
+   *
+   * A zero-width range cannot say where significantly-out is; `normalise`
+   * already answers 0 or 1 for one, so the point lands exactly on a bound and
+   * reads in range, and the threshold only has to be a finite positive number
+   * for the boundary arithmetic to stay arithmetic rather than NaN.
+   */
+  const plotted = series.map((s, i) => {
+    const points: StatusLinePoint[] = s.points
+      .map((p) => {
+        const width = p.referenceHigh - p.referenceLow;
+        const raw = severityThresholdFor(p.referenceLow, p.referenceHigh, p.severityThreshold);
+        return {
+          t: epochOf(p.sampleDate),
+          value: normalise(p.value, p.referenceLow, p.referenceHigh),
+          status: p.status,
+          low: 0,
+          high: 1,
+          threshold: width > 0 ? raw / width : 1,
+        };
+      })
+      .sort((a, b) => a.t - b.t);
+    return {
+      series: s,
+      style: seriesStyle(i),
+      points,
+      // That SERIES' own most recent sample, not the chart's. Three markers
+      // rarely end on the same day, and the point that should be lit brightest
+      // on a line is that line's own latest result.
+      latestT: points.length > 0 ? points[points.length - 1].t : null,
+      // Per series, not per chart: comparing a marker with four results against
+      // one with a single result is legitimate, and the single one must still
+      // render as a lone point rather than borrowing a line from its neighbours.
+      connected: s.points.length >= 2 && s.comparable,
+      lineId: `status-line-${uid}-${i}`,
+      glowId: `status-glow-${uid}-${i}`,
+    };
+  });
+
   const times = rows.map((r) => r.t);
   // Empty spreads give Math.min Infinity, which produces a chart made of NaN.
   const tFirst = hasData ? Math.min(...times) : 0;
@@ -281,74 +304,59 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
   const domainMax = max + pad;
 
   /**
-   * THE BANDS, in normalised units — and this is the same instrument as every
-   * other band in the product rather than a second one that resembles it.
+   * THE BOUNDARY LABELS, IN WORDS.
    *
-   * The geometry is the degenerate case the ramp was built for: the axis IS a
-   * reference range, so `low` is 0 and `high` is 1, and the transition
-   * half-width is a share of the DRAWN EXTENT exactly as it is on a marker's
-   * own chart. Where the series disagree about where significantly-out begins
-   * there is no shared threshold, so only the reference range itself is
-   * shaded — a shared axis may only shade what is shared — and the note under
-   * the chart says which of the two happened.
+   * The single-marker chart prints each boundary's own VALUE here, because its
+   * axis is in the marker's units and a figure is the most specific thing that
+   * can be said. This axis is a position within three different ranges, where a
+   * figure would mean nothing, so the specific answer is a word. Same gutter,
+   * same lead rule, same two weights, same collision rule - bounds first, so a
+   * threshold that lands within 12px of one loses its label and keeps its rule.
+   *
+   * Both thresholds read the same words on purpose: they are one fact stated at
+   * two ends, and which end you are looking at is what says below or above.
    */
-  const transitionHalfWidth = ((domainMax - domainMin) * TRANSITION_SHARE) / 2;
-  const rampGeometry = {
-    low: 0,
-    high: 1,
-    // With no shared threshold nothing outside the range is drawn, so the value
-    // is never read; it still has to be a finite number greater than zero for
-    // the clamps inside bandRampStops to be arithmetic rather than NaN.
-    threshold: sharedThreshold ?? 1,
-    halfWidth: transitionHalfWidth,
-  };
-
-  const bands: { status: MarkerStatus; y1: number; y2: number }[] = [{ status: 'IN_RANGE', y1: 0, y2: 1 }];
-  if (sharedThreshold !== null) {
-    bands.push(
-      { status: 'LOW', y1: -sharedThreshold, y2: 0 },
-      { status: 'HIGH', y1: 1, y2: 1 + sharedThreshold },
-      { status: 'SIGNIFICANT_LOW', y1: domainMin, y2: -sharedThreshold },
-      { status: 'SIGNIFICANT_HIGH', y1: 1 + sharedThreshold, y2: domainMax },
-    );
-  }
+  const bounds: LabelColumn[] = [
+    {
+      // A normalised axis cannot step. 0 and 1 mean the same thing whatever the
+      // laboratory did to the underlying range, which is why there is one
+      // column here where the marker page can have several.
+      endsAt: null,
+      bounds: [
+        { value: 1, text: 'Range high', kind: 'bound' as const },
+        { value: 0, text: 'Range low', kind: 'bound' as const },
+        ...(sharedThreshold !== null
+          ? [
+              { value: 1 + sharedThreshold, text: 'Significantly out', kind: 'threshold' as const },
+              { value: -sharedThreshold, text: 'Significantly out', kind: 'threshold' as const },
+            ]
+          : []),
+      ],
+    },
+  ];
+  // Words rather than figures, so the gutter is measured at the body face's own
+  // width and given more room than a numeric axis needs. 118 is "Significantly
+  // out" plus its lead rule and gap, which is the widest thing this axis can
+  // ever print.
+  const gutter = axisGutter(
+    bounds[0].bounds.map((b) => b.text),
+    { face: 'inherit', max: 118 },
+  );
 
   /**
-   * Clamped to the domain, then the stops placed by VALUE and converted onto
-   * each rect's own drawn extent — the same correction the single-marker chart
-   * makes, and for the same reason: a band can reach past the axis and the
-   * outer two are open-ended, so a stop laid out as a fraction of the CLAMPED
-   * rect finishes its ramp early and puts orange in the middle of the
-   * above-range region rather than at the threshold where orange means
-   * something. Only the nearest stop outside the rect survives on each side,
-   * so where two clamp to the same edge the colour that paints it is the one
-   * still true there.
+   * A KEY MAY NOT NAME A MARK THE CHART DID NOT DRAW.
+   *
+   * The two thresholds are `ifOverflow="hidden"`, so on a selection whose
+   * results all sit near their ranges they are clipped away entirely - the
+   * threshold is 1.5x the range width out from each bound and this domain is
+   * padded by 0.15x of it. The same rule, and the same measurement, as the
+   * single-marker chart's own `hasThresholds`.
    */
-  const withinRect = <T extends { value: number }>(stops: T[], y1: number, y2: number): T[] => {
-    const [lo, hi] = y1 <= y2 ? [y1, y2] : [y2, y1];
-    const inside = stops.filter((s) => s.value >= lo && s.value <= hi);
-    const below = stops.filter((s) => s.value < lo).pop();
-    const above = stops.find((s) => s.value > hi);
-    const kept = [...(below ? [below] : []), ...inside, ...(above ? [above] : [])];
-    return kept.length >= 2 ? kept : [...kept, ...kept].slice(0, 2);
-  };
+  const hasThresholds =
+    sharedThreshold !== null && (-sharedThreshold > domainMin || 1 + sharedThreshold < domainMax);
 
-  const bandRects = bands
-    .map((b) => {
-      const y1 = Math.max(domainMin, b.y1);
-      const y2 = Math.min(domainMax, b.y2);
-      const drawnSpan = y2 - y1 || 1;
-      const stops = withinRect(bandRampStops(b.status, rampGeometry), y1, y2)
-        .map((stop) => ({
-          // SVG's y grows downward and a value grows upward, so a band's
-          // HIGH-value end is the gradient's offset 0.
-          offset: Math.max(0, Math.min(1, 1 - (stop.value - y1) / drawnSpan)),
-          colour: stop.colour,
-        }))
-        .sort((a, b2) => a.offset - b2.offset);
-      return { status: b.status, y1, y2, stops };
-    })
-    .filter((b) => b.y2 > b.y1);
+  /** Every state actually drawn on the plot, for the key. */
+  const statuses = [...new Set(series.flatMap((s) => s.points.map((p) => p.status)))];
 
   // Which explanatory note applies is a property of the data, not a constant.
   const singleResultNames = series.filter((s) => s.points.length === 1).map((s) => s.name);
@@ -366,19 +374,37 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
 
   return (
     <div>
-      {/* Real padding on all four sides, so the framed plot is a drawing on the
-          card rather than a picture cropped to its edges — same wrapper as the
-          single-marker chart. */}
+      {/* Real padding on all four sides, so the drawing sits on the card rather
+          than being cropped to its edges - same wrapper as the single-marker
+          chart, and the same one padding value on every side. */}
       <div
-        className="tabular h-[340px] w-full px-1 pb-1 sm:px-2"
+        className="tabular h-[340px] w-full p-2"
         role="img"
-        aria-label={`Comparison chart. Each marker is plotted against its own reference range, where the shaded band is that marker’s usual range. ${summary}`}
+        aria-label={`Comparison chart. Each marker is plotted against its own reference range, and horizontal rules mark the range every line shares. Each line is coloured by that marker’s own status along its own length. ${summary}`}
       >
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={rows} margin={{ top: 18, right: 18, left: 6, bottom: 10 }}>
+          {/* Equal on three sides; the left is 4 because the axis gutter after
+              it is what actually holds the labels, and the lead rules beside
+              them need those 4px so they are not clipped. */}
+          <ComposedChart data={rows} margin={{ top: 16, right: 16, left: 4, bottom: 16 }}>
+            <defs>
+              {/* ONE GRADIENT PER SERIES, plus the same gradient again at the
+                  casing's alpha, plus one radial falloff every point on every
+                  series sparks with. Inside <defs> so they are definitions
+                  rather than things drawn; they read the plot area and the x
+                  scale, which are only available inside the chart. */}
+              {plotted.map((p) => (
+                <StatusLineGradient key={p.lineId} id={p.lineId} points={p.points} />
+              ))}
+              {plotted.map((p) => (
+                <StatusLineGradient key={p.glowId} id={p.glowId} points={p.points} glow />
+              ))}
+              <SparkGradient id={sparkId} />
+            </defs>
+
             {/* Real time, not one category per sample date. Plotted as
                 categories, a marker retested at three months and again at a
-                year drew as two equal steps — which says the change happened
+                year drew as two equal steps - which says the change happened
                 at a steady rate when it did not. Same correction, and the same
                 reasoning, as the single-marker chart. */}
             <XAxis
@@ -393,126 +419,163 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
               // `tabular` class on the wrapper, since Recharts' tick prop type
               // has no fontVariantNumeric.
               tick={{ fontSize: 11, fill: chartTokens.axisText, fontFamily: 'var(--font-mono)' }}
+              // ONE GROUND LINE AND NOTHING ELSE - no box, no vertical rules,
+              // no gridlines. The boundary rules are the plot's structure now;
+              // a frame around them is a second structure competing with the
+              // first, and a grid over them is a third.
               axisLine={{ stroke: chartTokens.axisLine, strokeOpacity: 0.5 }}
               tickLine={false}
               tickMargin={10}
               minTickGap={16}
               interval="preserveStartEnd"
             />
-            <defs>
-              {bandRects.map((b) => (
-                <linearGradient key={b.status} id={`${gradId}-${b.status}`} x1="0" y1="0" x2="0" y2="1">
-                  {b.stops.map((stop, i) => (
-                    <stop key={i} offset={stop.offset} stopColor={stop.colour} stopOpacity={1} />
-                  ))}
-                </linearGradient>
-              ))}
-            </defs>
             <YAxis
               domain={[domainMin, domainMax]}
-              ticks={[0, 1]}
-              tickFormatter={(v: number) => (v === 0 ? 'Range low' : 'Range high')}
-              // NOT the mono face. Every other axis label in the product is a
-              // NUMBER and takes mono for that reason; these two are words, and
-              // mono is for numerics only. They are the only axis labels in the
-              // product that are prose, which is why this is the only axis that
-              // does not name a font here.
-              tick={{ fontSize: 11, fill: chartTokens.axisText }}
+              // NO SCALE, and its absence is the honest answer rather than an
+              // omission. A tick here would be a number like 0.6, which is not
+              // a quantity anybody was measured in - the only meaningful
+              // positions on this axis are the boundaries, and BoundaryLabels
+              // prints those in the gutter this width reserves.
+              tick={false}
               axisLine={false}
               tickLine={false}
-              width={74}
+              width={gutter}
             />
 
-            {/* No panel — the bands are drawn straight onto the card, as on the
-                single-marker chart. See the note where PlotPanel used to be. */}
-            {bandRects.map((b) => (
-              <ReferenceArea
-                key={b.status}
-                y1={b.y1}
-                y2={b.y2}
-                fill={`url(#${gradId}-${b.status})`}
-                // See the same line in TrendChart: ReferenceArea's fillOpacity
-                // defaults to 0.5, which would draw every band at half strength
-                // — the exact translucency the opaque-band change removed.
-                fillOpacity={1}
-                strokeOpacity={0}
+            {/* ── THE BOUNDARY RULES ──────────────────────────────────────
+                The whole of what says where the range is, now that there are
+                no bands. Two weights, distinguishable without colour:
+
+                  REFERENCE BOUNDS     solid, full weight
+                  SIGNIFICANTLY OUT    dashed and lighter
+
+                Drawn at the same tokens and the same weights as the
+                single-marker chart's, because they are the same rules about the
+                same thing. `data-boundary-label` on the labels is what an e2e
+                measurement reads. */}
+            <ReferenceLine
+              y={0}
+              stroke={chartTokens.bound}
+              strokeOpacity={chartTokens.boundOpacity}
+              strokeWidth={chartTokens.boundWidth}
+              ifOverflow="hidden"
+            />
+            <ReferenceLine
+              y={1}
+              stroke={chartTokens.bound}
+              strokeOpacity={chartTokens.boundOpacity}
+              strokeWidth={chartTokens.boundWidth}
+              ifOverflow="hidden"
+            />
+            {sharedThreshold !== null && (
+              <ReferenceLine
+                y={-sharedThreshold}
+                stroke={chartTokens.bound}
+                strokeOpacity={chartTokens.thresholdOpacity}
+                strokeDasharray={chartTokens.thresholdDashArray.join(' ')}
+                strokeWidth={chartTokens.boundWidth}
                 ifOverflow="hidden"
               />
+            )}
+            {sharedThreshold !== null && (
+              <ReferenceLine
+                y={1 + sharedThreshold}
+                stroke={chartTokens.bound}
+                strokeOpacity={chartTokens.thresholdOpacity}
+                strokeDasharray={chartTokens.thresholdDashArray.join(' ')}
+                strokeWidth={chartTokens.boundWidth}
+                ifOverflow="hidden"
+              />
+            )}
+
+            <BoundaryLabels columns={bounds} face="inherit" />
+
+            <Tooltip
+              content={<ChartTooltip series={series} />}
+              // SOLID, at the same weight and the same neutral as the
+              // single-marker chart's, and for the same reason: a dashed cursor
+              // would differ from the dashed threshold rules only in its
+              // direction.
+              cursor={{ stroke: chartTokens.cursor, strokeWidth: 1, strokeOpacity: 0.55 }}
+            />
+
+            {/* EVERY CASING BEFORE EVERY LINE, not casing-then-line per series.
+                Interleaved, the second series' casing would be painted over the
+                first series' line - light from one marker sitting on top of
+                another marker's result. */}
+            {plotted.flatMap((p) =>
+              p.connected
+                ? statusLineCasing({
+                    dataKey: p.series.markerId,
+                    gradientId: p.glowId,
+                    dash: p.style.dash,
+                    connectNulls: true,
+                    keyPrefix: `glow-${p.series.markerId}`,
+                  })
+                : [],
+            )}
+            {plotted.map((p) => (
+              <Line
+                key={p.series.markerId}
+                // STRAIGHT SEGMENTS, NEVER A CURVE. `monotone` draws a smooth
+                // spline between the points, which is a claim about values
+                // between two blood draws that nobody measured. Same rule as
+                // the single-marker chart.
+                type="linear"
+                dataKey={p.series.markerId}
+                name={p.series.name}
+                // THE STATUS, ALONG ITS LENGTH - this marker's own, against
+                // this marker's own reference range. It was one flat bronze for
+                // all three series, because three identity hues could not be
+                // separated against the old bands; with the bands gone a hue on
+                // this plot means a STATE, and identity is the dash.
+                stroke={p.connected ? `url(#${p.lineId})` : 'none'}
+                // Round caps and joins: a line with mitred corners reads as a
+                // plotted path, and a drawn stroke is what the rest of the
+                // product's marks are.
+                strokeWidth={chartTokens.lineWidth}
+                strokeDasharray={p.style.dash}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                connectNulls={p.connected}
+                dot={<SparkDot latestT={p.latestT} sparkId={sparkId} />}
+                activeDot={false}
+                isAnimationActive={false}
+              />
             ))}
-            {/* The two boundaries every series shares, drawn as the same neutral
-                hairline every other boundary in the product uses — and labelled
-                on the axis ("Range low" / "Range high") so they are locatable
-                with the colour taken away. */}
-            <ReferenceLine y={0} stroke={chartTokens.referenceEdge} strokeOpacity={chartTokens.referenceEdgeOpacity} strokeWidth={1} />
-            <ReferenceLine y={1} stroke={chartTokens.referenceEdge} strokeOpacity={chartTokens.referenceEdgeOpacity} strokeWidth={1} />
-            {sharedThreshold !== null && (
-              <ReferenceLine y={-sharedThreshold} stroke={chartTokens.referenceEdge} strokeOpacity={chartTokens.severityEdgeOpacity} strokeWidth={1} />
-            )}
-            {sharedThreshold !== null && (
-              <ReferenceLine y={1 + sharedThreshold} stroke={chartTokens.referenceEdge} strokeOpacity={chartTokens.severityEdgeOpacity} strokeWidth={1} />
-            )}
-            <Tooltip content={<ChartTooltip series={series} />} cursor={{ stroke: chartTokens.cursor, strokeWidth: 1 }} />
-            {series.map((s, i) => {
-              const style = SERIES_STYLES[i % SERIES_STYLES.length];
-              // Per series, not per chart: comparing a marker with four
-              // results against one with a single result is legitimate, and
-              // the single one must still render as a lone point rather than
-              // borrowing a line from its neighbours.
-              const connected = s.points.length >= 2 && s.comparable;
-              return (
-                <Line
-                  key={s.markerId}
-                  // Straight, never `monotone`: a spline between two blood
-                  // draws invents a shape for the months between them that
-                  // nobody measured. Same rule as the single-marker chart,
-                  // which this had quietly diverged from.
-                  type="linear"
-                  dataKey={s.markerId}
-                  name={s.name}
-                  stroke={connected ? chartTokens.line : 'none'}
-                  strokeWidth={chartTokens.lineWidth}
-                  strokeDasharray={style.dash}
-                  connectNulls={connected}
-                  dot={<SeriesDot shape={style.shape} />}
-                  activeDot={false}
-                  isAnimationActive={false}
-                />
-              );
-            })}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
 
       <ul className="mt-5 flex flex-col gap-2.5 border-t border-taupe pt-4 sm:flex-row sm:flex-wrap sm:gap-x-8">
         {series.map((s, i) => {
-          const style = SERIES_STYLES[i % SERIES_STYLES.length];
           const last = s.points[s.points.length - 1];
           return (
             <li key={s.markerId} className="flex items-center gap-2.5 text-sm">
-              <SeriesSwatch index={i} />
+              <SeriesMark index={i} />
               <span className="text-espresso">
                 <span className="font-medium">{s.name}</span>{' '}
                 <span className="tabular text-espresso/80">
                   latest {last.value} {s.unit},{' '}
                   <span style={{ color: statusColor(last.status) }}>{statusLabel(last.status)}</span>
                 </span>
-                <span className="sr-only"> ({style.dashLabel})</span>
+                <span className="sr-only"> ({seriesStyle(i).dashLabel})</span>
               </span>
             </li>
           );
         })}
       </ul>
 
-      {/* NO BAND ENTRIES IN THE KEY, and no coloured rectangles — the same rule
-          the single-marker chart follows. What names the bands is the FIGURES
-          on the axis ("Range low", "Range high") beside the hairlines that
-          bound them, which is a better answer to "where does my range start"
-          and one a greyscale reader gets in full. The bands are still never
-          carried by colour alone. */}
+      <ChartKey statuses={statuses} hasThresholds={hasThresholds} uid={uid} />
+
+      {/* NO BAND ENTRIES IN THE KEY, and no coloured rectangles - the same rule
+          the single-marker chart follows. What names the boundaries is the
+          LABELS on the axis, beside the rules they belong to. */}
       {sharedThreshold === null && (
         <p className="mt-4 text-sm leading-relaxed text-espresso/80">
-          These markers don’t share a common point at which a result counts as significantly outside its range, so
-          only the reference range itself is shaded here. Each marker’s own full shading is on its detail page.
+          These markers don’t share a common point at which a result counts as significantly outside its range, so only
+          the reference range itself is marked here. Each line still turns gold and then red toward its own extremes, and
+          each marker’s own thresholds are drawn on its detail page.
         </p>
       )}
 
@@ -533,6 +596,61 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
           line. They are still plotted against their own reference range.
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * What the marks mean, in words - the same key the single-marker chart carries,
+ * built from the same swatches.
+ *
+ * The series legend above this says WHICH line is which marker. This says what
+ * the drawing means: the colour a line takes at a stretch, the mark at every
+ * point, and the two weights of rule. Someone who cannot separate the green
+ * stretch from the red one reads this and loses nothing, because every point's
+ * POSITION against two labelled rules says the same thing without colour.
+ *
+ * EVERY SWATCH IS THE MARK IT STANDS FOR, drawn from the plot's own tokens.
+ */
+function ChartKey({
+  statuses,
+  hasThresholds,
+  uid,
+}: {
+  statuses: MarkerStatusInput[];
+  /** At least one significantly-out rule is inside the y domain and therefore drawn. */
+  hasThresholds: boolean;
+  uid: string;
+}) {
+  return (
+    <div className="mt-4 border-t border-taupe pt-3 text-xs text-espresso/80">
+      <ul className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
+        {statuses.map((s) => (
+          <li key={`mark-${s}`} className="flex items-center gap-2">
+            <StatusLineSwatch status={s} />
+            <span className="min-w-0">{statusLabel(s)}</span>
+          </li>
+        ))}
+        <li className="flex items-center gap-2">
+          {/* The spark swatch carries its own copy of the falloff: the key is
+              outside the chart's SVG, so a url(#…) into the plot's defs
+              resolves to nothing and paints an invisible bead. */}
+          <SparkSwatch id={`key-${uid}-point`}>
+            <SparkPoint cx={10} cy={10} latest={false} gradientId={`key-${uid}-point`} />
+          </SparkSwatch>
+          <span className="min-w-0">One result, on the date it was taken</span>
+        </li>
+        <li className="flex items-center gap-2">
+          <RuleSwatch kind="bound" />
+          <span className="min-w-0">Each marker’s own reference range</span>
+        </li>
+        {hasThresholds && (
+          <li className="flex items-center gap-2">
+            <RuleSwatch kind="threshold" />
+            <span className="min-w-0">Where a result becomes significantly out</span>
+          </li>
+        )}
+      </ul>
     </div>
   );
 }

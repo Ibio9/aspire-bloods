@@ -7,6 +7,7 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { MultiTrendChart } from '../../components/ui/LazyCharts';
+import { SeriesMark } from '../../components/ui/SeriesMark';
 import { CloseIcon } from '../../components/nav/icons';
 import { Reveal } from '../../components/motion/Reveal';
 import { staggerDelay } from '../../components/motion/stagger';
@@ -80,24 +81,16 @@ const SUGGESTED_PAIRS: { label: string; markers: string[] }[] = [
 ];
 
 /**
- * The mark the chart draws each series with, repeated beside its summary card
- * and its chip. Kept in step with SERIES_STYLES in MultiTrendChart by being the
- * same three shapes in the same order — the chart owns the drawing, this owns
- * the tie-back, and a fourth series cannot exist because the selection is
- * capped at three.
+ * ⚠ `SeriesMark` USED TO BE DEFINED HERE (Aug 2026), as a second copy of the
+ * chart's own `SeriesSwatch` whose comment claimed it was "kept in step by
+ * being the same three shapes in the same order". They had already drifted:
+ * this one filled its marks with the plot surface, a light off-white in both
+ * themes, and the chart's filled them with the card. It is one component in
+ * components/ui/SeriesMark.tsx now, imported by both.
+ *
+ * It does NOT come through LazyCharts, and that matters: this screen is an
+ * ordinary route chunk, so SeriesMark must not pull recharts in behind it.
  */
-function SeriesMark({ index, className = '' }: { index: number; className?: string }) {
-  const common = { fill: 'rgb(var(--c-chart-plot-surface))', stroke: 'rgb(var(--c-chart-line))', strokeWidth: 1.4 };
-  const dash = [undefined, '7 4', '2 4'][index % 3];
-  return (
-    <svg width="26" height="10" viewBox="0 0 26 10" aria-hidden="true" className={`shrink-0 ${className}`}>
-      <line x1="0" y1="5" x2="26" y2="5" stroke="rgb(var(--c-chart-line))" strokeWidth="2" strokeDasharray={dash} />
-      {index % 3 === 0 && <circle cx="13" cy="5" r="4" {...common} />}
-      {index % 3 === 1 && <rect x="9.5" y="1.5" width="7" height="7" {...common} />}
-      {index % 3 === 2 && <rect x="9.6" y="1.6" width="6.8" height="6.8" transform="rotate(45 13 5)" {...common} />}
-    </svg>
-  );
-}
 
 export function CompareView({
   filters,
@@ -391,8 +384,9 @@ export function CompareView({
                   <Card surface="card">
                   <p className="eyebrow mb-1">Compared over time</p>
                   <p className="mb-6 max-w-measure text-sm leading-relaxed text-espresso/80">
-                    Each marker is plotted against its own reference range, so the shaded band is shared: a line
-                    inside it is in range for that marker.
+                    Each marker is plotted against its own reference range, so the two rules are shared: a line
+                    between them is in range for that marker, and each line carries its own marker’s status along its
+                    length.
                   </p>
 
                   {/* WHAT IS PLOTTED, AND THE WAY OUT OF EACH — above the chart

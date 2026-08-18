@@ -1549,6 +1549,70 @@ both significants share one.
    significantly-out thresholds dashed and lighter) each labelled with its value
    on the axis; the POINTS; and the axis with the unit above it.
 
+   **⚠ AND SO DOES COMPARE, SINCE Aug 2026 — THE TWO CHARTS ARE ONE INSTRUMENT
+   NOW.** MultiTrendChart was the last thing in the product drawing a banded
+   background, so a green-to-red field sat behind three lines here while nothing
+   at all sat behind one line a press away. It is rebuilt on these rules: no
+   bands, straight segments, uniform white sparks, the two shared bounds solid
+   and the two thresholds dashed and lighter, all four labelled in the gutter.
+
+   **EVERY PART OF THE DRAWING IS SHARED BY CONSTRUCTION.**
+   `components/ui/chartParts.tsx` holds the line gradient, the three-layer
+   casing, the spark, every swatch and the boundary labels;
+   `lib/chartGeometry.ts` holds the arithmetic behind them (the epoch, the
+   status colour, the gutter widths, `StatusLinePoint`, the series dashes). Both
+   charts import them and neither keeps a copy. A second copy of any of it is
+   how the last divergence started.
+
+   **⚠ THE ONE DIFFERENCE IS THE UNIT, AND `StatusLinePoint` IS WHERE IT LIVES.**
+   Its fields are named for the job rather than for the payload: a marker page
+   hands it the marker's own units with the laboratory's bounds, and Compare
+   hands it POSITION WITHIN THE RANGE, so `low` is 0, `high` is 1 and
+   `threshold` is that marker's own significantly-out distance as a share of its
+   own range width. The gradient asks the same question of both. That is what
+   makes three markers with three different ranges each get a line that is green
+   in the middle and gold then red toward its OWN extremes.
+
+   **⚠ ONE GRADIENT PER SERIES, NEVER ONE PER CHART.** The gradients are laid out
+   in USER SPACE, so their stops sit at the plot's own pixels; two markers
+   sampled on different dates put their stops at different x, and one shared
+   gradient would paint each line with the other's history.
+
+   **AND COMPARE'S AXIS LABELS ARE WORDS, WHICH IS THE SAME TREATMENT RATHER
+   THAN A DIFFERENT ONE.** A marker page prints each boundary's own VALUE
+   because its axis is in the marker's units. Compare's axis is a position
+   within three different ranges, where a figure would mean nothing, so the
+   specific answer is "Range low" / "Range high" / "Significantly out" — same
+   gutter, same lead rule matching its own dash, same two weights, same
+   bounds-win collision rule. `axisGutter` takes the face and the cap as
+   parameters for exactly this: seventeen sans characters and four mono ones
+   need different room, and the face and the width estimate travel together so
+   a mono gutter can never be measured at sans widths.
+   **THE THRESHOLD RULES ARE DRAWN ONLY WHERE EVERY SERIES AGREES** where
+   significantly-out begins, which is unchanged: a shared axis may only draw
+   what is shared, and the note under the chart says which of the two happened.
+
+   **⚠ THE SERIES SHAPES ARE A LEGEND TOKEN AND NOT A PLOTTED MARK.** The chart
+   drew a circle, a square or a diamond at every point; every point is a white
+   spark now, and what tells two LINES apart on the plot is the DASH. The shape
+   survives beside each marker's name — the chip, the summary card, the legend
+   row, the tooltip — and `SeriesMark` is one component both the chart and
+   CompareView draw it with. It was two, which had already drifted on the fill.
+   ⚠ It must not import recharts: CompareView is an ordinary route chunk and
+   reaches the charts only through LazyCharts.
+
+   `e2e/zz-compare-chart.spec.ts` measures the result in both themes — zero
+   filled regions, one status gradient and one casing per series, paths with no
+   cubic segments, one spark gradient shared by every point, and the labelled
+   rules — because a gradient that fails to resolve paints nothing at all and a
+   leftover `ReferenceArea` is invisible in a diff.
+
+   **`severityEdgeOpacity` WENT WITH IT** — Compare's threshold rules were its
+   last caller and they take `thresholdOpacity` now, like every other threshold
+   rule in the product. `bandGradientStops` and the `--c-hue-*-band` role now
+   have no caller at all; both are kept (a test still exercises them) and
+   neither is to be reached for.
+
    **AND ALL OF IT IS LIT, AND EVERY POINT IS THE SAME WHITE SPARK (Aug
    2026).** A point is a tight WHITE core inside a wide radial falloff,
    identical at every status — same colour, same size, same treatment, whatever
@@ -1623,9 +1687,11 @@ both significants share one.
    alphas, and `zz-print.spec.ts` reads the applied `fill-opacity` off a printed
    point rather than trusting the stylesheet.
 
-   **THE COMPARISON CHART AND THE RANGE BARS ARE UNTOUCHED.** Neither carries a
-   status colour along a line, and a glow on a range bar's mark would be light
-   spilling across the segment boundaries the bar exists to draw.
+   **THE RANGE BARS ARE UNTOUCHED.** A bar carries no status colour along a
+   line, and a glow on its mark would be light spilling across the segment
+   boundaries the bar exists to draw. ⚠ **THE COMPARISON CHART WAS UNTOUCHED AND
+   IS NOT ANY MORE (Aug 2026)** — it draws the same lit line and the same white
+   sparks now, from the same shared parts. See the top of this item.
 
    **WHY, IN ONE SENTENCE.** The bands were re-solved four times and every solve
    hit the same wall: they had to be legible enough to say where the range is
@@ -1642,8 +1708,11 @@ both significants share one.
    is a different instrument: one value against a scale, with no line to carry
    the colour. `bandRampStops`, `BAND_CONTRAST`, `BAND_FILL`, `OPTIMAL_FILL` and
    `--c-hue-*-fill` all still exist and all still serve it, solved against
-   `PLOT_SURFACE` exactly as before. So does the normalised COMPARISON chart,
-   which is why `chart.line` and `LINE_LIFT` survive.
+   `PLOT_SURFACE` exactly as before. ⚠ **THE NORMALISED COMPARISON CHART DID
+   TOO AND NO LONGER DOES (Aug 2026)** — it paints no fills at all now, and what
+   `chart.line` and `LINE_LIFT` survive for is the SERIES MARK: the neutral
+   dash-and-shape swatch beside each marker's name, which says which line rather
+   than how it is.
 
    **THE LINE TRAVELS THROUGH EVERY REGION IT PASSES, not only the boundaries.**
    A stop at each crossing in that boundary's hinge colour, AND a stop at the
@@ -1803,7 +1872,10 @@ both significants share one.
 
    **`chart.line` IS THE COMPARISON CHART’S LINE ONLY** — two or three markers
    on one normalised axis, where the line says "which marker" and must not
-   borrow a status hue. Re-solved on the light plot to **#694835**, a proper
+   borrow a status hue. ⚠ **SINCE Aug 2026 IT IS THE SERIES MARK ONLY**: those
+   lines carry status along their own length like the marker page’s, so the
+   identity that must not borrow a hue is the dash-and-shape swatch beside each
+   name, which is what this now paints. Re-solved on the light plot to **#694835**, a proper
    bronze at 3.01:1 worst on a band and 6.77:1 off the plot, at bronze’s own
    saturation and nothing higher (the bronze hue sits at 19°, between the
    status red at 8° and the status orange at 30°, so a saturated bronze line
@@ -1829,29 +1901,34 @@ both significants share one.
   themselves had key entries; the axis labels replaced them, which is more
   specific and equally greyscale-legible. What may never happen is a band with
   neither.)
-- ⚠ **THE ONE NAMED EXCEPTION: THE TREND CHART'S POINTS ARE UNIFORM WHITE
+- ⚠ **THE ONE NAMED EXCEPTION: A TREND CHART'S POINTS ARE UNIFORM WHITE
   SPARKS (Aug 2026). DO NOT PUT THE SHAPES BACK.** Every point on the
-  single-marker trend chart is the same white bead inside the same soft
-  falloff — no chevrons, no doubled chevrons, no per-status colour, no
-  variation of any kind except the most recent point being brighter and
-  slightly larger. Three kinds of mark on one line is noise, and it was noise
-  saying what the line already says in colour along its own length at that
-  exact x.
-  **WHAT MAKES THIS SAFE, and it is not "colour is enough":** the chart has a
-  second non-colour carrier no other surface has — every point's POSITION
-  against four labelled boundary rules, each drawn across the plot and printed
-  with its own value on the axis. A reader who cannot separate the green
-  stretch of line from the red one still sees which side of the reference bound
-  each point falls on, which is more specific than a chevron and survives
-  greyscale and a printed page in full. The status is still named IN WORDS on
-  every point in the tooltip and in the key, and the key's swatches are
-  stretches of LINE in each state's colour — the mark the chart actually draws,
-  never a coloured rectangle.
-  **THE EXCEPTION IS THE CHART'S POINTS AND NOTHING ELSE.** Result cards, range
+  single-marker trend chart AND on the Compare chart is the same white bead
+  inside the same soft falloff — no chevrons, no doubled chevrons, no circles,
+  squares or diamonds, no per-status colour, no variation of any kind except
+  the most recent point being brighter and slightly larger. Three kinds of mark
+  on one line is noise, and it was noise saying what the line already says in
+  colour along its own length at that exact x. On Compare the shapes were
+  saying which SERIES rather than which state, which the DASH says on the plot
+  and the legend token says beside every name.
+  **WHAT MAKES THIS SAFE, and it is not "colour is enough":** a trend chart has
+  a second non-colour carrier no other surface has — every point's POSITION
+  against the labelled boundary rules, each drawn across the plot and labelled
+  in the gutter (with its own value on a marker page, in words on Compare's
+  normalised axis). A reader who cannot separate the green stretch of line from
+  the red one still sees which side of the reference bound each point falls on,
+  which is more specific than a chevron and survives greyscale and a printed
+  page in full. The status is still named IN WORDS on every point in the
+  tooltip and in the key, and the key's swatches are stretches of LINE in each
+  state's colour — the mark the chart actually draws, never a coloured
+  rectangle.
+  **THE EXCEPTION IS THE TWO CHARTS' POINTS AND NOTHING ELSE.** Result cards, range
   bars, the counts strip, the status words, the badges and both PDFs keep the
-  shape layer exactly as it is. `e2e/status-colour.spec.ts` asserts the plot
-  draws zero `<polygon>`s and exactly ONE spark gradient, so both halves of
-  this come back as a test failure rather than as a review comment.
+  shape layer exactly as it is. `e2e/status-colour.spec.ts` asserts the marker
+  page's plot draws zero `<polygon>`s and exactly ONE spark gradient, and
+  `e2e/zz-compare-chart.spec.ts` asserts the same one-spark rule and the
+  token-coloured bead on Compare — so both halves of this come back as a test
+  failure rather than as a review comment.
 - Surfaces and marks, not body copy. A tinted card keeps its taupe border,
   espresso text and ordinary shadow. The one text that takes a status colour is
   the status word itself. No warning icons, no pulsing.

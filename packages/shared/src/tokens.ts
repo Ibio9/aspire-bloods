@@ -3835,7 +3835,18 @@ export const OPTIMAL_FILL = 'rgb(var(--c-band-optimal))';
 // `themeTokens` above; only the opacities are literal, because they are the
 // same in both.
 export const chart = {
-  /** The trend line itself. Bronze — it says "this is your series", not "this is good". */
+  /**
+   * SERIES IDENTITY, AND SINCE Aug 2026 THAT IS ALL IT IS.
+   *
+   * Bronze — it says "this is your series", not "this is good". It WAS the
+   * Compare chart's three lines, which were all one colour because no three
+   * hues could be separated against the opaque bands in dark. Those bands are
+   * gone and those lines carry the traffic light along their own length now, so
+   * a hue on that plot means a STATE. What this paints is the dash-and-shape
+   * SeriesMark beside each marker's name — the chip, the summary card, the
+   * legend row, the tooltip — which is the one thing on that screen still
+   * saying which line rather than how it is.
+   */
   line: 'rgb(var(--c-chart-line))',
   /**
    * And its weight. A token rather than a literal on the `<Line>` because it is
@@ -3898,18 +3909,23 @@ export const chart = {
   thresholdOpacity: 0.6,
   thresholdDashArray: [4, 4],
   /**
-   * How heavily a RANGE BAR draws its hairlines: the two reference-bound ticks
-   * at `referenceEdgeOpacity`, an optimal narrowing's own edges at
-   * `severityEdgeOpacity`. Composited over the painted band fills, which is
-   * what `--c-chart-reference-edge` is solved against.
+   * How heavily a RANGE BAR draws its hairlines: the reference-bound ticks and
+   * an optimal narrowing's own edges. Composited over the painted band fills,
+   * which is what `--c-chart-reference-edge` is solved against.
    *
-   * These were the chart's as well until Aug 2026. The chart's boundary rules
+   * This was the chart's as well until Aug 2026. Both charts' boundary rules
    * take `boundOpacity` / `thresholdOpacity` above, because they are drawn on
    * the card and one opacity solved over a pale gold band means nothing over a
    * near-black card.
+   *
+   * ⚠ `severityEdgeOpacity` (0.38) IS GONE WITH THE COMPARE CHART'S BANDS (Aug
+   * 2026). It was the lighter of the pair, and its last caller was that chart's
+   * significantly-out rules, which are drawn on the card now and take
+   * `thresholdOpacity` like every other threshold rule in the product. A value
+   * left behind after the pass that removed its only caller is one autocomplete
+   * away from being applied over a ground it was never solved against.
    */
   referenceEdgeOpacity: 0.55,
-  severityEdgeOpacity: 0.38,
   /**
    * THE STEP: where a marker's reference range changed between two results.
    *

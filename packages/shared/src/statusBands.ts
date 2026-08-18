@@ -338,11 +338,18 @@ export function statusPaint(status: MarkerStatusInput): typeof statusTint[Status
 }
 
 /**
- * The two-stop ramp the NORMALISED COMPARISON chart draws (MultiTrendChart),
- * which plots several markers on one 0–1 scale and predates the boundary-
- * centred ramp below. It takes the pre-mixed `band` role and is unaffected by
- * the opaque-fill change; `bandRampStops` is what the trend chart and the range
- * bars share.
+ * ⚠ NOTHING DRAWS THIS ANY MORE (Aug 2026), and the last two things that did
+ * each stopped for the same reason. It was the NORMALISED COMPARISON chart's
+ * ramp (MultiTrendChart), plotting several markers on one 0–1 scale; that chart
+ * moved to `bandRampStops` when the bands went opaque, and then lost its bands
+ * altogether when it was rebuilt on the single-marker chart's rules, where the
+ * LINE carries the traffic light and nothing is painted behind it. It takes the
+ * pre-mixed `band` role, which is likewise now drawn nowhere.
+ *
+ * Kept because it is still exercised by markerCopy.test.ts and because the
+ * `band` role is still emitted, but do not reach for it: a filled region of
+ * status colour is exactly what both charts removed, and `bandRampStops` is
+ * what the range bars and the arc gauge share.
  *
  * A band's fill, as a gradient where the band is a transition and a flat
  * colour where it isn't.
