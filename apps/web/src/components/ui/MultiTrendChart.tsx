@@ -538,7 +538,7 @@ export function MultiTrendChart({ series: input }: { series: TrendSeries[] }) {
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 connectNulls={p.connected}
-                dot={<SparkDot latestT={p.latestT} sparkId={sparkId} />}
+                dot={<SparkDot latestT={p.latestT} sparkId={sparkId} shape={p.style.shape} />}
                 activeDot={false}
                 isAnimationActive={false}
               />

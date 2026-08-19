@@ -979,11 +979,12 @@ and is taken unchanged; green and red do not and are still solved.
 **⚠ LIGHT CANNOT, AND THE NUMBER IS THE REASON.** `#F5CE3E` measures **1.50:1 on
 the light card**, 1.37 on its own wash, 1.32 on the page. A light yellow on a
 near-white surface is not a legible word at any size, and this is the ONE piece of
-text in the product carrying a status colour. Light stays derived (#675a27,
-6.73:1); dark is #F5CE3E (10.46:1). Every FIELD of the colour is the exact hex in
-both themes; the one piece of TYPE is the exact hex wherever it can be read, and
-the test asserts the light ratio as the reason so nobody "corrects" the asymmetry
-without meeting the number first.
+text in the product carrying a status colour. Light stays derived (⚠ was #675a27,
+6.73:1, see "Light mode yellow, as bright as the floor allows" below for where it
+moved and why); dark is #F5CE3E (10.46:1). Every FIELD of the colour is the exact
+hex in both themes; the one piece of TYPE is the exact hex wherever it can be
+read, and the test asserts the light ratio as the reason so nobody "corrects" the
+asymmetry without meeting the number first.
 
 `statusHue.olive` **#939328 → #A7AF36**, the OKLCH midpoint of green and the new
 yellow. Orange is untouched as a seed; the gauge's orange hinge is the OKLCH
@@ -991,6 +992,52 @@ midpoint of the yellow and red FILLS (#fca24b). `DARK_FILL_HUE` yellow 0.82 → 
 and olive 0.9 → 0.8, because both key swatches came up with their hues and the
 boundary hairline across them fell under its 1.3:1 greyscale floor. **The chevron
 shape layer is untouched on every status.**
+
+## Light mode yellow, as bright as the floor allows (Aug 2026)
+
+⚠ **THIS DEEPENS THE SECTION ABOVE RATHER THAN REPLACING IT.** Everything above
+about `#F5CE3E` being unreachable as light-mode TYPE stands unchanged; this is
+what happened when "reads as olive, not clean yellow" came back as a complaint
+against the derived value itself, which had far more headroom under the floor
+than it was using.
+
+**BYTE-IDENTICAL WAS ASKED FOR AND IS NOT REACHABLE, ON EITHER SURFACE THIS HUE
+PAINTS.** Checked directly: dark's own label `#F5CE3E` forced onto the light
+card measures 1.50:1 against the 4.5:1 floor. Dark's own outline yellow forced
+onto a light glass pane measures 2.32:1 against the 3:1 floor (WCAG 1.4.11).
+Both fail by enough that no plausible reading of "as close as possible" gets
+there; the two themes solve this hue to two different depths because the two
+surfaces are not the same surface, the identical reasoning the gauge fill
+section above already gives for why dark's own value cannot simply be copied
+across.
+
+**SO WHAT MOVED IS HOW MUCH OF THE EXISTING ROOM EACH ONE USES.**
+
+    token                          before              after            surface floor
+    statusTextHex('yellow')        toward 0.63          toward 0.55      4.5:1 (AA text)
+    OUTLINE_FILL.light.yellow      s 0.90, l 0.36        s 1.00, l 0.36   3:1 (graphical)
+
+The label's `toward` value is how far the mix line from the seed hue runs
+toward `brand.espresso`; 0.63 cleared every one of the four surfaces this is
+checked against (page, card, input, its own tint) by more margin than the
+complaint justified, most of it spent on the PAGE, the tightest of the four.
+0.55 is the brightest step on that same line that still clears the page at
+4.85:1 rather than sitting on the line. The outline's LIGHTNESS is the shallow
+side of that pair and was already at its ceiling (past roughly 0.37 the amber
+stops clearing 3:1 on the light pane), so what moved is the SATURATION
+instead, 0.90 to its own maximum of 1.00, which pushes out the desaturation
+that reads as muddy without spending any of the lightness margin the floor
+needs. Both land clean and comfortably inside their floors: `#79692a` for the
+label (4.85:1 worst surface), `#b87b00` for the outline (3.25:1).
+
+`SOLVED.light.label.yellow` moved with it, `'#675a27'` to `'#79692a'`, and
+`tokenContrast.test.ts`'s "ships the solved colours as literals that still
+equal their own derivation" check is what pins the two together. **Dark is
+untouched on both tokens.** The wash/tint token
+(`GLASS`/`TINT_MIX`-derived, the pale fill behind an alert or a toast) was
+checked and left alone: it was never passed through the mix-toward-espresso
+step that produces olive, so it was not the source of the complaint and moving
+it would have changed a token nobody was describing.
 
 ## Every card in a row is the height of the tallest card in it (Aug 2026)
 
@@ -1992,12 +2039,26 @@ both significants share one.
    significantly-out begins, which is unchanged: a shared axis may only draw
    what is shared, and the note under the chart says which of the two happened.
 
-   **⚠ THE SERIES SHAPES ARE A LEGEND TOKEN AND NOT A PLOTTED MARK.** The chart
-   drew a circle, a square or a diamond at every point; every point is a white
-   spark now, and what tells two LINES apart on the plot is the DASH. The shape
-   survives beside each marker's name — the chip, the summary card, the legend
-   row, the tooltip — and `SeriesMark` is one component both the chart and
-   CompareView draw it with. It was two, which had already drifted on the fill.
+   **⚠ THE SERIES SHAPES WERE A LEGEND TOKEN ONLY, AND ARE BACK ON THE POINTS
+   TOO (Aug 2026, second pass).** The chart drew a circle, a square or a
+   diamond at every point; that became a uniform white spark, on the
+   reasoning that three kinds of mark on one line is noise and the DASH
+   already tells two lines apart. Read correctly on a chart with one line,
+   wrongly on Compare's two or three: a reader comparing two series has no
+   dash to read AT A POINT, only along the stretch of line either side of
+   it, and had to trace back to the legend chip to know which point belonged
+   to which marker. The bead is shape-aware again: `SparkPoint` takes a
+   `shape` and draws a circle, a square, or a rotated square for a diamond,
+   sized off the same halo radius so the three read as one family rather
+   than three unrelated glyphs. **COLOUR AND THE HALO ARE UNCHANGED**: every
+   bead is still the uniform white core inside the same soft per-theme
+   falloff, status is still carried by the LINE alone, and the single-marker
+   trend chart's own points are untouched, and `TrendChart.tsx` never passes a
+   `shape` prop, so its call site keeps the plain circle this rule
+   originally shipped. `SeriesMark` (the legend chip, the summary card, the
+   tooltip) is what the plotted shape now has to agree with, and both read
+   `SERIES_STYLES` in chartGeometry.ts, so the two cannot drift apart the
+   way the two independent shape implementations did before the first pass.
    ⚠ It must not import recharts: CompareView is an ordinary route chunk and
    reaches the charts only through LazyCharts.
 
@@ -2301,16 +2362,27 @@ both significants share one.
   themselves had key entries; the axis labels replaced them, which is more
   specific and equally greyscale-legible. What may never happen is a band with
   neither.)
-- ⚠ **THE ONE NAMED EXCEPTION: A TREND CHART'S POINTS ARE UNIFORM WHITE
-  SPARKS (Aug 2026). DO NOT PUT THE SHAPES BACK.** Every point on the
-  single-marker trend chart AND on the Compare chart is the same white bead
-  inside the same soft falloff — no chevrons, no doubled chevrons, no circles,
-  squares or diamonds, no per-status colour, no variation of any kind except
-  the most recent point being brighter and slightly larger. Three kinds of mark
-  on one line is noise, and it was noise saying what the line already says in
-  colour along its own length at that exact x. On Compare the shapes were
-  saying which SERIES rather than which state, which the DASH says on the plot
-  and the legend token says beside every name.
+- ⚠ **THE NAMED EXCEPTION: A TREND CHART'S POINTS CARRY NO STATUS SHAPE
+  (Aug 2026, refined Aug 2026 second pass). DO NOT PUT THE STATUS CHEVRONS
+  BACK.** Every point on the single-marker trend chart AND on the Compare
+  chart is the same white bead inside the same soft falloff, whatever its
+  status — no chevrons, no doubled chevrons, no per-status colour, no
+  variation of any kind except the most recent point being brighter and
+  slightly larger. Three kinds of mark on one line is noise, and it was
+  noise saying what the line already says in colour along its own length at
+  that exact x.
+  **⚠ COMPARE'S BEADS TOOK THEIR SHAPE BACK, AND THIS IS A DIFFERENT AXIS
+  FROM THE ONE ABOVE.** The first pass also flattened the circle/square/
+  diamond that told two SERIES apart, on the reasoning that the dash does
+  that job. It does, along a stretch of line, and does nothing AT a single
+  point, so a reader comparing two markers had to leave the point they were
+  looking at and check the legend to know whose it was. The bead's shape is
+  back on Compare (see the MultiTrendChart item above), matching each
+  marker's own legend token, while the single-marker chart's points stay
+  plain circles. **What is still forbidden is a shape carrying STATUS**: the
+  chevron, the doubled chevron, a shape that changes with the value.
+  What Compare's shape now carries is SERIES IDENTITY, which is a return to
+  the pre-Aug-2026 behaviour for that one property and nothing else.
   **WHAT MAKES THIS SAFE, and it is not "colour is enough":** a trend chart has
   a second non-colour carrier no other surface has — every point's POSITION
   against the labelled boundary rules, each drawn across the plot and labelled
@@ -3784,6 +3856,28 @@ load, so the app remounted every 30 seconds and the run failed identically with
 or without the bug. It was measuring the harness.
 
 # The sidebar (Aug 2026)
+
+- **THE THEME TOGGLE LIVES BESIDE THE SEARCH FIELD, NOT ON ITS OWN ROW.** A
+  sun/moon icon button, 32px, sharing the search row's height so it reads as
+  one control cluster rather than a second thing to notice. Expanded, it sits
+  to the right of the search input; collapsed, it stacks under the search
+  icon in the same narrow column. It shows the mode the page is CURRENTLY IN
+  (sun in light, moon in dark), the same convention the icon components'
+  own comments state, so the glyph names where you are rather than where a
+  click takes you.
+  **NO NEW STATE.** `useTheme()` already exposes `resolved` and
+  `setPreference`, and `setPreference` already persists to `localStorage`
+  under `aspire-theme`, so the toggle is a thin consumer of plumbing that was
+  built for Account & privacy's own appearance control and needed nothing
+  added to carry a second caller. One press swaps `light` for `dark` and back;
+  there is no third state here, unlike the full picker, because a tucked
+  corner control is for the common case and `system` stays reachable from
+  Account & privacy for anyone who wants it.
+  Component-layer only: `SidebarThemeToggle` in PatientShell.tsx, the two
+  glyphs in `icons.tsx`. No raw hex anywhere in it: the icon is
+  `currentColor`, the hover wash is `bg-cream-200/60`, and the tooltip reuses
+  `bg-night` / `text-oncolor`, the same static dark-panel pair every other
+  sidebar tooltip already uses.
 
 - **THE BLUR IS NOT WHAT MAKES IT GLASS, AND NO RADIUS WILL BE. STOP TUNING IT.**
   The computed style was right — `blur(10px) saturate(1.08)` over

@@ -16,7 +16,9 @@ import { test, expect, type APIRequestContext } from '@playwright/test';
  *   2. ONE STATUS GRADIENT PER SERIES, in the status colours, plus its casing.
  *   3. Straight segments: every line is `type="linear"`, which shows up as a
  *      path made of `L` commands with no `C` in it.
- *   4. Every point is the same white spark, referencing one radial gradient.
+ *   4. Every point is a white spark, referencing one radial gradient, in the
+ *      SHAPE its own series' legend chip uses (Aug 2026, second pass) - the
+ *      colour is still uniform across every series, only the outline varies.
  *   5. The boundary rules are labelled in the gutter at two weights.
  */
 
@@ -68,14 +70,25 @@ test.describe('Compare chart', () => {
             (c.getAttribute('fill') ?? '').startsWith('url(#spark-'),
           ).length,
           // The white bead sits on top of each halo and takes the token colour
-          // rather than a status one.
+          // rather than a status one - whatever shape it is drawn as, circle or
+          // rect (a square, or a diamond via a rotated rect).
           beadFills: [
             ...new Set(
-              [...svg.querySelectorAll('circle')]
+              [...svg.querySelectorAll('circle'), ...svg.querySelectorAll('rect')]
                 .map((c) => c.getAttribute('fill') ?? '')
                 .filter((f) => f.startsWith('rgb(') || f.startsWith('#')),
             ),
           ],
+          // The bead's own outline, per series - a circle for the first series,
+          // a plain rect for the second (square), a rotated rect for the third
+          // (diamond). Two series on this chart, so circle and square both
+          // appear.
+          beadCircleCount: [...svg.querySelectorAll('circle')].filter(
+            (c) => c.getAttribute('fill') === 'rgb(var(--c-chart-spark-core))',
+          ).length,
+          beadRectCount: [...svg.querySelectorAll('rect')].filter(
+            (c) => c.getAttribute('fill') === 'rgb(var(--c-chart-spark-core))',
+          ).length,
           curvePaths: curves.map((c) => c.getAttribute('d') ?? ''),
           curveStrokes: curves.map((c) => c.getAttribute('stroke') ?? ''),
           boundLabels: [...svg.querySelectorAll('g[data-boundary-label]')].map((g) => ({
@@ -119,6 +132,11 @@ test.describe('Compare chart', () => {
       expect(drawn.beadFills, `${theme}: the beads are ${drawn.beadFills.join(', ')}`).toEqual([
         'rgb(var(--c-chart-spark-core))',
       ]);
+      // Two series (Ferritin, Haemoglobin under "Iron status"), so the first
+      // series' circle beads and the second series' square beads should both
+      // be on the plot - the shape carries which line a point belongs to.
+      expect(drawn.beadCircleCount, `${theme}: ${drawn.beadCircleCount} circle beads`).toBeGreaterThan(0);
+      expect(drawn.beadRectCount, `${theme}: ${drawn.beadRectCount} square/diamond beads`).toBeGreaterThan(0);
 
       // 5. THE RULES ARE LABELLED, at two weights.
       const kinds = drawn.boundLabels.map((b) => b.kind);

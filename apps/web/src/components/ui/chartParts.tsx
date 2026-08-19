@@ -93,11 +93,19 @@ export function SparkGradient({ id }: { id: string }) {
  * the same fact three times, and it cost the point the one thing it is uniquely
  * placed to say, which is exactly where it is.
  *
- * ⚠ AND ON COMPARE IT REPLACED THE SERIES SHAPES (Aug 2026). That chart drew a
- * circle, a square or a diamond at every point, in the series' identity colour,
- * which is a THIRD mark vocabulary on a plot that already had two. The shape
- * survives as the legend token beside each marker's name (see SeriesMark); what
- * tells two LINES apart on the plot is the dash they are drawn with.
+ * ⚠ AND ON COMPARE THE SHAPE CAME BACK, AT THE BEAD ONLY (Aug 2026, second
+ * pass). It was removed outright for one revision: a circle, a square or a
+ * diamond at every point, each in the series' own identity COLOUR, was a
+ * third mark vocabulary competing with the status-carrying line and the
+ * boundary rules. The colour argument still holds and nothing here reopens
+ * it - every bead is still the same white core in the same status-neutral
+ * halo, whatever series it belongs to. What came back is the OUTLINE of the
+ * bead: on a chart with several series sharing one plot, "which line is
+ * this point on" is a question the reader was previously answered only by
+ * following the coloured line back to its legend chip, and the same three
+ * glyphs the legend already uses (see `SeriesMark`) answer it at the point
+ * itself. The single-marker chart has one series, so the question does not
+ * arise there and its points stay plain circles by never passing a shape.
  *
  * ── THE ONE PERMITTED VARIATION ───────────────────────────────────────────
  *
@@ -114,16 +122,24 @@ export function SparkGradient({ id }: { id: string }) {
  * light on a near-black card; in light the halo is a warm dark and the same
  * white core reads as the brightest thing inside a soft shadow. See SPARK.
  */
+/** The three glyphs `SeriesMark` draws in the legend - kept as the same three
+    literals here rather than importing a shared type, matching how SeriesMark
+    itself reads `style.shape` with no named type of its own. */
+export type SparkShape = 'circle' | 'square' | 'diamond';
+
 export function SparkPoint({
   cx,
   cy,
   latest,
   gradientId,
+  shape = 'circle',
 }: {
   cx: number;
   cy: number;
   latest: boolean;
   gradientId?: string;
+  /** Which of the legend's three glyphs this bead is drawn as. Circle unless a caller says otherwise. */
+  shape?: SparkShape;
 }) {
   const r = latest ? SPARK.glyph.rLatest : SPARK.glyph.r;
   return (
@@ -149,9 +165,35 @@ export function SparkPoint({
           style={{ fillOpacity: latest ? 'var(--chart-spark)' : 'var(--chart-spark-past)' }}
         />
       )}
-      {/* The bead. White on screen in both themes; espresso in print, where the
-          halo is zero and a white dot on white paper is no dot at all. */}
-      <circle cx={cx} cy={cy} r={r} fill={chartTokens.sparkCore} />
+      {/* THE BEAD. White on screen in both themes; espresso in print, where the
+          halo is zero and a white dot on white paper is no dot at all.
+
+          THE SHAPE IS THE OUTLINE, NOT A SECOND COLOUR - `chartTokens.sparkCore`
+          fills every glyph identically, whatever series it belongs to. Square
+          and diamond are sized at the same proportion to their own diameter
+          that `SeriesMark`'s legend chip uses (0.875x for the square's side,
+          0.85x for the diamond's, rotated 45deg), so a point on the plot and
+          its chip in the legend read as the same object at two sizes. */}
+      {shape === 'circle' && <circle cx={cx} cy={cy} r={r} fill={chartTokens.sparkCore} />}
+      {shape === 'square' && (
+        <rect
+          x={cx - r * 0.875}
+          y={cy - r * 0.875}
+          width={r * 1.75}
+          height={r * 1.75}
+          fill={chartTokens.sparkCore}
+        />
+      )}
+      {shape === 'diamond' && (
+        <rect
+          x={cx - r * 0.85}
+          y={cy - r * 0.85}
+          width={r * 1.7}
+          height={r * 1.7}
+          fill={chartTokens.sparkCore}
+          transform={`rotate(45 ${cx} ${cy})`}
+        />
+      )}
     </>
   );
 }
@@ -173,15 +215,17 @@ export function SparkDot(props: {
   latestT?: number | null;
   /** The chart's own spark gradient; absent means no glow, never a wrong-coloured one. */
   sparkId?: string;
+  /** Which series this point belongs to, on a chart with more than one. Circle unless a caller says otherwise. */
+  shape?: SparkShape;
 }) {
-  const { cx, cy, payload, latestT, sparkId } = props;
+  const { cx, cy, payload, latestT, sparkId, shape } = props;
   if (cx == null || cy == null || !payload) return null;
   return (
     <g>
       {/* Invisible circle widens the touch/click target well past the visible marker - the
           visible mark stays small and precise, the tappable area doesn't. */}
       <circle cx={cx} cy={cy} r={16} fill="transparent" />
-      <SparkPoint cx={cx} cy={cy} latest={payload.t != null && payload.t === latestT} gradientId={sparkId} />
+      <SparkPoint cx={cx} cy={cy} latest={payload.t != null && payload.t === latestT} gradientId={sparkId} shape={shape} />
     </g>
   );
 }

@@ -937,7 +937,25 @@ function statusTextHex(hue: StatusHue): string {
   // being dragged to the darkest one's level.
   // Olive is carried for completeness — it is a hinge, never a state, so no
   // status label is ever set in it — and it sits between its two neighbours.
-  const toward: Record<StatusHue, number> = { green: 0.45, olive: 0.54, yellow: 0.63, orange: 0.49, red: 0.22 };
+  //
+  // ⚠ YELLOW WAS 0.63, WHICH WAS FAR MORE THAN THE FLOOR NEEDED (Aug 2026).
+  // "Reads as olive in light mode, clean yellow in dark" was the complaint,
+  // and it is a real one: 0.63 cleared AA by 2 points of margin on the page
+  // (the tightest of the four surfaces this is checked against — page, card,
+  // input, its own tint) that were never spent on anything, pulled down to a
+  // depth this word alone needed. `#F5CE3E` ITSELF cannot be the light label —
+  // it measures 1.50:1 on the light card, nowhere near legible text — so
+  // byte-identical is not reachable here the way it is for the outline seed
+  // or the gauge fill.
+  //
+  // 0.55 is the brightest step on the SAME mix line that clears 4.5:1 on the
+  // page WITH REAL MARGIN (4.85:1) rather than sitting on the line — the
+  // first attempt at 0.52 landed the page at 4.48:1, under the floor by
+  // enough that `tokenContrast.test.ts` caught it, because the page is a
+  // shade darker than the card this was checked against by hand. 0.55 is as
+  // close to "as bright and clean as dark's" as a piece of body-sized text on
+  // every light surface it stands on can get.
+  const toward: Record<StatusHue, number> = { green: 0.45, olive: 0.54, yellow: 0.55, orange: 0.49, red: 0.22 };
   return mix(statusHue[hue], brand.espresso, toward[hue]);
 }
 
@@ -1139,7 +1157,24 @@ const OUTLINE_FILL: Record<'light' | 'dark', Record<'green' | 'yellow' | 'red', 
     green: { saturation: 0.78, lightness: 0.27 },
     // The shallowest of the six, and the binding one: past about 0.37 an amber
     // stops clearing 3:1 on the light pane. Everything else has room.
-    yellow: { saturation: 0.9, lightness: 0.36 },
+    //
+    // ⚠ SATURATION WENT TO 1.0, NOT THE LIGHTNESS (Aug 2026) — "clean and
+    // bright, not olive or muddy". Lightness is the binding constraint named
+    // above and there is no room left in it; saturation had a little (0.9 →
+    // 1.0, the maximum), and pushing it clears more of the muddiness a partly
+    // desaturated amber carries without spending any of the margin the 3:1
+    // floor needs. Still 3.25:1, comfortably past the floor.
+    //
+    // ⚠ AND BYTE-IDENTICAL TO DARK IS NOT REACHABLE HERE. Dark's own outline
+    // yellow is `reHsl(seed, 0.82, 0.46)` — lighter, because it stands on a
+    // near-black pane rather than a light one. Forced onto the light pane it
+    // measures 2.32:1, under the 3:1 floor `tokenContrast.test.ts` holds every
+    // outline to (WCAG 1.4.11, a graphical floor, not a text one). The two
+    // themes solve this hue to two different depths for the same reason they
+    // always have — the ground is not the same ground — and that structure is
+    // untouched; only how much of the available room light's own value uses
+    // has moved.
+    yellow: { saturation: 1.0, lightness: 0.36 },
     red: { saturation: 0.78, lightness: 0.32 },
   },
   dark: {
@@ -2518,7 +2553,7 @@ const SOLVED: Record<'light' | 'dark', SolvedTokens> = {
     line: { green: '#507e2c', olive: '#717816', yellow: '#917200', orange: '#a95d1b', red: '#c14836' },
     wash: { green: '#dce6d4', olive: '#ecedd3', yellow: '#fcf4d5', orange: '#f2e0ce', red: '#eed5d0' },
     track: { green: '#a1bc8c', olive: '#ccd08a', yellow: '#f9e28e', orange: '#dcac7c', red: '#d28c81' },
-    label: { green: '#3d572c', yellow: '#675a27', red: '#8f3225' },
+    label: { green: '#3d572c', yellow: '#79692a', red: '#8f3225' },
     /**
      * ⚠ #b49c81 → #9aa0ad → #9da0aa → #9da1a1, ONCE PER LIGHT-BASE MOVE (Aug
      * 2026), and it is the ONE value in this block any of the four passes was

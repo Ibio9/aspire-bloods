@@ -7,10 +7,11 @@ import { Avatar } from '../ui/Avatar';
 import { useAuth } from '../../lib/AuthContext';
 import { BOOKING_ENABLED } from '../../lib/features';
 import { useDialogFocus } from '../../lib/useDialogFocus';
+import { useTheme } from '../../lib/ThemeContext';
 import { ClinicContactPanel } from '../patient/ClinicContact';
 import { PrintFooter } from '../patient/PrintDocument';
 import { MarkerSearch } from './MarkerSearch';
-import { AdminConsoleIcon, CloseIcon, CollapseIcon, MenuIcon, SearchIcon } from './icons';
+import { AdminConsoleIcon, CloseIcon, CollapseIcon, MenuIcon, MoonIcon, SearchIcon, SunIcon } from './icons';
 import { AccountIcon, BookTestIcon, DocumentsIcon, LibraryIcon, OverviewIcon, PanelsIcon, PhoneIcon } from './patientIcons';
 
 const COLLAPSE_KEY = 'aspire_patient_sidebar_collapsed';
@@ -173,6 +174,46 @@ function StaffReturnLink({ collapsed, onNavigate }: { collapsed: boolean; onNavi
   );
 }
 
+/**
+ * A single icon button, tucked beside the search field, rather than the full
+ * Light/Dark/System control Account & privacy carries — the sidebar has room
+ * for one small glyph, not a labelled track. It sets an explicit preference,
+ * never `'system'`, so a tap always has a predictable next state: the glyph
+ * shown is the theme the page is CURRENTLY resolved to, and the click moves
+ * to the other one. Persisted the same way every theme choice in this product
+ * is, through `setPreference` — which is `readStoredThemePreference`'s own
+ * write side — so "remembers the choice" needs no code of its own here.
+ *
+ * `resolved` rather than `preference` decides the glyph: a patient on
+ * `'system'` sees the icon for whatever their device currently resolves to,
+ * and clicking pins an explicit choice away from it — the same "one press
+ * from anywhere" promise the full toggle already makes, just for the
+ * binary case.
+ */
+function SidebarThemeToggle({ collapsed }: { collapsed: boolean }) {
+  const { resolved, setPreference } = useTheme();
+  const isDark = resolved === 'dark';
+  const label = isDark ? 'Switch to light mode' : 'Switch to dark mode';
+  return (
+    <button
+      type="button"
+      onClick={() => setPreference(isDark ? 'light' : 'dark')}
+      aria-label={label}
+      className={`group relative flex h-8 w-8 shrink-0 items-center justify-center rounded-input text-taupe-900 transition duration-150 ease-out hover:bg-cream-200/60 hover:text-espresso ${
+        collapsed ? 'mx-auto' : ''
+      }`}
+    >
+      {isDark ? <MoonIcon width={16} height={16} /> : <SunIcon width={16} height={16} />}
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute left-full ml-2 z-50 whitespace-nowrap rounded-input bg-night px-2.5 py-1.5 text-xs text-oncolor opacity-0 shadow-card transition-opacity duration-150 group-hover:opacity-100"
+      >
+        {label}
+      </span>
+    </button>
+  );
+}
+
 function SidebarContents({
   collapsed,
   onNavigate,
@@ -232,22 +273,33 @@ function SidebarContents({
 
       <div className={`shrink-0 ${collapsed ? 'px-2 pt-3' : 'px-4 pt-3'}`}>
         {collapsed ? (
-          <button
-            type="button"
-            onClick={onExpand}
-            aria-label="Search your markers"
-            className="group relative mx-auto flex h-10 w-10 items-center justify-center rounded-input text-taupe-900 transition duration-150 ease-out hover:bg-cream-200/60 hover:text-espresso"
-          >
-            <SearchIcon />
-            <span
-              role="tooltip"
-              className="pointer-events-none absolute left-full ml-2 z-50 whitespace-nowrap rounded-input bg-night px-2.5 py-1.5 text-xs text-oncolor opacity-0 shadow-card transition-opacity duration-150 group-hover:opacity-100"
+          <div className="flex flex-col items-center gap-1.5">
+            <button
+              type="button"
+              onClick={onExpand}
+              aria-label="Search your markers"
+              className="group relative mx-auto flex h-10 w-10 items-center justify-center rounded-input text-taupe-900 transition duration-150 ease-out hover:bg-cream-200/60 hover:text-espresso"
             >
-              Search your markers
-            </span>
-          </button>
+              <SearchIcon />
+              <span
+                role="tooltip"
+                className="pointer-events-none absolute left-full ml-2 z-50 whitespace-nowrap rounded-input bg-night px-2.5 py-1.5 text-xs text-oncolor opacity-0 shadow-card transition-opacity duration-150 group-hover:opacity-100"
+              >
+                Search your markers
+              </span>
+            </button>
+            {/* Collapsed to an 84px column, the toggle drops under the search
+                button rather than beside it — there is no "beside" left once
+                the row is down to one icon's width. */}
+            <SidebarThemeToggle collapsed={collapsed} />
+          </div>
         ) : (
-          <MarkerSearch onNavigate={onNavigate} />
+          <div className="flex items-center gap-1.5">
+            <div className="min-w-0 flex-1">
+              <MarkerSearch onNavigate={onNavigate} />
+            </div>
+            <SidebarThemeToggle collapsed={collapsed} />
+          </div>
         )}
       </div>
 

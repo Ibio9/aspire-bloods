@@ -194,3 +194,35 @@ export function CloseIcon(props: React.SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+/** The sidebar's own theme toggle. A ray-ringed disc — shown when the page is
+    currently light, so the glyph names the mode you are IN rather than the one
+    a click switches to. Same 20×20 stroke language as the rest of this file. */
+export function SunIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
+      <circle cx="10" cy="10" r="3.4" stroke="currentColor" strokeWidth="1.4" />
+      <path
+        d="M10 2.6v1.9M10 15.5v1.9M17.4 10h-1.9M4.5 10H2.6M15.2 4.8l-1.35 1.35M6.15 13.85 4.8 15.2M15.2 15.2l-1.35-1.35M6.15 6.15 4.8 4.8"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+/** A crescent — shown when the page is currently dark. One path, no second
+    disc behind it: an overlapping-circles moon reads as two shapes at 20px. */
+export function MoonIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
+      <path
+        d="M16.5 12.4A6.8 6.8 0 0 1 7.6 3.5a6.8 6.8 0 1 0 8.9 8.9Z"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
