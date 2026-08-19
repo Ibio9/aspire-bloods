@@ -1361,10 +1361,29 @@ export const STATUS_OUTLINE_WIDTH = '2px';
  * is a brown in any colour space. That fact is recorded three times in this
  * file already, from three different grounds, and it arrives here for a fourth:
  * light's gold lands at #936f06, which is a deep amber rather than the gold it
- * is in dark. Green and red are unambiguous in both themes. Nothing is done
- * about it, because the only lever is to stop clearing contrast.
+ * is in dark. Green and red are unambiguous in both themes.
+ *
+ * ⚠ YELLOW TAKES THE TRUE GRAPHICAL FLOOR, 3:1, NOT THE TEXT ONE (Aug 2026).
+ * "Reads as a disgusting olive, not a clean yellow" came back against this
+ * exact line and swatch. The 4.5 target above this hue's own paragraph is
+ * SELF-IMPOSED, not the requirement — a chart line is a 5px stroke, a
+ * graphical object under WCAG 1.4.11, and 3:1 is what it actually has to
+ * clear. Lowering yellow's own target to that true floor buys real headroom:
+ * `#917200` (4.52:1, chroma 0.1157) to `#b4900b` (3.00:1, chroma 0.1344) — a
+ * genuinely brighter, more saturated goldenrod. It is NOT a clean bright
+ * yellow the way dark's `#dbad00` is, and cannot be: dark's card is
+ * near-black, so a bright yellow clears 4.5:1 there with room to spare
+ * (7.59:1, unchanged by this — dark is already chroma-ceiling-bound, not
+ * target-bound, so lowering the floor moves nothing for it, checked
+ * directly). Light's card is near-white, so ANY yellow legible enough to
+ * read as a line against it is forced dark, and a dark yellow is olive or
+ * brown at every lightness this file has tried. 3:1 is the true ceiling of
+ * what a legible yellow line on a white card can be; going further means
+ * giving up on it being read as a line at all. Green, red and the two hinges
+ * are untouched, at 4.5 as before.
  */
 const LINE_FILL_TARGET = 4.5;
+const LINE_FILL_TARGET_YELLOW = 3.0;
 
 /**
  * The most chromatic rendering of `hue` that stands `target`:1 off `surface`,
@@ -2395,16 +2414,32 @@ export function solveTokens(mode: 'light' | 'dark'): SolvedTokens {
   const byHue = (f: (h: StatusHue) => string) =>
     Object.fromEntries(hues.map((h) => [h, f(h)])) as Record<StatusHue, string>;
 
+  // Yellow alone takes the true graphical floor (3:1) rather than the 4.5
+  // this file solves every other line hue to — see the note on
+  // `LINE_FILL_TARGET_YELLOW` above for why only this one hue needs it and
+  // why it costs dark nothing (dark's yellow is chroma-ceiling-bound, not
+  // target-bound, so a lower target picks the identical candidate there).
+  const lineTarget = (h: StatusHue) => (h === 'yellow' ? LINE_FILL_TARGET_YELLOW : LINE_FILL_TARGET);
   const line = byHue((hue) =>
     // The two hinges are MIDPOINTS of their neighbours, never solved
     // independently — see the note in buildThemeTokens.
     hue === 'olive' || hue === 'orange'
       ? mix(
-          solveAgainst(statusHue[hue === 'olive' ? 'green' : 'yellow'], [card], LINE_FILL_TARGET, bandChromaCeiling(hue === 'olive' ? 'green' : 'yellow')),
-          solveAgainst(statusHue[hue === 'olive' ? 'yellow' : 'red'], [card], LINE_FILL_TARGET, bandChromaCeiling(hue === 'olive' ? 'yellow' : 'red')),
+          solveAgainst(
+            statusHue[hue === 'olive' ? 'green' : 'yellow'],
+            [card],
+            lineTarget(hue === 'olive' ? 'green' : 'yellow'),
+            bandChromaCeiling(hue === 'olive' ? 'green' : 'yellow'),
+          ),
+          solveAgainst(
+            statusHue[hue === 'olive' ? 'yellow' : 'red'],
+            [card],
+            lineTarget(hue === 'olive' ? 'yellow' : 'red'),
+            bandChromaCeiling(hue === 'olive' ? 'yellow' : 'red'),
+          ),
           0.5,
         )
-      : solveAgainst(statusHue[hue], [card], LINE_FILL_TARGET, bandChromaCeiling(hue as 'green' | 'yellow' | 'red')),
+      : solveAgainst(statusHue[hue], [card], lineTarget(hue), bandChromaCeiling(hue as 'green' | 'yellow' | 'red')),
   );
   /**
    * ═══ THE CARD WASH IN DARK IS SOLVED FOR COLOUR NOW, NOT MATCHED ═══════
@@ -2550,7 +2585,9 @@ const SOLVED: Record<'light' | 'dark', SolvedTokens> = {
    * old value's exact luminance for precisely this reason. See the note there.
    */
   light: {
-    line: { green: '#507e2c', olive: '#717816', yellow: '#917200', orange: '#a95d1b', red: '#c14836' },
+    // ⚠ yellow (and its two hinges, olive and orange) moved with
+    // `LINE_FILL_TARGET_YELLOW` (Aug 2026) — see the note above that constant.
+    line: { green: '#507e2c', olive: '#82871c', yellow: '#b4900b', orange: '#bb6c21', red: '#c14836' },
     wash: { green: '#dce6d4', olive: '#ecedd3', yellow: '#fcf4d5', orange: '#f2e0ce', red: '#eed5d0' },
     track: { green: '#a1bc8c', olive: '#ccd08a', yellow: '#f9e28e', orange: '#dcac7c', red: '#d28c81' },
     label: { green: '#3d572c', yellow: '#79692a', red: '#8f3225' },

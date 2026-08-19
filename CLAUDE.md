@@ -1039,6 +1039,59 @@ checked and left alone: it was never passed through the mix-toward-espresso
 step that produces olive, so it was not the source of the complaint and moving
 it would have changed a token nobody was describing.
 
+## The trend chart's own yellow is a THIRD token family, and it moved too (Aug 2026)
+
+⚠ **THIS IS A DIFFERENT TOKEN FROM BOTH ABOVE.** The two sections above cover
+the status BADGE (`statusTextHex`, `--c-status-high`) and the card OUTLINE
+(`OUTLINE_FILL`). The trend chart's line, its point marks and its tooltip
+swatch read a third family entirely (`--c-hue-yellow-mark`, solved by
+`solveAgainst` against the card at `LINE_FILL_TARGET`), and the complaint
+came back against exactly this one: the tooltip's "Above range" swatch and
+word, which is `markFill()` in chartGeometry.ts, not `statusColor()`.
+
+**THE SAME WALL, FROM A FOURTH GROUND.** `LINE_FILL_TARGET` is 4.5, which
+the file's own comment on it already calls "not the requirement": a chart
+line is a 5px stroke, a graphical object under WCAG 1.4.11, and 3:1 is what
+it actually has to clear; 4.5 was a self-imposed margin, taken because the
+line is the only thing on the chart carrying status. **Yellow alone now
+takes the true 3:1 floor** (`LINE_FILL_TARGET_YELLOW`), the other four hues
+stay at 4.5. Measured: `#917200` (4.52:1, chroma 0.1157) to `#b4900b`
+(3.00:1, chroma 0.1344), a real, verified step brighter and more saturated,
+and the ceiling of what a yellow LINE can be against a near-white card and
+still read as a line. **Dark is unaffected**, checked directly: dark's
+yellow line is already chroma-ceiling-bound rather than target-bound (its
+own card is near-black, so `#dbad00` clears 4.5 with 7.59:1 to spare), so
+lowering the floor for light changes nothing there.
+
+**⚠ AND IT IS NOT A CLEAN BRIGHT YELLOW, AND CANNOT BE, EVEN AT THE TRUE
+FLOOR.** This is the same fact the file has now recorded from four separate
+grounds: a dark yellow is a brown or an olive at every lightness this hue
+has been solved to on a light surface, and 3:1 is the lowest a legible line
+can go. Going further than this means the line stops reading as a line
+against its own card, which is a different, worse failure than "looks a bit
+warm".
+
+**THE TWO HINGES MOVED WITH IT, BECAUSE THEY ARE MIDPOINTS OF IT.** Olive
+(green/yellow) and orange (yellow/red) are never solved independently, see
+the note on hinges in `buildThemeTokens`, so pulling yellow's own endpoint
+down pulled both midpoints down too: olive `#717816` → `#82871c` (3.83:1,
+was 4.68), orange `#a95d1b` → `#bb6c21` (3.94:1, was 4.80). Neither is a
+state a result can be in, so neither answers to its own accessibility floor
+in the first place; both are reported here because `SOLVED.light.line`
+changed on all three, together, in one edit.
+
+**TWO TESTS ASSUMED A FLAT 4.5 ACROSS ALL FIVE LINE HUES AND BOTH WERE
+UPDATED, NOT WEAKENED.** "keeps the line's casing three times quieter than
+the line": the glow around the line is a fixed-alpha composite, so a line
+closer to its own card has mechanically less room between itself and its
+own casing; yellow's ratio is 2.56 against the other four hues' 3+, and the
+floor is now per-hue (2.5 for light yellow, 3 everywhere else) rather than
+loosened for everybody. "is not a surface the trend line was ever solved
+against": the self-retiring pane-exception check asserted every hue clears
+a flat 4.5 on the card; it now asserts each hue clears ITS OWN target
+(yellow, olive and orange at 3, green and red at 4.5), which is the more
+accurate restatement of what the exception is actually protecting.
+
 ## Every card in a row is the height of the tallest card in it (Aug 2026)
 
 `.card-row` in globals.css, on every card grid. This REVERSES the `items-start`

@@ -1159,11 +1159,18 @@ describe.each(MODES)('%s theme', (mode) => {
     for (const hue of BAND_HUES) {
       const line = tone(mode, `--c-hue-${hue}-mark`);
       const casing = contrastRatio(blend(line, card, composite), card);
+      // ⚠ LIGHT YELLOW'S OWN RATIO IS 2.5, NOT 3 (Aug 2026). Its line is solved
+      // to the true graphical floor (3:1) rather than the 4.5 every other hue
+      // clears — see `LINE_FILL_TARGET_YELLOW` in tokens.ts — and a line closer
+      // to the card has less room between itself and a casing built from the
+      // same fixed-alpha layers, which is a mechanical consequence of that
+      // floor rather than a second, unrelated loosening. Measured: 2.56:1.
+      const ratioFloor = mode === 'light' && hue === 'yellow' ? 2.5 : 3;
       expect(
         contrastRatio(line, card) / casing,
         `${mode}: the ${hue} line is ${contrastRatio(line, card).toFixed(2)}:1 off the card ` +
           `and its casing ${casing.toFixed(3)}:1`,
-      ).toBeGreaterThanOrEqual(3);
+      ).toBeGreaterThanOrEqual(ratioFloor);
       // And it is drawn at all — see the third bound above.
       expect(casing, `${mode}: the ${hue} casing is ${casing.toFixed(3)}:1 off the card`).toBeGreaterThan(1.1);
     }
@@ -2441,18 +2448,26 @@ describe.each(MODES)('%s page-surface pane', (mode) => {
   it('is not a surface the trend line was ever solved against', () => {
     expect(paneOnPage).not.toBe(card);
     if (mode !== 'light') return;
-    const worst = (['green', 'olive', 'yellow', 'orange', 'red'] as const)
-      .map((hue) => contrastRatio(tone(mode, `--c-hue-${hue}-mark`), paneOnLit))
+    // Yellow alone is solved to the true graphical floor (3:1, WCAG_AA_LARGE_TEXT)
+    // rather than the text one every other line hue clears (Aug 2026) — see
+    // `LINE_FILL_TARGET_YELLOW` in tokens.ts. Olive and orange are MIDPOINTS
+    // that mix yellow with a 4.5-cleared neighbour (green, red), so both carry
+    // yellow's lower floor with them rather than clearing 4.5 in their own
+    // right — measured 3.83 and 3.94. "Clears its own target" is a per-hue
+    // question now rather than one flat number.
+    const ownTarget = (hue: string) =>
+      hue === 'yellow' || hue === 'olive' || hue === 'orange' ? WCAG_AA_LARGE_TEXT : WCAG_AA_TEXT;
+    const hues = ['green', 'olive', 'yellow', 'orange', 'red'] as const;
+    const worstPaneMargin = hues
+      .map((hue) => contrastRatio(tone(mode, `--c-hue-${hue}-mark`), paneOnLit) - ownTarget(hue))
       .reduce((a, b) => Math.min(a, b));
-    const onCard = (['green', 'olive', 'yellow', 'orange', 'red'] as const)
-      .map((hue) => contrastRatio(tone(mode, `--c-hue-${hue}-mark`), card))
+    const worstCardMargin = hues
+      .map((hue) => contrastRatio(tone(mode, `--c-hue-${hue}-mark`), card) - ownTarget(hue))
       .reduce((a, b) => Math.min(a, b));
-    expect(onCard, `the line does not clear its own target on a card: ${onCard.toFixed(2)}:1`).toBeGreaterThanOrEqual(
-      4.5,
-    );
+    expect(worstCardMargin, `the line does not clear its own target on a card`).toBeGreaterThanOrEqual(0);
     expect(
-      worst,
-      `the trend line now clears ${worst.toFixed(2)}:1 on a lit pane — the chart cards no longer need surface="card"`,
-    ).toBeLessThan(4.5);
+      worstPaneMargin,
+      `every line hue now clears its own target on a lit pane — the chart cards no longer need surface="card"`,
+    ).toBeLessThan(0);
   });
 });
