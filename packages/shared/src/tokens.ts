@@ -4008,16 +4008,38 @@ export const GLOW = {
   tertiary: { light: 0.12, dark: 0.32 },
   /**
    * The diagonal ribbon's own peak, at the brightest point of its brightest
-   * blob. Lowest of the four in both themes and deliberately so — it crosses the
-   * whole viewport, so it is the source with the most of the page inside it, and
-   * anything a reader notices AS a streak is too strong.
+   * blob. Lowest of the four in DARK, deliberately — it crosses the whole
+   * viewport there, so it is the source with the most of the page inside it,
+   * and anything a reader notices AS a streak was judged too strong for that
+   * theme.
    *
-   * ⚠ LIGHT IS 0.09 IN THE SIXTH PASS TOO — the blend-blue streak tracks the
-   * third source down, same as every pass before it: ordering has it below
-   * `tertiary`, and a source that crosses the whole viewport was never
-   * entitled to spend as much alpha per point as one confined to a corner.
+   * ═══════════════════════════════════════════════════════════════════════════
+   *  ⚠ AND LIGHT STOPPED BEING QUIETEST (Aug 2026, seventh pass) — "I like the
+   *  PS4 streak thing, implement that."
+   * ═══════════════════════════════════════════════════════════════════════════
+   *
+   * Every pass through the sixth kept the streak at the bottom of the ordering
+   * on the reasoning that a source covering the whole viewport reads as a
+   * streak at a much lower alpha than a source confined to a corner does. That
+   * reasoning is still correct on its own terms and is no longer the goal:
+   * the PS4 XMB background's own wave is one of the most visible things in
+   * that composition, not an ambient whisper, and matching it means letting
+   * this source be SEEN as a shape rather than staying below the threshold of
+   * being noticed.
+   *
+   * ⚠ LIGHT WENT 0.09 → 0.4, tracked with the tighter radius on
+   * `GLOW.streakRadius` — brighter AND narrower is what turns a wash into a
+   * legible band; brighter alone at the old spread would have just made a
+   * wider wash. It no longer sits below `tertiary` (see the ordering test,
+   * which now states this explicitly rather than asserting a strict chain of
+   * four) — it sits second, below the key and above the fill, which is where
+   * its own measured cost against the whole-viewport AA floor put it.
+   *
+   * DARK IS UNTOUCHED. The reference and the request were both about the
+   * light page; dark's ribbon already reads as a genuine sweep at its own
+   * numbers and nothing here changes it.
    */
-  streak: { light: 0.09, dark: 0.15 },
+  streak: { light: 0.48, dark: 0.15 },
   /**
    * ═══════════════════════════════════════════════════════════════════════════
    *  THE SIZE OF THE THREE POINT SOURCES (Aug 2026, fourth pass) ─────────────
@@ -4050,14 +4072,31 @@ export const GLOW = {
   },
   /**
    * The five ribbon blobs' own radius — separate from the point sources' above
-   * because the ribbon is a different shape (30% × 24% ellipses strung along a
-   * bowed diagonal, not one wide bloom), so "bigger" means something different
-   * for it: fatter blobs that overlap their neighbours by more, reading as a
+   * because the ribbon is a different shape (ellipses strung along a bowed
+   * diagonal, not one wide bloom), so "bigger" means something different for
+   * it: fatter blobs that overlap their neighbours by more, reading as a
    * thicker band rather than a wider glow. Dark unmoved, at the figure the
    * ribbon has always used.
+   *
+   * ⚠ LIGHT WAS TIGHTENED AND THEN PUT BACK, IN THE SAME PASS (Aug 2026) —
+   * "I like the PS4 streak thing, implement that". The first attempt shrank
+   * this to `19% / 14%` on the reasoning that a defined ribbon needs less
+   * spread per blob than a quiet wash does. Screenshotted, it did not read as
+   * a ribbon — it read as ONE bright blob (the peak, at 56% 38%) with its four
+   * neighbours too small and too far apart to visibly merge into it, because
+   * the chain's continuity depends on the blobs' reach exceeding roughly half
+   * the ~375-420px gap between their centres at 1440×900, and 19%/14% (about
+   * 274×126px) does not clear that on the vertical axis for the outer pairs.
+   *
+   * So the radius is DARK'S OWN, unchanged: `30% / 24%` is the configuration
+   * this exact five-blob chain is already proven to read as one continuous
+   * sweep at, in the theme that has used it the whole time. What makes
+   * light's now read as a defined band rather than a wash is entirely the
+   * peak in `GLOW.streak` — brighter, at a radius already known to merge
+   * cleanly, rather than a novel tighter one guessed and unverified.
    */
   streakRadius: {
-    light: { x: '40%', y: '32%' },
+    light: { x: '30%', y: '24%' },
     dark: { x: '30%', y: '24%' },
   },
 } as const;

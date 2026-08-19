@@ -30,6 +30,38 @@ Match the Aspire Rota sign-in for craft level. No default browser styling anywhe
 no native selects, no Chrome autofill blue, no native focus rings.
 Reference theaspireclinic.com for register: dark, atmospheric, spacious, restrained.
 
+## The streak is a featured band now, not the quietest source (Aug 2026, seventh pass)
+
+⚠ **THIS SUPERSEDES THE SIXTH PASS'S STREAK ENTRY ONLY.** "I like the PS4 streak
+thing, implement that" — the key, fill and third-source hues and peaks below are
+untouched; only `GLOW.streak.light` and `GLOW.streakRadius.light` moved.
+
+**THROUGH THE SIXTH PASS THE RIBBON WAS DELIBERATELY THE QUIETEST OF THE FOUR
+SOURCES, IN BOTH THEMES**, on the reasoning that a source covering the whole
+viewport reads as a streak at a much lower alpha than one confined to a corner.
+That reasoning is still true and is no longer the goal in light: the PS4 XMB
+wave is one of the most visible things in that composition, and the brief is to
+match it, which means letting this source be SEEN as a shape.
+
+**PEAK: 0.09 → 0.48.** Second-brightest of the four now, below the key and
+above the fill — where its own measured cost against the whole-viewport AA
+floor put it (worst point still 12.6:1 against a 4.5 floor, comfortable
+margin). The ordering test no longer asserts a strict four-deep chain for
+light; it asserts `streak < primary` only, and DARK KEEPS THE OLD CHAIN
+UNCHANGED (`streak < tertiary`), because dark's ribbon already reads as a
+genuine sweep at its own numbers and nothing here was asked to touch it.
+
+**⚠ ONE FALSE START, KEPT IN THE RECORD RATHER THAN ERASED.** The first attempt
+also shrank `streakRadius.light` from `40%/32%` to `19%/14%`, on the theory
+that a defined ribbon needs a tighter blob than a quiet wash does. Screenshotted,
+it did not read as a ribbon — it read as one bright blob (the peak, at 56% 38%)
+with its four neighbours too small and too far apart to visibly merge into it.
+**The radius is dark's own unmoved figure, `30%/24%`** — a configuration this
+exact five-blob chain is already proven to merge into one continuous sweep at,
+in the theme that has used it the whole time. What makes light's now read as a
+band is entirely the peak, at a radius already known to work, not a novel one
+guessed and unverified.
+
 ## Bold PlayStation-style blue and green, not warm (Aug 2026, sixth pass)
 
 ⚠ **THIS SUPERSEDES THE FIFTH PASS BELOW ON ALL FOUR GLOW HUES AND LEAVES THE

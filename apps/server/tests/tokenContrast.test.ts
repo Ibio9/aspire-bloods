@@ -2156,12 +2156,26 @@ describe.each(MODES)('%s ambient sources', (mode) => {
 
   it('is a fill rather than a second key', () => {
     // Equal sources cancel each other's direction and the page goes flat again
-    // with more colour in it. Strictly ordered, all four: key, fill, green, and
-    // the ribbon quietest of the lot — it covers the whole viewport, so it is
-    // the one with the most of the page inside it.
+    // with more colour in it. Key, fill and green are strictly ordered in both
+    // themes for that reason.
     expect(GLOW.secondary[mode]).toBeLessThan(GLOW.primary[mode]);
     expect(GLOW.tertiary[mode]).toBeLessThan(GLOW.secondary[mode]);
-    expect(GLOW.streak[mode]).toBeLessThan(GLOW.tertiary[mode]);
+    // ⚠ THE RIBBON WAS "QUIETEST OF THE FOUR" THROUGH THE SIXTH PASS, IN BOTH
+    // THEMES — DARK STILL IS. It covers the whole viewport there, so it is the
+    // source with the most of the page inside it, and that reasoning still
+    // holds for a theme nobody asked to change.
+    //
+    // LIGHT NO LONGER IS (Aug 2026, seventh pass — "I like the PS4 streak
+    // thing, implement that"). The brief was for the ribbon to be SEEN, which
+    // is the opposite request from "quietest of the four", so it moved up
+    // rather than staying pinned under a rule built for the opposite brief.
+    // It still sits below the key, which stays the single brightest source in
+    // both themes by construction.
+    if (mode === 'dark') {
+      expect(GLOW.streak[mode]).toBeLessThan(GLOW.tertiary[mode]);
+    } else {
+      expect(GLOW.streak[mode]).toBeLessThan(GLOW.primary[mode]);
+    }
   });
 
   /**
