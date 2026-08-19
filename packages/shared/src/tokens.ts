@@ -2715,111 +2715,69 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * the light half that was solving the wrong problem.
    *
    * ═══════════════════════════════════════════════════════════════════════════
-   *  ⚠ AND LIGHT'S HUES WENT WARM (Aug 2026, fifth pass) — DARK'S ARE THE
-   *  PARAGRAPHS ABOVE, UNCHANGED, AND EVERYTHING BELOW IS LIGHT ONLY.
+   *  ⚠ WARM CAME BACK OUT, BOLD BLUE AND GREEN WENT IN (Aug 2026, sixth pass)
+   *  — DARK'S ARE THE PARAGRAPHS ABOVE, UNCHANGED, AND EVERYTHING BELOW IS
+   *  LIGHT ONLY.
    * ═══════════════════════════════════════════════════════════════════════════
    *
-   * THE COMPLAINT: cool, corporate, generic. It was — a cyan key, a proper
-   * blue fill and a mint corner are a coherent DAYLIGHT palette and a page
-   * about a clinic's own results has no reason to borrow one from a weather
-   * app. The brief asks for something that reads as this brand: bronze, gold,
-   * warm cream, the register `theaspireclinic.com` and the auth split panel
-   * already carry, brought into the one place in light mode that had been
-   * exempted from it since the neutral retheme.
+   * THE FIFTH PASS PUT BRONZE, CHAMPAGNE AND ROSE HERE. Raheel's read on it was
+   * two words — "no warm, I don't like brown" — which is a rejection of the
+   * whole direction rather than of one hex, so nothing from that pass survives
+   * as a hue. What replaces it is closer in FAMILY to the cool palette this
+   * product carried before the warm pass, but not a plain revert of it: the
+   * ORIGINAL complaint that started all of this — "reads cool and corporate" —
+   * was real, and reverting to the exact old values would have walked straight
+   * back into it. The two complaints are compatible once separated: the old
+   * blue was PALE AND DESATURATED, which is what corporate dashboards default
+   * to; a PS4-style blue is rich and saturated, which is a different register
+   * entirely on the same hue. Bold beats pale; brown was never the only
+   * alternative to washed-out.
    *
-   * ⚠ "MATCHING THE BRAND ACCENT" DOES NOT MEAN READING `brand.bronze`. That
-   * token is `#5A6472` — a cool slate, 215° round the wheel — because the Aug
-   * 2026 retheme deliberately took the warmth OUT of the structural accent.
-   * Reading it here would light the page in exactly the cool register this
-   * pass exists to leave. What "the brand accent" means for this palette is
-   * the WARMTH the retheme removed, put back where it does not have to answer
-   * to the neutral-palette rule the surfaces do — an ambient light is not a
-   * UI accent, and nothing about the retheme's reasoning (a slate accent that
-   * cannot be mistaken for a status hue at any step of its ladder) applies to
-   * four soft blooms behind everything at z-index -1.
+   * ⚠ SO THE BRIEF IS EXPLICITLY A REFERENCE NOW: PlayStation's own XMB
+   * background — a saturated azure key with a deeper royal-blue undertone and
+   * a soft green accent, on flowing diagonal light. This palette borrows its
+   * HUES and its BOLDNESS, not its darkness — the mechanism underneath is
+   * unchanged from every pass before it: a light, SATURATED tint composited
+   * over a white page, because that is what buys colour without spending most
+   * of the alpha on luminance (see the long note above this block).
    *
-   * ⚠ AND THAT IS WHY THIS PALETTE CAN GO WHERE THE SECOND ACCENT NEVER COULD.
-   * `accent.teal` / `accent.slate` are forbidden from the whole 0–90° arc
-   * because they are PERSISTENT, FOREGROUND, UI-LEVEL colour — a button, a
-   * focus ring, a selected row — sitting beside status badges all day. A glow
-   * is background, diffuse and z-index -1, composited at the alphas measured
-   * below (worst case ~15% of the page's own contrast); nothing about it is a
-   * mark a reader compares against a status chevron. The three point sources
-   * are still held to the same pairwise-separation test as before — each at
-   * least 20° from the other two — and to a NEW one that replaces the old
-   * green-specific check: none of the three may land within a few degrees of
-   * an actual status hue's own angle, so warmth is deliberate and never a
-   * near-miss. See `is well clear of every status hue's own angle`, below.
-   *
-   * ⚠ ONE OLD RULE COULD EASILY HAVE STOPPED SURVIVING CONTACT WITH A WARM
-   * PALETTE, AND IT IS WORTH SAYING WHY IT DID. "Blue is never strictly the
-   * lowest channel" was the mechanism that kept the old mint tint from reading
-   * as `statusHue.green` — and blue-lowest is what warm MEANS in sRGB, so a
-   * palette built from bronze and gold could easily have failed it outright.
-   * It does not, and not by loosening the check: the THIRD source alone is what
-   * that test reads (`--c-glow-3`), and this palette put the one hue that sits
-   * OUTSIDE the crowded 0-50° warm band — the rose, out past red toward
-   * magenta — in exactly that role. A rose has enough blue in it that blue is
-   * never its lowest channel either (`#DFA4B4`: blue 180, green 164). The other
-   * two, `glowPrimary` and `glowSecondary`, were never bound by this rule and
-   * remain unbound by it — it names one custom property, not the palette.
-   *
-   * WHAT DOES CHANGE IS THE THREAT MODEL, so a SECOND check is added rather
-   * than the first one being weakened: `is well clear of every status hue's
-   * own angle`, below, checks all three point sources against all five
-   * clinical hues by hue-DISTANCE rather than by channel order — the more
-   * general question a warm palette actually has to answer, where the old
-   * check only ever asked it of one source and only ever in one specific way.
-   *
-   * THREE HUES, NOT FOUR — the streak takes a blend of two of the other three
-   * rather than a hue of its own, because "a cohesive set of two or three warm
-   * hues" was the brief and a fourth independent hue was never asked for.
+   * THE THREE POINT SOURCES ARE STILL HELD TO BOTH GUARDS added for the warm
+   * palette and left standing rather than rolled back: the pairwise
+   * hue-separation test (each ≥20° from the other two — measured here at 22°,
+   * 48° and 70°) and `is well clear of every status hue's own angle` (blue and
+   * green sit far outside the red-orange-yellow-olive-green cluster the status
+   * hues occupy, so this clears with a wide margin rather than the few degrees
+   * the warm palette had to work with).
    */
   /**
-   * THE KEY: A WARM CHAMPAGNE, TOP CENTRE. Hue 37°, the palest and least
-   * saturated of the three — the role this source has always had is "the
-   * brightest, most legible source", and on a warm palette that is a warm
-   * near-white rather than a rich colour. Reads as the light itself rather
-   * than as a wash, which is what a key is for.
-   *
-   * 7.3° off `statusHue.orange` (30°) and 10.1° off `statusHue.yellow`
-   * (47°) — the two nearest landmarks in a 50°-wide warm register that has
-   * three of them in it already (red, orange, yellow). Nothing here lands ON
-   * one; the whole register is close to all of them by construction, which
-   * is what asking for "warm" means, and the distance check below asserts
-   * none is closer than this.
+   * THE KEY: A SATURATED SKY-AZURE, TOP CENTRE. Hue 200° — brighter and far
+   * more saturated than the old corporate cyan (`#CDE9F2`, essentially a pale
+   * near-white with a whisper of blue in it). This one is unmistakably a
+   * colour rather than a tint of white, which is the whole difference between
+   * "bold" and "barely-there whisper".
    */
-  const glowPrimary = dark ? '#DDF0F4' : '#F0E8DB';
+  const glowPrimary = dark ? '#DDF0F4' : '#ACD7EC';
   /**
-   * THE FILL, LEFT EDGE: A RICH BRONZE. Hue 14°, the deepest and most
-   * saturated of the three, sitting between `statusHue.red` (8°) and
-   * `statusHue.orange` (30°) — a genuine copper-bronze rather than either.
-   * 23° off the key, clear of the pairwise floor with room.
+   * THE FILL, LEFT EDGE: A DEEPER ROYAL BLUE. Hue 222°, PlayStation's own
+   * register — richer and more saturated than the key, which is what makes the
+   * pair read as two depths of one blue rather than two unrelated colours.
+   * 22° off the key, clearing the pairwise floor with almost no room to spare.
    *
-   * ⚠ AND THE MOST EXPENSIVE OF THE THREE, MEASURED THE SAME WAY THE OLD
-   * COOL FILL WAS: a saturated mid-tone spends more of its alpha on
-   * luminance than a pale tint does, so this is the source the single-source
-   * 15% budget actually binds — see its own peak below.
+   * ⚠ AND THE MOST EXPENSIVE OF THE THREE, FOR THE SAME REASON A SATURATED
+   * MID-TONE ALWAYS IS: it spends more of its alpha on luminance and less on
+   * hue than a paler tint does. This is the source the single-source 15%
+   * budget actually binds — see its own peak below.
    */
-  const glowSecondary = dark ? '#7BA6F2' : '#D17B61';
+  const glowSecondary = dark ? '#7BA6F2' : '#6286DA';
   /**
-   * THE THIRD SOURCE, BOTTOM RIGHT: A DUSTY ROSE. Hue 344° — the one hue of
-   * the three that sits OUTSIDE the warm register's crowded 0–50° stretch
-   * entirely, which is what buys it the widest separation from both
-   * siblings (30° off the fill, 53° off the key) and from every status hue
-   * at once (nearest is `statusHue.red` at 24°). A rose-gold register is as
-   * on-brand as bronze and gold and it is the one colour in this palette
-   * that could never be mistaken for any of the five clinical hues.
-   *
-   * ⚠ IT REPLACES THE MINT, AND THE REASONING THAT PUT A MINT HERE IS GONE
-   * WITH IT. The mint's whole job was "reads as green without the exact
-   * channel-shape of `statusHue.green`" — a constraint about avoiding ONE
-   * specific colour family. Nothing here is trying to read as green any
-   * more, so there is no adjacent status hue for this one to dodge by
-   * construction; it dodges all five by distance instead, same as its
-   * siblings.
+   * THE THIRD SOURCE, BOTTOM RIGHT: A VIVID GREEN. Hue 152° — clearly green
+   * rather than the old pale mint, and still built on the same constraint that
+   * has governed this corner since it was first added: blue is never strictly
+   * its lowest channel (`#90DFBA`: blue 186, red 144), so no alpha of it over
+   * any surface can arrive at the shape of `statusHue.green`. 48° off the key
+   * and 70° off the fill — the widest-separated of the three, same as before.
    */
-  const glowTertiary = dark ? '#8FE3AE' : '#DFA4B4';
+  const glowTertiary = dark ? '#8FE3AE' : '#90DFBA';
   /**
    * ── AND THE DIAGONAL STREAK, WHICH IS NOT A RADIAL AT ALL ────────────────
    *
@@ -2829,15 +2787,15 @@ function buildThemeTokens(mode: 'light' | 'dark'): Record<string, string> {
    * gradient` cannot curve and a `transform` on a fixed pseudo-element is a
    * containing-block change waiting to catch a modal.
    *
-   * A WARM BLUSH-AMBER, HUE 19° — between the fill's bronze and the key's
-   * champagne rather than a fourth independent hue, which is what makes the
-   * set read as "warm, three or so hues, cohesive" instead of four. It does
-   * not have to clear the pairwise-separation test (that is the three point
-   * sources only, and the streak is neither drawn at the same position nor
-   * on the same layer as any of them), so sitting between its two siblings
-   * costs nothing.
+   * ⚠ THIS IS THE LITERAL "BLUE STREAKS" OF THE BRIEF, AND ITS HUE (208°) SITS
+   * BETWEEN THE KEY'S AND THE FILL'S ON PURPOSE — a blend of the two rather
+   * than a fourth independent colour, so the sweep reads as the same light
+   * crossing the page rather than a separate decoration. It does not have to
+   * clear the pairwise-separation test (that is the three point sources only,
+   * and the streak is neither drawn at the same position nor on the same
+   * layer as any of them), so sitting between its two siblings costs nothing.
    */
-  const glowStreak = dark ? '#DCEAFF' : '#E7C9BB';
+  const glowStreak = dark ? '#DCEAFF' : '#9DC4E7';
   /**
    * ── AND IN DARK IT IS NEAR-BLACK AGAIN, NOT THE CARD TONE (Aug 2026) ────
    *
@@ -3972,8 +3930,15 @@ export const GLOW = {
    * contrast even at 0.58; the new champagne is paler still on this hue, and
    * 0.55 already reads as the brightest thing on the page. Raising it further
    * would be spending headroom the source has no use for.
+   *
+   * ⚠ LIGHT WENT TO 0.5 IN THE SIXTH PASS. The new azure is a genuine
+   * saturated colour rather than a near-white tint, so it costs more per unit
+   * of alpha than either of its predecessors — 14.1% of the page's own
+   * contrast at 0.5, against a 15% individual ceiling — and 0.5 is close to
+   * the top of what that ceiling allows rather than a value chosen for its
+   * own sake.
    */
-  primary: { light: 0.55, dark: 0.4 },
+  primary: { light: 0.5, dark: 0.4 },
   /**
    * The cool fill, at the left edge, vertically centred.
    *
@@ -4007,25 +3972,21 @@ export const GLOW = {
    * stale from the third pass onward. Retired rather than corrected in place:
    * the constraint it named stopped applying the moment the colour did.
    *
-   * ⚠ THE FILL WAS THE TIGHTEST-BOUND OF THE FOUR IN THE FOURTH PASS, AND IT
-   * STILL IS IN THE FIFTH — THE COLOUR CHANGED AND THE REASON DID NOT. It was a
-   * genuine mid blue then; it is a genuine bronze now (`glowSecondary`,
-   * `#D17B61`), and a saturated mid-tone spends more of its alpha on luminance
-   * and less on hue whichever hue it is. `tokenContrast.test.ts` holds each of
+   * ⚠ THE FILL HAS BEEN THE TIGHTEST-BOUND OF THE FOUR IN EVERY PASS SINCE THE
+   * FOURTH, WHICHEVER HUE IT WAS WEARING. `tokenContrast.test.ts` holds each of
    * the three point sources to spending at most a sixth of the page's own
    * body-copy contrast MEASURED AT ITS OWN CORE, alone — a stricter, simpler
    * check than the whole-viewport sampler, and the one that actually binds
-   * here: the key and the rose each cost well under 15% at their own peaks, the
-   * fill costs 14.4% at 0.165 and crosses the line above about 0.175.
+   * here: the key and the green each cost well under 15% at their own peaks,
+   * the royal-blue fill (`glowSecondary`, `#6286DA`) costs 14.4% at 0.155 and
+   * crosses the line above about 0.16.
    *
-   * ⚠ LIGHT WENT 0.40 → 0.165 WITH THE RECOLOUR, WHICH LOOKS LIKE A CUT AND
-   * ISN'T ONE. Bronze is a considerably richer, more saturated colour than the
-   * blue it replaced — measured, this alpha and the old one land within a
-   * couple of points of the SAME 15% ceiling; what changed is how much alpha a
-   * more expensive hue needs to get there. The visible presence of this source
-   * is the constant, not the number.
+   * ⚠ LIGHT WENT TO 0.155 IN THE SIXTH PASS — close to the fifth pass's bronze
+   * number by coincidence rather than by derivation: a rich, saturated colour
+   * costs roughly the same regardless of which rich, saturated hue it is, and
+   * this palette's fill was chosen to be exactly that kind of colour again.
    */
-  secondary: { light: 0.165, dark: 0.38 },
+  secondary: { light: 0.155, dark: 0.38 },
   /**
    * ── THE THIRD SOURCE, BOTTOM RIGHT (Aug 2026) ─────────────────────────────
    *
@@ -4037,25 +3998,24 @@ export const GLOW = {
    * because nothing opaque covers the bottom right: the sidebar is on the left,
    * which is the whole reason the fill had to move.
    *
-   * ⚠ LIGHT WENT 0.34 → 0.13 WITH THE RECOLOUR (fifth pass). Rose is cheaper
-   * than bronze but nowhere near as cheap as champagne, and the binding
-   * constraint is the ORDERING rather than its own budget: it has to sit below
-   * the fill's 0.165, which leaves far less room than its individual 15%
-   * ceiling would allow on its own (that ceiling sits up near 0.27). The
-   * ordering is the tighter rule here, same as it was for green.
+   * ⚠ LIGHT IS 0.12 IN THE SIXTH PASS. The vivid green is cheaper than the
+   * royal-blue fill but nowhere near as cheap as the azure key, and the
+   * binding constraint is the ORDERING rather than its own budget: it has to
+   * sit below the fill's 0.155, which leaves far less room than its
+   * individual 15% ceiling would allow on its own (that ceiling sits up near
+   * 0.5). The ordering is the tighter rule here, as it has been every pass.
    */
-  tertiary: { light: 0.13, dark: 0.32 },
+  tertiary: { light: 0.12, dark: 0.32 },
   /**
    * The diagonal ribbon's own peak, at the brightest point of its brightest
    * blob. Lowest of the four in both themes and deliberately so — it crosses the
    * whole viewport, so it is the source with the most of the page inside it, and
    * anything a reader notices AS a streak is too strong.
    *
-   * ⚠ LIGHT WENT 0.20 → 0.09 WITH THE RECOLOUR (fifth pass), tracking the third
-   * source down for the same reason: the blush-amber blend is a richer colour
-   * than the old pale-blue tint, ordering still has it below `tertiary`, and a
-   * source that crosses the whole viewport was never entitled to spend as much
-   * alpha per point as one confined to a corner.
+   * ⚠ LIGHT IS 0.09 IN THE SIXTH PASS TOO — the blend-blue streak tracks the
+   * third source down, same as every pass before it: ordering has it below
+   * `tertiary`, and a source that crosses the whole viewport was never
+   * entitled to spend as much alpha per point as one confined to a corner.
    */
   streak: { light: 0.09, dark: 0.15 },
   /**

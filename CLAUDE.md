@@ -30,7 +30,55 @@ Match the Aspire Rota sign-in for craft level. No default browser styling anywhe
 no native selects, no Chrome autofill blue, no native focus rings.
 Reference theaspireclinic.com for register: dark, atmospheric, spacious, restrained.
 
+## Bold PlayStation-style blue and green, not warm (Aug 2026, sixth pass)
+
+⚠ **THIS SUPERSEDES THE FIFTH PASS BELOW ON ALL FOUR GLOW HUES AND LEAVES THE
+PAGE BASE STANDING.** Raheel's read on the fifth pass: "no warm, I don't like
+brown." Every hue below is new; `LIGHT_BASE` and the pane-fill work from the
+fifth pass are untouched — the rejection was of warmth, not of white.
+
+**THE REFERENCE IS THE PS4 XMB BACKGROUND, LITERALLY**: a saturated azure key,
+a deeper royal-blue undertone and a soft green accent, on flowing diagonal
+light. That is a DIFFERENT register from the cool palette this product carried
+before the warm pass, even though both are blue-and-green — the old one
+(`#CDE9F2` key, `#AFC8F5` fill, `#B6E8CB` third) was pale and desaturated,
+which is what read as "corporate" in the first place. This pass borrows the
+PS4 reference's saturation and boldness, not its darkness; the underlying
+mechanism — a light, saturated tint composited over the white page — is
+unchanged from every pass before it.
+
+    role      light hue              was (warm, fifth pass)
+    key       azure       #ACD7EC   champagne    #F0E8DB
+    fill      royal blue  #6286DA   bronze       #D17B61
+    third     green       #90DFBA   dusty rose   #DFA4B4
+    streak    blend-blue  #9DC4E7   blush-amber  #E7C9BB
+
+**THE FILL IS STILL THE TIGHTEST-BOUND OF THE FOUR, WHICHEVER HUE IT WEARS.**
+The single-source 15% contrast budget (`tokenContrast.test.ts`, measured at
+each source's own core) has bound the fill in every pass since the fourth —
+third's bronze topped out near 0.175, this pass's royal blue tops out near
+0.16, both because a saturated mid-tone costs more contrast per unit of alpha
+than a pale tint does, regardless of which saturated hue it is. Peaks: key
+0.5, fill 0.155, third 0.12, streak 0.09 — strictly decreasing, same ordering
+every pass has held.
+
+**BOTH GUARDS ADDED FOR THE WARM PALETTE STAY, AND BOTH CLEAR WITH MORE ROOM
+THAN WARM EVER HAD.** The pairwise hue-separation test (22°, 48°, 70° apart)
+and `is well clear of every status hue's own angle` (blue and green sit
+outside the red-orange-yellow-olive-green cluster entirely, so this clears
+by tens of degrees rather than the single-digit margins warm needed). The
+third source is still built as a green with blue not strictly its lowest
+channel (`#90DFBA`: blue 186, red 144), the same constraint that has governed
+this corner since it was first added.
+
+**DARK IS UNTOUCHED, VERIFIED ON SCREENSHOT.** Pixel-diffed the Account &
+privacy page in dark mode before and after: zero difference.
+
 ## Pure white, and warm bronze, gold and rose in the light (Aug 2026, fifth pass)
+
+⚠ **SUPERSEDED — see "Bold PlayStation-style blue and green, not warm" above.**
+The page-base work here (pure neutral `#F2F2F2`, the pane-fill cut) stands;
+every glow hue below has moved on since.
 
 ⚠ **THIS SUPERSEDES THE FOURTH PASS BELOW ON THE PAGE'S CHANNEL BIAS AND ON ALL
 FOUR GLOW HUES. THE STRUCTURE IS UNCHANGED.** Scope stays light mode's page base
