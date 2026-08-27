@@ -365,6 +365,15 @@ export function isRandoxEnabled(): boolean {
   return env.RANDOX_ENABLED;
 }
 
+/**
+ * Whether the Clinic Booking API is in use. Separate from isRandoxEnabled:
+ * results/ordering (Nexus) can run live while booking stays off, so the boot
+ * guard only enforces the RANDOX_BOOKING_* credentials when this is true.
+ */
+export function isBookingEnabled(): boolean {
+  return env.RANDOX_BOOKING_ENABLED;
+}
+
 // ---------------------------------------------------------------------------
 // Boot-time validation
 // ---------------------------------------------------------------------------
@@ -427,13 +436,6 @@ export function assertRandoxConfigured(): void {
     { name: 'RANDOX_NEXUS_TOKEN_URL (or RANDOX_B2C_TOKEN_URL)', value: nexus.tokenUrl, why: 'B2C ROPC token endpoint' },
     { name: 'RANDOX_NEXUS_USERNAME (or RANDOX_USERNAME)', value: nexus.username, why: 'ROPC is a password grant — it needs a service account' },
     { name: 'RANDOX_NEXUS_PASSWORD (or RANDOX_PASSWORD)', value: nexus.password, why: 'ROPC is a password grant — it needs a service account' },
-    { name: 'RANDOX_BOOKING_BASE_URL', value: booking.baseUrl, why: 'Clinic Booking API root' },
-    { name: 'RANDOX_BOOKING_CLIENT_ID', value: booking.clientId, why: 'Azure B2C client id for Clinic Booking' },
-    { name: 'RANDOX_BOOKING_SCOPE', value: booking.scope, why: 'ROPC token request needs the Booking scope' },
-    { name: 'RANDOX_BOOKING_SUBSCRIPTION_KEY', value: booking.subscriptionKey, why: 'Ocp-Apim-Subscription-Key on every Booking request' },
-    { name: 'RANDOX_BOOKING_TOKEN_URL (or RANDOX_B2C_TOKEN_URL)', value: booking.tokenUrl, why: 'B2C ROPC token endpoint' },
-    { name: 'RANDOX_BOOKING_USERNAME (or RANDOX_USERNAME)', value: booking.username, why: 'ROPC is a password grant — it needs a service account' },
-    { name: 'RANDOX_BOOKING_PASSWORD (or RANDOX_PASSWORD)', value: booking.password, why: 'ROPC is a password grant — it needs a service account' },
   ];
 
   if (env.RANDOX_CLINIC_ID.trim() !== '' && randoxClinicId() === null) {
@@ -449,6 +451,32 @@ export function assertRandoxConfigured(): void {
         missing.map((v) => `  - ${v.name} — ${v.why}`).join('\n') +
         '\nSee .env.example. Set RANDOX_ENABLED=false to run without the Randox integration, or RANDOX_TRANSPORT=mock to run it against fixtures.',
     );
+  }
+
+  // Booking credentials are only required when the Clinic Booking API is in
+  // use. Results/ordering (Nexus) go live without them, so a dropped or
+  // deferred booking feature does not block a results go-live.
+  // Booking credentials are only required when the Clinic Booking API is in
+  // use. Results/ordering (Nexus) go live without them, so a dropped or
+  // deferred booking feature does not block a results go-live.
+  if (isBookingEnabled()) {
+    const bookingRequired: RequiredVar[] = [
+      { name: 'RANDOX_BOOKING_BASE_URL', value: booking.baseUrl, why: 'Clinic Booking API root' },
+      { name: 'RANDOX_BOOKING_CLIENT_ID', value: booking.clientId, why: 'Azure B2C client id for Clinic Booking' },
+      { name: 'RANDOX_BOOKING_SCOPE', value: booking.scope, why: 'ROPC token request needs the Booking scope' },
+      { name: 'RANDOX_BOOKING_SUBSCRIPTION_KEY', value: booking.subscriptionKey, why: 'Ocp-Apim-Subscription-Key on every Booking request' },
+      { name: 'RANDOX_BOOKING_TOKEN_URL (or RANDOX_B2C_TOKEN_URL)', value: booking.tokenUrl, why: 'B2C ROPC token endpoint' },
+      { name: 'RANDOX_BOOKING_USERNAME (or RANDOX_USERNAME)', value: booking.username, why: 'ROPC is a password grant, needs a service account' },
+      { name: 'RANDOX_BOOKING_PASSWORD (or RANDOX_PASSWORD)', value: booking.password, why: 'ROPC is a password grant, needs a service account' },
+    ];
+    const missingBooking = bookingRequired.filter((v) => !v.value || v.value.trim() === '');
+    if (missingBooking.length > 0) {
+      throw new RandoxConfigError(
+        `Refusing to boot: RANDOX_BOOKING_ENABLED=true and RANDOX_TRANSPORT=live, but ${missingBooking.length} booking setting(s) are missing:\n` +
+          missingBooking.map((v) => `  - ${v.name}, ${v.why}`).join('\n') +
+          '\nSet RANDOX_BOOKING_ENABLED=false to run results without the booking API.',
+      );
+    }
   }
 
   // A live integration with no panel or test ids can never place an order.

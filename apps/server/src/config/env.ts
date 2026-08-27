@@ -74,6 +74,14 @@ const envSchema = z.object({
     .string()
     .default('false')
     .transform((v) => v === 'true'),
+  // Separate switch for the Clinic Booking API. Off by default: results and
+  // ordering (Nexus) can go live without booking credentials, so a dropped or
+  // deferred booking feature does not block a results go-live. When true, the
+  // boot guard enforces the RANDOX_BOOKING_* vars again. See config.ts.
+  RANDOX_BOOKING_ENABLED: z
+    .string()
+    .default('false')
+    .transform((v) => v === 'true'),
   // 'mock' runs the entire order → book → poll → ingest flow against
   // in-process fixtures, which is how this is developed and tested while
   // sandbox access is pending. Refused in production (see config.ts).
