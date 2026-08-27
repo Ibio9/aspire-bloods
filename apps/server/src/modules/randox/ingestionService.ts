@@ -160,8 +160,17 @@ export async function normaliseResultDetail(
     // no separate void field in the spec. So every code goes through the
     // same classifier and the configured map decides which it is; an
     // unrecognised code is void. See codes.ts.
-    const codes = splitCaveatField(raw.caveat);
-    const assessment = assessCodes({ voidCodes: [], caveatCodes: codes });
+    const caveatCodes = splitCaveatField(raw.caveat);
+    // CONFIRMED against real Randox data (dummy order 900002): a void code is
+    // delivered IN the `result` field, in place of the value (e.g. "VOIDQ"),
+    // with a null caveat. So the result field is classified too, and a code
+    // found there voids the row. Without this, "VOIDQ" falls through to
+    // parseRandoxValue as qualitative text and renders to the patient.
+    const resultAsCode = looksLikeCode(raw.result);
+    const assessment = assessCodes({
+      voidCodes: resultAsCode ? [resultAsCode] : [],
+      caveatCodes,
+    });
 
     for (const code of assessment.unrecognisedCodes) {
       await recordUnknownCode(code, { orderNumber: detail.orderNumber, markerName: name });
@@ -383,6 +392,27 @@ function splitCaveatField(caveat: string | null): string[] {
     .split(/[,;|\n]/)
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+/**
+ * Detects a Randox lab code sitting in the `result` field where a value
+ * should be. Confirmed against real data: a voided analyte carries its void
+ * code (e.g. "VOIDQ") as the entire result string, no flag, null caveat.
+ *
+ * Narrow by design: an all-caps token with optional trailing digits, and NOT
+ * a number, comparator, or ordinary qualitative phrase. "VOIDQ" matches;
+ * "162.0", "< 5.0", "Not detected", "Reactive" do not. A match goes to the
+ * classifier, which decides known vs unknown; an unknown token where a number
+ * belongs voids, because it is not a result.
+ */
+function looksLikeCode(result: string | null | undefined): string | null {
+  if (result === null || result === undefined) return null;
+  const text = String(result).trim();
+  if (text === '') return null;
+  if (Number.isFinite(Number(text))) return null;
+  if (/^(<=|>=|<|>|\u2264|\u2265|=<|=>)/.test(text)) return null;
+  if (/^[A-Z]{2,}[0-9]*$/.test(text)) return text;
+  return null;
 }
 
 /**
